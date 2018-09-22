@@ -285,13 +285,11 @@ FullO3CPU<Impl>::FullO3CPU(DerivO3CPUParams *params)
 
     // Initialize rename map to assign physical registers to the
     // architectural registers for active threads only.
-    PhysRegIdPtr zero_phys_reg = freeList.getIntReg();
     for (ThreadID tid = 0; tid < active_threads; tid++) {
         for (RegIndex ridx = 0; ridx < TheISA::NumIntRegs; ++ridx) {
             // Note that we can't use the rename() method because we don't
             // want special treatment for the zero register at this point
-            PhysRegIdPtr phys_reg = (ridx != TheISA::ZeroReg) ?
-                                    freeList.getIntReg() : zero_phys_reg;
+            PhysRegIdPtr phys_reg = freeList.getIntReg();
             renameMap[tid].setEntry(RegId(IntRegClass, ridx), phys_reg);
             commitRenameMap[tid].setEntry(RegId(IntRegClass, ridx), phys_reg);
         }

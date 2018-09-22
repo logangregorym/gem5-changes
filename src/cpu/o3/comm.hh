@@ -67,13 +67,13 @@ class PhysRegId : private RegId {
     PhysRegIndex flatIdx;
 
   public:
-    explicit PhysRegId() : RegId(IntRegClass, -1), flatIdx(-1) {}
+    explicit PhysRegId() : RegId(IntRegClass, -1), flatIdx(-1) { }
 
     /** Scalar PhysRegId constructor. */
     explicit PhysRegId(RegClass _regClass, PhysRegIndex _regIdx,
               PhysRegIndex _flatIdx)
         : RegId(_regClass, _regIdx), flatIdx(_flatIdx)
-    {}
+    { }
 
     /** Vector PhysRegId constructor (w/ elemIndex). */
     explicit PhysRegId(RegClass _regClass, PhysRegIndex _regIdx,

@@ -715,6 +715,3 @@ def run(options, root, testsys, cpu_class):
           (m5.curTick(), exit_event.getCause()))
     if options.checkpoint_at_end:
         m5.checkpoint(joinpath(cptdir, "cpt.%d"))
-
-    if exit_event.getCode() != 0:
-        print("Simulated exit code not 0! Exit code is", exit_event.getCode())

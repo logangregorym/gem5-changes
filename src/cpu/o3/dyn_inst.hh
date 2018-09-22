@@ -376,8 +376,10 @@ class BaseO3DynInst : public BaseDynInst<Impl>
      */
     void setIntRegOperand(const StaticInst *si, int idx, IntReg val)
     {
-        this->cpu->setIntReg(this->_destRegIdx[idx], val);
-        BaseDynInst<Impl>::setIntRegOperand(si, idx, val);
+        if (si->destRegIdx(idx) != RegId(IntRegClass, TheISA::ZeroReg)) {
+            this->cpu->setIntReg(this->_destRegIdx[idx], val);
+            BaseDynInst<Impl>::setIntRegOperand(si, idx, val);
+        }
     }
 
     void setFloatRegOperand(const StaticInst *si, int idx, FloatReg val)

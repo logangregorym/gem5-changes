@@ -1035,7 +1035,7 @@ InstructionQueue<Impl>::wakeDependents(DynInstPtr &completed_inst)
 
         // Special case of uniq or control registers.  They are not
         // handled by the IQ and thus have no dependency graph entry.
-        if (dest_reg->isFixedMapping()) {
+        if (dest_reg->isFixedMapping() || completed_inst->destRegIdx(dest_reg_idx) == RegId(IntRegClass, TheISA::ZeroReg)) {
             DPRINTF(IQ, "Reg %d [%s] is part of a fix mapping, skipping\n",
                     dest_reg->index(), dest_reg->className());
             continue;
@@ -1351,7 +1351,7 @@ InstructionQueue<Impl>::doSquash(ThreadID tid)
         {
             PhysRegIdPtr dest_reg =
                 squashed_inst->renamedDestRegIdx(dest_reg_idx);
-            if (dest_reg->isFixedMapping()){
+            if (dest_reg->isFixedMapping() || squashed_inst->destRegIdx(dest_reg_idx) == RegId(IntRegClass, TheISA::ZeroReg)) {
                 continue;
             }
             assert(dependGraph.empty(dest_reg->flatIndex()));
@@ -1385,6 +1385,8 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
             // it be added to the dependency graph.
             if (src_reg->isFixedMapping()) {
                 continue;
+            } else if (new_inst->srcRegIdx(src_reg_idx) == RegId(IntRegClass, TheISA::ZeroReg)) {
+                new_inst->markSrcRegReady(src_reg_idx);
             } else if (!regScoreboard[src_reg->flatIndex()]) {
                 DPRINTF(IQ, "Instruction PC %s has src reg %i (%s) that "
                         "is being added to the dependency chain.\n",
@@ -1428,7 +1430,7 @@ InstructionQueue<Impl>::addToProducers(DynInstPtr &new_inst)
 
         // Some registers have fixed mapping, and there is no need to track
         // dependencies as these instructions must be executed at commit.
-        if (dest_reg->isFixedMapping()) {
+        if (dest_reg->isFixedMapping() || new_inst->destRegIdx(dest_reg_idx) == RegId(IntRegClass, TheISA::ZeroReg)) {
             continue;
         }
 

@@ -177,6 +177,9 @@ system = System(cpu = [CPUClass(cpu_id=i) for i in xrange(np)],
 
 if numThreads > 1:
     system.multi_thread = True
+    CPUClass._uncached_slave_ports += ["interrupts[1].pio",
+                              "interrupts[1].int_slave"]
+    CPUClass._uncached_master_ports += ["interrupts[1].int_master"]
 
 # Create a top-level voltage domain
 system.voltage_domain = VoltageDomain(voltage = options.sys_voltage)
