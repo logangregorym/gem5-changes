@@ -334,9 +334,6 @@ DefaultFetch<Impl>::startupStage()
     assert(priorityList.empty());
     resetStage();
 
-    // Fetch needs to start fetching instructions at the very beginning,
-    // so it must start up in active state.
-    switchToActive();
 }
 
 template<class Impl>
@@ -792,6 +789,8 @@ DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
     // some opportunities to handle interrupts may be missed.
     delayedCommit[tid] = true;
 
+    stalls[tid].decode = false;
+
     ++fetchSquashCycles;
 }
 
@@ -991,7 +990,6 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
     }
 
     if (fromDecode->decodeUnblock[tid]) {
-        assert(stalls[tid].decode);
         assert(!fromDecode->decodeBlock[tid]);
         stalls[tid].decode = false;
     }

@@ -336,6 +336,8 @@ DefaultDecode<Impl>::squash(DynInstPtr &inst, ThreadID tid)
 
     // Squash instructions up until this one
     cpu->removeInstsUntil(squash_seq_num, tid);
+
+    stalls[tid].rename = false;
 }
 
 template<class Impl>
@@ -382,6 +384,8 @@ DefaultDecode<Impl>::squash(ThreadID tid)
     while (!skidBuffer[tid].empty()) {
         skidBuffer[tid].pop();
     }
+
+    stalls[tid].rename = false;
 
     return squash_count;
 }
@@ -484,7 +488,6 @@ DefaultDecode<Impl>::readStallSignals(ThreadID tid)
     }
 
     if (fromRename->renameUnblock[tid]) {
-        assert(stalls[tid].rename);
         stalls[tid].rename = false;
     }
 }

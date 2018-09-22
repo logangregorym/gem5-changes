@@ -60,15 +60,26 @@
 namespace X86ISA {
 
 TLB::TLB(const Params *p)
-    : BaseTLB(p), configAddress(0), size(p->size),
-      tlb(size), lruSeq(0)
+    : BaseTLB(p), configAddress(0), size(p->size), numThreads(p->numThreads),
+      lruSeq(0)
 {
     if (!size)
         fatal("TLBs must have a non-zero size.\n");
 
-    for (int x = 0; x < size; x++) {
-        tlb[x].trieHandle = NULL;
-        freeList.push_back(&tlb[x]);
+    for (int i = 0; i < numThreads; i++) {
+        TlbEntry* i_tlb = new TlbEntry[size];
+        std::memset(i_tlb, 0, sizeof(TlbEntry) * size);
+        tlb.push_back(i_tlb);
+
+        EntryList i_freeList;
+        for (int x = 0; x < size; x++) {
+            tlb[i][x].trieHandle = NULL;
+            i_freeList.push_back(&tlb[i][x]);
+        }
+        freeList.push_back(i_freeList);
+
+        TlbEntryTrie trie_entry;
+        trie.push_back(trie_entry);
     }
 
     walker = p->walker;
@@ -76,51 +87,51 @@ TLB::TLB(const Params *p)
 }
 
 void
-TLB::evictLRU()
+TLB::evictLRU(ThreadID tid)
 {
     // Find the entry with the lowest (and hence least recently updated)
     // sequence number.
 
     unsigned lru = 0;
     for (unsigned i = 1; i < size; i++) {
-        if (tlb[i].lruSeq < tlb[lru].lruSeq)
+        if (tlb[tid][i].lruSeq < tlb[tid][lru].lruSeq)
             lru = i;
     }
 
-    assert(tlb[lru].trieHandle);
-    trie.remove(tlb[lru].trieHandle);
-    tlb[lru].trieHandle = NULL;
-    freeList.push_back(&tlb[lru]);
+    assert(tlb[tid][lru].trieHandle);
+    trie[tid].remove(tlb[tid][lru].trieHandle);
+    tlb[tid][lru].trieHandle = NULL;
+    freeList[tid].push_back(&tlb[tid][lru]);
 }
 
 TlbEntry *
-TLB::insert(Addr vpn, const TlbEntry &entry)
+TLB::insert(Addr vpn, ThreadID tid, const TlbEntry &entry)
 {
     // If somebody beat us to it, just use that existing entry.
-    TlbEntry *newEntry = trie.lookup(vpn);
+    TlbEntry *newEntry = trie[tid].lookup(vpn);
     if (newEntry) {
         assert(newEntry->vaddr == vpn);
         return newEntry;
     }
 
-    if (freeList.empty())
-        evictLRU();
+    if (freeList[tid].empty())
+        evictLRU(tid);
 
-    newEntry = freeList.front();
-    freeList.pop_front();
+    newEntry = freeList[tid].front();
+    freeList[tid].pop_front();
 
     *newEntry = entry;
     newEntry->lruSeq = nextSeq();
     newEntry->vaddr = vpn;
     newEntry->trieHandle =
-    trie.insert(vpn, TlbEntryTrie::MaxBits - entry.logBytes, newEntry);
+    trie[tid].insert(vpn, TlbEntryTrie::MaxBits - entry.logBytes, newEntry);
     return newEntry;
 }
 
 TlbEntry *
-TLB::lookup(Addr va, bool update_lru)
+TLB::lookup(Addr va, ThreadID tid, bool update_lru)
 {
-    TlbEntry *entry = trie.lookup(va);
+    TlbEntry *entry = trie[tid].lookup(va);
     if (entry && update_lru)
         entry->lruSeq = nextSeq();
     return entry;
@@ -130,11 +141,13 @@ void
 TLB::flushAll()
 {
     DPRINTF(TLB, "Invalidating all entries.\n");
-    for (unsigned i = 0; i < size; i++) {
-        if (tlb[i].trieHandle) {
-            trie.remove(tlb[i].trieHandle);
-            tlb[i].trieHandle = NULL;
-            freeList.push_back(&tlb[i]);
+    for (int i_t = 0; i_t < numThreads; i_t++) {
+        for (unsigned i = 0; i < size; i++) {
+            if (tlb[i_t][i].trieHandle) {
+                trie[i_t].remove(tlb[i_t][i].trieHandle);
+                tlb[i_t][i].trieHandle = NULL;
+                freeList[i_t].push_back(&tlb[i_t][i]);
+            }
         }
     }
 }
@@ -149,11 +162,13 @@ void
 TLB::flushNonGlobal()
 {
     DPRINTF(TLB, "Invalidating all non global entries.\n");
-    for (unsigned i = 0; i < size; i++) {
-        if (tlb[i].trieHandle && !tlb[i].global) {
-            trie.remove(tlb[i].trieHandle);
-            tlb[i].trieHandle = NULL;
-            freeList.push_back(&tlb[i]);
+    for (int i_t = 0; i_t < numThreads; i_t++) {
+        for (unsigned i = 0; i < size; i++) {
+            if (tlb[i_t][i].trieHandle && !tlb[i_t][i].global) {
+                trie[i_t].remove(tlb[i_t][i].trieHandle);
+                tlb[i_t][i].trieHandle = NULL;
+                freeList[i_t].push_back(&tlb[i_t][i]);
+            }
         }
     }
 }
@@ -161,11 +176,11 @@ TLB::flushNonGlobal()
 void
 TLB::demapPage(Addr va, uint64_t asn)
 {
-    TlbEntry *entry = trie.lookup(va);
+    TlbEntry *entry = trie[asn].lookup(va);
     if (entry) {
-        trie.remove(entry->trieHandle);
+        trie[asn].remove(entry->trieHandle);
         entry->trieHandle = NULL;
-        freeList.push_back(entry);
+        freeList[asn].push_back(entry);
     }
 }
 
@@ -333,7 +348,7 @@ TLB::translate(const RequestPtr &req,
         if (m5Reg.paging) {
             DPRINTF(TLB, "Paging enabled.\n");
             // The vaddr already has the segment base applied.
-            TlbEntry *entry = lookup(vaddr);
+            TlbEntry *entry = lookup(vaddr, tc->threadId());
             if (mode == Read) {
                 rdAccesses++;
             } else {
@@ -355,7 +370,7 @@ TLB::translate(const RequestPtr &req,
                         delayedResponse = true;
                         return fault;
                     }
-                    entry = lookup(vaddr);
+                    entry = lookup(vaddr, tc->threadId());
                     assert(entry);
                 } else {
                     Process *p = tc->getProcessPtr();
@@ -375,7 +390,7 @@ TLB::translate(const RequestPtr &req,
                         Addr alignedVaddr = p->pTable->pageAlign(vaddr);
                         DPRINTF(TLB, "Mapping %#x to %#x\n", alignedVaddr,
                                 pte->paddr);
-                        entry = insert(alignedVaddr, TlbEntry(
+                        entry = insert(alignedVaddr, tc->threadId(), TlbEntry(
                                 p->pTable->pid(), alignedVaddr, pte->paddr,
                                 pte->flags & EmulationPageTable::Uncacheable,
                                 pte->flags & EmulationPageTable::ReadOnly));
@@ -483,9 +498,12 @@ TLB::serialize(CheckpointOut &cp) const
     SERIALIZE_SCALAR(lruSeq);
 
     uint32_t _count = 0;
-    for (uint32_t x = 0; x < size; x++) {
-        if (tlb[x].trieHandle != NULL)
-            tlb[x].serializeSection(cp, csprintf("Entry%d", _count++));
+    for (int i_t = 0; i_t < numThreads; i_t++) {
+        for (uint32_t x = 0; x < size; x++) {
+            if (tlb[i_t][x].trieHandle != NULL)
+                tlb[i_t][x].serializeSection(cp,
+                                csprintf("Entry%d", _count++));
+        }
     }
 }
 
@@ -501,13 +519,15 @@ TLB::unserialize(CheckpointIn &cp)
 
     UNSERIALIZE_SCALAR(lruSeq);
 
-    for (uint32_t x = 0; x < _size; x++) {
-        TlbEntry *newEntry = freeList.front();
-        freeList.pop_front();
+    for (int i_t = 0; i_t < numThreads; i_t++) {
+        for (uint32_t x = 0; x < _size; x++) {
+            TlbEntry *newEntry = freeList[i_t].front();
+            freeList[i_t].pop_front();
 
-        newEntry->unserializeSection(cp, csprintf("Entry%d", x));
-        newEntry->trieHandle = trie.insert(newEntry->vaddr,
-            TlbEntryTrie::MaxBits - newEntry->logBytes, newEntry);
+            newEntry->unserializeSection(cp, csprintf("Entry%d", x));
+            newEntry->trieHandle = trie[i_t].insert(newEntry->vaddr,
+                TlbEntryTrie::MaxBits - newEntry->logBytes, newEntry);
+        }
     }
 }
 

@@ -247,7 +247,7 @@ BaseCPU::BaseCPU(Params *p, bool is_checker)
                  "per thread (%i)\n",
                  name(), interrupts.size(), numThreads);
         for (ThreadID tid = 0; tid < numThreads; tid++)
-            interrupts[tid]->setCPU(this);
+            interrupts[tid]->setCPU(this, tid);
     }
 
     if (FullSystem) {
@@ -687,7 +687,7 @@ BaseCPU::takeOverFrom(BaseCPU *oldCPU)
 
     interrupts = oldCPU->interrupts;
     for (ThreadID tid = 0; tid < numThreads; tid++) {
-        interrupts[tid]->setCPU(this);
+        interrupts[tid]->setCPU(this, tid);
     }
     oldCPU->interrupts.clear();
 

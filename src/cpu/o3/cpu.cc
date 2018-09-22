@@ -285,11 +285,13 @@ FullO3CPU<Impl>::FullO3CPU(DerivO3CPUParams *params)
 
     // Initialize rename map to assign physical registers to the
     // architectural registers for active threads only.
+    PhysRegIdPtr zero_phys_reg = freeList.getIntReg();
     for (ThreadID tid = 0; tid < active_threads; tid++) {
         for (RegIndex ridx = 0; ridx < TheISA::NumIntRegs; ++ridx) {
             // Note that we can't use the rename() method because we don't
             // want special treatment for the zero register at this point
-            PhysRegIdPtr phys_reg = freeList.getIntReg();
+            PhysRegIdPtr phys_reg = (ridx != TheISA::ZeroReg) ?
+                                    freeList.getIntReg() : zero_phys_reg;
             renameMap[tid].setEntry(RegId(IntRegClass, ridx), phys_reg);
             commitRenameMap[tid].setEntry(RegId(IntRegClass, ridx), phys_reg);
         }
@@ -774,6 +776,21 @@ FullO3CPU<Impl>::suspendContext(ThreadID tid)
 
     deactivateThread(tid);
 
+    // Squash Throughout Pipeline
+    DynInstPtr inst = commit.rob->readHeadInst(tid);
+    InstSeqNum squash_seq_num = inst->seqNum;
+    fetch.squash(0, squash_seq_num, inst, tid);
+    decode.squash(tid);
+    rename.squash(squash_seq_num, tid);
+    iew.squash(tid);
+    iew.ldstQueue.squash(squash_seq_num, tid);
+    commit.rob->squash(squash_seq_num, tid);
+
+
+    assert(iew.instQueue.getCount(tid) == 0);
+    assert(iew.ldstQueue.getCount(tid) == 0);
+
+
     // If this was the last thread then unschedule the tick event.
     if (activeThreads.size() == 0) {
         unscheduleTickEvent();
@@ -790,14 +807,7 @@ template <class Impl>
 void
 FullO3CPU<Impl>::haltContext(ThreadID tid)
 {
-    //For now, this is the same as deallocate
-    DPRINTF(O3CPU,"[tid:%i]: Halt Context called. Deallocating", tid);
-    assert(!switchedOut());
-
-    deactivateThread(tid);
-    removeThread(tid);
-
-    updateCycleCounters(BaseCPU::CPU_STATE_SLEEP);
+    suspendContext(tid);
 }
 
 template <class Impl>

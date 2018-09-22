@@ -238,6 +238,10 @@ class BaseCPU(MemObject):
         _uncached_slave_ports += ["interrupts[0].pio",
                                   "interrupts[0].int_slave"]
         _uncached_master_ports += ["interrupts[0].int_master"]
+        if numThreads == 2:
+            _uncached_slave_ports += ["interrupts[1].pio",
+                                      "interrupts[1].int_slave"]
+            _uncached_master_ports += ["interrupts[1].int_master"]
 
     def createInterruptController(self):
         if buildEnv['TARGET_ISA'] == 'sparc':
@@ -248,9 +252,14 @@ class BaseCPU(MemObject):
             self.apic_clk_domain = DerivedClockDomain(clk_domain =
                                                       Parent.clk_domain,
                                                       clk_divider = 16)
-            self.interrupts = [X86LocalApic(clk_domain = self.apic_clk_domain,
-                                           pio_addr=0x2000000000000000)
-                               for i in xrange(self.numThreads)]
+            if self.numThreads == 2:
+                self.interrupts=[X86LocalApic(clk_domain=self.apic_clk_domain,
+                                               pio_addr=0x2000000000000000),
+                                 X86LocalApic(clk_domain=self.apic_clk_domain,
+                                               pio_addr=0x4000000000000000)]
+            else:
+                self.interrupts=[X86LocalApic(clk_domain=self.apic_clk_domain,
+                                               pio_addr=0x2000000000000000)]
             _localApic = self.interrupts
         elif buildEnv['TARGET_ISA'] == 'mips':
             self.interrupts = [MipsInterrupts() for i in xrange(self.numThreads)]

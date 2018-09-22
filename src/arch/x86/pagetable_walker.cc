@@ -507,7 +507,7 @@ Walker::WalkerState::stepWalk(PacketPtr &write)
     if (doEndWalk) {
         if (doTLBInsert)
             if (!functional)
-                walker->tlb->insert(entry.vaddr, entry);
+                walker->tlb->insert(entry.vaddr, tc->threadId(), entry);
         endWalk();
     } else {
         PacketPtr oldRead = read;

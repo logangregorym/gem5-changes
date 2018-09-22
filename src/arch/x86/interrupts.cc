@@ -272,7 +272,7 @@ X86ISA::Interrupts::requestInterrupt(uint8_t vector,
 
 
 void
-X86ISA::Interrupts::setCPU(BaseCPU * newCPU)
+X86ISA::Interrupts::setCPU(BaseCPU * newCPU, ThreadID tid)
 {
     assert(newCPU);
     if (cpu != NULL && cpu->cpuId() != newCPU->cpuId()) {
@@ -280,7 +280,7 @@ X86ISA::Interrupts::setCPU(BaseCPU * newCPU)
                 " with different IDs.\n");
     }
     cpu = newCPU;
-    initialApicId = cpu->cpuId();
+    initialApicId = cpu->cpuId() | tid;
     regs[APIC_ID] = (initialApicId << 24);
     pioAddr = x86LocalAPICAddress(initialApicId, 0);
 }

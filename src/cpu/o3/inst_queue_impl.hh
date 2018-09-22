@@ -1434,8 +1434,10 @@ InstructionQueue<Impl>::addToProducers(DynInstPtr &new_inst)
 
         if (!dependGraph.empty(dest_reg->flatIndex())) {
             dependGraph.dump();
-            panic("Dependency graph %i (%s) (flat: %i) not empty!",
-                  dest_reg->index(), dest_reg->className(),
+            panic("Inst: PC %s [sn:%lli] ==> Dependency graph %i (%s)"
+                   "(flat: %i) not empty!",
+                  new_inst->pcState(), new_inst->seqNum, dest_reg->index(),
+                  dest_reg->className(),
                   dest_reg->flatIndex());
         }
 

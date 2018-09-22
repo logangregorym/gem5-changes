@@ -86,7 +86,6 @@ SimpleRenameMap::rename(const RegId& arch_reg)
         map[arch_reg.index()] = renamed_reg;
     } else {
         // Otherwise return the zero register so nothing bad happens.
-        assert(prev_reg->isZeroReg());
         renamed_reg = prev_reg;
     }
 

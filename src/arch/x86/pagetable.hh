@@ -73,6 +73,8 @@ namespace X86ISA
         // The size of the page this represents, in address bits.
         unsigned logBytes;
 
+        ThreadID tid;
+
         // Read permission is always available, assuming it isn't blocked by
         // other mechanisms.
         bool writable;

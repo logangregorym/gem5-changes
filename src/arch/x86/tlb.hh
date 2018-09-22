@@ -71,13 +71,14 @@ namespace X86ISA
 
         void takeOverFrom(BaseTLB *otlb) override {}
 
-        TlbEntry *lookup(Addr va, bool update_lru = true);
+        TlbEntry *lookup(Addr va, ThreadID tid, bool update_lru = true);
 
         void setConfigAddress(uint32_t addr);
 
       protected:
 
-        EntryList::iterator lookupIt(Addr va, bool update_lru = true);
+        EntryList::iterator lookupIt(Addr va, ThreadID tid,
+                                          bool update_lru = true);
 
         Walker * walker;
 
@@ -93,11 +94,13 @@ namespace X86ISA
       protected:
         uint32_t size;
 
-        std::vector<TlbEntry> tlb;
+        int numThreads;
 
-        EntryList freeList;
+        std::vector<TlbEntry*> tlb;
 
-        TlbEntryTrie trie;
+        std::vector<EntryList> freeList;
+
+        std::vector<TlbEntryTrie> trie;
         uint64_t lruSeq;
 
         // Statistics
@@ -114,7 +117,7 @@ namespace X86ISA
 
       public:
 
-        void evictLRU();
+        void evictLRU(ThreadID tid);
 
         uint64_t
         nextSeq()
@@ -144,7 +147,7 @@ namespace X86ISA
         Fault finalizePhysical(const RequestPtr &req, ThreadContext *tc,
                                Mode mode) const override;
 
-        TlbEntry *insert(Addr vpn, const TlbEntry &entry);
+        TlbEntry *insert(Addr vpn, ThreadID tid, const TlbEntry &entry);
 
         /*
          * Function to register Stats

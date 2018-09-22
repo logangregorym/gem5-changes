@@ -183,7 +183,7 @@ class Interrupts : public BasicPioDevice, IntDevice
      */
     typedef X86LocalApicParams Params;
 
-    void setCPU(BaseCPU * newCPU);
+    void setCPU(BaseCPU * newCPU, ThreadID tid=0);
 
     const Params *
     params() const
