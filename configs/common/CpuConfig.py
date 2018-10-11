@@ -42,6 +42,7 @@ import m5.objects
 import inspect
 import sys
 from textwrap import TextWrapper
+from common.cores.x86 import O3_X86_sb
 
 # Dictionary of mapping names of real CPU models to classes.
 _cpu_classes = {}
