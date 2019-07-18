@@ -165,6 +165,9 @@ SyscallReturn closeFunc(SyscallDesc *desc, int num,
 SyscallReturn readFunc(SyscallDesc *desc, int num,
                        Process *p, ThreadContext *tc);
 
+SyscallReturn
+chdirFunc(SyscallDesc *desc, int num, Process *p, ThreadContext *tc);
+
 /// Target write() handler.
 SyscallReturn writeFunc(SyscallDesc *desc, int num,
                         Process *p, ThreadContext *tc);
@@ -180,6 +183,10 @@ SyscallReturn _llseekFunc(SyscallDesc *desc, int num,
 /// Target munmap() handler.
 SyscallReturn munmapFunc(SyscallDesc *desc, int num,
                          Process *p, ThreadContext *tc);
+/// Target madvise() handler.
+SyscallReturn madviseFunc(SyscallDesc *desc, int num,
+                         Process *p, ThreadContext *tc);
+
 
 /// Target gethostname() handler.
 SyscallReturn gethostnameFunc(SyscallDesc *desc, int num,
@@ -215,6 +222,11 @@ SyscallReturn symlinkFunc(SyscallDesc *desc, int num, Process *p,
 SyscallReturn mkdirFunc(SyscallDesc *desc, int num,
                         Process *p, ThreadContext *tc);
 
+/// Target mknod() handler.
+SyscallReturn mknodFunc(SyscallDesc *desc, int num,
+                        Process *p, ThreadContext *tc);
+SyscallReturn rmdirFunc(SyscallDesc *desc, int num,
+                        Process *p, ThreadContext *tc);
 /// Target rename() handler.
 SyscallReturn renameFunc(SyscallDesc *desc, int num,
                          Process *p, ThreadContext *tc);
@@ -292,6 +304,8 @@ SyscallReturn getpidFunc(SyscallDesc *desc, int num,
                          Process *p, ThreadContext *tc);
 
 /// Target getuid() handler.
+SyscallReturn getdentsFunc(SyscallDesc *desc, int num,
+                           Process *p, ThreadContext *tc);
 SyscallReturn getuidFunc(SyscallDesc *desc, int num,
                          Process *p, ThreadContext *tc);
 
@@ -1694,6 +1708,13 @@ getrlimitFunc(SyscallDesc *desc, int callnum, Process *process,
       case OS::TGT_RLIMIT_DATA:
         // max data segment size in bytes: make up a number
         rlp->rlim_cur = rlp->rlim_max = 256 * 1024 * 1024;
+        rlp->rlim_cur = TheISA::htog(rlp->rlim_cur);
+        rlp->rlim_max = TheISA::htog(rlp->rlim_max);
+        break;
+
+      case OS::TGT_RLIMIT_CORE:
+        // max core size in bytes: make up a number
+        rlp->rlim_cur = rlp->rlim_max = 100 * 1024;
         rlp->rlim_cur = TheISA::htog(rlp->rlim_cur);
         rlp->rlim_max = TheISA::htog(rlp->rlim_max);
         break;

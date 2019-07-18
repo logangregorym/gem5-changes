@@ -71,7 +71,7 @@ namespace X86ISA
     const uint64_t ISTVirtAddr = 0xffff800000004000;
     const uint64_t PFHandlerVirtAddr = 0xffff800000005000;
     const uint64_t MMIORegionVirtAddr = 0xffffc90000000000;
-    const uint64_t MMIORegionPhysAddr = 0xffff0000;
+    const uint64_t MMIORegionPhysAddr = 0xffff00000;
 }
 
 class X86System : public System
