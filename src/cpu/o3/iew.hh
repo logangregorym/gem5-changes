@@ -50,6 +50,7 @@
 #include "cpu/o3/comm.hh"
 #include "cpu/o3/lsq.hh"
 #include "cpu/o3/scoreboard.hh"
+#include "cpu/pred/lvpred_unit.hh"
 #include "cpu/timebuf.hh"
 #include "debug/IEW.hh"
 #include "sim/probe/probe.hh"
@@ -177,6 +178,9 @@ class DefaultIEW
     /** Wakes all dependents of a completed instruction. */
     void wakeDependents(DynInstPtr &inst);
 
+    /** Wakes dependents with predicted result of instruction. */
+    void forwardPredictionToDependents(DynInstPtr &inst);
+
     /** Tells memory dependence unit that a memory instruction needs to be
      * rescheduled. It will re-execute once replayMemInst() is called.
      */
@@ -243,6 +247,13 @@ class DefaultIEW
      */
     void squashDueToMemOrder(DynInstPtr &inst, ThreadID tid);
 
+  public:
+    /** Sends commit proper information for a squash due to a load value
+     * misprediction.
+     */
+    void squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstWoken, ThreadID tid);
+
+  private:
     /** Sets Dispatch to blocked, and signals back to other stages to block. */
     void block(ThreadID tid);
 
@@ -365,6 +376,10 @@ class DefaultIEW
      */
     bool updateLSQNextCycle;
 
+    /** Pointer to Load Value Prediction Unit */
+    LVPredUnit *loadPred;
+//    BasicLVP *loadPred;
+
   private:
     /** Records if there is a fetch redirect on this cycle for each thread. */
     bool fetchRedirect[Impl::MaxThreads];
@@ -479,6 +494,22 @@ class DefaultIEW
     Stats::Formula wbRate;
     /** Average number of woken instructions per writeback. */
     Stats::Formula wbFanout;
+    /** For LVP */
+    Stats::Scalar loopsFromLtage;
+    /** Number of loads which gained a prediction between fetch and iew. */
+    Stats::Vector confidenceThresholdPassed;
+    /** Number of loads whose prediction changed between fetch and iew. */
+    Stats::Vector predictionChanged;
+    /** Number of loads which received a prediction in fetch that was invalidated by iew. */
+    Stats::Vector predictionInvalidated;
+    /** Percent of loads which gained a predicted between fetch and iew. */
+    Stats::Formula confidenceThresholdPassedPercent;
+    /** Percent of loads whose prediction changed between fetch and iew. */
+    Stats::Formula predictionChangedPercent;
+    /** Percent of loads which received a prediction in fetch that was invalidated by iew. */
+    Stats::Formula predictionInvalidatedPercent;
+    /** Number of instructions squashed due to a load value misprediction. */
+    Stats::Vector instsSquashedByLVP;
 };
 
 #endif // __CPU_O3_IEW_HH__

@@ -35,6 +35,7 @@
 #include "base/trace.hh"
 #include "base/types.hh"
 #include "debug/Decoder.hh"
+#include "debug/SuperOp.hh"
 
 namespace X86ISA
 {
@@ -690,17 +691,374 @@ Decoder::decode(ExtMachInst mach_inst, Addr addr)
     return si;
 }
 
+void
+Decoder::updateLRUBits(int idx, int way)
+{
+    for (int lru = 0; lru < 8; lru++) {
+      if (uopLRUArray[idx][lru] > uopLRUArray[idx][way]) {
+        uopLRUArray[idx][lru]--;
+      }
+    }
+    uopLRUArray[idx][way] = 7;
+    uopCacheLRUUpdates++;
+}
+
+void
+Decoder::updateLRUBitsSpeculative(int idx, int way)
+{
+    for (int lru = 0; lru < 8; lru++) {
+        if (speculativeLRUArray[idx][lru] > speculativeLRUArray[idx][way]) {
+            speculativeLRUArray[idx][lru]--;
+        }
+    }
+    speculativeLRUArray[idx][way] = 7;
+}
+
+bool
+Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size)
+{
+    if (numUops > 6) {
+      DPRINTF(Decoder, "More than 6 microops: Could not update microop in the microop cache: %#x.\n", addr);
+      return false;
+    }
+
+    int idx = (addr >> 5) & 0x1f;
+    uint64_t tag = (addr >> 10);
+    int numFullWays = 0;
+    for (int way = 0; way < 8 && numFullWays < 3; way++) {
+      if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+        int waySize = uopCountArray[idx][way];
+        if ((waySize + numUops) > 6) {
+          uopCountArray[idx][way] = 6;
+          numFullWays++;
+          continue;
+        }
+        uopCountArray[idx][way] += numUops;
+        unsigned uopAddr = 0;
+        for (int uop = waySize; uop < (waySize + numUops); uop++) {
+          uopAddrArray[idx][way][uop] = addr;
+          emi.instSize = size;
+          uopCache[idx][way][uop] = emi;
+          StaticInstPtr inst = decodeInst(emi);
+          if (inst->isMacroop()) {
+            inst = inst->fetchMicroop(uopAddr);
+            // depTracker->removeFromGraph(addr, uopAddr);
+            depTracker->addToGraph(inst, addr, uopAddr);
+            uopAddr++;
+            if (inst->isLastMicroop()) {
+              uopAddr = 0;
+            }
+          }
+          // DPRINTF(SuperOp, "%s has %i src registers and %i dest registers\n", inst->disassemble(addr), inst->numSrcRegs(), inst->numDestRegs());
+          // depTracker->removeFromGraph(addr, uopAddr);
+          // depTracker->addToGraph(inst, addr, uopAddr);
+          DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
+          // bool change = depTracker.simplifyGraph();
+          // DPRINTF(SuperOp, "Changes made to dependency graph? %i\n", change);
+        }
+        updateLRUBits(idx, way);
+        uopCacheUpdates += numUops;
+        return true;
+      }
+    }
+
+    if (numFullWays == 3) {
+      DPRINTF(Decoder, "Could not accomodate 32 byte region: Could not update microop in the microop cache: %#x tag:%#x idx:%#x. Affected PCs:\n", addr, tag, idx);
+      for (int way = 0; way < 8; way++) {
+        if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+          for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
+            DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][way][uop]);
+          }
+          uopValidArray[idx][way] = false;
+          uopCountArray[idx][way] = 0;
+          uopCacheWayInvalidations++;
+        }
+      }
+      return false;
+    }
+
+    for (int way = 0; way < 8; way++) {
+      if (!uopValidArray[idx][way]) {
+        uopCountArray[idx][way] = numUops;
+        uopValidArray[idx][way] = true;
+        uopTagArray[idx][way] = tag;
+        for (int uop = 0; uop < numUops; uop++) {
+          uopAddrArray[idx][way][uop] = addr;
+          emi.instSize = size;
+          uopCache[idx][way][uop] = emi;
+          StaticInstPtr inst = decodeInst(emi);
+          // depTracker->removeFromGraph(addr, uop);
+          depTracker->addToGraph(inst, addr, uop);
+          DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
+        }
+        updateLRUBits(idx, way);
+        uopCacheUpdates += numUops;
+        return true;
+      }
+    }
+
+    for (int way = 0; way < 8; way++) {
+      if (uopLRUArray[idx][way] == 0) {
+        DPRINTF(Decoder, "Evicting microop in the microop cache: tag:%#x idx:%#x way:%#x.\n Affected PCs:\n", tag, idx, way);
+        for (int w = 0; w < 8; w++) {
+          if (uopValidArray[idx][w] && uopTagArray[idx][w] == uopTagArray[idx][way]) {
+            for (int uop = 0; uop < uopCountArray[idx][w]; uop++) {
+              DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][w][uop]);
+              uopConflictMisses++;
+              depTracker->removeFromGraph(uopAddrArray[idx][w][uop], uop);
+            }
+            uopValidArray[idx][w] = false;
+            uopCountArray[idx][w] = 0;
+            uopCacheWayInvalidations++;
+          }
+        }
+        uopCountArray[idx][way] = numUops;
+        uopValidArray[idx][way] = true;
+        uopTagArray[idx][way] = tag;
+        for (int uop = 0; uop < numUops; uop++) {
+          uopAddrArray[idx][way][uop] = addr;
+          emi.instSize = size;
+          uopCache[idx][way][uop] = emi;
+          StaticInstPtr inst = decodeInst(emi);
+          // depTracker->removeFromGraph(addr, uop);
+          depTracker->addToGraph(inst, addr, uop);
+          DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
+        }
+        updateLRUBits(idx, way);
+        uopCacheUpdates += numUops;
+        return true;
+      }
+    }
+
+    DPRINTF(Decoder, "Eviction failed: Could not update microop in the microop cache :%#x tag:%#x.\n", addr, tag);
+    return false;
+}
+
+bool
+Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, int size)
+{
+    if (numUops > 6) {
+      DPRINTF(Decoder, "More than 6 microops: Could not update microop in the speculative cache: %#x.\n", addr);
+      return false;
+    }
+
+    int idx = (addr >> 5) & 0x1f;
+    uint64_t tag = (addr >> 10);
+    int numFullWays = 0;
+    for (int way = 0; way < 8 && numFullWays < 3; way++) {
+      if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+        int waySize = speculativeCountArray[idx][way];
+        if ((waySize + numUops) > 6) {
+          speculativeCountArray[idx][way] = 6;
+          numFullWays++;
+          continue;
+        }
+        speculativeCountArray[idx][way] += numUops;
+        for (int uop = waySize; uop < (waySize + numUops); uop++) {
+          speculativeAddrArray[idx][way][uop] = addr;
+          emi.instSize = size;
+          if (decodeInst(emi)->isMacroop()) {
+                speculativeCache[idx][way][uop] = decodeInst(emi)->fetchMicroop(uop);
+          } else {
+                speculativeCache[idx][way][uop] = decodeInst(emi);
+          }
+          DPRINTF(Decoder, "Updating microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
+        }
+        updateLRUBitsSpeculative(idx, way);
+        return true;
+      }
+    }
+
+    if (numFullWays == 3) {
+      DPRINTF(Decoder, "Could not accomodate 32 byte region: Could not update microop in the speculative cache: %#x tag:%#x idx:%#x. Affected PCs:\n", addr, tag, idx);
+      for (int way = 0; way < 8; way++) {
+        if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+          for (int uop = 0; uop < speculativeCountArray[idx][way]; uop++) {
+            DPRINTF(Decoder, "%#x\n", speculativeAddrArray[idx][way][uop]);
+          }
+          speculativeValidArray[idx][way] = false;
+          speculativeCountArray[idx][way] = 0;
+        }
+      }
+      return false;
+    }
+
+    for (int way = 0; way < 8; way++) {
+      if (!speculativeValidArray[idx][way]) {
+        speculativeCountArray[idx][way] = numUops;
+        speculativeValidArray[idx][way] = true;
+        speculativeTagArray[idx][way] = tag;
+        for (int uop = 0; uop < numUops; uop++) {
+          speculativeAddrArray[idx][way][uop] = addr;
+          emi.instSize = size;
+          if (decodeInst(emi)->isMacroop()) {
+                speculativeCache[idx][way][uop] = decodeInst(emi)->fetchMicroop(uop);
+          } else {
+                speculativeCache[idx][way][uop] = decodeInst(emi);
+          }
+          DPRINTF(Decoder, "Updating microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
+        }
+        updateLRUBitsSpeculative(idx, way);
+        return true;
+      }
+    }
+
+    for (int way = 0; way < 8; way++) {
+      if (speculativeLRUArray[idx][way] == 0) {
+        DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%#x way:%#x.\n Affected PCs:\n", tag, idx, way);
+        for (int w = 0; w < 8; w++) {
+          if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == speculativeTagArray[idx][way]) {
+            for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) {
+              DPRINTF(Decoder, "%#x\n", speculativeAddrArray[idx][w][uop]);
+            }
+            speculativeValidArray[idx][w] = false;
+            speculativeCountArray[idx][w] = 0;
+          }
+        }
+        speculativeCountArray[idx][way] = numUops;
+        speculativeValidArray[idx][way] = true;
+        speculativeTagArray[idx][way] = tag;
+        for (int uop = 0; uop < numUops; uop++) {
+          speculativeAddrArray[idx][way][uop] = addr;
+          emi.instSize = size;
+          if (decodeInst(emi)->isMacroop()) {
+                speculativeCache[idx][way][uop] = decodeInst(emi)->fetchMicroop(uop);
+          } else {
+                speculativeCache[idx][way][uop] = decodeInst(emi);
+          }
+          DPRINTF(Decoder, "Updating microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
+        }
+        updateLRUBitsSpeculative(idx, way);
+        return true;
+      }
+    }
+
+    DPRINTF(Decoder, "Eviction failed: Could not update microop in the speculative cache :%#x tag:%#x.\n", addr, tag);
+    return false;
+}
+
+bool
+Decoder::isHitInUopCache(Addr addr)
+{
+    int idx = (addr >> 5) & 0x1f;
+    uint64_t tag = (addr >> 10);
+    for (int way = 0; way < 8; way++) {
+      if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+        for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
+          if (uopAddrArray[idx][way][uop] == addr) {
+            DPRINTF(Decoder, "Is hit in the microop cache? true: %#x tag:%#x idx:%#x way:%#x uop:%x size:%d.\n", addr, tag, idx, way, uop, uopCache[idx][way][uop].instSize);
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+}
+
+bool
+Decoder::isHitInSpeculativeCache(Addr addr)
+{
+    int idx = (addr >> 5) & 0x1f;
+    uint64_t tag = (addr >> 10);
+    for (int way = 0; way < 8; way++) {
+        if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+            for (int uop = 0; uop < speculativeCountArray[idx][way]; uop++) {
+                if (speculativeAddrArray[idx][way][uop] == addr) {
+                    DPRINTF(Decoder, "Is hit in the speculative cache? true:%#x tag:%#x idx:%#x way:%#x uop:%x size:%d.\n", addr, tag, idx, way, uop, speculativeCache[idx][way][uop]->machInst.instSize);
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+StaticInstPtr
+Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
+{
+    int idx = (addr >> 5) & 0x1f;
+    uint64_t tag = (addr >> 10);
+    for (int way = 0; way < 8; way++) {
+      if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+        for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
+          if (uopAddrArray[idx][way][uop] == addr) {
+            updateLRUBits(idx, way);
+            ExtMachInst emi = uopCache[idx][way][uop];
+            nextPC.size(emi.instSize);
+            nextPC.npc(nextPC.pc() + emi.instSize);
+            return decode(emi, addr);
+          }
+        }
+      }
+    }
+    panic("microop cache hit, but couldn't fetch from the cache.");
+    return NULL;
+}
+
+StaticInstPtr
+Decoder::fetchUopFromSpeculativeCache(Addr addr, PCState &nextPC)
+{
+    int idx = (addr >> 5) & 0x1f;
+    uint64_t tag = (addr >> 10);
+    for (int way = 0; way < 8; way++) {
+        if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+            for (int uop = 0; uop < speculativeCountArray[idx][way]; uop++) {
+                if (speculativeAddrArray[idx][way][uop] == addr) {
+                    updateLRUBitsSpeculative(idx, way);
+                    StaticInstPtr emi = speculativeCache[idx][way][uop];
+                    nextPC.size(emi->machInst.instSize);
+                    nextPC.npc(nextPC.pc() + emi->machInst.instSize);
+                    return emi;
+                    // return decode(emi, addr);
+                }
+            }
+        }
+    }
+    panic("speculative cache hit, but couldn't fetch from the cache.");
+    return NULL;
+}
+
 StaticInstPtr
 Decoder::decode(PCState &nextPC)
 {
+    // if using speculative superoptimizer and optimization available, more complex decode stage
+    // if (isSpeculativeCachePresent && isSpeculativeCacheActive && isHitInSpeculativeCache(nextPC.instAddr())) {
+    //	return fetchUopFromSpeculativeCache(nextPC.instAddr(), nextPC);
+    // } else
+
+    if (isUopCachePresent && isUopCacheActive && isHitInUopCache(nextPC.instAddr())) {
+      DPRINTF(Decoder, "Fetching microop from the microop cache: %s.\n", nextPC);
+      return fetchUopFromUopCache(nextPC.instAddr(), nextPC);
+    }
+
     if (!instDone)
         return NULL;
     instDone = false;
+    emi.instSize = basePC + offset - origPC;
     updateNPC(nextPC);
 
     StaticInstPtr &si = instBytes->si;
-    if (si)
+    if (si) {
+        int numFusedMicroops = 1;
+        if (si->isMacroop() && isMicroFusionPresent) {
+            for (int i = 1; i < si->getNumMicroops(); i++) {
+                StaticInstPtr cur = si->fetchMicroop(i);
+                StaticInstPtr prev = si->fetchMicroop(i-1);
+                if ((cur->isInteger() || cur->isNop() || cur->isControl() || cur->isMicroBranch()) && prev->isLoad() && !prev->isRipRel()) {
+                    i++;
+                }
+                numFusedMicroops++;
+            }
+            DPRINTF(Decoder, "Inserting fused microops: (%d/%d)\n", numFusedMicroops, si->getNumMicroops());
+        } else if (si->isMacroop()) {
+            numFusedMicroops = si->getNumMicroops();
+        }
+        if (isUopCachePresent) {
+            updateUopInUopCache(si->machInst, nextPC.instAddr(), numFusedMicroops, emi.instSize);
+            updateUopInSpeculativeCache(si->machInst, nextPC.instAddr(), numFusedMicroops, emi.instSize);
+        } // This populates the uop cache from fetch, don't want for speculative
         return si;
+    }
 
     // We didn't match in the AddrMap, but we still populated an entry. Fix
     // up its byte masks.
@@ -730,8 +1088,93 @@ Decoder::decode(PCState &nextPC)
         start = 0;
     }
 
-    si = decode(emi, origPC);
+    si = decode(emi, nextPC.instAddr());
+
+    if (si->isMacroop()) {
+        switch (si->getNumMicroops()) {
+          case 1:   macroTo1MicroEncoding++;
+                    break;
+          case 2:   macroTo2MicroEncoding++;
+                    break;
+          case 3:   macroTo3MicroEncoding++;
+                    break;
+          case 4:   macroTo4MicroEncoding++;
+                    break;
+          default:  macroToROMMicroEncoding++;
+                    break;
+        }
+    }
+
+    if (isUopCachePresent) {
+        int numFusedMicroops = 1;
+        if (si->isMacroop() && isMicroFusionPresent) {
+            for (int i = 1; i < si->getNumMicroops(); i++) {
+                StaticInstPtr cur = si->fetchMicroop(i);
+                StaticInstPtr prev = si->fetchMicroop(i-1);
+                if ((cur->isInteger() || cur->isNop() || cur->isControl() || cur->isMicroBranch()) && prev->isLoad() && !prev->isRipRel()) {
+                    i++;
+                }
+                numFusedMicroops++;
+            }
+            DPRINTF(Decoder, "Inserting fused microops: (%d/%d)\n", numFusedMicroops, si->getNumMicroops());
+        } else if (si->isMacroop()) {
+            numFusedMicroops = si->getNumMicroops();
+        }
+        updateUopInUopCache(si->machInst, nextPC.instAddr(), numFusedMicroops, emi.instSize);
+        updateUopInSpeculativeCache(si->machInst, nextPC.instAddr(), numFusedMicroops, emi.instSize);
+    }
+
     return si;
+}
+
+void
+Decoder::dumpMicroopCache()
+{
+    // DPRINTF(SuperOp, "Contents of Micro-op Cache: \n");
+    for (int i=0; i<32; i++) {
+        for (int j=0; j<8; j++) {
+            // DPRINTF(SuperOp, "Tag:%x, Valid:%i, Count:%i, LRU:%i\n", uopTagArray[i][j], uopValidArray[i][j], uopCountArray[i][j], uopLRUArray[i][j]);
+            for (int k=0; k<6; k++) {
+                // DPRINTF(SuperOp, "Addr:%x has inst: %s\n", uopAddrArray[i][j][k], decodeInst(uopCache[i][j][k])->disassemble(uopAddrArray[i][j][k]));
+            }
+        }
+    }
+}
+
+void
+Decoder::regStats()
+{
+    uopCacheUpdates
+        .name("system.switch_cpus.decode.uopCacheOpUpdates")
+        .desc("Number of micro-ops written to the micro-op cache");
+
+    uopCacheLRUUpdates
+        .name("system.switch_cpus.decode.uopCacheLRUUpdates")
+        .desc("Number of times the micro-op cache LRU bits were updated");
+
+    uopCacheWayInvalidations
+        .name("system.switch_cpus.decode.uopCacheWayInvalidations")
+        .desc("Number of times the micro-op cache ways were invalidated");
+
+    macroTo1MicroEncoding
+        .name("system.switch_cpus.decode.oneMicroOp")
+        .desc("Number of times we decoded a macro-op into one micro-op");
+
+    macroTo2MicroEncoding
+        .name("system.switch_cpus.decode.twoMicroOps")
+        .desc("Number of times we decoded a macro-op into two micro-ops");
+
+    macroTo3MicroEncoding
+        .name("system.switch_cpus.decode.threeMicroOps")
+        .desc("Number of times we decoded a macro-op into three micro-ops");
+
+    macroTo4MicroEncoding
+        .name("system.switch_cpus.decode.fourMicroOps")
+        .desc("Number of tiems we decoded a macro-op into four micro-ops");
+
+    macroToROMMicroEncoding
+        .name("system.switch_cpus.decode.MSROMAccess")
+        .desc("Number of times we decoded a macro-op usingMSROM");
 }
 
 }

@@ -120,6 +120,27 @@ parser = optparse.OptionParser()
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
 
+parser.add_option("--enable-microop-cache", action="store_true", help="""Enable micro-op cache.""")
+parser.add_option("--enable-micro-fusion", action="store_true", help="""Enable micro-fusion.""")
+parser.add_option("--enable-superoptimization", action="store_true", help="""Enable speculative superoptimization.""")
+parser.add_option("--constantBufferSize", default=256, type="int", action="store", help="Size of the buffer storing constant load addresses.")
+parser.add_option("--dumpFrequency", default=10000, type="int", action="store", help="Number of cycles between dumps.")
+parser.add_option("--lvpredType", default="basic", help="Load Value Predictor Type: basic/strideHist/3period/hybrid.");
+parser.add_option("--tableEntries", default=4096, type="int", action="store", help="Number of entries in the lookup table.")
+parser.add_option("--constantThreshold", default=10, type="int", action="store", help="First usable prediction.")
+parser.add_option("--dynamicThreshold", default=1, type="int", action="store", help="Learn the constant threshold dynamically?")
+parser.add_option("--satCounterBits", default=5, type="int", action="store", help="Bits in the saturating counters.")
+parser.add_option("--initialPredictionQuality", default=0, type="int", action="store", help="Default value of saturating counters.")
+parser.add_option("--resetDelay", default=128, type="int", action="store", help="Cycles to remain inactive after a misprediction.")
+parser.add_option("--historyLength", default=4, type="int", action="store", help="Number of past values to track.")
+parser.add_option("--historyEntryBits", default=4, type="int", action="store", help="Bits per value in the history.")
+parser.add_option("--decrementBy", default=10, type="int", action="store", help="Amount to decrement confidence in response to a misprediction.")
+parser.add_option("--resetTo", default=0, type="int", action="store", help="Value to reset confidence to in response to a misprediction.")
+parser.add_option("--missThreshold", default=150, type="int", action="store", help="Misses allowed before confidence threshold increments.")
+parser.add_option("--hitThreshold", default=300, type="int", action="store", help="Unused hits allowed before confidence threshold decrements.")
+parser.add_option("--predictStage", default=3, type="int", action="store", help="Prediction Stage: fetch/iew/both.");
+parser.add_option("--maxDependencyRecursion", default=15, type="int", action="store", help="How deep to recurse when counting dependencies.");
+
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
 
@@ -165,6 +186,23 @@ else:
 (CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(options)
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
+CPUClass.enable_microop_cache = options.enable_microop_cache
+CPUClass.enable_micro_fusion = options.enable_micro_fusion
+CPUClass.loadPred.lvpredType = options.lvpredType
+CPUClass.loadPred.tableEntries = options.tableEntries
+CPUClass.loadPred.constantThreshold = options.constantThreshold
+CPUClass.loadPred.dynamicThreshold = options.dynamicThreshold
+CPUClass.loadPred.satCounterBits = options.satCounterBits;
+CPUClass.loadPred.initialPredictionQuality = options.initialPredictionQuality
+CPUClass.loadPred.resetDelay = options.resetDelay
+CPUClass.loadPred.historyLength = options.historyLength
+CPUClass.loadPred.historyEntryBits = options.historyEntryBits
+CPUClass.loadPred.decrementBy = options.decrementBy
+CPUClass.loadPred.resetTo = options.resetTo
+CPUClass.loadPred.missThreshold = options.missThreshold
+CPUClass.loadPred.hitThreshold = options.hitThreshold
+CPUClass.loadPred.predictStage = options.predictStage
+CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
 
 # Check -- do not allow SMT with multiple CPUs
 if options.smt and options.num_cpus > 1:

@@ -53,12 +53,14 @@
 #include "arch/utility.hh"
 #include "config/the_isa.hh"
 #include "cpu/checker/cpu.hh"
+#include "cpu/o3/dep_graph.hh"
 #include "cpu/o3/fu_pool.hh"
 #include "cpu/o3/iew.hh"
 #include "cpu/timebuf.hh"
 #include "debug/Activity.hh"
 #include "debug/Drain.hh"
 #include "debug/IEW.hh"
+#include "debug/LVP.hh"
 #include "debug/O3PipeView.hh"
 #include "params/DerivO3CPU.hh"
 
@@ -110,6 +112,8 @@ DefaultIEW<Impl>::DefaultIEW(O3CPU *_cpu, DerivO3CPUParams *params)
     updateLSQNextCycle = false;
 
     skidBufferMax = (renameToIEWDelay + 1) * params->renameWidth;
+
+    loadPred = params->loadPred;
 }
 
 template <class Impl>
@@ -297,6 +301,55 @@ DefaultIEW<Impl>::regStats()
         .desc("insts written-back per cycle")
         .flags(total);
     wbRate = writebackCount / cpu->numCycles;
+
+    loopsFromLtage
+        .name(name() + ".loopsFromLtage")
+        .desc("times LTAGE branch predictor detected the end of a loop");
+
+    confidenceThresholdPassed
+        .init(cpu->numThreads)
+        .name(name() + ".confidenceThresholdPassed")
+        .desc("loads which gained a prediction between fetch and iew")
+        .flags(total);
+
+    predictionChanged
+        .init(cpu->numThreads)
+        .name(name() + ".predictionChanged")
+        .desc("loads whose prediction changed between fetch and iew")
+        .flags(total);
+
+    predictionInvalidated
+        .init(cpu->numThreads)
+        .name(name() + ".predictionInvalidated")
+        .desc("loads which received a prediction in fetch that was invalidated by iew.")
+        .flags(total);
+
+    confidenceThresholdPassedPercent
+        .name(name() + ".confidenceThresholdPassedPercent")
+        .desc("loads which gained a prediction between fetch and iew (percent).")
+        .flags(total);
+
+    confidenceThresholdPassedPercent = confidenceThresholdPassed / iewExecLoadInsts * 100;
+
+    predictionChangedPercent
+        .name(name() + ".predictionChangedPercent")
+        .desc("loads whose prediction changed between fetch and iew (percent).")
+        .flags(total);
+
+    predictionChangedPercent = predictionChanged / iewExecLoadInsts * 100;
+
+    predictionInvalidatedPercent
+        .name(name() + ".predictionInvalidatedPercent")
+        .desc("loads which received a prediction in fetch that was invalidated by iews (percent).")
+        .flags(total);
+
+    predictionInvalidatedPercent = predictionInvalidated / iewExecLoadInsts * 100;
+
+    instsSquashedByLVP
+        .init(cpu->numThreads)
+        .name(name() + ".instsSquashedByLVP")
+        .desc("insts squashed due to load value mispredictions")
+        .flags(total);
 }
 
 template<class Impl>
@@ -480,7 +533,7 @@ template<class Impl>
 void
 DefaultIEW<Impl>::squashDueToBranch(DynInstPtr &inst, ThreadID tid)
 {
-    DPRINTF(IEW, "[tid:%i]: Squashing from a specific instruction, PC: %s "
+    DPRINTF(IEW, "[tid:%i]: Branch misprediction, squashing from a specific instruction, PC: %s "
             "[sn:%i].\n", tid, inst->pcState(), inst->seqNum);
 
     if (!toCommit->squash[tid] ||
@@ -499,6 +552,33 @@ DefaultIEW<Impl>::squashDueToBranch(DynInstPtr &inst, ThreadID tid)
         wroteToTimeBuffer = true;
     }
 
+}
+
+template<class Impl>
+void
+DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, ThreadID tid)
+{
+    DPRINTF(IEW, "[tid:%i]: Memory misprediction, squashing younger "
+            "insts, PC: %s [sn:%i].\n", tid, inst->pcState(), inst->seqNum);
+
+    // If already squashing, LVP takes precedence
+    // Using < instead of <= would give branch precedence
+    if ((!toCommit->squash[tid] ||
+            firstDependent->seqNum <= toCommit->squashedSeqNum[tid])
+            && firstDependent) {
+        toCommit->squash[tid] = true;
+        toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
+//        toCommit->squashedSeqNum[tid] = inst->seqNum;
+        toCommit->pc[tid] = firstDependent->pcState();
+        toCommit->mispredictInst[tid] = NULL; // not a branch misprediction
+//        toCommit->includeSquashInst[tid] = false; // have correct value now
+        toCommit->includeSquashInst[tid] = true;
+
+        wroteToTimeBuffer = true;
+        instsSquashedByLVP[tid] += (cpu->globalSeqNum - firstDependent->seqNum);
+    } else if (toCommit->squash[tid] && firstDependent->seqNum > toCommit->squashedSeqNum[tid]) {
+        DPRINTF(LVP, "Already squashing from [sn:%i], so skipping\n", toCommit->squashedSeqNum[tid]);
+    }
 }
 
 template<class Impl>
@@ -569,6 +649,17 @@ void
 DefaultIEW<Impl>::wakeDependents(DynInstPtr &inst)
 {
     instQueue.wakeDependents(inst);
+}
+
+template<class Impl>
+void
+DefaultIEW<Impl>::forwardPredictionToDependents(DynInstPtr &inst)
+{
+    instQueue.forwardPredictionToDependents(inst);
+    for (int i = 0; i < inst->numDestRegs(); i++) {
+        scoreboard->setReg(inst->renamedDestRegIdx(i));
+        DPRINTF(LVP, "Updated scoreboard for register %i.\n", inst->renamedDestRegIdx(i));
+    }
 }
 
 template<class Impl>
@@ -1237,6 +1328,51 @@ DefaultIEW<Impl>::executeInsts()
 
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
+                inst->memoryAccessStartCycle = cpu->numCycles.value();
+                if (loadPred->predictStage == 2 || loadPred->predictStage == 3) {
+                    if (!inst->isSquashed()) {
+                        // Check the Load Prediction Unit
+                        ThreadID tid = inst->threadNumber;
+                        DPRINTF(LVP, "makePrediction called by inst [sn:%i]\n", inst->seqNum);
+                        LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(inst->pcState(), tid, cpu->numCycles.value());
+                        if (ret.confidence >= 0) { cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), true); }
+                        DPRINTF(LVP, "fetch predicted (%i) %x with confidence %i, iew predicted %x with confidence %i\n", inst->predictedLoad, inst->predictedValue, inst->confidence, ret.predictedValue, ret.confidence);
+
+                        if (inst->predictedLoad) {
+                            // Got a prediction in the fetch stage
+                            if (inst->confidence < 0 && ret.confidence >= 0) {
+                                ++confidenceThresholdPassed[tid];
+                            }
+                            if (inst->predictedValue != ret.predictedValue && inst->confidence >= 0) {
+                                ++predictionChanged[tid];
+                            }
+                            if (inst->confidence >= 0 && (ret.confidence < 0 || ret.predictedValue != inst->predictedValue)) {
+                                ++predictionInvalidated[tid];
+                            }
+                        }
+
+                        // assert(!loadPred->dynamicThreshold);
+                        if ((inst->memoryAccessStartCycle - loadPred->lastMisprediction < loadPred->resetDelay) && loadPred->dynamicThreshold) {
+                            DPRINTF(LVP, "Misprediction occured %i cycles ago, setting confidence to 0\n", inst->memoryAccessStartCycle - loadPred->lastMisprediction);
+                            inst->predictedValue = ret.predictedValue;
+                            inst->confidence = -1;
+                            inst->predictedLoad = true;
+                        } else {
+                            inst->predictedValue = ret.predictedValue;
+                            inst->confidence = ret.confidence;
+                            inst->predictedLoad = true;
+                        }
+                        DPRINTF(LVP, "LVP returned confidence %d, inst->confidence set to %d\n", ret.confidence, inst->confidence);
+                        // if prediction is good, wake dependencies
+                        if (inst->confidence >= 0) {
+                            if (!inst->isSquashed() && inst->getFault() == NoFault) {
+                                DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
+                                forwardPredictionToDependents(inst);
+                            }
+                        }
+                    }
+                }
+
                 // Loads will mark themselves as executed, and their writeback
                 // event adds the instruction to the queue to commit
                 fault = ldstQueue.executeLoad(inst);
@@ -1300,6 +1436,13 @@ DefaultIEW<Impl>::executeInsts()
             inst->setExecuted();
 
             instToCommit(inst);
+
+            if (inst->potentialLoopEnd) {
+                ++loopsFromLtage;
+                // cout << "SN:" << inst->seqNum << " marked as loop end" << endl;
+                DPRINTF(LVP, "Inst sn:%i marked as loop end\n", inst->seqNum);
+                // loadPred->lastMisprediction = cpu->numCycles.value();
+            }
         }
 
         updateExeInstStats(inst);

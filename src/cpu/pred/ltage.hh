@@ -273,7 +273,15 @@ class LTAGE: public BPredUnit
      */
     bool getLoop(Addr pc, BranchInfo* bi) const;
 
-   /**
+  public:
+    /**
+     * Use loop predictor to predict whether a loop is ending.
+     * @param pc The unshifted branch PC.
+     */
+    bool checkLoopEnding(Addr pc) const;
+
+  private:
+    /**
     * Updates the loop predictor.
     * @param pc The unshifted branch PC.
     * @param taken The actual branch outcome.
@@ -403,6 +411,8 @@ class LTAGE: public BPredUnit
     int8_t useAltPredForNewlyAllocated;
     int tCounter;
     int logTick;
+
+    friend class LVPredUnit;
 };
 
 #endif // __CPU_PRED_LTAGE

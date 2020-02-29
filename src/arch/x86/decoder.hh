@@ -36,14 +36,17 @@
 #include <vector>
 
 #include "arch/x86/regs/misc.hh"
+#include "arch/x86/superop/array_dependency_tracker.hh"
 #include "arch/x86/types.hh"
 #include "base/bitfield.hh"
 #include "base/logging.hh"
+#include "base/statistics.hh"
 #include "base/trace.hh"
 #include "base/types.hh"
 #include "cpu/decode_cache.hh"
 #include "cpu/static_inst.hh"
 #include "debug/Decoder.hh"
+#include "params/DerivO3CPU.hh"
 
 namespace X86ISA
 {
@@ -102,6 +105,39 @@ class Decoder
     uint8_t altAddr;
     uint8_t defAddr;
     uint8_t stack;
+
+public:
+    bool isUopCachePresent;
+    bool isMicroFusionPresent;
+    bool isUopCacheActive;
+    bool isSuperOptimizationPresent;
+    ExtMachInst uopCache[32][8][6]; // 48, 8, 6
+    Addr uopAddrArray[32][8][6];
+    uint64_t uopTagArray[32][8];
+    bool uopValidArray[32][8];
+    int uopCountArray[32][8];
+    int uopLRUArray[32][8];
+
+    // Parallel cache for optimized micro-ops
+    bool isSpeculativeCachePresent;
+    bool isSpeculativeCacheActive;
+    StaticInstPtr speculativeCache[32][8][6];
+    Addr speculativeAddrArray[32][8][6];
+    uint64_t speculativeTagArray[32][8];
+    bool speculativeValidArray[32][8];
+    int speculativeCountArray[32][8];
+    int speculativeLRUArray[32][8];
+
+protected:
+    Stats::Scalar uopCacheWayInvalidations;
+    Stats::Scalar uopCacheUpdates;
+    Stats::Scalar uopConflictMisses;
+    Stats::Scalar uopCacheLRUUpdates;
+    Stats::Scalar macroTo1MicroEncoding;
+    Stats::Scalar macroTo2MicroEncoding;
+    Stats::Scalar macroTo3MicroEncoding;
+    Stats::Scalar macroTo4MicroEncoding;
+    Stats::Scalar macroToROMMicroEncoding;
 
     uint8_t getNextByte()
     {
@@ -235,7 +271,7 @@ class Decoder
     static InstCacheMap instCacheMap;
 
   public:
-    Decoder(ISA* isa = nullptr) : basePC(0), origPC(0), offset(0),
+    Decoder(ISA* isa = nullptr, DerivO3CPUParams* params = nullptr) : basePC(0), origPC(0), offset(0),
         outOfBytes(true), instDone(false),
         state(ResetState)
     {
@@ -252,6 +288,23 @@ class Decoder
         instBytes = &dummy;
         decodePages = NULL;
         instMap = NULL;
+        isUopCachePresent = false;
+        isMicroFusionPresent = false;
+        isSpeculativeCachePresent = false;
+        for (int idx=0; idx<32; idx++) {
+          for (int way=0; way<8; way++) {
+            uopValidArray[idx][way] = false;
+            uopCountArray[idx][way] = 0;
+            uopLRUArray[idx][way] = way;
+
+            // Parallel cache for optimized micro-ops
+            speculativeValidArray[idx][way] = false;
+            speculativeCountArray[idx][way] = 0;
+            speculativeLRUArray[idx][way] = way;
+          }
+        }
+        depTracker = params->depTracker;
+        depTracker->decoder = this;
     }
 
     void setM5Reg(HandyM5Reg m5Reg)
@@ -340,6 +393,10 @@ class Decoder
     }
 
   public:
+
+    // Dependency Tracking Unit for Speculative Superoptimization
+    ArrayDependencyTracker* depTracker;
+
     StaticInstPtr decodeInst(ExtMachInst mach_inst);
 
     /// Decode a machine instruction.
@@ -347,6 +404,46 @@ class Decoder
     /// @retval A pointer to the corresponding StaticInst object.
     StaticInstPtr decode(ExtMachInst mach_inst, Addr addr);
     StaticInstPtr decode(X86ISA::PCState &nextPC);
+    bool isHitInUopCache(Addr addr);
+    StaticInstPtr fetchUopFromUopCache(Addr addr, X86ISA::PCState &nextPC);
+    bool updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size);
+    void updateLRUBits(int idx, int way);
+    void setUopCacheActive(bool active)
+    {
+        isUopCacheActive = active;
+        if (!active) { instDone = false; state = ResetState; }
+    }
+    void setUopCachePresent(bool present)
+    {
+        isUopCachePresent = present;
+    }
+    void setMicroFusionPresent(bool present)
+    {
+        isMicroFusionPresent = present;
+    }
+    void setSuperOptimizationPresent(bool present)
+    {
+        isSuperOptimizationPresent = present;
+    }
+
+    // Parallel cache for optimized micro-ops
+    bool isHitInSpeculativeCache(Addr addr);
+    StaticInstPtr fetchUopFromSpeculativeCache(Addr addr, X86ISA::PCState &nextPC);
+    bool updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, int size);
+    void updateLRUBitsSpeculative(int idx, int way);
+    void setSpeculativeCacheActive(bool active)
+    {
+        isSpeculativeCacheActive = active;
+        if (!active) { instDone = false; state = ResetState; }
+    }
+    void setSpeculativeCachePresent(bool present)
+    {
+        isSpeculativeCachePresent = present;
+    }
+
+    void regStats();
+
+    void dumpMicroopCache();
 };
 
 } // namespace X86ISA

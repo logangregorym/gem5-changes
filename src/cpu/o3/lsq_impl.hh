@@ -349,6 +349,24 @@ LSQ<Impl>::recvTimingResp(PacketPtr pkt)
 
     thread[cpu->contextToThread(pkt->req->contextId())]
         .completeDataAccess(pkt);
+    DPRINTF(LSQ, "at PC %s\n",
+            pkt->req->getPC());
+    if (pkt->hasData()) {
+        unsigned size = pkt->getSize();
+        DPRINTF(LSQ, "contains %i bytes of data\n", size);
+        uint64_t responseVal;
+        if (size == 8) {
+            responseVal = pkt->get<uint64_t>();
+        } else if (size == 4) {
+            responseVal = pkt->get<uint32_t>();
+        } else if (size == 2) {
+            responseVal = pkt->get<uint16_t>();
+        } else if (size == 1) {
+            responseVal = pkt->get<uint8_t>();
+        }
+        DPRINTF(LSQ, "with data %x\n", responseVal);
+    }
+    // thread[pkt->req->threadId()].completeDataAccess(pkt);
 
     if (pkt->isInvalidate()) {
         // This response also contains an invalidate; e.g. this can be the case

@@ -44,18 +44,23 @@
 #ifndef __CPU_O3_FETCH_HH__
 #define __CPU_O3_FETCH_HH__
 
+#include <vector>
+
 #include "arch/decoder.hh"
 #include "arch/utility.hh"
 #include "base/statistics.hh"
 #include "config/the_isa.hh"
 #include "cpu/pc_event.hh"
 #include "cpu/pred/bpred_unit.hh"
+#include "cpu/pred/lvpred_unit.hh"
 #include "cpu/timebuf.hh"
 #include "cpu/translation.hh"
 #include "mem/packet.hh"
 #include "mem/port.hh"
 #include "sim/eventq.hh"
 #include "sim/probe/probe.hh"
+
+using namespace std;
 
 struct DerivO3CPUParams;
 
@@ -258,6 +263,18 @@ class DefaultFetch
 
     /** For priority-based fetch policies, need to keep update priorityList */
     void deactivateThread(ThreadID tid);
+
+    unsigned computeFetchQueueSize(ThreadID tid) {
+        if (!isMicroFusionPresent) return fetchQueue[tid].size();
+
+        if (fetchQueue[tid].size() >= (2*fetchQueueSize))
+            return fetchQueueSize;
+
+        int size = 0;
+        for (auto it = fetchQueue[tid].begin(); it != fetchQueue[tid].end(); it++)
+            if (!(*it)->fused) size++;
+        return size;
+    }
   private:
     /** Reset this pipeline stage */
     void resetStage();
@@ -358,6 +375,11 @@ class DefaultFetch
     /** The decoder. */
     TheISA::Decoder *decoder[Impl::MaxThreads];
 
+    void updateConstantBuffer(Addr addr, bool valid);
+
+//    void dumpMicroopCache();
+    void dumpConstantBuffer();
+
   private:
     DynInstPtr buildInst(ThreadID tid, StaticInstPtr staticInst,
                          StaticInstPtr curMacroop, TheISA::PCState thisPC,
@@ -388,6 +410,20 @@ class DefaultFetch
   private:
     /** Pointer to the O3CPU. */
     O3CPU *cpu;
+
+    /** Pointer to the Load Value Prediction Unit. */
+    LVPredUnit *loadPred;
+
+    /** Constant buffer lists load inst addresses that predict correctly. */
+    // vector<Addr> constantLoads;
+
+    /** Array implementation of constant buffer. */
+    Addr constantLoadAddrs[256] = {0};
+    bool constantLoadValidBits[256] = {0};
+
+    // unsigned constantBufferSize;
+
+    unsigned dumpFrequency;
 
     /** Time buffer interface. */
     TimeBuffer<TimeStruct> *timeBuffer;
@@ -454,6 +490,15 @@ class DefaultFetch
 
     /** The width of fetch in instructions. */
     unsigned fetchWidth;
+
+    /** Does the CPU support a micro-op cache? */
+    bool isUopCachePresent;
+
+    /** Does the CPU support micro-fusion? */
+    bool isMicroFusionPresent;
+
+    /** Does the CPU support speculative superoptimization? */
+    bool isSuperOptimizationPresent;
 
     /** The width of decode in instructions. */
     unsigned decodeWidth;
@@ -525,8 +570,18 @@ class DefaultFetch
     // @todo: Consider making these vectors and tracking on a per thread basis.
     /** Stat for total number of cycles stalled due to an icache miss. */
     Stats::Scalar icacheStallCycles;
+    Stats::Scalar uopCacheHitInsts;
+    Stats::Scalar uopCacheMissOps;
+    Stats::Scalar uopCacheHitOps;
     /** Stat for total number of fetched instructions. */
     Stats::Scalar fetchedInsts;
+    /** Stat for total number of fetched uops. */
+    Stats::Scalar fetchedOps;
+    /** Stat for number of insts fetched that are reducable. */
+    Stats::Scalar fetchedReducable;
+    /** Stat for percent of insts fetched that are reducable. */
+    Stats::Formula fetchedReducablePercent1;
+    Stats::Formula fetchedReducablePercent2;
     /** Total number of fetched branches. */
     Stats::Scalar fetchedBranches;
     /** Stat for total number of predicted branches. */
@@ -573,6 +628,10 @@ class DefaultFetch
     Stats::Formula branchRate;
     /** Number of instruction fetched per cycle. */
     Stats::Formula fetchRate;
+    /** Micro-op cache hit rate. */
+    Stats::Formula uopCacheHitRate;
+    Stats::Formula uopCacheInstHitRate;
+    Stats::Vector statFetchMicro;
 };
 
 #endif //__CPU_O3_FETCH_HH__

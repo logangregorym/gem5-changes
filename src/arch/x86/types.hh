@@ -231,6 +231,8 @@ namespace X86ISA
         //The size of the displacement
         uint8_t dispSize;
 
+        uint8_t instSize;
+
         //Mode information
         OperatingMode mode;
     };

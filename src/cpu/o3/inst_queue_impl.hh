@@ -45,12 +45,17 @@
 #ifndef __CPU_O3_INST_QUEUE_IMPL_HH__
 #define __CPU_O3_INST_QUEUE_IMPL_HH__
 
+#include <algorithm>
 #include <limits>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "cpu/o3/fu_pool.hh"
 #include "cpu/o3/inst_queue.hh"
 #include "debug/IQ.hh"
+#include "debug/LVP.hh"
+#include "debug/SuperOp.hh"
 #include "enums/OpClass.hh"
 #include "params/DerivO3CPU.hh"
 #include "sim/core.hh"
@@ -107,6 +112,7 @@ InstructionQueue<Impl>::InstructionQueue(O3CPU *cpu_ptr, IEW *iew_ptr,
     //Create an entry for each physical register within the
     //dependency graph.
     dependGraph.resize(numPhysRegs);
+    dependGraph.maxDependencyRecursion = params->maxDependencyRecursion;
 
     // Resize the register scoreboard.
     regScoreboard.resize(numPhysRegs);
@@ -399,6 +405,38 @@ InstructionQueue<Impl>::regStats()
         .desc("Number of vector alu accesses")
         .flags(total);
 
+    lvpDependencyChains
+        .name(name() + ".lvpDependencyChains")
+        .desc("Number of dependents on lvp predictions, following chains")
+        ;
+
+    nonEmptyChains
+        .name(name() + ".nonEmptyChains")
+        .desc("Number of chains with length > 0")
+        ;
+
+    averageChainLength
+        .name(name() + ".averageChainLength")
+        .desc("Average length of non-zero chains")
+        ;
+    averageChainLength = lvpDependencyChains / nonEmptyChains;
+
+    reducableInsts
+        .name(name() + ".reducableInsts")
+        .desc("Number of dependent insts that are candidates for optimization")
+        ;
+
+    averageShrinkage
+        .name(name() + ".averageShrinkage")
+        .desc("Average reducable dependencies per chain")
+        ;
+    averageShrinkage = reducableInsts / nonEmptyChains;
+
+    reducablePercent
+        .name(name() + ".reducablePercent")
+        .desc("Percent of dependencies that are reducible")
+        ;
+    reducablePercent = (reducableInsts / lvpDependencyChains) * 100;
 }
 
 template <class Impl>
@@ -1077,6 +1115,109 @@ InstructionQueue<Impl>::wakeDependents(DynInstPtr &completed_inst)
     return dependents;
 }
 
+template<class Impl>
+void
+InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
+    // unsigned c = dependGraph.countDependentsOf(inst);
+    // lvpDependencyChains += c;
+    vector<pair<DynInstPtr,unsigned>> depChain = dependGraph.getDependentsOf(inst);
+    // lvpDependencyChains += depChain.size();
+    // if (depChain.size() > 0) { nonEmptyChains++; }
+    // DPRINTF(SuperOp, "Dependency Chain of length %i for inst 0x:%x:  SeqNum:%d  Assembly:%s\n", depChain.size(), inst->pcState().instAddr(), inst->seqNum, inst->staticInst->disassemble(inst->instAddr()));
+    for (int i = 0; i < depChain.size(); i++) {
+        DynInstPtr d = depChain[i].first;
+        unsigned depth = depChain[i].second;
+        assert(d);
+        std::string s = "";
+        for (int i = 0; i < depth; i++) { s += "  "; }
+        s += "0x%x:  SeqNum:%d  Assembly:%s SrcRegIds: ";
+        for (int idx = 0; idx < d->numSrcRegs(); idx++) {
+            PhysRegIdPtr regptr = d->renamedSrcRegIdx(idx);
+            assert(regptr);
+            PhysRegIndex reg = regptr->flatIndex();
+            s += to_string(reg);
+            s += " ";
+        }
+        s += "DestRegIds: ";
+        for (int idx = 0; idx < d->numDestRegs(); idx++) {
+            PhysRegIdPtr regptr = d->renamedDestRegIdx(idx);
+            assert(regptr);
+            PhysRegIndex reg = regptr->flatIndex();
+            s += to_string(reg);
+            s += " ";
+        }
+        s += "\n";
+        // DPRINTF(SuperOp, s.c_str(), d->pcState().instAddr(), d->seqNum, d->staticInst->disassemble(d->instAddr()));
+    }
+    // DPRINTF(SuperOp, "\n\n");
+
+    // estimateChainReduction(inst, depChain);
+
+    unsigned dependentCount = 0;
+
+    // Added in gem5 version
+    if (inst->isMemRef()) {
+        memDepUnit[inst->threadNumber].wakeDependents(inst);
+        // completeMemInst(inst);
+    } else if (inst->isMemBarrier() || inst->isWriteBarrier()) {
+        memDepUnit[inst->threadNumber].completeBarrier(inst);
+    }
+
+    for (int i = 0; i < inst->numDestRegs(); i++) {
+        PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
+        DPRINTF(IQ, "Popping dependGraph of register %i\n", dest_reg);
+        DynInstPtr dep_inst = dependGraph.pop(dest_reg->flatIndex());
+        assert(inst->staticInst->dataSize);
+        assert(inst->dataSize);
+        DPRINTF(SuperOp, "Forwarding data of size: %i", inst->dataSize);
+        switch (dest_reg->classValue()) {
+          // TODO: handle half words and bytes
+          case IntRegClass:
+            DPRINTF(LVP, "Setting int register %i to %x\n", dest_reg, inst->predictedValue);
+            inst->setIntRegOperand(inst->staticInst.get(), i, inst->predictedValue);
+            break;
+          case FloatRegClass:
+            DPRINTF(LVP, "Setting float register %i to %x\n", dest_reg, inst->predictedValue);
+            inst->setFloatRegOperandBits(inst->staticInst.get(), i, inst->predictedValue);
+            break;
+          case VecRegClass:
+            break;
+          case VecElemClass:
+            break;
+          case CCRegClass:
+            DPRINTF(LVP, "Setting CC register %i to %x\n", dest_reg, inst->predictedValue);
+            inst->setCCRegOperand(inst->staticInst.get(), i, inst->predictedValue);
+            break;
+          case MiscRegClass:
+            DPRINTF(LVP, "Setting misc register %i to %x\n", dest_reg, inst->predictedValue);
+            inst->setMiscRegOperand(inst->staticInst.get(), i, inst->predictedValue);
+            break;
+        }
+        while (dep_inst) {
+            // DPRINTF(IQ, "Setting int reg operand for inst [sn:%lli]\n", dep_inst->seqNum);
+            // dep_inst->setIntRegOperand(dep_inst->staticInst.get(), i, inst->staticInst->predictedValue);
+            dependentCount++;
+            dep_inst->markSrcRegReady();
+            addIfReady(dep_inst);
+            // if (inst->firstDependentWoken) {
+                // if (dep_inst->seqNum < inst->firstDependentWoken->seqNum) {
+                // 	inst->firstDependentWoken = dep_inst;
+                // } else {}
+            // } else { inst->firstDependentWoken = dep_inst; }
+            DPRINTF(IQ, "Popping next dependency of register %i\n", dest_reg);
+            dep_inst = dependGraph.pop(dest_reg->flatIndex());
+        }
+
+        // Added in gem5 version
+        assert(dependGraph.empty(dest_reg->flatIndex()));
+        dependGraph.clearInst(dest_reg->flatIndex());
+        regScoreboard[dest_reg->flatIndex()] = true;
+
+    }
+    DPRINTF(LVP, "%d dependents woken\n", dependentCount);
+    // memDepUnit[inst->threadNumber].wakeDependentsSpeculative(inst);
+}
+
 template <class Impl>
 void
 InstructionQueue<Impl>::addReadyMemInst(DynInstPtr &ready_inst)
@@ -1354,7 +1495,7 @@ InstructionQueue<Impl>::doSquash(ThreadID tid)
             if (dest_reg->isFixedMapping() || squashed_inst->destRegIdx(dest_reg_idx) == RegId(IntRegClass, TheISA::ZeroReg)) {
                 continue;
             }
-            assert(dependGraph.empty(dest_reg->flatIndex()));
+//            assert(dependGraph.empty(dest_reg->flatIndex()));
             dependGraph.clearInst(dest_reg->flatIndex());
         }
         instList[tid].erase(squash_it--);
@@ -1652,6 +1793,44 @@ InstructionQueue<Impl>::dumpInsts()
         inst_list_it++;
         ++num;
     }
+}
+
+template <class Impl>
+void
+InstructionQueue<Impl>::estimateChainReduction(DynInstPtr inst, vector<pair<DynInstPtr,unsigned>>& depChain) {
+    assert(inst);
+    vector<PhysRegIndex> known = vector<PhysRegIndex>();
+    for (int idx = 0; idx < inst->numDestRegs(); idx++) {
+        PhysRegIndex reg = inst->renamedDestRegIdx(idx)->flatIndex();
+        known.push_back(reg);
+    }
+    unsigned reducableDependents = 0;
+    for (int i = 0; i < depChain.size(); i++) {
+        DynInstPtr dep_inst = depChain[i].first;
+        assert(dep_inst);
+        bool reducable = true;
+        for (int idx = 0; idx < dep_inst->numSrcRegs(); idx++) {
+            PhysRegIdPtr reg = dep_inst->renamedSrcRegIdx(idx);
+            assert(reg);
+            if (reg->isIntPhysReg() || reg->isFloatPhysReg()) {
+                if (std::count(known.begin(), known.end(), reg->flatIndex()) == 0) {
+                    reducable = false;
+                }
+            }
+        }
+        if (reducable) {
+            // DPRINTF(SuperOp, "Reducable Inst: %s\n", dep_inst->staticInst->disassemble(dep_inst->instAddr()));
+            reducableDependents++;
+            for (int idx = 0; idx < inst->numDestRegs(); idx++) {
+                PhysRegIndex reg = dep_inst->renamedDestRegIdx(idx)->flatIndex();
+                known.push_back(reg);
+            }
+        } else {
+            // DPRINTF(SuperOp, "Irreducable Inst: %s\n", dep_inst->staticInst->disassemble(dep_inst->instAddr()));
+        }
+    }
+    // DPRINTF(SuperOp, "\n");
+    // reducableInsts += reducableDependents;
 }
 
 #endif//__CPU_O3_INST_QUEUE_IMPL_HH__

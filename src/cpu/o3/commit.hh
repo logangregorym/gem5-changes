@@ -314,6 +314,9 @@ class DefaultCommit
     ThreadID oldestReady();
 
   public:
+    /** Rewind from load misprediction */
+    void squashWokenDependents(DynInstPtr &inst);
+
     /** Reads the PC of a specific thread. */
     TheISA::PCState pcState(ThreadID tid) { return pc[tid]; }
 
@@ -518,6 +521,17 @@ class DefaultCommit
 
     /** Number of cycles where the commit bandwidth limit is reached. */
     Stats::Scalar commitEligibleSamples;
+
+    /** Number of lvp predictions used and committed. */
+    Stats::Scalar lvpPredsCommitted;
+    /** Percentage of committed loads that have a prediction. */
+    Stats::Formula lvpPredCommitPercent;
+    /** Number of reducable instructions commited. */
+    Stats::Scalar reducableCommitted;
+    /** Percentage of instructions committed that are reducable. */
+    Stats::Formula reducableCommitPercent1;
+    /** Percentage of instructions committed that are reducable. */
+    Stats::Formula reducableCommitPercent2;
 };
 
 #endif // __CPU_O3_COMMIT_HH__

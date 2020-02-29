@@ -103,6 +103,18 @@ StaticInst::fetchMicroop(MicroPC upc) const
           "that is not microcoded.");
 }
 
+uint32_t
+StaticInst::getNumMicroops() const
+{
+    panic("StaticInst::getNumMicroops() called on instruction that is not microcoded.");
+}
+
+uint32_t
+StaticInst::getMacroopSize() const
+{
+    panic("StaticInst::getMacroopSize() called on instruction that is not microcoded.");
+}
+
 TheISA::PCState
 StaticInst::branchTarget(const TheISA::PCState &pc) const
 {

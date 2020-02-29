@@ -63,6 +63,7 @@
 #include "debug/CommitRate.hh"
 #include "debug/Drain.hh"
 #include "debug/ExecFaulting.hh"
+#include "debug/LVP.hh"
 #include "debug/O3PipeView.hh"
 #include "params/DerivO3CPU.hh"
 #include "sim/faults.hh"
@@ -279,6 +280,35 @@ DefaultCommit<Impl>::regStats()
         .name(name() + ".bw_lim_events")
         .desc("number cycles where commit BW limit reached")
         ;
+
+    lvpPredsCommitted
+        .name(name() + ".lvpPredsCommitted")
+        .desc("Number of lvp predictions used and not squashed")
+        ;
+
+    lvpPredCommitPercent
+        .name(name() + ".lvpPredCommitPercent")
+        .desc("Percent of committed loads that have a predictions")
+        .precision(6)
+        ;
+    lvpPredCommitPercent = (lvpPredsCommitted / statComLoads) * 100;
+
+    reducableCommitted
+        .name(name() + ".reducableCommitted")
+        .desc("Number of reducable instructions that are committed")
+        ;
+
+    reducableCommitPercent1
+        .name(name() + ".reducableCommittedPercent1")
+        .desc("Percent of committed instructions that are reducable (with instsCommitted)")
+        ;
+    reducableCommitPercent1 = (reducableCommitted / instsCommitted) * 100;
+
+    reducableCommitPercent2
+        .name(name() + ".reducableCommitPercent2")
+        .desc("Percent of committed instructions that are reducable (with opsCommitted)")
+        ;
+    reducableCommitPercent2 = (reducableCommitted / opsCommitted) * 100;
 }
 
 template <class Impl>
@@ -1182,6 +1212,14 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         return false;
     }
 
+    // Squash in event of load-value misprediction
+    if (head_inst->lvMispred) {
+        // Moved to lsq_unit_impl
+        // squashWokenDependents(head_inst);
+        head_inst->lvMispred = false;
+        return false;
+    }
+
     if (head_inst->isThreadSync()) {
         // Not handled for now.
         panic("Thread sync instructions are not handled yet.\n");
@@ -1374,6 +1412,8 @@ DefaultCommit<Impl>::updateComInstStats(DynInstPtr &inst)
         instsCommitted[tid]++;
     opsCommitted[tid]++;
 
+    if (inst->reducableAtFetch) { reducableCommitted++; }
+
     // To match the old model, don't count nops and instruction
     // prefetches towards the total commit count.
     if (!inst->isNop() && !inst->isInstPrefetch()) {
@@ -1394,6 +1434,7 @@ DefaultCommit<Impl>::updateComInstStats(DynInstPtr &inst)
 
         if (inst->isLoad()) {
             statComLoads[tid]++;
+            if (inst->confidence >= 0) { ++lvpPredsCommitted; }
         }
     }
 
@@ -1523,6 +1564,18 @@ DefaultCommit<Impl>::oldestReady()
         return oldest;
     } else {
         return InvalidThreadID;
+    }
+}
+
+template<class Impl>
+void
+DefaultCommit<Impl>::squashWokenDependents(DynInstPtr &inst) {
+    DynInstPtr firstWoken = cpu->rob.firstDependentOf(inst->threadNumber, inst);
+    if (firstWoken) {
+        DPRINTF(LVP, "Load Value Mispredicted for [sn:%i], squashing from first dependent [sn:%i]\n", inst->seqNum, firstWoken->seqNum);
+        cpu->iew.squashDueToLoad(inst, firstWoken, inst->threadNumber);
+    } else {
+        DPRINTF(LVP, "Load Value Mispredicted for [sn:%i] but no dependent instructions woken\n", inst->seqNum);
     }
 }
 

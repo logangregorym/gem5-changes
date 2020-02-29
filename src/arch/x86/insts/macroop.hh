@@ -101,6 +101,16 @@ class MacroopBase : public X86StaticInst
     {
         return env;
     }
+
+    uint32_t getNumMicroops() const
+    {
+        return numMicroops;
+    }
+
+    uint32_t getMacroopSize() const
+    {
+        return machInst.instSize;
+    }
 };
 }
 

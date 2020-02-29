@@ -43,7 +43,11 @@
 #ifndef __CPU_O3_DEP_GRAPH_HH__
 #define __CPU_O3_DEP_GRAPH_HH__
 
+#include <utility>
+
 #include "cpu/o3/comm.hh"
+
+using namespace std;
 
 /** Node in a linked list. */
 template <class DynInstPtr>
@@ -115,6 +119,14 @@ class DependencyGraph
      */
     void dump();
 
+    unsigned countDependentsOf(DynInstPtr &inst);
+
+    unsigned countDependentsOf(PhysRegIndex idx, uint8_t recursiveDepth, vector<PhysRegIndex> &checked);
+
+    vector<pair<DynInstPtr,unsigned>> getDependentsOf(DynInstPtr &inst);
+
+    vector<pair<DynInstPtr,unsigned>> getDependentsOf(PhysRegIndex idx, uint8_t recursiveDepth, vector<PhysRegIndex> &checked);
+
   private:
     /** Array of linked lists.  Each linked list is a list of all the
      *  instructions that depend upon a given register.  The actual
@@ -133,8 +145,12 @@ class DependencyGraph
   public:
     // Debug variable, remove when done testing.
     uint64_t nodesTraversed;
+
     // Debug variable, remove when done testing.
     uint64_t nodesRemoved;
+
+    // When counting dependencies, how deep to go?
+    unsigned maxDependencyRecursion = 50;
 };
 
 template <class DynInstPtr>
@@ -293,6 +309,104 @@ DependencyGraph<DynInstPtr>::dump()
         cprintf("\n");
     }
     cprintf("memAllocCounter: %i\n", memAllocCounter);
+}
+
+template <class DynInstPtr>
+unsigned
+DependencyGraph<DynInstPtr>::countDependentsOf(DynInstPtr &inst) {
+    unsigned total = 0;
+    vector<PhysRegIndex> checked = vector<PhysRegIndex>();
+    for (int i = 0; i < inst->numDestRegs(); i++) {
+        PhysRegIndex idx = inst->renamedDestRegIdx(i)->flatIndex();
+        checked.push_back(idx);
+        total += countDependentsOf(idx, 0, checked);
+    }
+    return total;
+}
+
+template <class DynInstPtr>
+vector<pair<DynInstPtr,unsigned>>
+DependencyGraph<DynInstPtr>::getDependentsOf(DynInstPtr &inst) {
+    vector<pair<DynInstPtr,unsigned>> dependentList = vector<pair<DynInstPtr,unsigned>>();
+    vector<PhysRegIndex> checked = vector<PhysRegIndex>();
+    vector<DynInstPtr> seen = vector<DynInstPtr>();
+    seen.push_back(inst);
+    dependentList.push_back(make_pair(inst, 0));
+    for (int i = 0; i < inst->numDestRegs(); i++) {
+        PhysRegIndex idx = inst->renamedDestRegIdx(i)->flatIndex();
+        checked.push_back(idx);
+        if (inst->renamedDestRegIdx(i)->isIntPhysReg() || inst->renamedDestRegIdx(i)->isFloatPhysReg()) {
+            vector<pair<DynInstPtr,unsigned>> ret = getDependentsOf(idx, 0, checked);
+            for (int i = 0; i < ret.size(); i++) {
+                if (!count(seen.begin(), seen.end(), ret[i].first)) {
+                    dependentList.push_back(ret[i]);
+                    seen.push_back(ret[i].first);
+                }
+            }
+        }
+    }
+    return dependentList;
+}
+
+template <class DynInstPtr>
+unsigned
+DependencyGraph<DynInstPtr>::countDependentsOf(PhysRegIndex idx, uint8_t recursiveDepth, vector<PhysRegIndex> &checked) {
+    if (recursiveDepth >= maxDependencyRecursion) {
+        return 0;
+    }
+    unsigned total = 0;
+    DepEntry *curr = &dependGraph[idx];
+    while (curr != NULL) {
+        if (curr->inst) {
+            total++;
+            DynInstPtr inst = curr->inst;
+            for (int i = 0; i < inst->numDestRegs(); i++) {
+                PhysRegIndex idx = inst->renamedDestRegIdx(i)->flatIndex();
+                if (!count(checked.begin(), checked.end(), idx)) {
+                    checked.push_back(idx);
+                    total += countDependentsOf(idx, recursiveDepth + 1, checked);
+                }
+            }
+        }
+        curr = curr->next;
+    }
+    return total;
+}
+
+template <class DynInstPtr>
+vector<pair<DynInstPtr,unsigned>>
+DependencyGraph<DynInstPtr>::getDependentsOf(PhysRegIndex idx, uint8_t recursiveDepth, vector<PhysRegIndex> &checked) {
+    if (recursiveDepth >= maxDependencyRecursion) {
+        return vector<pair<DynInstPtr,unsigned>>();
+    }
+    vector<pair<DynInstPtr,unsigned>> dependentList = vector<pair<DynInstPtr,unsigned>>();
+    vector<DynInstPtr> seen = vector<DynInstPtr>();
+
+    DepEntry *curr = &dependGraph[idx];
+    while (curr != NULL) {
+        if (curr->inst) {
+            DynInstPtr inst = curr->inst;
+            seen.push_back(inst);
+            dependentList.push_back(make_pair(inst,recursiveDepth));
+            for (int i = 0; i < inst->numDestRegs(); i++) {
+                PhysRegIndex idx = inst->renamedDestRegIdx(i)->flatIndex();
+                if (inst->renamedDestRegIdx(i)->isIntPhysReg() || inst->renamedDestRegIdx(i)->isFloatPhysReg()) {
+                    if (!count(checked.begin(), checked.end(), idx)) {
+                        checked.push_back(idx);
+                        vector<pair<DynInstPtr,unsigned>> ret = getDependentsOf(idx, recursiveDepth + 1, checked);
+                        for (int i = 0; i < ret.size(); i++) {
+                            if (!count(seen.begin(), seen.end(), ret[i].first)) {
+                                dependentList.push_back(ret[i]);
+                                seen.push_back(ret[i].first);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        curr = curr->next;
+    }
+    return dependentList;
 }
 
 #endif // __CPU_O3_DEP_GRAPH_HH__

@@ -85,6 +85,7 @@ if env['TARGET_ISA'] == 'x86':
               "Page table walker state machine debugging")
     DebugFlag('Decoder', "Decoder debug output")
     DebugFlag('X86', "Generic X86 ISA debugging")
+    DebugFlag('SuperOp')
 
     python_files = (
         '__init__.py',

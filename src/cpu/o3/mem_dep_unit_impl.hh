@@ -47,6 +47,7 @@
 
 #include "cpu/o3/inst_queue.hh"
 #include "cpu/o3/mem_dep_unit.hh"
+#include "debug/LVP.hh"
 #include "debug/MemDepUnit.hh"
 #include "params/DerivO3CPU.hh"
 
@@ -478,6 +479,36 @@ MemDepUnit<MemDepPred, Impl>::wakeDependents(DynInstPtr &inst)
     }
 
     inst_entry->dependInsts.clear();
+}
+
+template <class MemDepPred, class Impl>
+void
+MemDepUnit<MemDepPred, Impl>::wakeDependentsSpeculative(DynInstPtr &inst)
+{
+    // Only stores and barriers have dependents?
+    if (!inst->isStore() && !inst->isMemBarrier() && !inst->isWriteBarrier()) {
+        DPRINTF(LVP, "Inst %s tried to forward prediction, but isn't store or barrier, skipping\n", inst->staticInst->disassemble(inst->pcState().instAddr()));
+        return;
+    }
+
+    MemDepEntryPtr inst_entry = findInHash(inst);
+
+    for (int i = 0; i < inst_entry->dependInsts.size(); ++i) {
+        MemDepEntryPtr woken_inst = inst_entry->dependInsts[i];
+
+        if (!woken_inst->inst) {
+            // Potentially removed mem dep entries could be on this list?
+            continue;
+        }
+
+        DPRINTF(MemDepUnit, "Waking up a dependent inst [sn:%lli]\n", woken_inst->inst->seqNum);
+        if (woken_inst->regsReady && !woken_inst->squashed) {
+            moveToReady(woken_inst);
+        } else {
+            woken_inst->memDepReady = true;
+        }
+    }
+    // not clearing dependents! May need to address this later
 }
 
 template <class MemDepPred, class Impl>

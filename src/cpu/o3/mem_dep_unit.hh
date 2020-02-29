@@ -148,6 +148,9 @@ class MemDepUnit
     /** Wakes any dependents of a memory instruction. */
     void wakeDependents(DynInstPtr &inst);
 
+    /** Wakes dependents with predicted result of instruction. */
+    void wakeDependentsSpeculative(DynInstPtr &inst);
+
     /** Squashes all instructions up until a given sequence number for a
      *  specific thread.
      */

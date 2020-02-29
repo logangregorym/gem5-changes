@@ -34,6 +34,7 @@ if env['TARGET_ISA'] == 'null':
     Return()
 
 SimObject('BranchPredictor.py')
+SimObject('LoadValuePredictor.py')
 
 DebugFlag('Indirect')
 Source('bpred_unit.cc')
@@ -44,6 +45,15 @@ Source('ras.cc')
 Source('tournament.cc')
 Source ('bi_mode.cc')
 Source('ltage.cc')
+Source('lvpred_unit.cc')
+Source('basic_lvpred.cc')
+Source('stride_hist.cc')
+Source('three_period.cc')
+# Source('hybrid.cc')
+Source('empty_lvp.cc')
+Source('fa3p.cc')
+
 DebugFlag('FreeList')
 DebugFlag('Branch')
 DebugFlag('LTage')
+DebugFlag('LVP')

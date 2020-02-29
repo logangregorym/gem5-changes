@@ -244,7 +244,7 @@ TLB::finalizePhysical(const RequestPtr &req,
 {
     Addr paddr = req->getPaddr();
 
-    AddrRange m5opRange(0xFFFFF0000, 0xFFFFFFFFF);
+    AddrRange m5opRange(0xFFFF0000, 0xFFFFFFFF);
 
     if (m5opRange.contains(paddr)) {
         req->setFlags(Request::MMAPPED_IPR | Request::GENERIC_IPR |

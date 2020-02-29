@@ -47,12 +47,13 @@
 #include <list>
 #include <map>
 #include <queue>
+#include <utility>
 #include <vector>
 
 #include "base/statistics.hh"
 #include "base/types.hh"
-#include "cpu/o3/dep_graph.hh"
 #include "cpu/inst_seq.hh"
+#include "cpu/o3/dep_graph.hh"
 #include "cpu/op_class.hh"
 #include "cpu/timebuf.hh"
 #include "sim/eventq.hh"
@@ -229,6 +230,9 @@ class InstructionQueue
     /** Wakes all dependents of a completed instruction. */
     int wakeDependents(DynInstPtr &completed_inst);
 
+    /** Wakes dependents with predicted result of instruction. */
+    void forwardPredictionToDependents(DynInstPtr &inst);
+
     /** Adds a ready memory instruction to the ready list. */
     void addReadyMemInst(DynInstPtr &ready_inst);
 
@@ -270,6 +274,8 @@ class InstructionQueue
 
     /** Debug function to print all instructions. */
     void printInsts();
+
+    void estimateChainReduction(DynInstPtr inst, vector<pair<DynInstPtr,unsigned>>& depChain);
 
   private:
     /** Does the actual squashing. */
@@ -551,6 +557,13 @@ class InstructionQueue
     Stats::Scalar intAluAccesses;
     Stats::Scalar fpAluAccesses;
     Stats::Scalar vecAluAccesses;
+
+    Stats::Scalar lvpDependencyChains;
+    Stats::Scalar nonEmptyChains;
+    Stats::Formula averageChainLength;
+    Stats::Scalar reducableInsts;
+    Stats::Formula averageShrinkage;
+    Stats::Formula reducablePercent;
 };
 
 #endif //__CPU_O3_INST_QUEUE_HH__

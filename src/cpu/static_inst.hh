@@ -192,6 +192,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
     void setDelayedCommit() { flags[IsDelayedCommit] = true; }
     void setFlag(Flags f) { flags[f] = true; }
 
+    bool isRipRel() { return _srcRegIdx[1] == RegId(IntRegClass, 23); }
+
     /// Operation class.  Used to select appropriate function unit in issue.
     OpClass opClass()     const { return _opClass; }
 
@@ -277,6 +279,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
      * only be defined/used in macroops which will contain microops
      */
     virtual StaticInstPtr fetchMicroop(MicroPC upc) const;
+    virtual uint32_t getNumMicroops() const;
+    virtual uint32_t getMacroopSize() const;
 
     /**
      * Return the target address for a PC-relative branch.

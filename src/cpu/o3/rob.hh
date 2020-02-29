@@ -133,6 +133,9 @@ class ROB
      */
     DynInstPtr findInst(ThreadID tid, InstSeqNum squash_inst);
 
+    /** Returns a pointer to the first dependent of the given instruction. */
+    DynInstPtr firstDependentOf(ThreadID tid, DynInstPtr &inst);
+
     /** Returns pointer to the tail instruction within the ROB.  There is
      *  no guarantee as to the return value if the ROB is empty.
      *  @retval Pointer to the DynInst that is at the tail of the ROB.

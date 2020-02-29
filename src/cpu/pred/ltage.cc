@@ -257,6 +257,26 @@ LTAGE::getLoop(Addr pc, BranchInfo* bi) const
     return false;
 }
 
+bool
+LTAGE::checkLoopEnding(Addr pc) const
+{
+    int loopIndex = lindex(pc);
+    int loopTag = ((pc) >> (logSizeLoopPred - 2));
+    for (int i=0; i < 4; i++) {
+        if (ltable[loopIndex + i].tag == loopTag) {
+            if (ltable[loopIndex + i].confidence >= 2) {
+                // Only interested in valid predictions; more relaxed for LVP
+                if (ltable[loopIndex + i].currentIterSpec + 1 == ltable[loopIndex + i].numIter) {
+                    // not interested in direction, just whether the loop is ending
+                    // if we're on the last iteration, it is
+                    return loopUseCounter >= 0;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 void
 LTAGE::specLoopUpdate(Addr pc, bool taken, BranchInfo* bi)
 {

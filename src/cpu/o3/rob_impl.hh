@@ -563,4 +563,27 @@ ROB<Impl>::findInst(ThreadID tid, InstSeqNum squash_inst)
     return NULL;
 }
 
+template <class Impl>
+typename Impl::DynInstPtr
+ROB<Impl>::firstDependentOf(ThreadID tid, DynInstPtr &inst)
+{
+    DynInstPtr firstDependent = NULL;
+    unsigned lowestSN = INT_MAX;
+    for (InstIt it = instList[tid].begin(); it != instList[tid].end(); it++) {
+        // Instructions in re-order buffer (many)
+        for (int d = 0; d < inst->numDestRegs(); d++) {
+            // Destination registers of mispredicted instruction (few)
+            PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(d);
+            for (int s = 0; s < (*it)->numSrcRegs(); s++) {
+                // Source registers of potential dependent (few)
+                if ((!(*it)->isSquashed()) && ((*it)->renamedSrcRegIdx(s) == dest_reg) && ((*it)->seqNum < lowestSN)) {
+                    firstDependent = *it;
+                    lowestSN = (*it)->seqNum;
+                }
+            }
+        }
+    }
+    return firstDependent;
+}
+
 #endif//__CPU_O3_ROB_IMPL_HH__

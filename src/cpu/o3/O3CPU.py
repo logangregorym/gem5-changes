@@ -47,6 +47,8 @@ from BaseCPU import BaseCPU
 from FUPool import *
 from O3Checker import O3Checker
 from BranchPredictor import *
+from LoadValuePredictor import *
+from ArrayDependencyTracker import *
 
 class DerivO3CPU(BaseCPU):
     type = 'DerivO3CPU'
@@ -76,8 +78,13 @@ class DerivO3CPU(BaseCPU):
     commitToFetchDelay = Param.Cycles(1, "Commit to fetch delay")
     fetchWidth = Param.Unsigned(8, "Fetch width")
     fetchBufferSize = Param.Unsigned(64, "Fetch buffer size in bytes")
+    enable_microop_cache = Param.Bool(True, "Does the CPU support a micro-op cache?")
+    enable_micro_fusion = Param.Bool(True, "Does the CPU support micro-fusion?")
+    enable_superoptimization = Param.Bool(True, "Does the CPU support speculative superoptimization?")
     fetchQueueSize = Param.Unsigned(32, "Fetch queue size in micro-ops "
                                     "per-thread")
+    constantBufferSize = Param.Unsigned(256, "Size of the buffer of constant load addresses")
+    dumpFrequency = Param.Unsigned(10000, "Number of cycles between dumps")
 
     renameToDecodeDelay = Param.Cycles(1, "Rename to decode delay")
     iewToDecodeDelay = Param.Cycles(1, "Issue/Execute/Writeback to decode "
@@ -156,11 +163,15 @@ class DerivO3CPU(BaseCPU):
     smtROBThreshold = Param.Int(100, "SMT ROB Threshold Sharing Parameter")
     smtCommitPolicy = Param.String('RoundRobin', "SMT Commit Policy")
 
-    branchPred = Param.BranchPredictor(TournamentBP(numThreads =
+    branchPred = Param.BranchPredictor(LTAGE(numThreads =
                                                        Parent.numThreads),
                                        "Branch Predictor")
+    loadPred = Param.LoadValuePredictor(LoadValuePredictor(), "Load Value Predictor")
+    depTracker = Param.ArrayDependencyTracker(ArrayDependencyTracker(), "Dependency Tracking Unit")
     needsTSO = Param.Bool(buildEnv['TARGET_ISA'] == 'x86',
                           "Enable TSO Memory model")
+
+    maxDependencyRecursion = Param.Unsigned(15, "How deep to recurse when counting dependencies")
 
     def addCheckerCpu(self):
         if buildEnv['TARGET_ISA'] in ['arm']:

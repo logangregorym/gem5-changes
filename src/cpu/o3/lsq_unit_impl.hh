@@ -56,6 +56,7 @@
 #include "debug/Activity.hh"
 #include "debug/IEW.hh"
 #include "debug/LSQUnit.hh"
+#include "debug/LVP.hh"
 #include "debug/O3PipeView.hh"
 #include "mem/packet.hh"
 #include "mem/request.hh"
@@ -1120,6 +1121,31 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
         inst->setExecuted();
 
         if (inst->fault == NoFault) {
+            // LVP Update and check for misprediction
+            if (inst->isLoad()) {
+                inst->memoryAccessEndCycle = cpu->numCycles.value();
+                DPRINTF(LVP, "Sending a load response to LVP from [sn:%i]\n", inst->seqNum);
+                ThreadID tid = inst->threadNumber;
+                DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->confidence);
+                inst->lvMispred = !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, pkt, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                if (inst->lvMispred) {
+                    DPRINTF(LVP, "OH NO! processPacketRecieved returned false :(\n");
+                    cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
+                    iewStage->loadPred->lastMisprediction = inst->memoryAccessEndCycle;
+                    // Moved from commit
+                    cpu->commit.squashWokenDependents(inst);
+                }
+            } else {
+                DPRINTF(LVP, "Instruction [sn:%i] not a load.\n", inst->seqNum);
+                if (inst->isStore()) {
+                    DPRINTF(LVP, "Instruction is a store\n");
+                } else if (inst->isMemRef()) {
+                    DPRINTF(LVP, "Instruction is some other memory reference\n");
+                } else {
+                    DPRINTF(LVP, "Instruction of unfamiliar type returned a packet\n");
+                }
+            }
+
             // Complete access to copy data to proper place.
             inst->completeAcc(pkt);
         } else {

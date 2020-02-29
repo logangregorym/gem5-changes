@@ -661,7 +661,8 @@ DefaultDecode<Impl>::decodeInsts(ThreadID tid)
 
     DPRINTF(Decode, "[tid:%u]: Sending instruction to rename.\n",tid);
 
-    while (insts_available > 0 && toRenameIndex < decodeWidth) {
+    unsigned toFusedRenameIndex = toRenameIndex;
+    while (insts_available > 0 && toFusedRenameIndex < decodeWidth && toRenameIndex < Impl::MaxWidth) {
         assert(!insts_to_decode.empty());
 
         inst = insts_to_decode.front();
@@ -695,6 +696,7 @@ DefaultDecode<Impl>::decodeInsts(ThreadID tid)
         // queue.  The next instruction may not be valid, so check to
         // see if branches were predicted correctly.
         toRename->insts[toRenameIndex] = inst;
+        if (!inst->fused) toFusedRenameIndex++;
 
         ++(toRename->size);
         ++toRenameIndex;

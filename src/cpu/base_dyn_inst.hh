@@ -50,6 +50,7 @@
 #include <bitset>
 #include <deque>
 #include <list>
+#include <queue>
 #include <string>
 
 #include "arch/generic/tlb.hh"
@@ -434,6 +435,9 @@ class BaseDynInst : public ExecContext, public RefCounted
     void initVars();
 
   public:
+    /** Adding to get access to existing field of MemOp */
+    // size_t dataSize;
+
     /** Dumps out contents of this BaseDynInst. */
     void dump();
 
@@ -886,6 +890,16 @@ class BaseDynInst : public ExecContext, public RefCounted
     { return cpu->mwaitAtomic(threadNumber, tc, cpu->dtb); }
     AddressMonitor *getAddrMonitor()
     { return cpu->getCpuAddrMonitor(threadNumber); }
+  public:
+    // Used by LVP
+    uint64_t predictedValue;
+    int8_t confidence = -1; // could be using BigSC
+    unsigned memoryAccessStartCycle;
+    unsigned memoryAccessEndCycle;
+    bool lvMispred = false;
+    bool potentialLoopEnd = false;
+    bool predictedLoad = false;
+    bool reducableAtFetch = false;
 };
 
 template<class Impl>
