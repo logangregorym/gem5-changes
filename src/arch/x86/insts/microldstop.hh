@@ -86,6 +86,10 @@ namespace X86ISA
             foldABit =
                 (addressSize == 1 && !_machInst.rex.present) ? 1 << 6 : 0;
         }
+
+        uint8_t getDataSize() {
+            return dataSize;
+        }
     };
 
     /**

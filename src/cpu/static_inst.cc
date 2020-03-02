@@ -156,3 +156,8 @@ StaticInst::printFlags(std::ostream &outs,
         }
     }
 }
+
+uint8_t
+StaticInst::getDataSize() {
+    panic("getRegOpDataSize: This should only be called by a MemOp");
+}

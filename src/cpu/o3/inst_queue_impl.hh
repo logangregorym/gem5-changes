@@ -1167,18 +1167,48 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
         PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
         DPRINTF(IQ, "Popping dependGraph of register %i\n", dest_reg);
         DynInstPtr dep_inst = dependGraph.pop(dest_reg->flatIndex());
-        assert(inst->staticInst->dataSize);
-        assert(inst->dataSize);
-        DPRINTF(SuperOp, "Forwarding data of size: %i", inst->dataSize);
+        uint8_t dataSize = inst->staticInst->getDataSize();
+        DPRINTF(SuperOp, "Forwarding data of size: %i\n", dataSize);
         switch (dest_reg->classValue()) {
-          // TODO: handle half words and bytes
           case IntRegClass:
             DPRINTF(LVP, "Setting int register %i to %x\n", dest_reg, inst->predictedValue);
-            inst->setIntRegOperand(inst->staticInst.get(), i, inst->predictedValue);
+            if (dataSize == 8) {
+                inst->setIntRegOperand(inst->staticInst.get(), i, inst->predictedValue);
+            } else if (dataSize == 4) {
+                uint64_t value = inst->readIntRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffff00000000) | (inst->predictedValue & 0xffffffff);
+                inst->setIntRegOperand(inst->staticInst.get(), i, value);
+            } else if (dataSize == 2) {
+                uint64_t value = inst->readIntRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffffffff0000) | (inst->predictedValue & 0xffff);
+                inst->setIntRegOperand(inst->staticInst.get(), i, value);
+            } else if (dataSize == 1) {
+                uint64_t value = inst->readIntRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffffffffff00) | (inst->predictedValue & 0xff);
+                inst->setIntRegOperand(inst->staticInst.get(), i, value);
+            } else {
+                panic("Unrecognized data size!");
+            }
             break;
           case FloatRegClass:
             DPRINTF(LVP, "Setting float register %i to %x\n", dest_reg, inst->predictedValue);
-            inst->setFloatRegOperandBits(inst->staticInst.get(), i, inst->predictedValue);
+            if (dataSize == 8) {
+                inst->setFloatRegOperand(inst->staticInst.get(), i, inst->predictedValue);
+            } else if (dataSize == 4) {
+                uint64_t value = inst->readFloatRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffff00000000) | (inst->predictedValue & 0xffffffff);
+                inst->setFloatRegOperand(inst->staticInst.get(), i, value);
+            } else if (dataSize == 2) {
+                uint64_t value = inst->readFloatRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffffffff0000) | (inst->predictedValue & 0xffff);
+                inst->setFloatRegOperand(inst->staticInst.get(), i, value);
+            } else if (dataSize == 1) {
+                uint64_t value = inst->readFloatRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffffffffff00) | (inst->predictedValue & 0xff);
+                inst->setFloatRegOperand(inst->staticInst.get(), i, value);
+            } else {
+                panic("Unrecognized data size!");
+            }
             break;
           case VecRegClass:
             break;
@@ -1186,11 +1216,43 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
             break;
           case CCRegClass:
             DPRINTF(LVP, "Setting CC register %i to %x\n", dest_reg, inst->predictedValue);
-            inst->setCCRegOperand(inst->staticInst.get(), i, inst->predictedValue);
+            if (dataSize == 8) {
+                inst->setCCRegOperand(inst->staticInst.get(), i, inst->predictedValue);
+            } else if (dataSize == 4) {
+                uint64_t value = inst->readCCRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffff00000000) | (inst->predictedValue & 0xffffffff);
+                inst->setCCRegOperand(inst->staticInst.get(), i, value);
+            } else if (dataSize == 2) {
+                uint64_t value = inst->readCCRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffffffff0000) | (inst->predictedValue & 0xffff);
+                inst->setCCRegOperand(inst->staticInst.get(), i, value);
+            } else if (dataSize == 1) {
+                uint64_t value = inst->readCCRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffffffffff00) | (inst->predictedValue & 0xff);
+                inst->setCCRegOperand(inst->staticInst.get(), i, value);
+            } else {
+                panic("Unrecognized data size!");
+            }
             break;
           case MiscRegClass:
             DPRINTF(LVP, "Setting misc register %i to %x\n", dest_reg, inst->predictedValue);
-            inst->setMiscRegOperand(inst->staticInst.get(), i, inst->predictedValue);
+            if (dataSize == 8) {
+                inst->setMiscRegOperand(inst->staticInst.get(), i, inst->predictedValue);
+            } else if (dataSize == 4) {
+                uint64_t value = inst->readMiscRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffff00000000) | (inst->predictedValue & 0xffffffff);
+                inst->setMiscRegOperand(inst->staticInst.get(), i, value);
+            } else if (dataSize == 2) {
+                uint64_t value = inst->readMiscRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffffffff0000) | (inst->predictedValue & 0xffff);
+                inst->setMiscRegOperand(inst->staticInst.get(), i, value);
+            } else if (dataSize == 1) {
+                uint64_t value = inst->readMiscRegOperand(inst->staticInst.get(), i);
+                value = (value & 0xffffffffffffff00) | (inst->predictedValue & 0xff);
+                inst->setMiscRegOperand(inst->staticInst.get(), i, value);
+            } else {
+                panic("Unrecognized data size!");
+            }
             break;
         }
         while (dep_inst) {

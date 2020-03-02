@@ -31,7 +31,7 @@ class BigSatCounter
         : initialVal(initial_val), maxVal((1 << bits) - 1), counter(initial_val)
     {
         if (initial_val > maxVal) {
-            fatal("BP: Initial counter value exceeds max size.");
+            // fatal("BP: Initial counter value exceeds max size.");
         }
     }
 
