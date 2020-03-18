@@ -26,7 +26,7 @@ class FA3P : public LVPredUnit
 
     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle);
 
-    virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, PacketPtr pkt, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle);
+    virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle);
 
   private:
     virtual void setUpTables(const Params *p);

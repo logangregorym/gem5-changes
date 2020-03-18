@@ -66,7 +66,7 @@ LVPredUnit::lvpReturnValues StrideHistLVP::makePrediction(TheISA::PCState pc, Th
     return LVPredUnit::lvpReturnValues(value, status - firstConst);
 }
 
-bool StrideHistLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, PacketPtr pkt, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
+bool StrideHistLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
 {
     DPRINTF(LVP, "Inst %s called processPacketRecieved\n", inst->disassemble(pc.instAddr()));
     Addr loadAddr = pc.instAddr();
@@ -79,12 +79,14 @@ bool StrideHistLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst
     vector<SPTEntry> &SPT = p.SPT;
     vector<unsigned> &inFlightCount = p.inFlightCount;
     SHTEntry shtEntry = SHT[idx];
-    if (pkt->isResponse()) {
+    if (value) {
 // 	Moved to lsq_unit_impl.hh
 //	assert(inst->pendingPredictions > 0);
 //	inst->pendingPredictions--;
         assert(inFlightCount[idx] > 0);
         inFlightCount[idx]--;
+        uint64_t responseVal = value;
+/**
         unsigned size = pkt->getSize();
         DPRINTF(LVP, "Packet contains %i bytes of data\n", size);
         assert(pkt->hasData());
@@ -120,6 +122,7 @@ bool StrideHistLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst
             }
             return noMisPred;
         }
+**/
         DPRINTF(LVP, "Value %x received for address %x\n", responseVal, loadAddr);
 
         // Stats time!

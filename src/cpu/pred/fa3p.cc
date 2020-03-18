@@ -94,17 +94,17 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
         value = 0;
         status = -1;
     }
-    DPRINTF(LVP, "Value for address %x is %x\n", loadAddr, value);
+    DPRINTF(LVP, "Value for address %x is %llx\n", loadAddr, value);
     DPRINTF(LVP, "Status for address %x is %i\n", loadAddr, status - firstConst);
     ++predictionsMade;
     return LVPredUnit::lvpReturnValues(value, status - firstConst);
 }
 
-bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, PacketPtr pkt, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
+bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
 {
     DPRINTF(LVP, "Inst %s called processPacketRecieved\n", inst->disassemble(pc.instAddr()));
     Addr loadAddr = pc.instAddr();
-    DPRINTF(LVP, "Value %x predicted for address %x with confidence %i\n", prediction, loadAddr, confidence);
+    DPRINTF(LVP, "Value %llx predicted for address %x with confidence %i\n", prediction, loadAddr, confidence);
     predictor &threadPred = threadPredictors[tid];
 
     LVTEntry *addressInfo = NULL;
@@ -116,6 +116,8 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, PacketP
         }
     }
 
+    uint64_t responseVal = value;
+/**
     if (pkt->isResponse()) {
         unsigned size = pkt->getSize();
         DPRINTF(LVP, "Packet contains %i bytes of data\n", size);
@@ -157,7 +159,9 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, PacketP
             }
             return noMisPred;
         }
-        DPRINTF(LVP, "Value %x recieved for address %x\n", responseVal, loadAddr);
+**/
+
+        DPRINTF(LVP, "Value %llx recieved for address %x\n", responseVal, loadAddr);
 
         // Stats time!
         if (confidence >= 0) {
@@ -291,6 +295,4 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, PacketP
             }
         }
         return !misPred;
-    }
-    return true;
 }

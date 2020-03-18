@@ -155,10 +155,13 @@ LVPredUnit::lvpReturnValues HybridLVP::makePrediction3P(TheISA::PCState pc, Thre
     return LVPredUnit::lvpReturnValues(value, status, 3);
 }
 
-bool HybridLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, PacketPtr pkt, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, uint8_t predSource, unsigned currentCycle)
+bool HybridLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, uint8_t predSource, unsigned currentCycle)
 {
     DPRINTF(LVP, "Inst %s calles processPacketRecieved\n", inst->disassemble(pc.instAddr()));
     DPRINTF(LVP, "Value %x predicted for address %x with confidence %i\n", prediction, pc.instAddr(), confidence);
+
+    uint64_t responseVal = value;
+/**
     if (pkt->isResponse()) {
         processPacketRecievedBasic(pc, inst, pkt, tid, prediction, confidence, cyclesElapsed);
         processPacketRecievedSH(pc, inst, pkt, tid, prediction, confidence, cyclesElapsed);
@@ -214,6 +217,7 @@ bool HybridLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, Pa
             } else { ++incorrectNotUsed; }
             return noMisPred;
         }
+**/
         DPRINTF(LVP, "Value %x received for address %x\n", responseVal, pc.instAddr());
 
         if (confidence >= 0) {
@@ -284,12 +288,14 @@ bool HybridLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, Pa
     return true;
 }
 
-bool HybridLVP::processPacketRecievedBasic(TheISA::PCState pc, StaticInstPtr inst, PacketPtr pkt, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed)
+bool HybridLVP::processPacketRecievedBasic(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed)
 {
+    uint64_t responseVal = value;
     if (pkt->isResponse()) {
         Addr loadAddr = pc.instAddr();
         unsigned idx = loadAddr & (tableEntries - 1);
         vector<ValuePredWithConstStatus> &threadLVPCT = threadPredictorsBasic[tid];
+/**
         unsigned size = pkt->getSize();
         assert(pkt->hasData());
         uint64_t responseVal;
@@ -311,6 +317,7 @@ bool HybridLVP::processPacketRecievedBasic(TheISA::PCState pc, StaticInstPtr ins
             }
             return noMisPred;
         }
+**/
         bool misPred = (confidence >= 0) && (prediction != responseVal);
         if (prediction == responseVal) {
             threadLVPCT[idx].status.increment();
@@ -331,7 +338,7 @@ bool HybridLVP::processPacketRecievedBasic(TheISA::PCState pc, StaticInstPtr ins
     return true;
 }
 
-bool HybridLVP::processPacketRecievedSH(TheISA::PCState pc, StaticInstPtr inst, PacketPtr pkt, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed)
+bool HybridLVP::processPacketRecievedSH(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed)
 {
     if (pkt->isResponse()) {
         Addr loadAddr = pc.instAddr();
@@ -342,6 +349,8 @@ bool HybridLVP::processPacketRecievedSH(TheISA::PCState pc, StaticInstPtr inst, 
         vector<unsigned> &inFlightCount = p.inFlightCount;
         assert(inFlightCount[idx] > 0);
         inFlightCount[idx]--;
+        uint64_t responseVal = value;
+/**
         unsigned size = pkt->getSize();
         assert(pkt->hasData());
         uint64_t responseVal;
@@ -363,7 +372,7 @@ bool HybridLVP::processPacketRecievedSH(TheISA::PCState pc, StaticInstPtr inst, 
             }
             return noMisPred;
         }
-
+**/
         bool misPred = (confidence >= 0) && (prediction != responseVal);
         uint64_t oldBase = SHT[idx].base;
         uint64_t oldHist = SHT[idx].history.read();
@@ -388,13 +397,15 @@ bool HybridLVP::processPacketRecievedSH(TheISA::PCState pc, StaticInstPtr inst, 
     return true;
 }
 
-bool HybridLVP::processPacketRecieved3P(TheISA::PCState pc, StaticInstPtr inst, PacketPtr pkt, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed)
+bool HybridLVP::processPacketRecieved3P(TheISA::PCState pc, StaticInstPtr inst, uint64_t, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed)
 {
     if (pkt->isResponse()) {
         Addr loadAddr = pc.instAddr();
         unsigned idx = loadAddr & (tableEntries - 1);
         predictor3P &threadPred = threadPredictors3P[tid];
         LVTEntry &addressInfo = threadPred.LVT[idx];
+        uint64_t responseVal = value;
+/**
         unsigned size = pkt->getSize();
         assert(pkt->hasData());
         uint64_t responseVal;
@@ -417,7 +428,7 @@ bool HybridLVP::processPacketRecieved3P(TheISA::PCState pc, StaticInstPtr inst, 
             }
             return noMisPred;
         }
-
+**/
         bool misPred = (confidence >= 0) && (prediction != responseVal);
 
         if (prediction == responseVal) {

@@ -65,7 +65,7 @@ class LVPredUnit : public SimObject
      * Called when a value is returned from memory.
      * cyclesElapsed = memoryAccessStartCycle - memoryAccessEndCycle
      */
-    virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, PacketPtr pkt, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle) = 0;
+    virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle) = 0;
 
     int8_t firstConst;
 

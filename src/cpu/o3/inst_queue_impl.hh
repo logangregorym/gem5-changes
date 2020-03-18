@@ -53,6 +53,7 @@
 
 #include "cpu/o3/fu_pool.hh"
 #include "cpu/o3/inst_queue.hh"
+#include "debug/ExecResult.hh"
 #include "debug/IQ.hh"
 #include "debug/LVP.hh"
 #include "debug/SuperOp.hh"
@@ -1172,88 +1173,31 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
         switch (dest_reg->classValue()) {
           case IntRegClass:
             DPRINTF(LVP, "Setting int register %i to %x\n", dest_reg, inst->predictedValue);
-            if (dataSize == 8) {
-                inst->setIntRegOperand(inst->staticInst.get(), i, inst->predictedValue);
-            } else if (dataSize == 4) {
-                uint64_t value = inst->readIntRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffff00000000) | (inst->predictedValue & 0xffffffff);
-                inst->setIntRegOperand(inst->staticInst.get(), i, value);
-            } else if (dataSize == 2) {
-                uint64_t value = inst->readIntRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffffffff0000) | (inst->predictedValue & 0xffff);
-                inst->setIntRegOperand(inst->staticInst.get(), i, value);
-            } else if (dataSize == 1) {
-                uint64_t value = inst->readIntRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffffffffff00) | (inst->predictedValue & 0xff);
-                inst->setIntRegOperand(inst->staticInst.get(), i, value);
-            } else {
-                panic("Unrecognized data size!");
-            }
+            inst->setIntRegOperand(inst->staticInst.get(), i, inst->predictedValue);
             break;
           case FloatRegClass:
             DPRINTF(LVP, "Setting float register %i to %x\n", dest_reg, inst->predictedValue);
-            if (dataSize == 8) {
-                inst->setFloatRegOperand(inst->staticInst.get(), i, inst->predictedValue);
-            } else if (dataSize == 4) {
-                uint64_t value = inst->readFloatRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffff00000000) | (inst->predictedValue & 0xffffffff);
-                inst->setFloatRegOperand(inst->staticInst.get(), i, value);
-            } else if (dataSize == 2) {
-                uint64_t value = inst->readFloatRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffffffff0000) | (inst->predictedValue & 0xffff);
-                inst->setFloatRegOperand(inst->staticInst.get(), i, value);
-            } else if (dataSize == 1) {
-                uint64_t value = inst->readFloatRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffffffffff00) | (inst->predictedValue & 0xff);
-                inst->setFloatRegOperand(inst->staticInst.get(), i, value);
-            } else {
-                panic("Unrecognized data size!");
-            }
-            break;
+            inst->setFloatRegOperandBits(inst->staticInst.get(), i, inst->predictedValue);
           case VecRegClass:
+            // panic("Using a lvp prediction for a vector register container");
+            // DPRINTF(LVP, "Setting vec register %i to %x\n", dest_reg, inst->predictedValue);
+            // inst->setVecRegOperand(inst->staticInst.get(), i, inst->predictedValue);
             break;
           case VecElemClass:
+            DPRINTF(LVP, "Setting vector element  %i to %x\n", dest_reg, inst->predictedValue);
+            inst->setVecElemOperand(inst->staticInst.get(), i, inst->predictedValue);
             break;
           case CCRegClass:
-            DPRINTF(LVP, "Setting CC register %i to %x\n", dest_reg, inst->predictedValue);
-            if (dataSize == 8) {
-                inst->setCCRegOperand(inst->staticInst.get(), i, inst->predictedValue);
-            } else if (dataSize == 4) {
-                uint64_t value = inst->readCCRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffff00000000) | (inst->predictedValue & 0xffffffff);
-                inst->setCCRegOperand(inst->staticInst.get(), i, value);
-            } else if (dataSize == 2) {
-                uint64_t value = inst->readCCRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffffffff0000) | (inst->predictedValue & 0xffff);
-                inst->setCCRegOperand(inst->staticInst.get(), i, value);
-            } else if (dataSize == 1) {
-                uint64_t value = inst->readCCRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffffffffff00) | (inst->predictedValue & 0xff);
-                inst->setCCRegOperand(inst->staticInst.get(), i, value);
-            } else {
-                panic("Unrecognized data size!");
-            }
+            DPRINTF(LVP, "Setting cc register %i to %x\n", dest_reg, inst->predictedValue);
+            inst->setCCRegOperand(inst->staticInst.get(), i, inst->predictedValue);
             break;
           case MiscRegClass:
-            DPRINTF(LVP, "Setting misc register %i to %x\n", dest_reg, inst->predictedValue);
-            if (dataSize == 8) {
-                inst->setMiscRegOperand(inst->staticInst.get(), i, inst->predictedValue);
-            } else if (dataSize == 4) {
-                uint64_t value = inst->readMiscRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffff00000000) | (inst->predictedValue & 0xffffffff);
-                inst->setMiscRegOperand(inst->staticInst.get(), i, value);
-            } else if (dataSize == 2) {
-                uint64_t value = inst->readMiscRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffffffff0000) | (inst->predictedValue & 0xffff);
-                inst->setMiscRegOperand(inst->staticInst.get(), i, value);
-            } else if (dataSize == 1) {
-                uint64_t value = inst->readMiscRegOperand(inst->staticInst.get(), i);
-                value = (value & 0xffffffffffffff00) | (inst->predictedValue & 0xff);
-                inst->setMiscRegOperand(inst->staticInst.get(), i, value);
-            } else {
-                panic("Unrecognized data size!");
-            }
+            // panic("Using a lvp prediction for a misc register");
+            // DPRINTF(LVP, "Setting misc register %i to %x\n", dest_reg, inst->predictedValue);
+            // inst->setMiscRegOperand(inst->staticInst.get(), i, inst->predictedValue);
             break;
+          default:
+            panic("Unknown register class: %d", (int)dest_reg->classValue());
         }
         while (dep_inst) {
             // DPRINTF(IQ, "Setting int reg operand for inst [sn:%lli]\n", dep_inst->seqNum);

@@ -59,6 +59,7 @@
 #include "cpu/timebuf.hh"
 #include "debug/Activity.hh"
 #include "debug/Drain.hh"
+#include "debug/ExecResult.hh"
 #include "debug/IEW.hh"
 #include "debug/LVP.hh"
 #include "debug/O3PipeView.hh"
@@ -1364,6 +1365,15 @@ DefaultIEW<Impl>::executeInsts()
                         }
                         DPRINTF(LVP, "LVP returned confidence %d, inst->confidence set to %d\n", ret.confidence, inst->confidence);
                         // if prediction is good, wake dependencies
+                        // TEMPORARY DEBUGGING
+                        // for (int i = 0; i < inst->numDestRegs(); i++) {
+                            // PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
+                            // if (dest_reg->classValue() == IntRegClass) {
+                                // DPRINTF(ExecResult, "REMOVE THIS PRINT: Popping dependGraph of register %i from inst at %x (physical %i)\n", i, inst->pcState().instAddr(), dest_reg);
+                                // uint64_t value = cpu->readIntReg(dest_reg);
+                                // DPRINTF(ExecResult, "REMOVE THIS PRINT: cpu value is %x, inst value is %x\n", value, inst->readIntRegOperand(inst->staticInst.get(), i));
+                            // }
+                        // }
                         if (inst->confidence >= 0) {
                             if (!inst->isSquashed() && inst->getFault() == NoFault) {
                                 DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);

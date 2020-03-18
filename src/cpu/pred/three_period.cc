@@ -79,7 +79,7 @@ LVPredUnit::lvpReturnValues ThreePeriodLVP::makePrediction(TheISA::PCState pc, T
     return LVPredUnit::lvpReturnValues(value, status - firstConst);
 }
 
-bool ThreePeriodLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, PacketPtr pkt, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
+bool ThreePeriodLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
 {
     DPRINTF(LVP, "Inst %s called processPacketRecieved\n", inst->disassemble(pc.instAddr()));
     Addr loadAddr = pc.instAddr();
@@ -88,6 +88,8 @@ bool ThreePeriodLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr ins
     DPRINTF(LVP, "Value %x predicted for address %x with confidence %i\n", prediction, loadAddr, confidence);
     predictor &threadPred = threadPredictors[tid];
     LVTEntry &addressInfo = threadPred.LVT[idx];
+    uint64_t responseVal = value;
+/**
     if (pkt->isResponse()) {
         unsigned size = pkt->getSize();
         DPRINTF(LVP, "Packet contains %i bytes of data\n", size);
@@ -124,6 +126,7 @@ bool ThreePeriodLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr ins
             }
             return noMisPred;
         }
+**/
         DPRINTF(LVP, "Value %x recieved for address %x\n", responseVal, loadAddr);
 
         // Stats time!
@@ -244,6 +247,4 @@ bool ThreePeriodLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr ins
             }
         }
         return !misPred;
-    }
-    return true;
 }

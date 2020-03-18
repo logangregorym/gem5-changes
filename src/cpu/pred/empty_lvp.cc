@@ -25,7 +25,7 @@ LVPredUnit::lvpReturnValues EmptyLVP::makePrediction(TheISA::PCState pc, ThreadI
     return LVPredUnit::lvpReturnValues(0, -1);
 }
 
-bool EmptyLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, PacketPtr pkt, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
+bool EmptyLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
 {
     DPRINTF(LVP, "lvpredType=none, doing nothing\n");
     return true;

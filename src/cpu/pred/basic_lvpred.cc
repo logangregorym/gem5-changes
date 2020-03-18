@@ -51,13 +51,16 @@ LVPredUnit::lvpReturnValues BasicLVP::makePrediction(TheISA::PCState pc, ThreadI
     return LVPredUnit::lvpReturnValues(value, status - firstConst);
 }
 
-bool BasicLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, PacketPtr pkt, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
+bool BasicLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
 {
     DPRINTF(LVP, "Inst %s called processPacketRecieved\n", inst->disassemble(pc.instAddr()));
     Addr loadAddr = pc.instAddr();
     unsigned idx = loadAddr & (tableEntries - 1);
     DPRINTF(LVP, "Value %x predicted for address %x with confidence %i\n", prediction, loadAddr, confidence);
     vector<ValuePredWithConstStatus> &threadLVPCT = threadPredictors[tid];
+
+    uint64_t responseVal = value;
+/**
     if (pkt->isResponse()) {
         // Moved to lsq_unit_impl.hh
         // assert(inst->pendingPredictions > 0);
@@ -97,6 +100,7 @@ bool BasicLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, Pac
             }
             return noMisPred;
         }
+**/
         DPRINTF(LVP, "Value %x received for address %x\n", responseVal, loadAddr);
 
         // Stats time!
@@ -152,6 +156,4 @@ bool BasicLVP::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, Pac
             }
         }
         return !misPred;
-    }
-    return true;
 }

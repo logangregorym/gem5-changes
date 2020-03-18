@@ -1121,13 +1121,51 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
         inst->setExecuted();
 
         if (inst->fault == NoFault) {
-            // LVP Update and check for misprediction
+
+             inst->completeAcc(pkt);
+
             if (inst->isLoad()) {
                 inst->memoryAccessEndCycle = cpu->numCycles.value();
                 DPRINTF(LVP, "Sending a load response to LVP from [sn:%i]\n", inst->seqNum);
                 ThreadID tid = inst->threadNumber;
                 DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->confidence);
-                inst->lvMispred = !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, pkt, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                for (int i=0; i<inst->numDestRegs(); i++) {
+                    PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
+                    uint64_t value;
+                    switch (dest_reg->classValue()) {
+                      case IntRegClass:
+                        value = cpu->readIntReg(dest_reg);
+                        DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
+                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                        break;
+                      case FloatRegClass:
+                        value = cpu->readFloatRegBits(dest_reg);
+                        DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readFloatReg(dest_reg));
+                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                        break;
+                      case VecRegClass:
+                        // Should be okay to ignore, because if predicted, assertion in inst_queue would have failed
+                        // value = cpu->readVecReg(dest_reg);
+                        if (inst->confidence >= 0) { inst->lvMispred = true; }
+                        break;
+                      case VecElemClass:
+                        value = cpu->readVecElem(dest_reg);
+                        DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readVecElem(dest_reg));
+                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                        break;
+                      case CCRegClass:
+                        value = cpu->readCCReg(dest_reg);
+                        DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readCCReg(dest_reg));
+                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                        break;
+                      case MiscRegClass:
+                        // Should also be okay to ignore, won't be predicted
+                        if (inst->confidence >= 0) { inst->lvMispred = true; }
+                        break;
+                      default:
+                        panic("Unknown register class: %d", (int)dest_reg->classValue());
+                    }
+                }
                 if (inst->lvMispred) {
                     DPRINTF(LVP, "OH NO! processPacketRecieved returned false :(\n");
                     cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
@@ -1135,19 +1173,8 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                     // Moved from commit
                     cpu->commit.squashWokenDependents(inst);
                 }
-            } else {
-                DPRINTF(LVP, "Instruction [sn:%i] not a load.\n", inst->seqNum);
-                if (inst->isStore()) {
-                    DPRINTF(LVP, "Instruction is a store\n");
-                } else if (inst->isMemRef()) {
-                    DPRINTF(LVP, "Instruction is some other memory reference\n");
-                } else {
-                    DPRINTF(LVP, "Instruction of unfamiliar type returned a packet\n");
-                }
             }
 
-            // Complete access to copy data to proper place.
-            inst->completeAcc(pkt);
         } else {
             // If the instruction has an outstanding fault, we cannot complete
             // the access as this discards the current fault.
