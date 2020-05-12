@@ -148,7 +148,18 @@ BPredUnit::regStats()
         .name(name() + "indirectMispredicted")
         .desc("Number of mispredicted indirect branches.")
         ;
-
+    numDistinctBranches
+	.name(name() + ".numDistinctBranches")
+	.desc("Number of distinct branches encountered by LTAGE")
+	;
+    numConfidentBranches
+	.name(name() + ".numConfidentBranches")
+	.desc("Number of confidently-predictable branches through LTAGE.")
+	;
+    confidentAtPredict
+	.name(name() + ".confidentAtPredict")
+	.desc("Number of branches that were confident when predict was called.")
+	;
 }
 
 ProbePoints::PMUUPtr

@@ -305,6 +305,7 @@ protected:
         }
         depTracker = params->depTracker;
         depTracker->decoder = this;
+	depTracker->branchPred = params->branchPred;
     }
 
     void setM5Reg(HandyM5Reg m5Reg)

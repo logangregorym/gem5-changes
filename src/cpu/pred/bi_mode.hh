@@ -65,6 +65,8 @@ class BiModeBP : public BPredUnit
                 bool squashed);
     unsigned getGHR(ThreadID tid, void *bp_history) const;
 
+    virtual bool getConfidenceForSSO(Addr pc);
+
   private:
     void updateGlobalHistReg(ThreadID tid, bool taken);
 

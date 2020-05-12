@@ -359,6 +359,9 @@ TournamentBP::squash(ThreadID tid, void *bp_history)
     delete history;
 }
 
+bool
+TournamentBP::getConfidenceForSSO(Addr pc) { return true; }
+
 TournamentBP*
 TournamentBPParams::create()
 {

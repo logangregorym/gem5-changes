@@ -576,7 +576,7 @@ ROB<Impl>::firstDependentOf(ThreadID tid, DynInstPtr &inst)
             PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(d);
             for (int s = 0; s < (*it)->numSrcRegs(); s++) {
                 // Source registers of potential dependent (few)
-                if ((!(*it)->isSquashed()) && ((*it)->renamedSrcRegIdx(s) == dest_reg) && ((*it)->seqNum < lowestSN)) {
+                if ((!(*it)->isSquashed()) && ((*it)->renamedSrcRegIdx(s) == dest_reg) && ((*it)->seqNum < lowestSN) && ((*it)->seqNum >= inst->seqNum)) {
                     firstDependent = *it;
                     lowestSN = (*it)->seqNum;
                 }

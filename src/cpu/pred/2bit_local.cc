@@ -164,6 +164,9 @@ LocalBP::uncondBranch(ThreadID tid, Addr pc, void *&bp_history)
 {
 }
 
+bool
+LocalBP::getConfidenceForSSO(Addr pc) { return true; }
+
 LocalBP*
 LocalBPParams::create()
 {

@@ -102,6 +102,18 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
 
 bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
 {
+	// New stats time
+	if (inst->isLoad()) {
+		finishedLoads++;
+		totalLoadLatency += cyclesElapsed;
+	} else if (inst->isInteger()) {
+		finishedArithmetic++;
+		totalArithmeticLatency += cyclesElapsed;
+	} else {
+		panic("unrecognized inst returned value to LVP\n");
+	}
+	
+
     DPRINTF(LVP, "Inst %s called processPacketRecieved\n", inst->disassemble(pc.instAddr()));
     Addr loadAddr = pc.instAddr();
     DPRINTF(LVP, "Value %llx predicted for address %x with confidence %i\n", prediction, loadAddr, confidence);

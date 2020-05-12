@@ -11,6 +11,8 @@
 #include "base/trace.hh"
 #include "base/types.hh"
 #include "cpu/static_inst.hh"
+#include "cpu/pred/bpred_unit.hh"
+#include "cpu/pred/ltage.hh"
 #include "debug/SuperOp.hh"
 #include "params/ArrayDependencyTracker.hh"
 #include "sim/sim_object.hh"
@@ -143,6 +145,8 @@ class ArrayDependencyTracker : public SimObject
         void measureChain(FullUopAddr addr, unsigned recursionLevel, vector<FullUopAddr>& checked);
         bool isReducable(Addr addr, unsigned uopAddr);
 
+	BPredUnit* branchPred;
+
   public:
         Stats::Scalar numChainsMeasured;
         Stats::Scalar totalDependentInsts;
@@ -151,6 +155,9 @@ class ArrayDependencyTracker : public SimObject
         Stats::Scalar totalReducable;
         Stats::Formula averageDependentInsts;
         Stats::Formula averageNumberReducable;
+	Stats::Scalar branchesOnChains;
+	Stats::Scalar confidentBranchesOnChains;
+	Stats::Formula percentChainBranchesConfident;
         void regStats();
 
 }; // class ArrayDependencyTracker

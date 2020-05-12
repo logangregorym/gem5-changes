@@ -560,7 +560,7 @@ void
 DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, ThreadID tid)
 {
     DPRINTF(IEW, "[tid:%i]: Memory misprediction, squashing younger "
-            "insts, PC: %s [sn:%i].\n", tid, inst->pcState(), inst->seqNum);
+            "insts from %i, PC: %s [sn:%i].\n", tid, firstDependent->seqNum, inst->pcState(), inst->seqNum);
 
     // If already squashing, LVP takes precedence
     // Using < instead of <= would give branch precedence
@@ -571,7 +571,7 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
         toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
 //        toCommit->squashedSeqNum[tid] = inst->seqNum;
         toCommit->pc[tid] = firstDependent->pcState();
-        toCommit->mispredictInst[tid] = NULL; // not a branch misprediction
+        toCommit->mispredictInst[tid] = inst; // not a branch misprediction
 //        toCommit->includeSquashInst[tid] = false; // have correct value now
         toCommit->includeSquashInst[tid] = true;
 
@@ -606,6 +606,7 @@ DefaultIEW<Impl>::squashDueToMemOrder(DynInstPtr &inst, ThreadID tid)
         toCommit->includeSquashInst[tid] = true;
 
         wroteToTimeBuffer = true;
+	DPRINTF(IEW, "[tid:%i]: Memory order violation, squashing younger insts from PC: %s [sn:%i].\n", tid, inst->pcState(), inst->seqNum);
     }
 }
 
@@ -1438,9 +1439,64 @@ DefaultIEW<Impl>::executeInsts()
             // If we execute the instruction (even if it's a nop) the fault
             // will be replaced and we will lose it.
             if (inst->getFault() == NoFault) {
-                inst->execute();
-                if (!inst->readPredicate())
+                inst->execute(); // this is op specific! so need to read dest reg to get returned value
+                if (!inst->readPredicate()) {
                     inst->forwardOldRegs();
+		}
+
+
+		if (inst->isInteger() && loadPred->predictingArithmetic) { // isFloat()? isVector()? isCC()? 
+		    inst->memoryAccessStartCycle = cpu->numCycles.value();
+                    inst->memoryAccessEndCycle = cpu->numCycles.value();
+                    DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
+                    ThreadID tid = inst->threadNumber;
+                    DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->confidence);
+                    for (int i=0; i<inst->numDestRegs(); i++) {
+                    	PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
+                    	uint64_t value;
+                    	switch (dest_reg->classValue()) {
+			    // Note: changed memoryAccessStartCycle to cycleFetched in all these
+                          case IntRegClass:
+                            value = cpu->readIntReg(dest_reg);
+                            DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
+                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                            break;
+                          case FloatRegClass:
+                            value = cpu->readFloatRegBits(dest_reg);
+                            DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readFloatReg(dest_reg));
+                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                            break;
+                      	  case VecRegClass:
+                            // Should be okay to ignore, because if predicted, assertion in inst_queue would have failed
+                            // value = cpu->readVecReg(dest_reg);
+                            if (inst->confidence >= 0) { inst->lvMispred = true; }
+                            break;
+                      	  case VecElemClass:
+                            value = cpu->readVecElem(dest_reg);
+                            DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readVecElem(dest_reg));
+                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                            break;
+                      	  case CCRegClass:
+                            value = cpu->readCCReg(dest_reg);
+                            DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readCCReg(dest_reg));
+                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                            break;
+                      	  case MiscRegClass:
+                            // Should also be okay to ignore, won't be predicted
+                            if (inst->confidence >= 0) { inst->lvMispred = true; }
+                            break;
+                     	  default:
+                            panic("Unknown register class: %d", (int)dest_reg->classValue());
+                   	}
+                    }
+                    if (inst->lvMispred) {
+                    	DPRINTF(LVP, "OH NO! processPacketRecieved returned false :(\n");
+                    	cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
+                    	loadPred->lastMisprediction = inst->memoryAccessEndCycle;
+                    	// Moved from commit
+                    	cpu->commit.squashWokenDependents(inst);
+                    }
+            	}
             }
 
             inst->setExecuted();
@@ -1512,7 +1568,8 @@ DefaultIEW<Impl>::executeInsts()
                 instQueue.violation(inst, violator);
 
                 // Squash.
-                squashDueToMemOrder(violator, tid);
+                DPRINTF(LVP, "Starting mem order violation squash from %i\n", violator->seqNum);
+		squashDueToMemOrder(violator, tid);
 
                 ++memOrderViolationEvents;
             }

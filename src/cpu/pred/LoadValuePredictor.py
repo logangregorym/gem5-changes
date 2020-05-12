@@ -22,4 +22,5 @@ class LoadValuePredictor(SimObject):
     numThreads = Param.Unsigned(1, "Number of threads")
     missThreshold = Param.Unsigned(150, "Misses allowed before confidence threshold increments")
     hitThreshold = Param.Unsigned(300, "Unused hits allowed before confidence threshold decrements")
+    predictingArithmetic = Param.Bool(0, "Whether to predict arithmetic insts as well as loads")
     predictStage = Param.Unsigned(3, "When to make a prediction (1-fetch, 2-iew, 3-both)")

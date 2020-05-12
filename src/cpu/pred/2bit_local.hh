@@ -99,6 +99,8 @@ class LocalBP : public BPredUnit
 
     void reset();
 
+    virtual bool getConfidenceForSSO(Addr pc);
+
   private:
     /**
      *  Returns the taken/not taken prediction given the value of the

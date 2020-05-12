@@ -82,7 +82,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
   protected:
 
     /// Flag values for this instruction.
-    std::bitset<Num_Flags> flags;
+    std::bitset<Num_Flags> flags = {0};
 
     /// See opClass().
     OpClass _opClass;
@@ -155,7 +155,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isVector()       const { return flags[IsVector]; }
     bool isCC()           const { return flags[IsCC]; }
 
-    bool isControl()      const { return flags[IsControl]; }
+    bool isControl()      const { return Num_Flags > IsControl && flags[IsControl]; }
     bool isCall()         const { return flags[IsCall]; }
     bool isReturn()       const { return flags[IsReturn]; }
     bool isDirectCtrl()   const { return flags[IsDirectControl]; }
@@ -247,11 +247,18 @@ class StaticInst : public RefCounted, public StaticInstFlags
     /// default, since the decoder generally only overrides
     /// the fields that are meaningful for the particular
     /// instruction.
-    StaticInst(const char *_mnemonic, ExtMachInst _machInst, OpClass __opClass)
+    StaticInst(const char *_mnemonic, const char * _instMnem, ExtMachInst _machInst, OpClass __opClass)
         : _opClass(__opClass), _numSrcRegs(0), _numDestRegs(0),
           _numFPDestRegs(0), _numIntDestRegs(0), _numCCDestRegs(0),
           _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
-          mnemonic(_mnemonic), cachedDisassembly(0)
+          mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
+    { }
+
+    StaticInst(const char *_mnemonic, ExtMachInst _machInst, OpClass __opClass)
+	: _opClass(__opClass), _numSrcRegs(0), _numDestRegs(0),
+	  _numFPDestRegs(0), _numIntDestRegs(0), _numCCDestRegs(0),
+	  _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
+	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
     { }
 
   public:
@@ -349,6 +356,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
      */
     virtual size_t asBytes(void *buf, size_t max_size) { return 0; }
     virtual uint8_t getDataSize();
+    const char * instMnem;
 };
 
 #endif // __CPU_STATIC_INST_HH__

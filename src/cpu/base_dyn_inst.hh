@@ -894,6 +894,7 @@ class BaseDynInst : public ExecContext, public RefCounted
     // Used by LVP
     uint64_t predictedValue;
     int8_t confidence = -1; // could be using BigSC
+    unsigned cycleFetched;
     unsigned memoryAccessStartCycle;
     unsigned memoryAccessEndCycle;
     bool lvMispred = false;

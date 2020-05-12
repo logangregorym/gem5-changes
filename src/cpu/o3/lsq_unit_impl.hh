@@ -1133,6 +1133,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                     PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                     uint64_t value;
                     switch (dest_reg->classValue()) {
+			// Note: changed "memoryAccessStartCycle" to "cycleFetched" in all these
                       case IntRegClass:
                         value = cpu->readIntReg(dest_reg);
                         DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));

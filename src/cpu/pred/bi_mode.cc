@@ -243,6 +243,9 @@ BiModeBP::updateGlobalHistReg(ThreadID tid, bool taken)
     globalHistoryReg[tid] &= historyRegisterMask;
 }
 
+bool
+BiModeBP::getConfidenceForSSO(Addr pc) { return true; }
+
 BiModeBP*
 BiModeBPParams::create()
 {

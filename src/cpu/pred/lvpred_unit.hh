@@ -85,6 +85,8 @@ class LVPredUnit : public SimObject
 
     uint8_t predictStage;
 
+    bool predictingArithmetic;
+
   protected:
 
     /**
@@ -158,6 +160,14 @@ class LVPredUnit : public SimObject
     Stats::Formula predictedPercent;
     /** Stat for predictions made. */
     Stats::Scalar predictionsMade;
+	
+	// Stats for comparing isLoad() and isInteger() insts
+	Stats::Scalar finishedLoads;
+	Stats::Scalar totalLoadLatency;
+	Stats::Formula averageLoadLatency;
+	Stats::Scalar finishedArithmetic;
+	Stats::Scalar totalArithmeticLatency;
+	Stats::Formula averageArithmeticLatency;
 };
 
 #endif //__CPU_PRED_LVPRED_UNIT_HH__

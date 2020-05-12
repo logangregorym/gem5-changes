@@ -80,13 +80,18 @@ namespace X86ISA
 
     class X86StaticInst : public StaticInst
     {
+      public:
+	const char * instMnem;
       protected:
         // Constructor.
-        X86StaticInst(const char *mnem,
+        X86StaticInst(const char *mnem, const char * instMnem,
              ExtMachInst _machInst, OpClass __opClass)
-                : StaticInst(mnem, _machInst, __opClass)
+                : StaticInst(mnem, instMnem, _machInst, __opClass)
             {
             }
+
+	X86StaticInst(const char *mnem, ExtMachInst _machInst, OpClass __opClass)
+		: StaticInst(mnem, _machInst, __opClass) {}
 
         std::string generateDisassembly(Addr pc,
             const SymbolTable *symtab) const;

@@ -46,6 +46,7 @@
 #include "base/trace.hh"
 #include "debug/Fetch.hh"
 #include "debug/LTage.hh"
+#include "cpu/pred/sat_counter.hh"
 
 LTAGE::LTAGE(const LTAGEParams *params)
   : BPredUnit(params),
@@ -428,6 +429,15 @@ LTAGE::predict(ThreadID tid, Addr branch_pc, bool cond_branch, void* &b)
     bool pred_taken = true;
     bi->loopHit = -1;
 
+    if (!branch_confidence.count(branch_pc)) {
+	branch_confidence.insert({branch_pc, SatCounter(2)});
+	++numDistinctBranches;
+    }
+
+    if (branch_confidence[branch_pc].read() > 1) {
+	confidentAtPredict++;
+    }
+
     if (cond_branch) {
         // TAGE prediction
 
@@ -501,6 +511,7 @@ LTAGE::predict(ThreadID tid, Addr branch_pc, bool cond_branch, void* &b)
     bi->branchPC = branch_pc;
     bi->condBranch = cond_branch;
     specLoopUpdate(branch_pc, pred_taken, bi);
+
     return pred_taken;
 }
 
@@ -512,6 +523,14 @@ LTAGE::update(ThreadID tid, Addr branch_pc, bool taken, void* bp_history,
     assert(bp_history);
 
     BranchInfo *bi = static_cast<BranchInfo*>(bp_history);
+
+    assert(branch_confidence.count(branch_pc));
+
+    if (taken == bi->tagePred) {
+	branch_confidence[branch_pc].increment();
+    } else {
+	branch_confidence[branch_pc].decrement();
+    }
 
     if (squashed) {
         // This restores the global history, then update it
@@ -757,6 +776,15 @@ LTAGE::uncondBranch(ThreadID tid, Addr br_pc, void* &bp_history)
     updateHistories(tid, br_pc, true, bp_history);
     assert(threadHistory[tid].gHist ==
            &threadHistory[tid].globalHistory[threadHistory[tid].ptGhist]);
+}
+
+bool
+LTAGE::getConfidenceForSSO(Addr pc)
+{
+    if (branch_confidence.count(pc) > 0) {
+	 return branch_confidence[pc].read() > 1;
+    }
+    return false;
 }
 
 LTAGE*

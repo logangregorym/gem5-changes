@@ -192,6 +192,8 @@ class BPredUnit : public SimObject
 
     void dump();
 
+    virtual bool getConfidenceForSSO(Addr pc) = 0;
+
   private:
     struct PredictorHistory {
         /**
@@ -306,6 +308,13 @@ class BPredUnit : public SimObject
   protected:
     /** Number of bits to shift instructions by for predictor addresses. */
     const unsigned instShiftAmt;
+
+    /** Stat for number of distinct branches encountered by the predictor. */
+    Stats::Scalar numDistinctBranches;
+    /** Stat for number of confidently predictable branches through the predictor. */
+    Stats::Scalar numConfidentBranches;
+    /** Dynamic confidence statistic, doesn't account for squashing */
+    Stats::Scalar confidentAtPredict;
 
     /**
      * @{

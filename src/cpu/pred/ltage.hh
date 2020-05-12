@@ -53,15 +53,19 @@
 #define __CPU_PRED_LTAGE
 
 #include <vector>
+#include <unordered_map>
 
 #include "base/types.hh"
 #include "cpu/pred/bpred_unit.hh"
 #include "params/LTAGE.hh"
+#include "cpu/pred/sat_counter.hh"
 
 class LTAGE: public BPredUnit
 {
   public:
     LTAGE(const LTAGEParams *params);
+
+    std::unordered_map<Addr, SatCounter> branch_confidence;
 
     // Base class methods.
     void uncondBranch(ThreadID tid, Addr br_pc, void* &bp_history) override;
@@ -279,6 +283,8 @@ class LTAGE: public BPredUnit
      * @param pc The unshifted branch PC.
      */
     bool checkLoopEnding(Addr pc) const;
+
+    virtual bool getConfidenceForSSO(Addr pc);
 
   private:
     /**

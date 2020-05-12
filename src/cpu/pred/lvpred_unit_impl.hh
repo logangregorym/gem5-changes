@@ -18,6 +18,7 @@ LVPredUnit::LVPredUnit(const Params *params)
       hitThreshold(params->hitThreshold),
       resetDelay(params->resetDelay),
       predictStage(params->predictStage),
+      predictingArithmetic(params->predictingArithmetic),
       numThreads(params->numThreads)
 {}
 
@@ -128,6 +129,32 @@ void LVPredUnit::regStats()
         .name(name() + ".predictionsMade")
         .desc("Number of predictions made")
         ;
+	finishedLoads
+		.name(name() + ".finishedLoads")
+		.desc("Number of loads completed")
+		;
+	finishedArithmetic
+		.name(name() + ".finishedArithmetic")
+		.desc("Number of arithmetic insts completed")
+		;
+	totalLoadLatency
+		.name(name() + ".totalLoadLatency")
+		.desc("Total cycles between a load being fetched and finishing")
+		;
+	totalArithmeticLatency
+		.name(name() + ".totalArithmeticLatency")
+		.desc("Total cycles between an arithmetic inst being fetched and finishing")
+		;
+	averageLoadLatency
+		.name(name() + ".averageLoadLatency")
+		.desc("Average cycles between a load being fetched and finishing")
+		.precision(6);
+	averageLoadLatency = (totalLoadLatency / finishedLoads);
+	averageArithmeticLatency
+		.name(name() + ".averageArithmeticLatency")
+		.desc("Average cycles between an arithmetic inst being fetched and finishing")
+		.precision(6);
+	averageArithmeticLatency = (totalArithmeticLatency / finishedArithmetic);
 }
 
 #endif

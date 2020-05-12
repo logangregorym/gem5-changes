@@ -138,6 +138,7 @@ parser.add_option("--decrementBy", default=10, type="int", action="store", help=
 parser.add_option("--resetTo", default=0, type="int", action="store", help="Value to reset confidence to in response to a misprediction.")
 parser.add_option("--missThreshold", default=150, type="int", action="store", help="Misses allowed before confidence threshold increments.")
 parser.add_option("--hitThreshold", default=300, type="int", action="store", help="Unused hits allowed before confidence threshold decrements.")
+parser.add_option("--predictingArithmetic", default=0, type="int", action="store", help="Whether to predict arithmetic insts as well as loads.");
 parser.add_option("--predictStage", default=3, type="int", action="store", help="Prediction Stage: fetch/iew/both.");
 parser.add_option("--maxDependencyRecursion", default=15, type="int", action="store", help="How deep to recurse when counting dependencies.");
 
@@ -201,6 +202,7 @@ CPUClass.loadPred.decrementBy = options.decrementBy
 CPUClass.loadPred.resetTo = options.resetTo
 CPUClass.loadPred.missThreshold = options.missThreshold
 CPUClass.loadPred.hitThreshold = options.hitThreshold
+CPUClass.loadPred.predictingArithmetic = options.predictingArithmetic
 CPUClass.loadPred.predictStage = options.predictStage
 CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
 

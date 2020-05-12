@@ -97,7 +97,7 @@ namespace X86ISA
         X86MicroopBase(ExtMachInst _machInst,
                 const char *mnem, const char *_instMnem,
                 uint64_t setFlags, OpClass __opClass) :
-            X86ISA::X86StaticInst(mnem, _machInst, __opClass),
+            X86ISA::X86StaticInst(mnem, instMnem, _machInst, __opClass),
             instMnem(_instMnem)
         {
             const int ChunkSize = sizeof(unsigned long);
