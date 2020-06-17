@@ -8,6 +8,8 @@ cscope.out
 .*.swp
 .*.swo
 m5out
+m5out6*
+/sh/
 /src/doxygen
 /ext/dramsim2/DRAMSim2
 /ext/mcpat/regression/*/*.out
