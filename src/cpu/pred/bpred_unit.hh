@@ -315,6 +315,10 @@ class BPredUnit : public SimObject
     Stats::Scalar numConfidentBranches;
     /** Dynamic confidence statistic, doesn't account for squashing */
     Stats::Scalar confidentAtPredict;
+    /** Stat for number of confident but incorrectly-predicted branches. */
+    Stats::Scalar confidentButWrong;
+    /** Stat for number of LTAGE predictions made based on the loop predictor. */
+    Stats::Scalar numLoopPredictions; 
 
     /**
      * @{

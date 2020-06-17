@@ -110,7 +110,7 @@ def get_processes(options):
         idx += 1
 
     if options.smt:
-        assert(options.cpu_type == "DerivO3CPU" or options.cpu_type == "O3_X86_sb_1")
+        assert(options.cpu_type == "DerivO3CPU" or options.cpu_type == "O3_X86_sb_1" or options.cpu_type == "O3_X86_skylake_1")
         return multiprocesses, idx
     else:
         return multiprocesses, 1
@@ -142,6 +142,9 @@ parser.add_option("--predictingArithmetic", default=0, type="int", action="store
 parser.add_option("--predictStage", default=3, type="int", action="store", help="Prediction Stage: fetch/iew/both.");
 parser.add_option("--maxDependencyRecursion", default=15, type="int", action="store", help="How deep to recurse when counting dependencies.");
 parser.add_option("--usingControlTracking", default=0, type="int", action="store", help="Track control dependencies to optimize across?");
+parser.add_option("--branchConfidenceCounterSize", default=2, type="int", action="store", help="Size of the branch confidence counters in bits.")
+parser.add_option("--branchConfidenceThreshold", default=2, type="int", action="store", help="Minimum confidence needed to do LVP across a branch.")
+parser.add_option("--doStoragelessBranchConf", action="store_true", help="Whether to use storageless TAGE confidence (Seznec 2010).")
 
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
@@ -208,6 +211,9 @@ CPUClass.loadPred.predictingArithmetic = options.predictingArithmetic
 CPUClass.loadPred.predictStage = options.predictStage
 CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
 CPUClass.depTracker.usingControlTracking = options.usingControlTracking
+CPUClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize
+CPUClass.branchPred.branchConfidenceThreshold = options.branchConfidenceThreshold
+CPUClass.branchPred.doStoragelessBranchConf = options.doStoragelessBranchConf
 
 # Check -- do not allow SMT with multiple CPUs
 if options.smt and options.num_cpus > 1:
