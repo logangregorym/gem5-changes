@@ -351,6 +351,29 @@ DefaultIEW<Impl>::regStats()
         .name(name() + ".instsSquashedByLVP")
         .desc("insts squashed due to load value mispredictions")
         .flags(total);
+
+    squashedLoadsPresentInBothCaches
+        .init(cpu->numThreads)
+        .name(name() + ".squashedLoadsPresentInBothCaches")
+        .desc("load value mispredictions that haven't been evicted from either cache")
+        .flags(total);
+
+    squashedLoadsOnlyInUopCache
+        .init(cpu->numThreads)
+        .name(name() + ".squashedLoadsOnlyInUopCache")
+        .desc("load value mispredictions that have been evicted from speculative cache")
+        .flags(total);
+
+    squashedLoadsOnlyInSpecCache
+        .init(cpu->numThreads)
+        .name(name() + ".squashedLoadsOnlyInSpecCache")
+        .desc("load value mispredictions that have been evicted from uop cache")
+        .flags(total);
+
+    squashedLoadsInNeitherCache
+        .init(cpu->numThreads)
+        .name(name() + ".squashedLoadsInNeitherCache")
+        .flags(total);
 }
 
 template<class Impl>
@@ -579,6 +602,19 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
         instsSquashedByLVP[tid] += (cpu->globalSeqNum - firstDependent->seqNum);
     } else if (toCommit->squash[tid] && firstDependent->seqNum > toCommit->squashedSeqNum[tid]) {
         DPRINTF(LVP, "Already squashing from [sn:%i], so skipping\n", toCommit->squashedSeqNum[tid]);
+    }
+
+    // New stats
+    bool isInUop = cpu->fetch.decoder[tid]->isHitInUopCache(inst->pcState().instAddr());
+    bool isInSpec = cpu->fetch.decoder[tid]->isHitInSpeculativeCache(inst->pcState().instAddr());
+    if (isInUop && isInSpec) {
+        squashedLoadsPresentInBothCaches[tid]++;
+    } else if (isInUop) {
+        squashedLoadsOnlyInUopCache[tid]++;
+    } else if (isInSpec) {
+        squashedLoadsOnlyInSpecCache[tid]++;
+    } else {
+        squashedLoadsInNeitherCache[tid]++;
     }
 }
 
@@ -1444,9 +1480,9 @@ DefaultIEW<Impl>::executeInsts()
                     inst->forwardOldRegs();
 		}
 
-
-		if (inst->isInteger() && loadPred->predictingArithmetic) { // isFloat()? isVector()? isCC()? 
-		    inst->memoryAccessStartCycle = cpu->numCycles.value();
+                string opcode = inst->getName();
+                if (opcode == "limm" || (inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
+                    inst->memoryAccessStartCycle = cpu->numCycles.value();
                     inst->memoryAccessEndCycle = cpu->numCycles.value();
                     DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
                     ThreadID tid = inst->threadNumber;

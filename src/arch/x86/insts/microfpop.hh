@@ -78,6 +78,9 @@ namespace X86ISA
 
         std::string generateDisassembly(Addr pc,
             const SymbolTable *symtab) const;
+
+        virtual uint8_t getImmediate() { panic("getImmediate() should only be called by RegOpImm, called by FpOp"); }
+
     };
 }
 

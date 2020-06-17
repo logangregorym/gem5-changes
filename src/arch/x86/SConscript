@@ -86,6 +86,7 @@ if env['TARGET_ISA'] == 'x86':
     DebugFlag('Decoder', "Decoder debug output")
     DebugFlag('X86', "Generic X86 ISA debugging")
     DebugFlag('SuperOp')
+    DebugFlag('ConstProp')
 
     python_files = (
         '__init__.py',

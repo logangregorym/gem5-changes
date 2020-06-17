@@ -74,6 +74,14 @@ namespace X86ISA
         uint64_t genFlags(uint64_t oldFlags, uint64_t flagMask,
                 uint64_t _dest, uint64_t _src1, uint64_t _src2,
                 bool subtract = false) const;
+
+        uint8_t getDataSize() {
+            return dataSize;
+        }
+
+        virtual uint8_t getImmediate() {
+            panic("getImmediate() should only be called by RegOpImm, called by RegOpBase");
+        }
     };
 
     class RegOp : public RegOpBase
@@ -101,6 +109,7 @@ namespace X86ISA
     class RegOpImm : public RegOpBase
     {
       protected:
+        virtual uint8_t getImmediate() { return imm8; }
         const uint8_t imm8;
 
         // Constructor

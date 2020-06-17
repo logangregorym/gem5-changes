@@ -147,6 +147,8 @@ class BaseDynInst : public ExecContext, public RefCounted
     /** The StaticInst used by this BaseDynInst. */
     const StaticInstPtr staticInst;
 
+    std::string getName() { return staticInst->getName(); }
+
     /** Pointer to the Impl's CPU object. */
     ImplCPU *cpu;
 

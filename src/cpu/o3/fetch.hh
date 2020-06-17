@@ -632,6 +632,10 @@ class DefaultFetch
     Stats::Formula uopCacheHitRate;
     Stats::Formula uopCacheInstHitRate;
     Stats::Vector statFetchMicro;
+
+    Stats::Scalar directCtrlBranchesFetched;
+    Stats::Scalar indirectCtrlBranchesFetched;
+    Stats::Scalar otherBranchesFetched;
 };
 
 #endif //__CPU_O3_FETCH_HH__

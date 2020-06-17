@@ -141,6 +141,7 @@ parser.add_option("--hitThreshold", default=300, type="int", action="store", hel
 parser.add_option("--predictingArithmetic", default=0, type="int", action="store", help="Whether to predict arithmetic insts as well as loads.");
 parser.add_option("--predictStage", default=3, type="int", action="store", help="Prediction Stage: fetch/iew/both.");
 parser.add_option("--maxDependencyRecursion", default=15, type="int", action="store", help="How deep to recurse when counting dependencies.");
+parser.add_option("--usingControlTracking", default=0, type="int", action="store", help="Track control dependencies to optimize across?");
 
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
@@ -189,6 +190,7 @@ CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
 CPUClass.enable_microop_cache = options.enable_microop_cache
 CPUClass.enable_micro_fusion = options.enable_micro_fusion
+CPUClass.enable_superoptimization = options.enable_superoptimization
 CPUClass.loadPred.lvpredType = options.lvpredType
 CPUClass.loadPred.tableEntries = options.tableEntries
 CPUClass.loadPred.constantThreshold = options.constantThreshold
@@ -205,6 +207,7 @@ CPUClass.loadPred.hitThreshold = options.hitThreshold
 CPUClass.loadPred.predictingArithmetic = options.predictingArithmetic
 CPUClass.loadPred.predictStage = options.predictStage
 CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
+CPUClass.depTracker.usingControlTracking = options.usingControlTracking
 
 # Check -- do not allow SMT with multiple CPUs
 if options.smt and options.num_cpus > 1:

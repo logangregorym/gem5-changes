@@ -371,6 +371,18 @@ DefaultFetch<Impl>::regStats()
         ;
 
     decoder[0]->regStats();
+        directCtrlBranchesFetched
+                .name(name() + ".directCtrlBranchesFetched")
+                .desc("Branches fetched where isDirectCtrl() is true")
+                ;
+        indirectCtrlBranchesFetched
+                .name(name() + ".indirectCtrlBranchesFetched")
+                .desc("Branches fetched where isIndirectCtrl() is true")
+                ;
+        otherBranchesFetched
+                .name(name() + ".otherBranchesFetched")
+                .desc("Branches where neither isDirectCtrl() nor isIndirectCtrl() is true")
+                ;
 }
 
 template<class Impl>
@@ -641,6 +653,13 @@ DefaultFetch<Impl>::lookupAndUpdateNextPC(
 
     predict_taken = branchPred->predict(inst->staticInst, inst->seqNum,
                                         nextPC, tid);
+        if (inst->staticInst->isDirectCtrl()) {
+                directCtrlBranchesFetched++;
+        } else if (inst->staticInst->isIndirectCtrl()) {
+                indirectCtrlBranchesFetched++;
+        } else {
+                otherBranchesFetched++;
+        }
 
     if (predict_taken) {
         DPRINTF(Fetch, "[tid:%i]: [sn:%i]:  Branch predicted to be taken to %s.\n",
@@ -1081,7 +1100,10 @@ DefaultFetch<Impl>::tick()
     // Reset the number of the instruction we've fetched.
     numInst = 0;
 
-   if (int(cpu->numCycles.value()) % 100 == 0) { decoder[0]->depTracker->simplifyGraph(); }
+   if (decoder[0]->isSuperOptimizationPresent) {
+        if (int(cpu->numCycles.value()) % 100 == 0) { decoder[0]->depTracker->simplifyGraph(); }
+        // if (int(cpu->numCycles.value()) % 10000 == 0) { decoder[0]->depTracker->describeFullGraph(); }
+   }
 }
 
 template <class Impl>
@@ -1210,7 +1232,8 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     instruction->setThreadState(cpu->thread[tid]);
 
     // Make load value prediction if necessary
-    if (instruction->isLoad() || (instruction->isInteger() && loadPred->predictingArithmetic)) { // isFloating()? isVector()? isCC()?
+    string opcode = instruction->getName();
+    if ((instruction->isLoad() || opcode == "limm") || (instruction->isInteger() && loadPred->predictingArithmetic)) { // isFloating()? isVector()? isCC()?
         if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
             DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);
             instruction->cycleFetched = cpu->numCycles.value();
@@ -1246,17 +1269,16 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
             if (instruction->confidence >= 0) {
                 if (instruction->isMacroop()) {
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
-                        decoder[tid]->depTracker->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
-                        decoder[tid]->depTracker->measureChain(thisPC.instAddr(), uop);
-                        // bool change = decoder[tid]->depTracker->simplifyGraph();
-                        // DPRINTF(SuperOp, "Changes made to dependency graph? %i\n", change);
+                        if (decoder[tid]->isSuperOptimizationPresent) {
+                            decoder[tid]->depTracker->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
+                            decoder[tid]->depTracker->simplifyGraph();
+                        }
                     }
                 } else {
-                    decoder[tid]->depTracker->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
-                    decoder[tid]->depTracker->measureChain(thisPC.instAddr(), 0);
-                    // decoder[tid]->depTracker->simplifyGraph();
-                    // bool change = decoder[tid]->depTracker->simplifyGraph();
-                    // DPRINTF(SuperOp, "Changes made to dependency graph? %i\n", change);
+                    if (decoder[tid]->isSuperOptimizationPresent) {
+                        decoder[tid]->depTracker->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
+                        decoder[tid]->depTracker->simplifyGraph();
+                    }
                 }
                 updateConstantBuffer(thisPC.instAddr(), true);
             } else {
@@ -1299,7 +1321,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     delayedCommit[tid] = instruction->isDelayedCommit();
 
     // Mark whether reducable at fetch
-    if (decoder[tid]->depTracker->isReducable(thisPC.instAddr(), thisPC.microPC())) {
+    if (decoder[tid]->isSuperOptimizationPresent && decoder[tid]->depTracker->isReducable(thisPC.instAddr(), thisPC.microPC())) {
         instruction->reducableAtFetch = true;
         fetchedReducable++;
     }
@@ -1493,7 +1515,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         do {
             if (!(curMacroop || inRom)) {
                 if (decoder[tid]->instReady() || inUopCache) {
-                    staticInst = decoder[tid]->decode(thisPC);
+                    staticInst = decoder[tid]->decode(thisPC, cpu->numCycles.value());
                     for (int i=0; i<staticInst->numSrcRegs(); i++) {
                       DPRINTF(Fetch, "arch:%d ", staticInst->srcRegIdx(i));
                     }

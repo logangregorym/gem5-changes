@@ -1,0 +1,73 @@
+#include <cstdio>
+
+int main() {
+        unsigned loopCount = 20;
+        unsigned temp1 = 5;
+        unsigned temp2 = 5;
+        // unsigned temp3 = 5;
+        // unsigned temp4 = 5;
+        // unsigned temp5 = 5;
+        // unsigned temp6 = 5;
+        // unsigned temp7 = 5;
+        // unsigned temp8 = 5;
+        // unsigned temp9 = 5;
+        // unsigned temp10 = 5;
+        // unsigned temp11 = 5;
+        // unsigned temp12 = 5;
+        // unsigned temp13 = 5;
+        // unsigned temp14 = 5;
+        // unsigned temp15 = 5;
+        // unsigned temp16 = 5;
+        // unsigned temp17 = 5;
+        // unsigned temp18 = 5;
+        // unsigned temp19 = 5;
+        // unsigned temp20 = 5;
+        unsigned* ptr = &temp1;
+        for (int i=0; i<loopCount; i++) {
+                // temp1 += loopCount;
+                // asm("movl %0, %%ebx;" : "=r" (temp1));
+                // asm("movl %ebx, %ecx;");
+                temp2 = *ptr;
+                asm("movl %0, %%ebx;" : "=r" (temp2));
+                asm("movl %ebx, %ecx;");
+                std::printf("loop %i done\n", loopCount);
+                // asm("movl %0, %%ebx;" : "=r" (temp3));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp4));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp5));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp6));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp7));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp8));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp9));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp10));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp11));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp12));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp13));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp14));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp15));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp16));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp17));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp18));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp19));
+                // asm("movl %ebx, %ecx;");
+                // asm("movl %0, %%ebx;" : "=r" (temp20));
+                // asm("movl %ebx, %ecx;");
+        }
+        // std::cout << temp1 << " " << temp2 << " " << *ptr << std::endl;
+        return 0;
+}

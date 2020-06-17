@@ -90,6 +90,9 @@ namespace X86ISA
         uint8_t getDataSize() {
             return dataSize;
         }
+
+        virtual uint8_t getImmediate() { panic("getImmediate() should only be called by RegOpImm, called by MemOp"); }
+
     };
 
     /**

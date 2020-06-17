@@ -510,6 +510,11 @@ class DefaultIEW
     Stats::Formula predictionInvalidatedPercent;
     /** Number of instructions squashed due to a load value misprediction. */
     Stats::Vector instsSquashedByLVP;
+
+    Stats::Vector squashedLoadsPresentInBothCaches;
+    Stats::Vector squashedLoadsOnlyInUopCache;
+    Stats::Vector squashedLoadsOnlyInSpecCache;
+    Stats::Vector squashedLoadsInNeitherCache;
 };
 
 #endif // __CPU_O3_IEW_HH__

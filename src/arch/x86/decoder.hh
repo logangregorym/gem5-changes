@@ -404,10 +404,10 @@ protected:
     /// @param mach_inst The binary instruction to decode.
     /// @retval A pointer to the corresponding StaticInst object.
     StaticInstPtr decode(ExtMachInst mach_inst, Addr addr);
-    StaticInstPtr decode(X86ISA::PCState &nextPC);
+    StaticInstPtr decode(X86ISA::PCState &nextPC, unsigned cycleAdded);
     bool isHitInUopCache(Addr addr);
     StaticInstPtr fetchUopFromUopCache(Addr addr, X86ISA::PCState &nextPC);
-    bool updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size);
+    bool updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded);
     void updateLRUBits(int idx, int way);
     void setUopCacheActive(bool active)
     {
@@ -430,7 +430,7 @@ protected:
     // Parallel cache for optimized micro-ops
     bool isHitInSpeculativeCache(Addr addr);
     StaticInstPtr fetchUopFromSpeculativeCache(Addr addr, X86ISA::PCState &nextPC);
-    bool updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, int size);
+    bool updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded);
     void updateLRUBitsSpeculative(int idx, int way);
     void setSpeculativeCacheActive(bool active)
     {

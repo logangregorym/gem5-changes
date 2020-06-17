@@ -24,141 +24,241 @@ class ISA;
 class ArrayDependencyTracker : public SimObject
 {
   public:
-        // Constructor
-        ArrayDependencyTracker(ArrayDependencyTrackerParams *p);
+    // Constructor
+    ArrayDependencyTracker(ArrayDependencyTrackerParams *p);
 
-        X86ISA::Decoder* decoder;
+    X86ISA::Decoder* decoder;
 
-        void addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr);
+        bool usingControlTracking = false;
 
-        void removeFromGraph(Addr addr, unsigned uopAddr);
+    void addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded, bool usingUopGraph);
 
-        void predictValue(Addr addr, unsigned uopAddr, uint64_t value);
+    void removeFromGraph(Addr addr, unsigned uopAddr, unsigned cycledRemoved, bool usingUopGraph);
 
-        bool simplifyGraph();
+        void removeAtIndex(int i1, int i2, int i3, bool uop);
 
-        struct FullUopAddr {
-                Addr pcAddr;
-                unsigned uopAddr;
+    void predictValue(Addr addr, unsigned uopAddr, uint64_t value);
 
-                FullUopAddr(Addr p, unsigned u) {
-                        pcAddr = p;
-                        uopAddr = u;
+    bool simplifyGraph();
+
+        void invalidateConnection(unsigned connectionIndex, bool uop);
+
+        void invalidateBranch(unsigned branchIndex);
+
+        void markLastUse(unsigned regIdx);
+
+    struct FullUopAddr {
+        Addr pcAddr;
+        unsigned uopAddr;
+
+        FullUopAddr(Addr p, unsigned u) {
+            pcAddr = p;
+            uopAddr = u;
+        }
+
+        FullUopAddr() {
+            pcAddr = 0;
+            uopAddr = 0;
+        }
+
+        bool operator==(const FullUopAddr& rhs) {
+            return (pcAddr == rhs.pcAddr) && (uopAddr == rhs.uopAddr);
+        }
+
+                bool operator!=(const FullUopAddr& rhs) {
+                        return (pcAddr != rhs.pcAddr) || (uopAddr != rhs.uopAddr);
                 }
+    };
 
-                FullUopAddr() {
-                        pcAddr = 0;
-                        uopAddr = 0;
-                }
+    unsigned registerRenameMapUop[256] = {0};
+    FullUopAddr registerProducerMapUop[256];
+    bool registerValidMapUop[256] = {0};
+    unsigned nextRegNameUop = 1;
 
-                bool operator==(const FullUopAddr& rhs) {
-                        return pcAddr == rhs.pcAddr && uopAddr == rhs.uopAddr;
-                }
-        };
+        unsigned registerRenameMapSpec[256] = {0};
+        FullUopAddr registerProducerMapSpec[256];
+        FullUopAddr mostRecentConsumer[256];
+        bool consumedInWindow[256] = {0};
+        bool registerValidMapSpec[256] = {0};
+        unsigned nextRegNameSpec = 1;
 
-  private:
-        unsigned registerRenameMap[256] = {0};
+    struct InformationFlowPath {
+        FullUopAddr producer = FullUopAddr(0, 0);
+        FullUopAddr consumer = FullUopAddr(0, 0);
+        unsigned archRegIdx;
+        unsigned renamedRegIdx;
+        uint64_t value;
+        bool valid;
+        bool lastUse;
+                unsigned directControlDependency = 0;
+            unsigned indirectControlDependency = 0;
 
-        FullUopAddr registerProducerMap[256];
+        InformationFlowPath() {
+            producer = FullUopAddr(0,0);
+            consumer = FullUopAddr(0,0);
+            archRegIdx = 0;
+            renamedRegIdx = 0;
+            value = 0;
+            valid = false;
+            lastUse = false;
+                        directControlDependency = 0;
+                        indirectControlDependency = 0;
+        }
 
-        bool registerValidMap[256] = {0};
+        InformationFlowPath(FullUopAddr p, FullUopAddr c, unsigned a, unsigned r) {
+            producer = p;
+            consumer = c;
+            archRegIdx = a;
+            renamedRegIdx = r;
+            value = 0;
+            valid = false;
+            lastUse = false;
+                        directControlDependency = 0;
+                        indirectControlDependency = 0;
+        }
 
-        unsigned nextRegName = 0;
+        InformationFlowPath(FullUopAddr p, FullUopAddr c, unsigned a, unsigned r, uint64_t v, bool b, bool d) {
+            producer = p;
+            consumer = c;
+            archRegIdx = a;
+            renamedRegIdx = r;
+            value = v;
+            valid = b;
+            lastUse = false;
+                        directControlDependency = 0;
+                        indirectControlDependency = 0;
+        }
 
-  public:
-        struct InformationFlowPath
-        {
-                FullUopAddr producer = FullUopAddr(0, 0);
-                FullUopAddr consumer = FullUopAddr(0, 0);
-                unsigned archRegIdx;
-                unsigned renamedRegIdx;
-                uint64_t value;
-                bool valid;
-                bool lastUse;
-
-                InformationFlowPath() {
-                        producer = FullUopAddr(0,0);
-                        consumer = FullUopAddr(0,0);
-                        archRegIdx = 0;
-                        renamedRegIdx = 0;
-                        value = 0;
-                        valid = false;
-                        lastUse = false;
-                }
-
-                InformationFlowPath(FullUopAddr p, FullUopAddr c, unsigned a, unsigned r) {
-                        producer = p;
-                        consumer = c;
-                        archRegIdx = a;
-                        renamedRegIdx = r;
-                        value = 0;
-                        valid = false;
-                        lastUse = false;
-                }
-
-                InformationFlowPath(FullUopAddr p, FullUopAddr c, unsigned a, unsigned r, uint64_t v, bool b) {
-                        producer = p;
-                        consumer = c;
-                        archRegIdx = a;
-                        renamedRegIdx = r;
+                void predict(uint64_t v) {
                         value = v;
-                        valid = b;
-                        lastUse = false;
+                        valid = true;
+                }
+    };
+
+        struct ControlFlowPath {
+                FullUopAddr branchAddr = FullUopAddr(0,0);
+                FullUopAddr nextPc = FullUopAddr(0,0);
+                bool targetValid = false;
+                FullUopAddr propagatingTo = FullUopAddr(0,0);
+                unsigned registerRenameMap[256];
+                FullUopAddr registerProducerMap[256];
+                bool registerValidMap[256];
+
+                ControlFlowPath() {
+                        branchAddr = FullUopAddr(0,0);
+                        nextPc = FullUopAddr(0,0);
+                        for (int i=0; i<256; i++) {
+                                registerRenameMap[i] = 0;
+                                registerProducerMap[i] = FullUopAddr(0,0);
+                                registerValidMap[i] = false;
+                        }
+                }
+
+                ControlFlowPath(FullUopAddr bf, FullUopAddr bt) {
+                        branchAddr = bf;
+                        nextPc = bt;
+                        for (int i=0; i<256; i++) {
+                                registerRenameMap[i] = 0;
+                                registerProducerMap[i] = FullUopAddr(0,0);
+                                registerValidMap[i] = false;
+                        }
                 }
         };
 
-        struct DependGraphEntry
-        {
-                FullUopAddr thisInst = FullUopAddr(0, 0);
-                unsigned producers[256] = {0};
-                unsigned consumers[256] = {0};
-                bool seen = false;
+    struct DependGraphEntry {
+        FullUopAddr thisInst = FullUopAddr(0, 0);
+        unsigned producers[256] = {0};
+        unsigned consumers[256] = {0};
+        bool seen = false;
+                unsigned cycleAdded = 0;
+                bool predicted = false;
+                uint64_t value = 0;
 
-                DependGraphEntry() {
-                        thisInst = FullUopAddr(0,0);
-                        for (int i=0; i<256; i++) {
-                                producers[i] = 0;
-                                consumers[i] = 0;
-                        }
-                        seen = false;
-                }
+        DependGraphEntry() {
+            thisInst = FullUopAddr(0,0);
+            for (int i=0; i<256; i++) {
+                producers[i] = 0;
+                consumers[i] = 0;
+            }
+                        cycleAdded = 0;
+            seen = false;
+                        value = 0;
+                        predicted = false;
+        }
 
-                DependGraphEntry(FullUopAddr a) {
-                        thisInst = a;
-                        for (int i=0; i<256; i++) {
-                                producers[i] = 0;
-                                consumers[i] = 0;
-                        }
-                        seen = false;
-                }
-        };
+        DependGraphEntry(FullUopAddr a) {
+            thisInst = a;
+            for (int i=0; i<256; i++) {
+                producers[i] = 0;
+                consumers[i] = 0;
+            }
+                        cycleAdded = 0;
+            seen = false;
+                        value = 0;
+                        predicted = false;
+        }
+    };
 
-  private:
-        DependGraphEntry microopDependencyGraph[32][8][6];
-        DependGraphEntry speculativeDependencyGraph[32][8][6];
-        InformationFlowPath connections[4096];
-        bool connectionsValid[4096] = {0};
-        unsigned maxRecursiveDepth = 64;
+    DependGraphEntry* microopDependencyGraph[32][8][6];
+    DependGraphEntry* speculativeDependencyGraph[32][8][6];
+        FullUopAddr microopAddrArray[32][8][6];
+        FullUopAddr speculativeAddrArray[32][8][6];
 
-  public:
-        void measureChain(Addr addr, unsigned uopAddr);
-        void measureChain(FullUopAddr addr, unsigned recursionLevel, vector<FullUopAddr>& checked);
-        bool isReducable(Addr addr, unsigned uopAddr);
+    InformationFlowPath connections[4096];
+    bool connectionsValidUop[4096] = {0};
+        bool connectionsValidSpec[4096] = {0};
+        ControlFlowPath branches[4096];
+        bool branchesValid[4096] = {0};
+    unsigned maxRecursiveDepth = 64;
+
+        // Exploration and stats
+    void measureChain(Addr addr, unsigned uopAddr);
+    void measureChain(FullUopAddr addr, unsigned recursionLevel, vector<FullUopAddr>& checked);
+    bool isReducable(Addr addr, unsigned uopAddr);
+        void describeEntry(int idx, int way, int uop);
+        void describeFullGraph();
 
 	BPredUnit* branchPred;
 
-  public:
-        Stats::Scalar numChainsMeasured;
-        Stats::Scalar totalDependentInsts;
-        Stats::Scalar reducableInstCount;
-        Stats::Scalar totalOpsInCache;
-        Stats::Scalar totalReducable;
-        Stats::Formula averageDependentInsts;
-        Stats::Formula averageNumberReducable;
-	Stats::Scalar branchesOnChains;
-	Stats::Scalar confidentBranchesOnChains;
+        // Propagation Functions
+        bool propagateLastUse(int idx, int way, int uop);
+        bool propagateMov(int idx, int way, int uop);
+        bool propagateMovI(int idx, int way, int uop);
+        bool propagateLimm(int idx, int way, int uop);
+        bool propagateAnd(int idx, int way, int uop);
+        bool propagateAndI(int idx, int way, int uop);
+        bool propagateAdd(int idx, int way, int uop);
+        bool propagateAddI(int idx, int way, int uop);
+        bool propagateSub(int idx, int way, int uop);
+        bool propagateSubI(int idx, int way, int uop);
+        bool propagateOr(int idx, int way, int uop);
+        bool propagateOrI(int idx, int way, int uop);
+        bool propagateXor(int idx, int way, int uop);
+        bool propagateXorI(int idx, int way, int uop);
+        bool propagateSllI(int idx, int way, int uop);
+        bool propagateSrlI(int idx, int way, int uop);
+        bool propagateSExtI(int idx, int way, int uop);
+        bool propagateZExtI(int idx, int way, int uop);
+        bool propagateWrip(int idx, int way, int uop);
+        bool propagateAcrossControlDependency(unsigned branchIndex, FullUopAddr propagatingTo);
+
+    Stats::Scalar numChainsMeasured;
+    Stats::Scalar totalDependentInsts;
+    Stats::Scalar reducableInstCount;
+    Stats::Scalar totalOpsInCache;
+    Stats::Scalar totalReducable;
+    Stats::Formula averageDependentInsts;
+    Stats::Formula averageNumberReducable;
+        Stats::Scalar branchesOnChains;
+        Stats::Scalar confidentBranchesOnChains;
 	Stats::Formula percentChainBranchesConfident;
-        void regStats();
+        Stats::Scalar totalCyclesInUopCache;
+        Stats::Scalar evictionsFromUopCache;
+        Stats::Scalar totalCyclesInSpecCache;
+        Stats::Scalar evictionsFromSpecCache;
+        Stats::Formula averageCyclesInUopCache;
+        Stats::Formula averageCyclesInSpecCache;
+    void regStats();
 
 }; // class ArrayDependencyTracker
 
