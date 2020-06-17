@@ -51,4 +51,4 @@ for c in _cpu_modules:
         # without a CPU model needed by the timing model.
         pass
 
-__all__ = _cpu_modules
+__all__ = _cpu_modules 

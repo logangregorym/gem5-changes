@@ -65,6 +65,17 @@ def config_cache(options, system):
         dcache_class, icache_class, l2_cache_class, walk_cache_class = \
             O3_ARM_v7a_DCache, O3_ARM_v7a_ICache, O3_ARM_v7aL2, \
             O3_ARM_v7aWalkCache
+    elif options.cpu_type == "O3_X86_skylake_1":
+        try:
+            from cores.x86.O3_X86_skylake import *
+        except:
+            print("O3_X86_skylake_1 is unavailable. Did you compile the O3 model?")
+            sys.exit(1)
+
+        dcache_class, icache_class, l2_cache_class, walk_cache_class = \
+            O3_X86_skylake_DCache, O3_X86_skylake_ICache, O3_X86_skylakeL2, \
+            O3_X86_skylakeWalkCache
+
     elif options.cpu_type == "O3_X86_sb_1":
         try:
             from cores.x86.O3_X86_sb import *

@@ -148,6 +148,10 @@ BPredUnit::regStats()
         .name(name() + "indirectMispredicted")
         .desc("Number of mispredicted indirect branches.")
         ;
+    numLoopPredictions
+	.name(name() + ".numLoopPredictions")
+	.desc("Number of loop predictions made by LTAGE.")
+	;
     numDistinctBranches
 	.name(name() + ".numDistinctBranches")
 	.desc("Number of distinct branches encountered by LTAGE")
@@ -159,6 +163,10 @@ BPredUnit::regStats()
     confidentAtPredict
 	.name(name() + ".confidentAtPredict")
 	.desc("Number of branches that were confident when predict was called.")
+	;
+    confidentButWrong
+	.name(name() + ".confidentButWrong")
+	.desc("Number of incorrect but confidently predicted branches.")
 	;
 }
 

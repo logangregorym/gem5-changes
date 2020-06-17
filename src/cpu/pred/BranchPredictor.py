@@ -101,4 +101,6 @@ class LTAGE(BranchPredictor):
     minHist = Param.Unsigned(4, "Minimum history size of LTAGE")
     maxHist = Param.Unsigned(640, "Maximum history size of LTAGE")
     minTagWidth = Param.Unsigned(7, "Minimum tag size in tag tables")
-
+    branchConfidenceCounterSize = Param.Unsigned(2, "Size of the branch confidence counter, in bits")
+    branchConfidenceThreshold = Param.Unsigned(2, "Minimum confidence required for LVP across a branch")
+    doStoragelessBranchConf = Param.Bool(False, "Whether to do storageless branch confidence for TAGE (Seznec 2010)")

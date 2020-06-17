@@ -59,6 +59,9 @@ LTAGE::LTAGE(const LTAGEParams *params)
     minHist(params->minHist),
     maxHist(params->maxHist),
     minTagWidth(params->minTagWidth),
+    branchConfidenceCounterSize(params->branchConfidenceCounterSize),
+    branchConfidenceThreshold(params->branchConfidenceThreshold),
+    doStoragelessBranchConf(params->doStoragelessBranchConf),
     threadHistory(params->numThreads)
 {
     assert(params->histBufferSize > params->maxHist * 2);
@@ -70,6 +73,7 @@ LTAGE::LTAGE(const LTAGEParams *params)
         history.pathHist = 0;
         history.globalHistory = new uint8_t[histBufferSize];
         history.gHist = history.globalHistory;
+        history.bimHistory = std::vector<bool> (8, 0);
         memset(history.gHist, 0, histBufferSize);
         history.ptGhist = 0;
     }
@@ -134,6 +138,12 @@ LTAGE::LTAGE(const LTAGEParams *params)
     tableTags = new int [nHistoryTables+1];
 
     loopUseCounter = 0;
+
+    for (int i = 0; i < 2048; i++) {
+        branch_confidence.push_back(SatCounter(branchConfidenceCounterSize));
+    }
+
+    assert (branch_confidence.size() == 2048);
 }
 
 int
@@ -204,6 +214,28 @@ LTAGE::ctrUpdate(int8_t & ctr, bool taken, int nbits)
             ctr--;
     }
 }
+
+
+// Similar to ctrUpdate, but probabilistically updates to strong positions.
+void
+LTAGE::probCtrUpdate(int8_t& ctr, bool taken, int nbits)
+{
+    assert(nbits <= sizeof(int8_t) << 3);
+    if (taken) {
+        if (ctr < ((1 << (nbits - 1)) - 2)) {
+            ctr++;
+        } else if (ctr == ((1 << (nbits - 1)) - 2)) {
+            if (!random_mt.random<int>(0, 127)) ctr++;
+        }
+    } else {
+        if (ctr > -(1 << (nbits - 1)) + 1) {
+            ctr--;
+        } else if (ctr == -(1 << (nbits - 1)) + 1) {
+            if (!random_mt.random<int>(0, 127)) ctr--;
+        }
+    }
+}
+
 
 // Bimodal prediction
 bool
@@ -307,6 +339,7 @@ LTAGE::loopUpdate(Addr pc, bool taken, BranchInfo* bi)
                 return;
             } else if (bi->loopPred != bi->tagePred) {
                 DPRINTF(LTage, "Loop Prediction success:%lx\n",pc);
+		numLoopPredictions++;
                 if (ltable[idx].age < 7)
                     ltable[idx].age++;
             }
@@ -429,15 +462,6 @@ LTAGE::predict(ThreadID tid, Addr branch_pc, bool cond_branch, void* &b)
     bool pred_taken = true;
     bi->loopHit = -1;
 
-    if (!branch_confidence.count(branch_pc)) {
-	branch_confidence.insert({branch_pc, SatCounter(2)});
-	++numDistinctBranches;
-    }
-
-    if (branch_confidence[branch_pc].read() > 1) {
-	confidentAtPredict++;
-    }
-
     if (cond_branch) {
         // TAGE prediction
 
@@ -500,13 +524,35 @@ LTAGE::predict(ThreadID tid, Addr branch_pc, bool cond_branch, void* &b)
         //end TAGE prediction
 
         bi->loopPred = getLoop(pc, bi);	// loop prediction
+	
+        //pred_taken = (((loopUseCounter >= 0) && bi->loopPredValid)) ?
+        //             (bi->loopPred): (bi->tagePred);
+		
+	if ((loopUseCounter >= 0) && (bi->loopPredValid)) {
+	    pred_taken = bi->loopPred;
+            //numLoopPredictions++;
+	} else {
+	    pred_taken = bi->tagePred;
+	}
 
-        pred_taken = (((loopUseCounter >= 0) && bi->loopPredValid)) ?
-                     (bi->loopPred): (bi->tagePred);
         DPRINTF(LTage, "Predict for %lx: taken?:%d, loopTaken?:%d, "
                 "loopValid?:%d, loopUseCounter:%d, tagePred:%d, altPred:%d\n",
                 branch_pc, pred_taken, bi->loopPred, bi->loopPredValid,
                 loopUseCounter, bi->tagePred, bi->altTaken);
+
+        // confidence update
+        if (!doStoragelessBranchConf) {
+            //if (!branch_confidence.count(branch_pc)) {
+            //   branch_confidence.insert({branch_pc, SatCounter(branchConfidenceCounterSize)});
+            //   ++numDistinctBranches;
+            //}
+
+            if (branch_confidence[branch_pc & 2047].read() >= branchConfidenceThreshold) {
+                confidentAtPredict++;
+            }
+        } else {
+            if (storagelessConfHandler(threadHistory[tid], bi)) confidentAtPredict++;
+        }
     }
     bi->branchPC = branch_pc;
     bi->condBranch = cond_branch;
@@ -524,12 +570,19 @@ LTAGE::update(ThreadID tid, Addr branch_pc, bool taken, void* bp_history,
 
     BranchInfo *bi = static_cast<BranchInfo*>(bp_history);
 
-    assert(branch_confidence.count(branch_pc));
+    //assert(branch_confidence.count(branch_pc));
 
-    if (taken == bi->tagePred) {
-	branch_confidence[branch_pc].increment();
+    if (!doStoragelessBranchConf) {
+        if (taken == bi->tagePred) {
+            branch_confidence[branch_pc & 2047].increment();
+        } else {
+	    if (branch_confidence[branch_pc & 2047].read() >= branchConfidenceThreshold) {
+	        confidentButWrong++;
+	    }
+	    branch_confidence[branch_pc & 2047].decrement();
+        }
     } else {
-	branch_confidence[branch_pc].decrement();
+        if (bi->confident && (taken != bi->tagePred)) confidentButWrong++;
     }
 
     if (squashed) {
@@ -627,14 +680,24 @@ LTAGE::update(ThreadID tid, Addr branch_pc, bool taken, void* bp_history,
         if (bi->hitBank > 0) {
             DPRINTF(LTage, "Updating tag table entry (%d,%d) for branch %lx\n",
                     bi->hitBank, bi->hitBankIndex, branch_pc);
-            ctrUpdate(gtable[bi->hitBank][bi->hitBankIndex].ctr, taken,
+            if (!doStoragelessBranchConf) {
+                ctrUpdate(gtable[bi->hitBank][bi->hitBankIndex].ctr, taken,
                       tagTableCounterBits);
+	    } else {
+                probCtrUpdate(gtable[bi->hitBank][bi->hitBankIndex].ctr, taken,
+                    tagTableCounterBits);
+            }
             // if the provider entry is not certified to be useful also update
             // the alternate prediction
             if (gtable[bi->hitBank][bi->hitBankIndex].u == 0) {
                 if (bi->altBank > 0) {
-                    ctrUpdate(gtable[bi->altBank][bi->altBankIndex].ctr, taken,
+                    if (!doStoragelessBranchConf) {
+                        ctrUpdate(gtable[bi->altBank][bi->altBankIndex].ctr, taken,
                               tagTableCounterBits);
+                    } else {
+                        probCtrUpdate(gtable[bi->altBank][bi->altBankIndex].ctr,
+                              taken, tagTableCounterBits);
+                    }
                     DPRINTF(LTage, "Updating tag table entry (%d,%d) for"
                             " branch %lx\n", bi->hitBank, bi->hitBankIndex,
                             branch_pc);
@@ -658,6 +721,20 @@ LTAGE::update(ThreadID tid, Addr branch_pc, bool taken, void* bp_history,
 
         //END PREDICTOR UPDATE
     }
+
+    // bimHistory update
+    ThreadHistory th = threadHistory[tid];
+    for (int i = 0; i < 7; i++)
+    {
+        th.bimHistory[i] = th.bimHistory[i+1];
+    }
+    th.bimHistory[7] = (
+        ((bi->hitBank == 0) || !(((useAltPredForNewlyAllocated < 0)
+          || abs(2 * gtable[bi->hitBank][tableIndices[bi->hitBank]].ctr + 1) > 1)))
+        &&
+        (bi->tagePred != taken)  // last cell is the most recent prediction
+    );
+
     if (!squashed) {
         delete bi;
     }
@@ -778,12 +855,53 @@ LTAGE::uncondBranch(ThreadID tid, Addr br_pc, void* &bp_history)
            &threadHistory[tid].globalHistory[threadHistory[tid].ptGhist]);
 }
 
+unsigned char
+LTAGE::getConfidenceClass(ThreadHistory hist, BranchInfo* bi) {
+    assert(tagTableCounterBits == 3);  // not implemented for other sizes
+    bool isBim = ((bi->hitBank == 0) || ((bi->altBank == 0) && ((useAltPredForNewlyAllocated < 0)
+                   || abs(2 *
+                   gtable[bi->hitBank][tableIndices[bi->hitBank]].ctr + 1) > 1)));
+    if (isBim) {
+        if ((1 == btable[bi->bimodalIndex].pred) ||
+            (2 == btable[bi->bimodalIndex].pred)) {  // weak prediction
+            return 0;  // low-conf-bim
+        } else {
+            bool recentBimFail = false;
+            for (int i = 7; i >= 0; i--) {
+                if (hist.bimHistory[i]) recentBimFail = true;
+            }
+            if (recentBimFail) {  // recent bimodal misprediction (TODO: CHECK THIS)
+                return 1;  // medium-conf-bim
+            } return 2;  // high-conf-bim
+        }
+    } else {
+        int counterVal = gtable[bi->hitBank][bi->hitBankIndex].ctr;
+        counterVal = 2 * counterVal + 1;
+        if ((counterVal == 1) || (counterVal == -1)) {
+            return 3;  // Wtag
+        } else if ((counterVal == 3) || (counterVal == -3)) {
+            return 4;  // NWtag
+        } else if ((counterVal == 5) || (counterVal == -5)) {
+            return 5;  // NStag
+        } else if ((counterVal == 7 )|| (counterVal == -7)) {
+            return 6;  // Stag
+        } else return 11;
+    }
+}
+
+bool
+LTAGE::storagelessConfHandler(ThreadHistory hist, BranchInfo*  bi) {
+    unsigned char cc = getConfidenceClass(hist, bi);
+    bi->confident = ((cc == 2) || (cc == 6));
+    return bi->confident;
+}
+
 bool
 LTAGE::getConfidenceForSSO(Addr pc)
 {
-    if (branch_confidence.count(pc) > 0) {
-	 return branch_confidence[pc].read() > 1;
-    }
+    //if (branch_confidence.count(pc) > 0) {
+	 return branch_confidence[pc & 2047].read() > branchConfidenceThreshold;
+    //}
     return false;
 }
 

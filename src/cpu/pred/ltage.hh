@@ -65,7 +65,8 @@ class LTAGE: public BPredUnit
   public:
     LTAGE(const LTAGEParams *params);
 
-    std::unordered_map<Addr, SatCounter> branch_confidence;
+    //std::unordered_map<Addr, SatCounter> branch_confidence;
+    std::vector<SatCounter> branch_confidence;
 
     // Base class methods.
     void uncondBranch(ThreadID tid, Addr br_pc, void* &bp_history) override;
@@ -161,6 +162,9 @@ class LTAGE: public BPredUnit
         bool longestMatchPred;
         bool pseudoNewAlloc;
         Addr branchPC;
+	
+	// Is the branch confident? (used with doStoragelessBranchConf)
+	bool confident;
 
         // Pointer to dynamically allocated storage
         // to save table indices and folded histories.
@@ -183,7 +187,7 @@ class LTAGE: public BPredUnit
               tagePred(false), altTaken(false), loopPred(false),
               loopPredValid(false), loopIndex(0), loopHit(0),
               condBranch(false), longestMatchPred(false),
-              pseudoNewAlloc(false), branchPC(0)
+              pseudoNewAlloc(false), branchPC(0), confident(false)
         {
             storage = new int [sz * 5];
             tableIndices = storage;
@@ -249,6 +253,15 @@ class LTAGE: public BPredUnit
      * @param nbits Counter width.
      */
     void ctrUpdate(int8_t & ctr, bool taken, int nbits);
+
+    /**
+     * Similar to ctrUpdate, but probabilistically 
+     * updates to strong positions.
+     * @param ctr Reference to counter to update.
+     * @param taken Actual branch outcome.
+     * @param nbits Counter width.
+     */
+    void probCtrUpdate(int8_t& ctr, bool taken, int nbits);
 
     /**
      * Get a branch prediction from the bimodal
@@ -377,6 +390,9 @@ class LTAGE: public BPredUnit
     const unsigned minHist;
     const unsigned maxHist;
     const unsigned minTagWidth;
+    const unsigned branchConfidenceCounterSize;
+    const unsigned branchConfidenceThreshold;
+    const bool doStoragelessBranchConf;
 
     BimodalEntry *btable;
     TageEntry **gtable;
@@ -403,9 +419,15 @@ class LTAGE: public BPredUnit
         // Speculative folded histories.
         FoldedHistory *computeIndices;
         FoldedHistory *computeTags[2];
+
+	// vector containing info on whether recently-resolved branches were bimodal mispredictions
+	std::vector<bool> bimHistory;
     };
 
     std::vector<ThreadHistory> threadHistory;
+
+    unsigned char getConfidenceClass(ThreadHistory hist, BranchInfo* bi);
+    bool storagelessConfHandler(ThreadHistory hist, BranchInfo* bi);
 
     int tagWidths[15];
     int tagTableSizes[15];
