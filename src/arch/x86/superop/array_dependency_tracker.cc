@@ -329,10 +329,12 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 		}
 	}
 
+	/**
 	if (uop->isControl()) {
 		DPRINTF(ConstProp, "Calling simplifyGraph() so that branch-crossing paths will be added\n");
 		simplifyGraph();
 	}
+	**/
 }
 
 void ArrayDependencyTracker::markLastUse(unsigned regIdx) {
@@ -594,9 +596,12 @@ void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, uint64_t 
 bool ArrayDependencyTracker::simplifyGraph() {
 	// Propagate constants
 	bool changedGraph = false;
-	for (int i1=0; i1<32; i1++) {
-		for (int i2=0; i2<8; i2++) {
-			for (int i3=0; i3<6; i3++) {
+	int i1 = simplifyIdx;
+	int i2 = simplifyWay;
+	int i3 = simplifyUop;
+	// for (int i1=0; i1<32; i1++) {
+	// 	for (int i2=0; i2<8; i2++) {
+	// 		for (int i3=0; i3<6; i3++) {
 				if (decoder->uopValidArray[i1][i2] && speculativeDependencyGraph[i1][i2][i3]) { // changed to uop
 					StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
 					if (decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); }
@@ -726,9 +731,23 @@ bool ArrayDependencyTracker::simplifyGraph() {
 					changedGraph = propagateLastUse(i1, i2, i3) || changedGraph;
 					if (changedGraph) { DPRINTF(ConstProp, "CHANGED\n"); describeFullGraph(); }
 				}
+	// 		}
+	// 	}
+	// }
+
+	simplifyUop++;
+	if (simplifyUop >= 6) {
+		simplifyUop = 0;
+		simplifyWay++;
+		if (simplifyWay >= 8) {
+			simplifyWay = 0;
+			simplifyIdx++;
+			if (simplifyIdx >= 32) {
+				simplifyIdx = 0;
 			}
 		}
 	}
+
 	return changedGraph;
 }
 

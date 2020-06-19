@@ -1100,9 +1100,8 @@ DefaultFetch<Impl>::tick()
     // Reset the number of the instruction we've fetched.
     numInst = 0;
 
-   if (decoder[0]->isSuperOptimizationPresent) {
-        if (int(cpu->numCycles.value()) % 100 == 0) { decoder[0]->depTracker->simplifyGraph(); }
-        // if (int(cpu->numCycles.value()) % 10000 == 0) { decoder[0]->depTracker->describeFullGraph(); }
+   for (int tid = 0; tid < numThreads; tid++) {
+   	decoder[tid]->depTracker->simplifyGraph();
    }
 }
 
@@ -1271,13 +1270,13 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
                         if (decoder[tid]->isSuperOptimizationPresent) {
                             decoder[tid]->depTracker->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
-                            decoder[tid]->depTracker->simplifyGraph();
+                            // decoder[tid]->depTracker->simplifyGraph();
                         }
                     }
                 } else {
                     if (decoder[tid]->isSuperOptimizationPresent) {
                         decoder[tid]->depTracker->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
-                        decoder[tid]->depTracker->simplifyGraph();
+                        // decoder[tid]->depTracker->simplifyGraph();
                     }
                 }
                 updateConstantBuffer(thisPC.instAddr(), true);

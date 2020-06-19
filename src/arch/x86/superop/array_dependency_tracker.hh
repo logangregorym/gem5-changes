@@ -40,6 +40,9 @@ class ArrayDependencyTracker : public SimObject
 	void predictValue(Addr addr, unsigned uopAddr, uint64_t value);
 
 	bool simplifyGraph();
+	unsigned simplifyIdx = 0;
+	unsigned simplifyWay = 0;
+	unsigned simplifyUop = 0;
 
 	void invalidateConnection(unsigned connectionIndex);
 
