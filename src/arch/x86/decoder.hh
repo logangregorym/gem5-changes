@@ -121,12 +121,15 @@ public:
     // Parallel cache for optimized micro-ops
     bool isSpeculativeCachePresent;
     bool isSpeculativeCacheActive;
+
+    /**
     StaticInstPtr speculativeCache[32][8][6];
     Addr speculativeAddrArray[32][8][6];
     uint64_t speculativeTagArray[32][8];
     bool speculativeValidArray[32][8];
     int speculativeCountArray[32][8];
     int speculativeLRUArray[32][8];
+    **/
 
 protected:
     Stats::Scalar uopCacheWayInvalidations;
@@ -297,10 +300,12 @@ protected:
             uopCountArray[idx][way] = 0;
             uopLRUArray[idx][way] = way;
 
+	    /**
             // Parallel cache for optimized micro-ops
             speculativeValidArray[idx][way] = false;
             speculativeCountArray[idx][way] = 0;
             speculativeLRUArray[idx][way] = way;
+	    **/
           }
         }
         depTracker = params->depTracker;
@@ -427,11 +432,14 @@ protected:
         isSuperOptimizationPresent = present;
     }
 
+    /**
     // Parallel cache for optimized micro-ops
     bool isHitInSpeculativeCache(Addr addr);
     StaticInstPtr fetchUopFromSpeculativeCache(Addr addr, X86ISA::PCState &nextPC);
     bool updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded);
     void updateLRUBitsSpeculative(int idx, int way);
+    **/
+
     void setSpeculativeCacheActive(bool active)
     {
         isSpeculativeCacheActive = active;

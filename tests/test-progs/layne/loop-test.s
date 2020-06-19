@@ -9,10 +9,8 @@ loopStart:
         mov 	rdx, 		0
         add 	rdx, 		-5
         cmp 	rdx,		10
-        movsx	rbx,		edx
-        movzx	rax,		bl
-        mov	rbx, 		rax
-        sub 	rdx,		-5
+        je	exiting
+	sub 	rdx,		-5
         add 	rcx, 		1
         cmp 	rcx, 		loopCnt
         jne 	loopStart

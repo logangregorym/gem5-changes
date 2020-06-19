@@ -606,13 +606,11 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
 
     // New stats
     bool isInUop = cpu->fetch.decoder[tid]->isHitInUopCache(inst->pcState().instAddr());
-    bool isInSpec = cpu->fetch.decoder[tid]->isHitInSpeculativeCache(inst->pcState().instAddr());
-    if (isInUop && isInSpec) {
+    // bool isInSpec = cpu->fetch.decoder[tid]->isHitInSpeculativeCache(inst->pcState().instAddr());
+    // if (isInUop && isInSpec) {
         squashedLoadsPresentInBothCaches[tid]++;
-    } else if (isInUop) {
+    if (isInUop) {
         squashedLoadsOnlyInUopCache[tid]++;
-    } else if (isInSpec) {
-        squashedLoadsOnlyInSpecCache[tid]++;
     } else {
         squashedLoadsInNeitherCache[tid]++;
     }

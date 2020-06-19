@@ -69,6 +69,7 @@ staged_mismatch = set()
 for status, fname in git.status(filter="MA", cached=True):
     if args.verbose:
         print "Checking %s..." % fname
+    continue
     if check_ignores(fname):
         continue
     if status == "M":

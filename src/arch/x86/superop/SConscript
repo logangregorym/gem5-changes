@@ -30,8 +30,6 @@
 
 Import('*')
 
-SimObject('DependencyTrackingUnit.py')
 SimObject('ArrayDependencyTracker.py')
 
-Source('dependency_tracking_unit.cc')
 Source('array_dependency_tracker.cc')
