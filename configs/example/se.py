@@ -189,28 +189,31 @@ else:
 
 
 (CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(options)
+
+if CPUClass.__name__ != "AtomicSimpleCPU":
+    CPUClass.enable_microop_cache = options.enable_microop_cache
+    CPUClass.enable_micro_fusion = options.enable_micro_fusion
+    CPUClass.enable_superoptimization = options.enable_superoptimization
+    CPUClass.loadPred.lvpredType = options.lvpredType
+    CPUClass.loadPred.tableEntries = options.tableEntries
+    CPUClass.loadPred.constantThreshold = options.constantThreshold
+    CPUClass.loadPred.dynamicThreshold = options.dynamicThreshold
+    CPUClass.loadPred.satCounterBits = options.satCounterBits
+    CPUClass.loadPred.initialPredictionQuality = options.initialPredictionQuality
+    CPUClass.loadPred.resetDelay = options.resetDelay
+    CPUClass.loadPred.historyLength = options.historyLength
+    CPUClass.loadPred.historyEntryBits = options.historyEntryBits
+    CPUClass.loadPred.decrementBy = options.decrementBy
+    CPUClass.loadPred.resetTo = options.resetTo
+    CPUClass.loadPred.missThreshold = options.missThreshold
+    CPUClass.loadPred.hitThreshold = options.hitThreshold
+    CPUClass.loadPred.predictingArithmetic = options.predictingArithmetic
+    CPUClass.loadPred.predictStage = options.predictStage
+    CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
+    CPUClass.depTracker.usingControlTracking = options.usingControlTracking
+
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
-CPUClass.enable_microop_cache = options.enable_microop_cache
-CPUClass.enable_micro_fusion = options.enable_micro_fusion
-CPUClass.enable_superoptimization = options.enable_superoptimization
-CPUClass.loadPred.lvpredType = options.lvpredType
-CPUClass.loadPred.tableEntries = options.tableEntries
-CPUClass.loadPred.constantThreshold = options.constantThreshold
-CPUClass.loadPred.dynamicThreshold = options.dynamicThreshold
-CPUClass.loadPred.satCounterBits = options.satCounterBits;
-CPUClass.loadPred.initialPredictionQuality = options.initialPredictionQuality
-CPUClass.loadPred.resetDelay = options.resetDelay
-CPUClass.loadPred.historyLength = options.historyLength
-CPUClass.loadPred.historyEntryBits = options.historyEntryBits
-CPUClass.loadPred.decrementBy = options.decrementBy
-CPUClass.loadPred.resetTo = options.resetTo
-CPUClass.loadPred.missThreshold = options.missThreshold
-CPUClass.loadPred.hitThreshold = options.hitThreshold
-CPUClass.loadPred.predictingArithmetic = options.predictingArithmetic
-CPUClass.loadPred.predictStage = options.predictStage
-CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
-CPUClass.depTracker.usingControlTracking = options.usingControlTracking
 CPUClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize
 CPUClass.branchPred.branchConfidenceThreshold = options.branchConfidenceThreshold
 CPUClass.branchPred.doStoragelessBranchConf = options.doStoragelessBranchConf
