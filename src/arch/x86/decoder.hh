@@ -308,9 +308,17 @@ protected:
 	    **/
           }
         }
-        depTracker = params->depTracker;
-        depTracker->decoder = this;
-	depTracker->branchPred = params->branchPred;
+        if (params != nullptr){
+            if (params->depTracker != nullptr){
+                depTracker = params->depTracker;
+                depTracker->decoder = this;
+                depTracker->branchPred = params->branchPred;
+            }
+            else {
+                // CPUO3 without depTracker?!
+                assert(0);
+            }
+        }
     }
 
     void setM5Reg(HandyM5Reg m5Reg)

@@ -212,6 +212,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
     CPUClass.depTracker.usingControlTracking = options.usingControlTracking
 
+
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
 CPUClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize
