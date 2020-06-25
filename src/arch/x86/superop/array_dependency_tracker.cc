@@ -13,7 +13,7 @@
 
 using namespace std;
 
-ArrayDependencyTracker::ArrayDependencyTracker(ArrayDependencyTrackerParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking) {
+ArrayDependencyTracker::ArrayDependencyTracker(ArrayDependencyTrackerParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking), maxRecursiveDepth(p->maxRecursiveDepth) {
 	for (int i=0; i<256; i++) {
 		registerProducerMapSpec[i] = FullUopAddr(0,0);
 		mostRecentConsumer[i] = FullUopAddr(0,0);
@@ -190,6 +190,11 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 			consumedInWindow[i] = false;
 		}
 		DPRINTF(ConstProp, "Control signals are wild. Here are the bools for this %s: isControl %i; isCall %i; isReturn %i; isDirectCtrl %i; isIndirectCtrl %i; isCondCtrl %i; isUncondCtrl %i; isCondDelaySlot %i\n", uop->getName(), uop->isControl(), uop->isCall(), uop->isReturn(), uop->isDirectCtrl(), uop->isIndirectCtrl(), uop->isCondCtrl(), uop->isUncondCtrl(), uop->isCondDelaySlot());
+	} else if (uop->isControl()) {
+		for (int i=0; i<256; i++) {
+			registerValidMapSpec[i] = false;
+			consumedInWindow[i] = false;
+		}
 	}
 
 	// Search for source registers in graph
@@ -210,10 +215,11 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 					assert(decoder->uopCountArray[prodIdx][w] != 0); // changed to  uop
 					for (int u=0; u < decoder->uopCountArray[prodIdx][w]; u++) { // changed to uop
 						if (microopAddrArray[prodIdx][w][u] == registerProducerMapSpec[srcReg.flatIndex()] && !foundProducerEntry) { // changed to uop
-							assert(speculativeDependencyGraph[prodIdx][w][u]);
-							prodWay = w;
-							prodUop = u;
-							foundProducerEntry = true;
+							if(speculativeDependencyGraph[prodIdx][w][u]) {
+								prodWay = w;
+								prodUop = u;
+								foundProducerEntry = true;
+							}
 						}
 					}
 				}
@@ -484,10 +490,11 @@ void ArrayDependencyTracker::invalidateConnection(unsigned connectionIndex) {
 			for (int u=0; u<decoder->uopCountArray[prodIdx][w]; u++) { // changed to uop
 				// if (decoder->speculativeAddrArray[prodIdx][w][u] == prodAddr.pcAddr && !foundProdSpec && speculativeDependencyGraph[prodIdx][w][u+prodAddr.uopAddr]) {
 				if (microopAddrArray[prodIdx][w][u] == prodAddr && !foundProdSpec) { // changed to uop
-					assert(speculativeDependencyGraph[prodIdx][w][u]);
-					prodSpecWay = w;
-					prodSpecUop = u;
-					foundProdSpec = true;
+					if (speculativeDependencyGraph[prodIdx][w][u]) {
+						prodSpecWay = w;
+						prodSpecUop = u;
+						foundProdSpec = true;
+					}
 				}
 			}
 		}
@@ -515,10 +522,11 @@ void ArrayDependencyTracker::invalidateConnection(unsigned connectionIndex) {
 			for (int u=0; u<decoder->uopCountArray[conIdx][w]; u++) { // changed to uop
 				// if (decoder->speculativeAddrArray[conIdx][w][u] == conAddr.pcAddr && !foundConSpec && speculativeDependencyGraph[conIdx][w][u+conAddr.uopAddr]) {
 				if (microopAddrArray[conIdx][w][u] == conAddr && !foundConSpec) { // changed to  uop
-					assert(speculativeDependencyGraph[conIdx][w][u]);
-					conSpecWay = w;
-					conSpecUop = u;
-					foundConSpec = true;
+					if (speculativeDependencyGraph[conIdx][w][u]) {
+						conSpecWay = w;
+						conSpecUop = u;
+						foundConSpec = true;
+					}
 				}
 			}
 		}
@@ -538,13 +546,18 @@ void ArrayDependencyTracker::invalidateConnection(unsigned connectionIndex) {
 }
 
 void ArrayDependencyTracker::invalidateBranch(unsigned branchIndex) {
+	// branch should be removed for this to be called, don't need to find and invalidate
+
+	// update connections that depend on this branch
 	for (int i=1; i<4096; i++) {
-		if (connections[i].directControlDependency == branchIndex) {
+		if (connectionsValidSpec[i] && connections[i].directControlDependency == branchIndex) {
+			invalidateConnection(i);
 			connectionsValidSpec[i] = false;
-		} else if (connections[i].indirectControlDependency == branchIndex) {
+		} else if (connectionsValidSpec[i] && connections[i].indirectControlDependency == branchIndex) {
 			connections[i].valid = false;
 		}
 	}
+	// update the branch table itself
 	branchesValid[branchIndex] = false;
 }
 
@@ -757,8 +770,8 @@ void ArrayDependencyTracker::measureChain(Addr addr, unsigned uopAddr)
 	totalDependentInsts++;
 	reducableInstCount++;
 
-	vector<FullUopAddr> checked = vector<FullUopAddr>();
-	checked.push_back(ArrayDependencyTracker::FullUopAddr(addr, uopAddr));
+	// vector<FullUopAddr> checked = vector<FullUopAddr>();
+	// checked.push_back(ArrayDependencyTracker::FullUopAddr(addr, uopAddr));
 
 	int idx = (addr >> 5) & 0x1f;
 	uint64_t tag = (addr >> 10);
@@ -798,20 +811,23 @@ void ArrayDependencyTracker::measureChain(Addr addr, unsigned uopAddr)
 		if (speculativeDependencyGraph[idx][way][uop]->consumers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->consumers[i] != 5000) {
 			// found a consumer
 			FullUopAddr conAddr = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].consumer;
+			measureChain(conAddr, 1);
+			/**
 			if (std::count(checked.begin(), checked.end(), conAddr) == 0) {
 				// recursive call
 				measureChain(conAddr, 1, checked);
 			}
+			**/
 		}
 	}
 }
 
-void ArrayDependencyTracker::measureChain(FullUopAddr addr, unsigned recursionLevel, vector<FullUopAddr>& checked)
+void ArrayDependencyTracker::measureChain(FullUopAddr addr, unsigned recursionLevel) // , vector<FullUopAddr>& checked)
 {
 	DPRINTF(ConstProp, "Measuring chain for %x.%i at recursion level %i\n", addr.pcAddr, addr.uopAddr, recursionLevel);
 	if (recursionLevel > maxRecursiveDepth) { return; }
 
-	checked.push_back(addr);
+	// checked.push_back(addr);
 
 	int idx = (addr.pcAddr >> 5) & 0x1f;
 	uint64_t tag = (addr.pcAddr >> 10);
@@ -873,10 +889,13 @@ void ArrayDependencyTracker::measureChain(FullUopAddr addr, unsigned recursionLe
 		if (speculativeDependencyGraph[idx][way][uop]->consumers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->consumers[i] != 5000) {
 			// Found a consumer
 			FullUopAddr conAddr = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].consumer;
+			measureChain(conAddr, recursionLevel+1);
+			/**
 			if (std::count(checked.begin(), checked.end(), conAddr) == 0) {
 				// Recursive call
 				measureChain(conAddr, recursionLevel+1, checked);
 			}
+			**/
 		}
 	}
 }
@@ -1756,8 +1775,9 @@ bool ArrayDependencyTracker::propagateWrip(int idx, int way, int uop) {
 	// Not taken
 	unsigned notTakenIndex = speculativeDependencyGraph[idx][way][uop]->consumers[1];
 	if (notTakenIndex != 0) {
-		assert(branches[notTakenIndex].targetValid);
-		changedEither = propagateAcrossControlDependency(notTakenIndex, branches[notTakenIndex].propagatingTo);
+		if (branches[notTakenIndex].targetValid) {
+			changedEither = propagateAcrossControlDependency(notTakenIndex, branches[notTakenIndex].propagatingTo);
+		}
 	} else {
 		DPRINTF(ConstProp, "notTakenIndex was zero, so cannot propagate\n");
 	}
@@ -1842,10 +1862,11 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 						assert(decoder->uopCountArray[prodIdx][w] > 0);
 						for (int u=0; u<decoder->uopCountArray[prodIdx][w]; u++) {
 							if (microopAddrArray[prodIdx][w][u] == prodAddr && !foundProd) {
-								assert(speculativeDependencyGraph[prodIdx][w][u]);
-								prodWay = w;
-								prodUop = u;
-								foundProd = true;
+								if (speculativeDependencyGraph[prodIdx][w][u]) {
+									prodWay = w;
+									prodUop = u;
+									foundProd = true;
+								}
 							}
 						}
 					}

@@ -122,14 +122,12 @@ public:
     bool isSpeculativeCachePresent;
     bool isSpeculativeCacheActive;
 
-    /**
     StaticInstPtr speculativeCache[32][8][6];
     Addr speculativeAddrArray[32][8][6];
     uint64_t speculativeTagArray[32][8];
     bool speculativeValidArray[32][8];
     int speculativeCountArray[32][8];
     int speculativeLRUArray[32][8];
-    **/
 
 protected:
     Stats::Scalar uopCacheWayInvalidations;
@@ -268,10 +266,10 @@ protected:
     typedef std::unordered_map<CacheKey, DecodePages *> AddrCacheMap;
     AddrCacheMap addrCacheMap;
 
-    DecodeCache::InstMap<ExtMachInst> *instMap;
-    typedef std::unordered_map<
-            CacheKey, DecodeCache::InstMap<ExtMachInst> *> InstCacheMap;
-    static InstCacheMap instCacheMap;
+    // DecodeCache::InstMap<ExtMachInst> *instMap;
+    // typedef std::unordered_map<
+    //        CacheKey, DecodeCache::InstMap<ExtMachInst> *> InstCacheMap;
+    // static InstCacheMap instCacheMap;
 
   public:
     Decoder(ISA* isa = nullptr, DerivO3CPUParams* params = nullptr) : basePC(0), origPC(0), offset(0),
@@ -290,7 +288,7 @@ protected:
         stack = 0;
         instBytes = &dummy;
         decodePages = NULL;
-        instMap = NULL;
+        // instMap = NULL;
         isUopCachePresent = false;
         isMicroFusionPresent = false;
         isSpeculativeCachePresent = false;
@@ -300,12 +298,11 @@ protected:
             uopCountArray[idx][way] = 0;
             uopLRUArray[idx][way] = way;
 
-	    /**
+	    
             // Parallel cache for optimized micro-ops
             speculativeValidArray[idx][way] = false;
             speculativeCountArray[idx][way] = 0;
             speculativeLRUArray[idx][way] = way;
-	    **/
           }
         }
         depTracker = params->depTracker;
@@ -333,13 +330,13 @@ protected:
             addrCacheMap[m5Reg] = decodePages;
         }
 
-        InstCacheMap::iterator imIter = instCacheMap.find(m5Reg);
-        if (imIter != instCacheMap.end()) {
-            instMap = imIter->second;
-        } else {
-            instMap = new DecodeCache::InstMap<ExtMachInst>;
-            instCacheMap[m5Reg] = instMap;
-        }
+        // InstCacheMap::iterator imIter = instCacheMap.find(m5Reg);
+        // if (imIter != instCacheMap.end()) {
+            // instMap = imIter->second;
+        // } else {
+            // instMap = new DecodeCache::InstMap<ExtMachInst>;
+            // instCacheMap[m5Reg] = instMap;
+        // }
     }
 
     void takeOverFrom(Decoder *old)
@@ -432,13 +429,11 @@ protected:
         isSuperOptimizationPresent = present;
     }
 
-    /**
     // Parallel cache for optimized micro-ops
     bool isHitInSpeculativeCache(Addr addr);
     StaticInstPtr fetchUopFromSpeculativeCache(Addr addr, X86ISA::PCState &nextPC);
     bool updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded);
     void updateLRUBitsSpeculative(int idx, int way);
-    **/
 
     void setSpeculativeCacheActive(bool active)
     {

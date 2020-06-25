@@ -70,6 +70,7 @@
 #include "debug/Fetch.hh"
 #include "debug/LVP.hh"
 #include "debug/O3PipeView.hh"
+#include "debug/OptStream.hh"
 #include "debug/SuperOp.hh"
 #include "mem/packet.hh"
 #include "params/DerivO3CPU.hh"
@@ -637,7 +638,9 @@ DefaultFetch<Impl>::lookupAndUpdateNextPC(
     bool predict_taken;
 
     if (!inst->isControl()) {
+	DPRINTF(OptStream, "PC before advancePC(): %x.%i\t\t\t", nextPC.instAddr(), nextPC.microPC());
         TheISA::advancePC(nextPC, inst->staticInst);
+	DPRINTF(OptStream, "PC after advancePC(): %x.%i\n", nextPC.instAddr(), nextPC.microPC());
         inst->setPredTarg(nextPC);
         inst->setPredTaken(false);
         return false;
@@ -1250,7 +1253,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
             }
 
             // FOR THEORETICAL BOUNDS
-            /**
+            
             if (instruction->confidence >= 0) {
                 if (instruction->staticInst->isMacroop()) {
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
@@ -1263,7 +1266,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                 }
             }
             // decoder[tid]->depTracker->simplifyGraph();
-            */
+            
 
             if (instruction->confidence >= 0) {
                 if (instruction->isMacroop()) {

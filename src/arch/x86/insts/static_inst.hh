@@ -185,7 +185,7 @@ namespace X86ISA
 
         void
         advancePC(PCState &pcState) const
-        {
+        { 
             pcState.advance();
         }
     };

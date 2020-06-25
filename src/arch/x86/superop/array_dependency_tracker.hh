@@ -204,11 +204,11 @@ class ArrayDependencyTracker : public SimObject
 	bool connectionsValidSpec[4096] = {0};
 	ControlFlowPath branches[4096];
 	bool branchesValid[4096] = {0};
-	unsigned maxRecursiveDepth = 64;
+	unsigned maxRecursiveDepth = 8;
 
 	// Exploration and stats
 	void measureChain(Addr addr, unsigned uopAddr);
-	void measureChain(FullUopAddr addr, unsigned recursionLevel, vector<FullUopAddr>& checked);
+	void measureChain(FullUopAddr addr, unsigned recursionLevel); // , vector<FullUopAddr>& checked);
 	bool isReducable(Addr addr, unsigned uopAddr);
 	void describeEntry(int idx, int way, int uop);
 	void describeFullGraph();

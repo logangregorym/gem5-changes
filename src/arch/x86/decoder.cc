@@ -678,17 +678,17 @@ Decoder::doImmediateState()
 }
 
 Decoder::InstBytes Decoder::dummy;
-Decoder::InstCacheMap Decoder::instCacheMap;
+// Decoder::InstCacheMap Decoder::instCacheMap;
 
 StaticInstPtr
 Decoder::decode(ExtMachInst mach_inst, Addr addr)
 {
-    auto iter = instMap->find(mach_inst);
-    if (iter != instMap->end())
-        return iter->second;
+    // auto iter = instMap->find(mach_inst);
+    // if (iter != instMap->end())
+    //     return iter->second;
 
     StaticInstPtr si = decodeInst(mach_inst);
-    (*instMap)[mach_inst] = si;
+    // (*instMap)[mach_inst] = si;
     return si;
 }
 
@@ -704,7 +704,6 @@ Decoder::updateLRUBits(int idx, int way)
     uopCacheLRUUpdates++;
 }
 
-/**
 void
 Decoder::updateLRUBitsSpeculative(int idx, int way)
 {
@@ -715,7 +714,6 @@ Decoder::updateLRUBitsSpeculative(int idx, int way)
     }
     speculativeLRUArray[idx][way] = 7;
 }
-**/
 
 bool
 Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded)
@@ -773,6 +771,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][way][uop], true);
             DPRINTF(ConstProp, "Decoder is invalidating way %i, so removing uop[%i][%i][%i]\n", way, idx, way, uop);
             depTracker->removeAtIndex(idx, way, uop); // changed to spec
+	    depTracker->microopAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr(0,0);
           }
           uopValidArray[idx][way] = false;
           uopCountArray[idx][way] = 0;
@@ -823,6 +822,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
               DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][w][uop]);
               uopConflictMisses++;
               depTracker->removeAtIndex(idx, w, uop); // changed to spec
+	      depTracker->microopAddrArray[idx][w][uop] = ArrayDependencyTracker::FullUopAddr(0,0);
             }
             uopValidArray[idx][w] = false;
             uopCountArray[idx][w] = 0;
@@ -836,7 +836,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         for (int uop = 0; uop < numUops; uop++) {
           uopAddrArray[idx][way][uop] = addr;
           depTracker->microopAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr(addr, uop);
-          DPRINTF(ConstProp, "Set microop[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uop);
+          DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uop);
           emi.instSize = size;
           uopCache[idx][way][uop] = emi;
           StaticInstPtr inst = decodeInst(emi);
@@ -864,10 +864,15 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     return false;
 }
 
-/**
 bool
 Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded)
 {
+    // Speculative cache is back, but no longer has entries in depend graph
+    // This is because spec cache entries come from depend graph
+    // They already have a parallel in the uop cache
+    // Will also be indexed independently now
+    // And the size of this cache may shrink eventually (i.e., fewer ways per set, fewer uops per way)
+
     if (numUops > 6) {
       DPRINTF(Decoder, "More than 6 microops: Could not update microop in the speculative cache: %#x.\n", addr);
       return false;
@@ -1002,7 +1007,6 @@ Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, in
     DPRINTF(Decoder, "Eviction failed: Could not update microop in the speculative cache :%#x tag:%#x.\n", addr, tag);
     return false;
 }
-**/
 
 bool
 Decoder::isHitInUopCache(Addr addr)
@@ -1022,7 +1026,6 @@ Decoder::isHitInUopCache(Addr addr)
     return false;
 }
 
-/**
 bool
 Decoder::isHitInSpeculativeCache(Addr addr)
 {
@@ -1040,7 +1043,6 @@ Decoder::isHitInSpeculativeCache(Addr addr)
     }
     return false;
 }
-**/
 
 StaticInstPtr
 Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
@@ -1064,7 +1066,6 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
     return NULL;
 }
 
-/**
 StaticInstPtr
 Decoder::fetchUopFromSpeculativeCache(Addr addr, PCState &nextPC)
 {
@@ -1087,7 +1088,6 @@ Decoder::fetchUopFromSpeculativeCache(Addr addr, PCState &nextPC)
     panic("speculative cache hit, but couldn't fetch from the cache.");
     return NULL;
 }
-**/
 
 StaticInstPtr
 Decoder::decode(PCState &nextPC, unsigned cycleAdded)

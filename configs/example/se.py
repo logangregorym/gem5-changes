@@ -142,6 +142,7 @@ parser.add_option("--predictingArithmetic", default=0, type="int", action="store
 parser.add_option("--predictStage", default=3, type="int", action="store", help="Prediction Stage: fetch/iew/both.");
 parser.add_option("--maxDependencyRecursion", default=15, type="int", action="store", help="How deep to recurse when counting dependencies.");
 parser.add_option("--usingControlTracking", default=0, type="int", action="store", help="Track control dependencies to optimize across?");
+parser.add_option("--maxRecursiveDepth", default=8, type="int", action="store", help="Maximum depth to recurse to when measuring dependency chains")
 parser.add_option("--branchConfidenceCounterSize", default=2, type="int", action="store", help="Size of the branch confidence counters in bits.")
 parser.add_option("--branchConfidenceThreshold", default=2, type="int", action="store", help="Minimum confidence needed to do LVP across a branch.")
 parser.add_option("--doStoragelessBranchConf", action="store_true", help="Whether to use storageless TAGE confidence (Seznec 2010).")
@@ -211,6 +212,7 @@ CPUClass.loadPred.predictingArithmetic = options.predictingArithmetic
 CPUClass.loadPred.predictStage = options.predictStage
 CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
 CPUClass.depTracker.usingControlTracking = options.usingControlTracking
+CPUClass.depTracker.maxRecursiveDepth = options.maxRecursiveDepth
 CPUClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize
 CPUClass.branchPred.branchConfidenceThreshold = options.branchConfidenceThreshold
 CPUClass.branchPred.doStoragelessBranchConf = options.doStoragelessBranchConf
