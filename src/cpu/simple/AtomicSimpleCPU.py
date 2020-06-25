@@ -41,6 +41,8 @@
 from m5.params import *
 from BaseSimpleCPU import BaseSimpleCPU
 from SimPoint import SimPoint
+from LoadValuePredictor import *
+from ArrayDependencyTracker import *
 
 class AtomicSimpleCPU(BaseSimpleCPU):
     """Simple CPU model executing a configurable number of
@@ -61,7 +63,7 @@ class AtomicSimpleCPU(BaseSimpleCPU):
     width = Param.Int(1, "CPU width")
     simulate_data_stalls = Param.Bool(False, "Simulate dcache stall cycles")
     simulate_inst_stalls = Param.Bool(False, "Simulate icache stall cycles")
-
+    
     def addSimPointProbe(self, interval):
         simpoint = SimPoint()
         simpoint.interval = interval
