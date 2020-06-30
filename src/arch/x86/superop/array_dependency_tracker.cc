@@ -604,6 +604,8 @@ void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, uint64_t 
 
 	DPRINTF(ConstProp, "After prediction:\n");
 	describeEntry(idx, specway, specuop);
+	DPRINTF(ConstProp, "Adding prediction to speculative graph\n");
+	updateSpecTrace(idx, specway, specuop);
 }
 
 bool ArrayDependencyTracker::simplifyGraph() {
@@ -612,141 +614,144 @@ bool ArrayDependencyTracker::simplifyGraph() {
 	int i1 = simplifyIdx;
 	int i2 = simplifyWay;
 	int i3 = simplifyUop;
-	// for (int i1=0; i1<32; i1++) {
-	// 	for (int i2=0; i2<8; i2++) {
-	// 		for (int i3=0; i3<6; i3++) {
-				if (decoder->uopValidArray[i1][i2] && speculativeDependencyGraph[i1][i2][i3]) { // changed to uop
-					StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
-					if (decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); }
-					string type = decodedEMI->getName();
-					// std::cout << type << std::endl;
-					if (type == "mov") {
-						DPRINTF(ConstProp, "Found a MOV at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateMov(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "wrip" || type == "wripi") {
-						DPRINTF(ConstProp, "Found a WRIP/WRIPI branch at spec[%i][%i][%i], trying to propagate across...\n", i1, i2, i3);
-						// if (type == "wripi") { printf("WRIPI with immediate %i\n", decodedEMI->getImmediate()); }
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateWrip(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (decodedEMI->isControl()) {
-						DPRINTF(ConstProp, "Control instruction of type %s\n", type);
-					} else if (type == "movi") {
-						DPRINTF(ConstProp, "Found a MOVI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateMovI(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "and") {
-						DPRINTF(ConstProp, "Found an AND at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateAnd(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "add") {
-						DPRINTF(ConstProp, "Found an ADD at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateAdd(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "sub") {
-						DPRINTF(ConstProp, "Found a SUB at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateSub(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "xor") {
-						DPRINTF(ConstProp, "Found an XOR at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateXor(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "or") {
-						DPRINTF(ConstProp, "Found an OR at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateOr(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "subi") {
-						DPRINTF(ConstProp, "Found a SUBI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateSubI(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "addi") {
-						DPRINTF(ConstProp, "Found an ADDI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateAddI(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "slli") {
-						DPRINTF(ConstProp, "Found a SLLI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateSllI(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "srli") {
-						DPRINTF(ConstProp, "Found a SRLI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateSrlI(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "lea") {
-						DPRINTF(ConstProp, "Type is LEA");
-						// Requires multiple ALU operations to propagate, not using
-					} else if (type == "sexti") {
-						// Implementation has multiple ALU operations, but this is not required by the nature of the operation
-						DPRINTF(ConstProp, "Found a SEXTI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						// printf("ADDI with immediate %i\n", decodedEMI->getImmediate());
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateSExtI(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "zexti") {
-						// Implementation has multiple ALU operations, but this is not required by the nature of the operation
-						DPRINTF(ConstProp, "Found a ZEXTI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						// printf("ADDI with immediate %i\n", decodedEMI->getImmediate());
-						describeEntry(i1, i2, i3);
-						changedGraph = propagateZExtI(i1, i2, i3) || changedGraph;
-						DPRINTF(ConstProp, "After:\n");
-						describeEntry(i1, i2, i3);
-					} else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
-						DPRINTF(ConstProp, "Type is MUL1S, MUL1U, MULEL, or MULEH\n");
-						// TODO: two dest regs with different values? maybe too complex arithmetic?
-					} else if (type == "limm") {
-						DPRINTF(ConstProp, "Type is LIMM\n");
-						// printf("LIMM with immediate %i\n", decodedEMI->getImmediate());
-						// DPRINTF(ConstProp, "Found a LIMM at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-						// describeEntry(i1, i2, i3);
-						// changedGraph = changedGraph || propagateLimm(i1, i2, i3);
-						// DPRINTF(ConstProp, "After:\n");
-						// describeEntry(i1, i2, i3);
-					} else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
-						DPRINTF(ConstProp, "Type  is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
-						// TODO: add control registers to graph?
-					} else if (type == "rdtsc" || type == "rdval") {
-						DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
-						// TODO: determine whether direct register file access needs to be handled differently?
-					} else if (type == "panic" || type == "NOP" || type == "CPUID") {
-						DPRINTF(ConstProp, "Type is PANIC, NOP, or CPUID\n");
-						// TODO: possibly remove, what is purpose?
-					} else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp" || "rdip") {
-						DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, CALL_FAR_MP, or RDIP\n");
-						// TODO: cannot remove
-					} else {
-						DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
-					}
-					// Propagate Last Use
-					changedGraph = propagateLastUse(i1, i2, i3) || changedGraph;
-					if (changedGraph) { DPRINTF(ConstProp, "CHANGED\n"); describeFullGraph(); }
-				}
-	// 		}
-	// 	}
-	// }
+	if (decoder->uopValidArray[i1][i2] && speculativeDependencyGraph[i1][i2][i3]) { // changed to uop
+		StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
+		if (decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); }
+		string type = decodedEMI->getName();
+		// std::cout << type << std::endl;
+		if (type == "mov") {
+			DPRINTF(ConstProp, "Found a MOV at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateMov(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "wrip" || type == "wripi") {
+			DPRINTF(ConstProp, "Found a WRIP/WRIPI branch at spec[%i][%i][%i], trying to propagate across...\n", i1, i2, i3);
+			// if (type == "wripi") { printf("WRIPI with immediate %i\n", decodedEMI->getImmediate()); }
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateWrip(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (decodedEMI->isControl()) {
+			DPRINTF(ConstProp, "Control instruction of type %s\n", type);
+		} else if (type == "movi") {
+			DPRINTF(ConstProp, "Found a MOVI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateMovI(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "and") {
+			DPRINTF(ConstProp, "Found an AND at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateAnd(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "add") {
+			DPRINTF(ConstProp, "Found an ADD at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateAdd(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "sub") {
+			DPRINTF(ConstProp, "Found a SUB at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateSub(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "xor") {
+			DPRINTF(ConstProp, "Found an XOR at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateXor(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "or") {
+			DPRINTF(ConstProp, "Found an OR at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateOr(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "subi") {
+			DPRINTF(ConstProp, "Found a SUBI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateSubI(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "addi") {
+			DPRINTF(ConstProp, "Found an ADDI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateAddI(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "slli") {
+			DPRINTF(ConstProp, "Found a SLLI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateSllI(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "srli") {
+			DPRINTF(ConstProp, "Found a SRLI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateSrlI(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "lea") {
+			DPRINTF(ConstProp, "Type is LEA");
+			// Requires multiple ALU operations to propagate, not using
+		} else if (type == "sexti") {
+			// Implementation has multiple ALU operations, but this is not required by the nature of the operation
+			DPRINTF(ConstProp, "Found a SEXTI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			// printf("ADDI with immediate %i\n", decodedEMI->getImmediate());
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateSExtI(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "zexti") {
+			// Implementation has multiple ALU operations, but this is not required by the nature of the operation
+			DPRINTF(ConstProp, "Found a ZEXTI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			// printf("ADDI with immediate %i\n", decodedEMI->getImmediate());
+			describeEntry(i1, i2, i3);
+			changedGraph = propagateZExtI(i1, i2, i3) || changedGraph;
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
+		} else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
+			DPRINTF(ConstProp, "Type is MUL1S, MUL1U, MULEL, or MULEH\n");
+			// TODO: two dest regs with different values? maybe too complex arithmetic?
+		} else if (type == "limm") {
+			DPRINTF(ConstProp, "Type is LIMM\n");
+			// printf("LIMM with immediate %i\n", decodedEMI->getImmediate());
+			// DPRINTF(ConstProp, "Found a LIMM at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			// describeEntry(i1, i2, i3);
+			// changedGraph = changedGraph || propagateLimm(i1, i2, i3);
+			// DPRINTF(ConstProp, "After:\n");
+			// describeEntry(i1, i2, i3);
+		} else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
+			DPRINTF(ConstProp, "Type  is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
+			// TODO: add control registers to graph?
+		} else if (type == "rdtsc" || type == "rdval") {
+			DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
+			// TODO: determine whether direct register file access needs to be handled differently?
+		} else if (type == "panic" || type == "NOP" || type == "CPUID") {
+			DPRINTF(ConstProp, "Type is PANIC, NOP, or CPUID\n");
+			// TODO: possibly remove, what is purpose?
+		} else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp" || "rdip") {
+			DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, CALL_FAR_MP, or RDIP\n");
+			// TODO: cannot remove
+		} else {
+			DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
+		}
+		// Propagate Last Use
+		// changedGraph = propagateLastUse(i1, i2, i3) || changedGraph;
+//		if (changedGraph && (type == "mov" || type == "movi" || type == "and" || type == "add" || type == "sub" || type == "xor" || type == "or" || type == "subi" || type == "addi" || type == "slli" || type == "srli" || type == "sexti" || type == "zexti")) {
+		if (changedGraph) {
+			DPRINTF(ConstProp, "CHANGED\n");
+			// printf("Trying to update\n");
+			updateSpecTrace(i1, i2, i3);
+//			printf("Changed graph but not updating trace\n");
+		} else {
+			// printf("Simplify graph didn't change anything\n");
+			decoder->addToSpeculativeCacheIffTagExists(decodedEMI, speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr);
+		}
+	}
 
 	simplifyUop++;
 	if (simplifyUop >= 6) {
@@ -1914,7 +1919,7 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 		}
 	}
 
-	// TODO: increment propagatingTo
+	// increment propagatingTo
 	FullUopAddr nextFullAddr;
 	if (microopAddrArray[idx][way][uop+1].pcAddr == propagatingTo.pcAddr && microopAddrArray[idx][way][uop+1].uopAddr == propagatingTo.uopAddr + 1) {
 		nextFullAddr = FullUopAddr(propagatingTo.pcAddr, propagatingTo.uopAddr + 1);
@@ -1929,6 +1934,126 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 	branches[branchIndex].propagatingTo = nextFullAddr;
 
 	return changeMade;
+}
+
+void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
+	// At least for now, control-dependent paths will be handled separately
+	assert(speculativeDependencyGraph[idx][way][uop]);
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr); }
+
+	bool allDestsReady = true;
+	for (int i=0; i<256; i++) {
+		if (speculativeDependencyGraph[idx][way][uop]->consumers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->consumers[i] != 5000) {
+			InformationFlowPath dataOut = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]];
+			if ((!dataOut.valid) && dataOut.directControlDependency == 0 && dataOut.indirectControlDependency == 0) {
+				allDestsReady = false;
+			}
+		}
+	} 
+
+	// Step 1: Determine whether the inst is already in the speculative cache
+	if (speculativeDependencyGraph[idx][way][uop]->specIdx.valid) {
+		FullCacheIdx optimizedIdx = speculativeDependencyGraph[idx][way][uop]->specIdx;
+		StaticInstPtr optimizedInst = decoder->speculativeCache[optimizedIdx.idx][optimizedIdx.way][optimizedIdx.uop];
+		
+		// Step 2a: If fully eliminated and present, remove from cache
+		if (allDestsReady) {
+			// Step 2a: If fully eliminated and present, remove from cache
+			FullCacheIdx nextIdx = getNextCacheIdx(optimizedIdx);
+			while (nextIdx.valid) {
+				moveTraceInstOneForward(nextIdx.idx, nextIdx.way, nextIdx.uop);
+				nextIdx = getNextCacheIdx(nextIdx);
+			}
+			// Steb 2b: Mark DependGraphEntry as dead code to know to skip
+			speculativeDependencyGraph[idx][way][uop]->deadCode = true;
+		} else {
+			// Step 3b: Mark all predicted values on the StaticInst
+			for (int i=0; i<256; i++) {
+				if (speculativeDependencyGraph[idx][way][uop]->producers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->producers[i] != 5000) {
+					InformationFlowPath dataIn = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]];
+					if (dataIn.valid && dataIn.directControlDependency == 0 && dataIn.indirectControlDependency == 0) {
+						for (int j=0; j<optimizedInst->numSrcRegs(); j++) {
+							unsigned srcIdx = optimizedInst->srcRegIdx(j).flatIndex();
+							if (srcIdx == dataIn.archRegIdx) {
+								optimizedInst->sourcePredictions[j] = dataIn.value;
+								optimizedInst->sourcesPredicted[j] = true;
+							}
+						}
+					}
+				}
+			}
+		}
+	} else {
+		if (allDestsReady) {
+			// Step 2b: Mark DependGraphEntry as dead code to know to skip
+			decoder->updateTagInSpeculativeCacheWithoutAdding(speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
+			speculativeDependencyGraph[idx][way][uop]->deadCode = true;
+			// printf("Marked an inst as dead code\n");
+		} else {
+			// Step 3a: If not dead and not present, call decodeInst and add	
+			FullCacheIdx loc = decoder->addUopToSpeculativeCache(decodedEMI, speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
+			if (loc.valid) {
+				speculativeDependencyGraph[idx][way][uop]->specIdx = loc;
+			//	printf("Added an inst to spec graph at [%i][%i][%i]\n", loc.idx, loc.way, loc.uop);
+			}
+
+			// Step 3b: Mark all predicted values on the StaticInst
+			for (int i=0; i<256; i++) {
+				if (speculativeDependencyGraph[idx][way][uop]->producers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->producers[i] != 5000) {
+					InformationFlowPath dataIn = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]];
+					if (dataIn.valid && dataIn.directControlDependency == 0 && dataIn.indirectControlDependency == 0) {
+						for (int j=0; j<decodedEMI->numSrcRegs(); j++) {
+							unsigned srcIdx = decodedEMI->srcRegIdx(j).flatIndex();
+							if (srcIdx == dataIn.archRegIdx) {
+								decodedEMI->sourcePredictions[j] = dataIn.value;
+								decodedEMI->sourcesPredicted[j] = true;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+void ArrayDependencyTracker::invalidateTraceInst(int idx, int way, int uop) {
+	FullUopAddr affectedAddr = decoder->speculativeAddrArray[idx][way][uop];
+	int affectedIdx = (affectedAddr.pcAddr >> 5) & 0x1f;
+	uint64_t affectedTag = (affectedAddr.pcAddr >> 10);
+	for (int w = 0; w < 8; w++) {
+		if (decoder->uopValidArray[affectedIdx][w] && decoder->uopTagArray[affectedIdx][w] == affectedTag) {
+			for (int u = 0; u < decoder->uopCountArray[affectedIdx][w]; u++) {
+				if (microopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
+					// When clearing whole ways, may call this on an inst that doesn't exist
+					// Addr 0.0 would then match with an empty slot in the uop cache
+					// The additional if condition prevents that error
+					speculativeDependencyGraph[affectedIdx][w][u]->specIdx = FullCacheIdx();
+				}
+			}
+		}
+	}
+}
+
+void ArrayDependencyTracker::moveTraceInstOneForward(int idx, int way, int uop) {
+	FullCacheIdx prevIdx = getPrevCacheIdx(FullCacheIdx(idx, way, uop));
+	assert(prevIdx.valid); // should only be called if can do
+
+	decoder->speculativeCache[prevIdx.idx][prevIdx.way][prevIdx.uop] = decoder->speculativeCache[idx][way][uop];
+	decoder->speculativeAddrArray[prevIdx.idx][prevIdx.way][prevIdx.uop] = decoder->speculativeAddrArray[idx][way][uop];
+
+	FullUopAddr affectedAddr = decoder->speculativeAddrArray[idx][way][uop];
+	int affectedIdx = (affectedAddr.pcAddr >> 5) & 0x1f;
+	uint64_t affectedTag = (affectedAddr.pcAddr >> 10);
+	for (int w = 0; w < 8; w++) {
+		if (decoder->uopValidArray[affectedIdx][w] && decoder->uopTagArray[affectedIdx][w] == affectedTag) {
+			for (int u = 0; u < decoder->uopCountArray[affectedIdx][w]; u++) {
+				if (microopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
+					speculativeDependencyGraph[affectedIdx][w][u]->specIdx = prevIdx;
+				}
+			}
+		}
+	}
 }
 
 void ArrayDependencyTracker::describeEntry(int idx, int way, int uop) {
@@ -1987,4 +2112,25 @@ void ArrayDependencyTracker::describeFullGraph() {
 			}
 		}
 	}
+}
+
+ArrayDependencyTracker::FullCacheIdx ArrayDependencyTracker::getNextCacheIdx(ArrayDependencyTracker::FullCacheIdx start) {
+	if (start.uop < 5) {
+		return FullCacheIdx(start.idx, start.way, start.uop + 1);
+	}
+	if (decoder->speculativeNextWayArray[start.idx][start.way] == 10) {
+		// No next way, we're done
+		return FullCacheIdx();
+	}
+	return FullCacheIdx(start.idx, decoder->speculativeNextWayArray[start.idx][start.way], 0);
+}
+
+ArrayDependencyTracker::FullCacheIdx ArrayDependencyTracker::getPrevCacheIdx(ArrayDependencyTracker::FullCacheIdx start) {
+	if (start.uop > 0) {
+		return FullCacheIdx(start.idx, start.way, start.uop - 1);
+	}
+	if (decoder->speculativePrevWayArray[start.idx][start.way] == 10) {
+		return FullCacheIdx();
+	}
+	return FullCacheIdx(start.idx, decoder->speculativePrevWayArray[start.idx][start.way], 5);
 }

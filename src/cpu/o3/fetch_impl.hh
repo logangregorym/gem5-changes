@@ -384,6 +384,18 @@ DefaultFetch<Impl>::regStats()
                 .name(name() + ".otherBranchesFetched")
                 .desc("Branches where neither isDirectCtrl() nor isIndirectCtrl() is true")
                 ;
+	deadCodeInsts
+		.name(name() + ".deadCodeInsts")
+		.desc("Number of fetched insts which were marked as dead code")
+		;
+	instsPartOfOptimizedTrace
+		.name(name() + ".instsPartOfOptimizedTrace")
+		.desc("Number of fetched insts which had speculative cache translations")
+		;
+	instsNotPartOfOptimizedTrace
+		.name(name() + ".instsNotPartOfOptimizedTrace")
+		.desc("Number of fetched insts which did not have speculative cache translations")
+		;
 }
 
 template<class Impl>
@@ -1258,11 +1270,11 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                 if (instruction->staticInst->isMacroop()) {
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
                         decoder[tid]->depTracker->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
-                        decoder[tid]->depTracker->measureChain(thisPC.instAddr(), uop);
+                        // decoder[tid]->depTracker->measureChain(thisPC.instAddr(), uop);
                     }
                 } else {
                     decoder[tid]->depTracker->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
-                    decoder[tid]->depTracker->measureChain(thisPC.instAddr(), 0);
+                    // decoder[tid]->depTracker->measureChain(thisPC.instAddr(), 0);
                 }
             }
             // decoder[tid]->depTracker->simplifyGraph();
@@ -1515,6 +1527,23 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         // Extract as many instructions and/or microops as we can from
         // the memory we've processed so far.
         do {
+
+	    // Hi Layne! Your TODO work is here 
+	    // Will put this somewhere to substitute fetching optimized trace
+	    // Unsure exactly where, need to improve understanding of this loop
+	    if (decoder[tid]->superoptimizedTraceAvailable(thisPC.instAddr(), thisPC.microPC())) {
+		if (decoder[tid]->isDeadCode(thisPC.instAddr(), thisPC.microPC())) {
+		    // TODO: increment PC and continue
+		    ++deadCodeInsts;
+		} else {
+		    StaticInstPtr optimizedInst = decoder[tid]->getSuperoptimizedInst(thisPC.instAddr(), thisPC.microPC());
+		    // TODO: build dynamic inst and issue, increment PC and continue
+		    ++instsPartOfOptimizedTrace;
+		}
+	    } else {
+		++instsNotPartOfOptimizedTrace;
+	    }
+
             if (!(curMacroop || inRom)) {
                 if (decoder[tid]->instReady() || inUopCache) {
                     staticInst = decoder[tid]->decode(thisPC, cpu->numCycles.value());

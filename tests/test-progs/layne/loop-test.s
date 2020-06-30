@@ -8,8 +8,8 @@ _start:
 loopStart:
         mov 	rdx, 		0
         add 	rdx, 		-5
-        cmp 	rdx,		10
-        je	exiting
+        mov	rbx,		rdx
+	mov	rax,		rbx
 	sub 	rdx,		-5
         add 	rcx, 		1
         cmp 	rcx, 		loopCnt

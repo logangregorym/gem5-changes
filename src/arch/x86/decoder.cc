@@ -63,13 +63,16 @@ Decoder::doResetState()
 
     emi.modRM = 0;
     emi.sib = 0;
-
+/**
     if (instBytes->si) {
         return FromCacheState;
     } else {
         instBytes->chunks.clear();
         return PrefixState;
     }
+**/
+	instBytes->chunks.clear();
+	return PrefixState;
 }
 
 void
@@ -1008,6 +1011,198 @@ Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, in
     return false;
 }
 
+ArrayDependencyTracker::FullCacheIdx
+Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop) {
+	int idx = (addr >> 5) & 0x1f;
+	uint64_t tag = (addr >> 10);
+	int numFullWays = 0;
+
+	for (int way = 0; way < 8 && numFullWays < 3; way++) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+			int waySize = speculativeCountArray[idx][way];
+			if (waySize == 6) {
+				numFullWays++;
+				continue;
+			}
+			speculativeCountArray[idx][way]++;
+			speculativeCache[idx][way][waySize] = inst;
+			speculativeAddrArray[idx][way][waySize] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+			updateLRUBitsSpeculative(idx, way);
+			return ArrayDependencyTracker::FullCacheIdx(idx, way, waySize);
+		}
+	}
+
+	if (numFullWays == 3) {
+		// Replace this section
+		DPRINTF(ConstProp, "Already 3 full ways so couldn't add optimized inst\n");
+		return ArrayDependencyTracker::FullCacheIdx();
+	}
+
+	// If we make it here, then we need to add a way for this tag
+	for (int way = 0; way < 8; way++) {
+		if (!speculativeValidArray[idx][way]) {
+			if (numFullWays > 0) {
+				for (int w = 0; w < 8; w++) {
+					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeNextWayArray[idx][w] == 10) {
+						speculativeNextWayArray[idx][w] = way;
+						speculativePrevWayArray[idx][way] = w;
+					}
+				}
+			}
+			speculativeCountArray[idx][way] = 1;
+			speculativeValidArray[idx][way] = true;
+			speculativeTagArray[idx][way] = tag;
+			speculativeCache[idx][way][0] = inst;
+			speculativeAddrArray[idx][way][0] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+			updateLRUBitsSpeculative(idx, way);
+			return ArrayDependencyTracker::FullCacheIdx(idx, way, 0);
+		}
+	}
+
+	// If we make it here, we need to evict a way to make space
+	for (int way = 0; way < 8; way++) {
+		if (speculativeLRUArray[idx][way] == 0) {
+			for (int w = 0; w < 8; w++) {
+				if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == speculativeTagArray[idx][way]) {
+					for (int u = 0; u < speculativeCountArray[idx][w]; u++) {
+						depTracker->invalidateTraceInst(idx, w, u);
+					}
+					speculativeValidArray[idx][w] = false;
+					speculativeCountArray[idx][w] = 0;
+					speculativePrevWayArray[idx][w] = 10; // default invalid
+					speculativeNextWayArray[idx][w] = 10; // default invalid
+				}
+			}
+			if (numFullWays > 0) {
+				for (int w = 0; w < 8; w++) {
+					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeNextWayArray[idx][w] == 10) {
+						speculativeNextWayArray[idx][w] = way;
+						speculativePrevWayArray[idx][way] = w;
+					}
+				}
+			}
+			speculativeCountArray[idx][way] = 1;
+			speculativeValidArray[idx][way] = true;
+			speculativeTagArray[idx][way] = tag;
+			speculativeCache[idx][way][0] = inst;
+			speculativeAddrArray[idx][way][0] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+			updateLRUBitsSpeculative(idx, way);	
+			return ArrayDependencyTracker::FullCacheIdx(idx, way, 0);
+		}
+	}
+	DPRINTF(ConstProp, "Optimized trace could not be loaded into speculative cache because no tag has LRU bits equal to 0\n");
+	return ArrayDependencyTracker::FullCacheIdx();
+}
+
+bool
+Decoder::addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop) {
+	int idx = (addr >> 5) & 0x1f;
+	uint64_t tag = (addr >> 10);
+	int numFullWays = 0;
+
+	for (int way = 0; way < 8 && numFullWays < 3; way++) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+			int waySize = speculativeCountArray[idx][way];
+			if (waySize == 6) {
+				numFullWays++;
+				continue;
+			}
+			speculativeCountArray[idx][way]++;
+			speculativeCache[idx][way][waySize] = inst;
+			speculativeAddrArray[idx][way][waySize] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+			updateLRUBitsSpeculative(idx, way);
+			return true;
+		}
+	}
+
+	// If we make it here, then we need to add a way for this tag
+	for (int way = 0; way < 8; way++) {
+		if (!speculativeValidArray[idx][way]) {
+			speculativeCountArray[idx][way] = 1;
+			speculativeValidArray[idx][way] = true;
+			speculativeTagArray[idx][way] = tag;
+			speculativeCache[idx][way][0] = inst;
+			speculativeAddrArray[idx][way][0] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+			updateLRUBitsSpeculative(idx, way);
+			return true;
+		}
+	}
+	DPRINTF(SuperOp, "Tag not found in cache, so not adding inst\n");
+	return false;
+}
+
+bool
+Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop) {
+	int idx = (addr >> 5) & 0x1f;
+	uint64_t tag = (addr >> 10);
+	int numFullWays = 0;
+
+	for (int way = 0; way < 8 && numFullWays < 3; way++) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+			int waySize = speculativeCountArray[idx][way];
+			if (waySize == 6) {
+				numFullWays++;
+				continue;
+			}
+			// No need to add a new way, there's space in this one
+			updateLRUBits(idx, way);
+			return true;
+		}
+	}
+
+	if (numFullWays == 3) {
+		// Replace this section
+		return false;
+	}
+
+	// If we make it here, then we need to add a way for this tag
+	for (int way = 0; way < 8; way++) {
+		if (!speculativeValidArray[idx][way]) {
+			if (numFullWays > 0) {
+				for (int w = 0; w < 8; w++) {
+					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeNextWayArray[idx][w] == 10) {
+						speculativeNextWayArray[idx][w] = way;
+						speculativePrevWayArray[idx][way] = w;
+					}
+				}
+			}
+			speculativeValidArray[idx][way] = true;
+			speculativeTagArray[idx][way] = tag;
+			updateLRUBitsSpeculative(idx, way);
+			return true;
+		}
+	}
+
+	// If we make it here, we need to evict a way to make space
+	for (int way = 0; way < 8; way++) {
+		if (speculativeLRUArray[idx][way] == 0) {
+			for (int w = 0; w < 8; w++) {
+				if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == speculativeTagArray[idx][way]) {
+					for (int u = 0; u < speculativeCountArray[idx][w]; u++) {
+						depTracker->invalidateTraceInst(idx, w, u);
+					}
+					speculativeValidArray[idx][w] = false;
+					speculativeCountArray[idx][w] = 0;
+				}
+			}
+			if (numFullWays > 0) {
+				for (int w = 0; w < 8; w++) {
+					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeNextWayArray[idx][w] == 10) {
+						speculativeNextWayArray[idx][w] = way;
+						speculativePrevWayArray[idx][way] = w;
+					}
+				}
+			}
+			speculativeValidArray[idx][way] = true;
+			speculativeTagArray[idx][way] = tag;
+			updateLRUBitsSpeculative(idx, way);
+			return true;
+		}
+	}
+	DPRINTF(SuperOp, "Optimized trace could not be loaded into speculative cache because no tag has LRU bits equal to 0\n");
+	return false;
+}
+
 bool
 Decoder::isHitInUopCache(Addr addr)
 {
@@ -1069,6 +1264,7 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
 StaticInstPtr
 Decoder::fetchUopFromSpeculativeCache(Addr addr, PCState &nextPC)
 {
+	// modeled on uop cache fetch, may not translate well; shouldn't need to use
     int idx = (addr >> 5) & 0x1f;
     uint64_t tag = (addr >> 10);
     for (int way = 0; way < 8; way++) {
@@ -1087,6 +1283,63 @@ Decoder::fetchUopFromSpeculativeCache(Addr addr, PCState &nextPC)
     }
     panic("speculative cache hit, but couldn't fetch from the cache.");
     return NULL;
+}
+
+bool
+Decoder::superoptimizedTraceAvailable(Addr addr, unsigned uop) {
+	int idx = (addr >> 5) & 0x1f;
+	uint64_t tag = (addr >> 10);
+	for (int way = 0; way < 8; way++) {
+		if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+			for (int u = 0; u < uopCountArray[idx][way]; u++) {
+				if (depTracker->microopAddrArray[idx][way][u] == ArrayDependencyTracker::FullUopAddr(addr, uop)) {
+					// Found a match, should have a dependency graph entry
+					assert(depTracker->speculativeDependencyGraph[idx][way][u]);
+					return depTracker->speculativeDependencyGraph[idx][way][u]->specIdx.valid || depTracker->speculativeDependencyGraph[idx][way][u]->deadCode;
+				}
+			}
+		}
+	}
+	// if not found
+	return false;
+}
+
+bool
+Decoder::isDeadCode(Addr addr, unsigned uop) {
+	// Should only be called if superoptimizedTraceAvailable returned true
+	int idx = (addr >> 5) & 0x1f;
+	uint64_t tag = (addr >> 10);
+	for (int way = 0; way < 8; way++) {
+		if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+			for (int u = 0; u < uopCountArray[idx][way]; u++) {
+				if (depTracker->microopAddrArray[idx][way][u] == ArrayDependencyTracker::FullUopAddr(addr, uop)) {
+					return depTracker->speculativeDependencyGraph[idx][way][u]->deadCode;
+				}
+			}
+		}
+	}
+	panic("isDeadCode was called on an addr w/o a dependency graph entry");
+	return false;
+}
+
+StaticInstPtr
+Decoder::getSuperoptimizedInst(Addr addr, unsigned uop) {
+	// Should only be called if an entry in the speculative cache exists
+	int idx = (addr >> 5) & 0x1f;
+	uint64_t tag = (addr >> 10);
+	for (int way = 0; way < 8; way++) {
+		if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+			for (int u = 0; u < uopCountArray[idx][way]; u++) {
+				if (depTracker->microopAddrArray[idx][way][u] == ArrayDependencyTracker::FullUopAddr(addr, uop)) {
+					assert(depTracker->speculativeDependencyGraph[idx][way][u]->specIdx.valid);
+					ArrayDependencyTracker::FullCacheIdx loc = depTracker->speculativeDependencyGraph[idx][way][u]->specIdx;
+					return speculativeCache[loc.idx][loc.way][loc.uop];
+				}
+			}
+		}
+	}
+	panic("getSuperoptimizedInst called when a superoptimized translation wasn't available");
+	return NULL;
 }
 
 StaticInstPtr
@@ -1108,6 +1361,7 @@ Decoder::decode(PCState &nextPC, unsigned cycleAdded)
     emi.instSize = basePC + offset - origPC;
     updateNPC(nextPC);
 
+/**
     StaticInstPtr &si = instBytes->si;
     if (si) {
         int numFusedMicroops = 1;
@@ -1132,6 +1386,7 @@ Decoder::decode(PCState &nextPC, unsigned cycleAdded)
         } // This populates the uop cache from fetch, don't want for speculative
         return si;
     }
+**/
 
     // We didn't match in the AddrMap, but we still populated an entry. Fix
     // up its byte masks.
@@ -1161,7 +1416,7 @@ Decoder::decode(PCState &nextPC, unsigned cycleAdded)
         start = 0;
     }
 
-    si = decode(emi, nextPC.instAddr());
+    StaticInstPtr si = decode(emi, nextPC.instAddr());
 
     if (si->isMacroop()) {
         switch (si->getNumMicroops()) {

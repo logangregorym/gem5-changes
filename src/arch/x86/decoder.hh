@@ -121,10 +121,11 @@ public:
     // Parallel cache for optimized micro-ops
     bool isSpeculativeCachePresent;
     bool isSpeculativeCacheActive;
-
     StaticInstPtr speculativeCache[32][8][6];
-    Addr speculativeAddrArray[32][8][6];
+    ArrayDependencyTracker::FullUopAddr speculativeAddrArray[32][8][6];
     uint64_t speculativeTagArray[32][8];
+    int speculativePrevWayArray[32][8];
+    int speculativeNextWayArray[32][8];
     bool speculativeValidArray[32][8];
     int speculativeCountArray[32][8];
     int speculativeLRUArray[32][8];
@@ -303,6 +304,10 @@ protected:
             speculativeValidArray[idx][way] = false;
             speculativeCountArray[idx][way] = 0;
             speculativeLRUArray[idx][way] = way;
+	    speculativeTagArray[idx][way] = 0;
+	    for (int uop = 0; uop < 6; uop++) {
+	    	speculativeAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr();
+	    }
           }
         }
         if (params != nullptr){
@@ -452,6 +457,21 @@ protected:
     {
         isSpeculativeCachePresent = present;
     }
+
+	// Interface for superoptimization, interacts with cache differently in gem5
+	// In hardware wouldn't need a different interface, as both are streaming caches
+
+	ArrayDependencyTracker::FullCacheIdx addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop);
+
+	bool updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop);
+
+	bool addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop);
+
+	bool superoptimizedTraceAvailable(Addr addr, unsigned uop);
+
+	bool isDeadCode(Addr addr, unsigned uop);
+
+	StaticInstPtr getSuperoptimizedInst(Addr addr, unsigned uop);
 
     void regStats();
 

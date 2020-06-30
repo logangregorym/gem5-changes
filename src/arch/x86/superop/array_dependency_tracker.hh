@@ -44,6 +44,12 @@ class ArrayDependencyTracker : public SimObject
 	unsigned simplifyWay = 0;
 	unsigned simplifyUop = 0;
 
+	void updateSpecTrace(int i1, int i2, int i3);
+
+	void moveTraceInstOneForward(int i1, int i2, int i3);
+
+	void invalidateTraceInst(int i1, int i2, int i3);
+
 	void invalidateConnection(unsigned connectionIndex);
 
 	void invalidateBranch(unsigned branchIndex);
@@ -72,6 +78,30 @@ class ArrayDependencyTracker : public SimObject
 			return (pcAddr != rhs.pcAddr) || (uopAddr != rhs.uopAddr);
 		}
 	};
+
+	struct FullCacheIdx {
+		int idx;
+		int way;
+		int uop;
+		bool valid;
+
+		FullCacheIdx(int i, int w, int u) {
+			idx = i;
+			way = w;
+			uop = u;
+			valid = true;
+		}
+
+		FullCacheIdx() {
+			idx = 0;
+			way = 0;
+			uop = 0;
+			valid = false;
+		}
+	};
+
+	FullCacheIdx getNextCacheIdx(FullCacheIdx);
+	FullCacheIdx getPrevCacheIdx(FullCacheIdx);
 
 	unsigned registerRenameMapSpec[256] = {0};
 	FullUopAddr registerProducerMapSpec[256];
@@ -171,6 +201,8 @@ class ArrayDependencyTracker : public SimObject
 		unsigned cycleAdded = 0;
 		bool predicted = false;
 		uint64_t value = 0;
+		bool deadCode = false;
+		FullCacheIdx specIdx = FullCacheIdx();
 
 		DependGraphEntry() {
 			thisInst = FullUopAddr(0,0);

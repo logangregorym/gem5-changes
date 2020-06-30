@@ -636,6 +636,10 @@ class DefaultFetch
     Stats::Scalar directCtrlBranchesFetched;
     Stats::Scalar indirectCtrlBranchesFetched;
     Stats::Scalar otherBranchesFetched;
+
+    Stats::Scalar deadCodeInsts;
+    Stats::Scalar instsPartOfOptimizedTrace;
+    Stats::Scalar instsNotPartOfOptimizedTrace;
 };
 
 #endif //__CPU_O3_FETCH_HH__

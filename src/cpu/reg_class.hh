@@ -185,6 +185,7 @@ class RegId {
           case VecElemClass:
             return Scale*regIdx + elemIdx;
         }
+	printf("regClass is %i\n", regClass);
         panic("Trying to flatten a register without class!");
         return -1;
     }

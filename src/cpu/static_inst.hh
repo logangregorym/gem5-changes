@@ -358,6 +358,10 @@ class StaticInst : public RefCounted, public StaticInstFlags
     virtual uint8_t getImmediate() { panic("getImmediate() should only be called by RegOpImm, called by StaticInst"); }
     virtual uint8_t getDataSize();
     const char * instMnem;
+
+    // Annotate predicted inputs here
+    unsigned sourcePredictions[16] = {0};
+    bool sourcesPredicted[16] = {0};
 };
 
 #endif // __CPU_STATIC_INST_HH__
