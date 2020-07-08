@@ -11,9 +11,11 @@
 #include "debug/SuperOp.hh"
 #include "debug/ConstProp.hh"
 
+#include <set>
+
 using namespace std;
 
-ArrayDependencyTracker::ArrayDependencyTracker(ArrayDependencyTrackerParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking), maxRecursiveDepth(p->maxRecursiveDepth) {
+ArrayDependencyTracker::ArrayDependencyTracker(ArrayDependencyTrackerParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking), connectionCount(p->connectionCount), maxRecursiveDepth(p->maxRecursiveDepth) {
 	for (int i=0; i<256; i++) {
 		registerProducerMapSpec[i] = FullUopAddr(0,0);
 		mostRecentConsumer[i] = FullUopAddr(0,0);
@@ -228,7 +230,7 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 			// if written in window, create an information flow path to this inst
 			unsigned flowPathIdx = 1; // 0 reserved for invalid
 			bool foundSource = false;
-			while (flowPathIdx < 4096 && !foundSource) {
+			while (flowPathIdx < connectionCount && !foundSource) {
 				if (!connectionsValidSpec[flowPathIdx]) {
 					foundSource = true;
 					DPRINTF(ConstProp, "Found an empty IFP slot at %i\n", flowPathIdx);
@@ -258,11 +260,13 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 						DPRINTF(ConstProp, "Not enough entries in consumers for inst at uop[%i][%i][%i]\n", prodIdx, prodWay, prodUop);
 					}
 
-					// mark with value if already predicted
+					// mark with value if already predicted? Might cause problems with prediction ids
+					/**
 					if (speculativeDependencyGraph[prodIdx][prodWay][prodUop]->predicted) {
-						connections[flowPathIdx].valid = speculativeDependencyGraph[prodIdx][prodWay][prodUop]->value;
+						connections[flowPathIdx].valid = true;
 						connections[flowPathIdx].value = speculativeDependencyGraph[prodIdx][prodWay][prodUop]->value;
 					}
+					*/
 				} else {
 					panic("Failed to find entry for producer %x.%i with tag %x and index %i in spec graph\n", registerProducerMapSpec[srcReg.flatIndex()].pcAddr, registerProducerMapSpec[srcReg.flatIndex()].uopAddr, prodTag, prodIdx);
 				}
@@ -430,6 +434,11 @@ void ArrayDependencyTracker::removeFromGraph(Addr addr, unsigned uopAddr, unsign
 
 void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 	if (speculativeDependencyGraph[i1][i2][i3]) {
+		/** 
+		if (cpu->instInPipeline(speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr)) {
+			printf("Ok, found one in the pipeline, neat\n");
+		}
+		*/
 		DPRINTF(ConstProp, "Removing entry at spec[%i][%i][%i]\n", i1, i2, i3);
 		StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
 		if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); }
@@ -438,6 +447,13 @@ void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 				consumedInWindow[i] = false;
 			}
 		}
+
+		for (int i=0; i<4096; i++) {
+			if (predictionSourceValid[i] && predictionSource[i] == speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr) {
+				predictionSourceValid[i] = false;
+			}
+		}
+
 		for (int i = 0; i < 256; i++) {
 			unsigned prodIdx = speculativeDependencyGraph[i1][i2][i3]->producers[i];
 			if (prodIdx != 0 && prodIdx != 5000) {
@@ -549,7 +565,7 @@ void ArrayDependencyTracker::invalidateBranch(unsigned branchIndex) {
 	// branch should be removed for this to be called, don't need to find and invalidate
 
 	// update connections that depend on this branch
-	for (int i=1; i<4096; i++) {
+	for (int i=1; i<connectionCount; i++) {
 		if (connectionsValidSpec[i] && connections[i].directControlDependency == branchIndex) {
 			invalidateConnection(i);
 			connectionsValidSpec[i] = false;
@@ -590,15 +606,35 @@ void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, uint64_t 
 	DPRINTF(ConstProp, "Before prediction:\n");
 	describeEntry(idx, specway, specuop);
 
+	// Get prediction ID
+	unsigned predID = 0;
+	bool foundPredID = false;
+	for (int i=1; i<4096; i++) {
+		if (predictionSourceValid[i] && (predictionSource[i] == addr) && !foundPredID) {
+			predID = i;
+			foundPredID = true;
+		}
+	}
+	for (int i=1; i<4096; i++) {
+		if (!predictionSourceValid[i] && !foundPredID) {
+			predictionSource[i] = addr;
+			predictionSourceValid[i] = true;
+			predID = i;
+			foundPredID = true;
+		}
+	}
+
+	if (!foundPredID) { return; }
+
 	speculativeDependencyGraph[idx][specway][specuop]->predicted = true;
 	speculativeDependencyGraph[idx][specway][specuop]->value = value;
 
 	for (int i=0; i<256; i++) {
 		if (speculativeDependencyGraph[idx][specway][specuop]->consumers[i] != 0 && speculativeDependencyGraph[idx][specway][specuop]->consumers[i] != 5000) {
 			DPRINTF(ConstProp, "Found a consumer at connections[%i] to predict\n", speculativeDependencyGraph[idx][specway][specuop]->consumers[i]);
-			connections[speculativeDependencyGraph[idx][specway][specuop]->consumers[i]].value = value;
-			connections[speculativeDependencyGraph[idx][specway][specuop]->consumers[i]].valid = true;
-			connections[speculativeDependencyGraph[idx][specway][specuop]->consumers[i]].predict(value);
+			// connections[speculativeDependencyGraph[idx][specway][specuop]->consumers[i]].value = value;
+			// connections[speculativeDependencyGraph[idx][specway][specuop]->consumers[i]].valid = true;
+			connections[speculativeDependencyGraph[idx][specway][specuop]->consumers[i]].predict(value, predID);
 		}
 	}
 
@@ -719,11 +755,11 @@ bool ArrayDependencyTracker::simplifyGraph() {
 		} else if (type == "limm") {
 			DPRINTF(ConstProp, "Type is LIMM\n");
 			// printf("LIMM with immediate %i\n", decodedEMI->getImmediate());
-			// DPRINTF(ConstProp, "Found a LIMM at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			// describeEntry(i1, i2, i3);
-			// changedGraph = changedGraph || propagateLimm(i1, i2, i3);
-			// DPRINTF(ConstProp, "After:\n");
-			// describeEntry(i1, i2, i3);
+			DPRINTF(ConstProp, "Found a LIMM at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
+			describeEntry(i1, i2, i3);
+			changedGraph = changedGraph || propagateLimm(i1, i2, i3);
+			DPRINTF(ConstProp, "After:\n");
+			describeEntry(i1, i2, i3);
 		} else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
 			DPRINTF(ConstProp, "Type  is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
 			// TODO: add control registers to graph?
@@ -996,70 +1032,87 @@ bool ArrayDependencyTracker::propagateLastUse(int idx, int way, int uop) {
 }
 
 bool ArrayDependencyTracker::propagateMov(int idx, int way, int uop) {
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(microopAddrArray[idx][way][uop].uopAddr); }
-		string type = decodedEMI->getName();
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(microopAddrArray[idx][way][uop].uopAddr); }
+	string type = decodedEMI->getName();
 	//	std::cout << type << std::endl;
-		assert(decodedEMI->getName() == "mov");
-        if (decodedEMI->numSrcRegs() > 3) {
-                DPRINTF(SuperOp, "Skipping cmov at specCache[%i][%i][%i]\n", idx, way, uop);
-                return false;
-        }
+	assert(decodedEMI->getName() == "mov");
+	if (decodedEMI->numSrcRegs() > 3) {
+		DPRINTF(SuperOp, "Skipping cmov at specCache[%i][%i][%i]\n", idx, way, uop);
+		return false;
+	}
 
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
-        uint64_t destVal = 0;
-        uint64_t srcVal = 0;
-        unsigned valsFound = 0;
-        bool foundSource = false;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                        if (path.archRegIdx == srcRegId && path.valid) {
-                                srcVal = path.value;
-                                valsFound++;
-                                foundSource = true;
-                        }
-                }
-        }
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
+	uint64_t destVal = 0;
+	uint64_t srcVal = 0;
+	unsigned valsFound = 0;
+	bool foundSource = false;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+			if (path.archRegIdx == srcRegId && path.valid) {
+				srcVal = path.value;
+				valsFound++;
+				foundSource = true;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
 
-        uint8_t size = decodedEMI->getDataSize();
-        if ((valsFound < 2 && size < 8) || !foundSource) {
-                return false;
-        }
+	uint8_t size = decodedEMI->getDataSize();
+	if ((valsFound < 2 && size < 8) || !foundSource) {
+		return false;
+	}
 
-        // construct the value
-        uint64_t forwardVal;
-        if (size == 8) {
-                forwardVal = srcVal;
-        } else if (size == 4) {
-                forwardVal = (destVal & 0xffffffff00000000) | (srcVal & 0xffffffff); // mask 4 bytes
-        } else if (size == 2) {
-                forwardVal = (destVal & 0xffffffffffff0000) | (srcVal & 0xffff); // mask 2 bytes
-        } else if (size == 1) {
-                forwardVal = (destVal & 0xffffffffffffff00) | (srcVal & 0xff); // mask 1 byte
-        } else {
-                return false;
-        }
+	// construct the value
+	uint64_t forwardVal;
+	if (size == 8) {
+		forwardVal = srcVal;
+	} else if (size == 4) {
+		forwardVal = (destVal & 0xffffffff00000000) | (srcVal & 0xffffffff); // mask 4 bytes
+	} else if (size == 2) {
+		forwardVal = (destVal & 0xffffffffffff0000) | (srcVal & 0xffff); // mask 2 bytes
+	} else if (size == 1) {
+		forwardVal = (destVal & 0xffffffffffffff00) | (srcVal & 0xff); // mask 1 byte
+	} else {
+		return false;
+	}
 
-        // now pass it along!
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	// now pass it along!
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr=predIDs.begin(); itr!=predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateLimm(int idx, int way, int uop) {
@@ -1105,16 +1158,27 @@ bool ArrayDependencyTracker::propagateAdd(int idx, int way, int uop) {
         uint64_t destVal = 0;
         uint64_t srcVal = 0;
         unsigned valsFound = 0;
+		set<unsigned> predIDs = set<unsigned>();
         for (int i=0; i<256; i++) {
                 if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
                         ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
                         if (path.archRegIdx == destRegId && path.valid) {
                                 destVal = path.value;
                                 valsFound++;
+								for (int j=0; j<8; j++) {
+									if (path.dataDependencies[j] != 0) {
+										predIDs.insert(path.dataDependencies[j]);
+									}
+								}
                         }
                         if (path.archRegIdx == srcRegId && path.valid) {
                                 srcVal = path.value;
                                 valsFound++;
+								for (int j=0; j<8; j++) {
+									if (path.dataDependencies[j] != 0) {
+										predIDs.insert(path.dataDependencies[j]);
+									}
+								}
                         }
                 }
         }
@@ -1125,6 +1189,9 @@ bool ArrayDependencyTracker::propagateAdd(int idx, int way, int uop) {
         // value construction is easy for this one
         uint64_t forwardVal = destVal + srcVal;
 
+		entry->predicted = true;
+		entry->value = forwardVal;
+
         bool foundDest = false;
         for (int i=0; i<256; i++) {
                 if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
@@ -1133,6 +1200,9 @@ bool ArrayDependencyTracker::propagateAdd(int idx, int way, int uop) {
                                 path.value = forwardVal;
                                 path.valid = true;
                                 foundDest = true;
+								for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+									path.addDependency(*itr);
+								}
                         }
                 }
         }
@@ -1140,636 +1210,814 @@ bool ArrayDependencyTracker::propagateAdd(int idx, int way, int uop) {
 }
 
 bool ArrayDependencyTracker::propagateSub(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]); // changed to uop
-        if (decodedEMI->numSrcRegs() > 2) {
-                DPRINTF(SuperOp, "Skipping sub at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]); // changed to uop
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 2) {
+		DPRINTF(SuperOp, "Skipping sub at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
-        uint64_t destVal = 0;
-        uint64_t srcVal = 0;
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                        if (path.archRegIdx == srcRegId && path.valid) {
-                                srcVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 2) {
-                return false;
-        }
+	// collect sources
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
+	uint64_t destVal = 0;
+	uint64_t srcVal = 0;
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			DPRINTF(ConstProp, "Path through arch reg %i found\n", path.archRegIdx);
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+			if (path.archRegIdx == srcRegId && path.valid) {
+				srcVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 2) {
+		return false;
+	}
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal - srcVal;
+	// value construction is easy for this one
+	uint64_t forwardVal = destVal - srcVal;
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if ((path.archRegIdx == destRegId || path.archRegIdx < 32) && !path.valid) { // i.e., is int reg
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateAnd(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 2) {
-                DPRINTF(SuperOp, "Skipping and at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 2) {
+		DPRINTF(SuperOp, "Skipping and at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
-        uint64_t destVal = 0;
-        uint64_t srcVal = 0;
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                        if (path.archRegIdx == srcRegId && path.valid) {
-                                srcVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 2) {
-                return false;
-        }
+	// collect sources
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
+	uint64_t destVal = 0;
+	uint64_t srcVal = 0;
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+			if (path.archRegIdx == srcRegId && path.valid) {
+				srcVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 2) {
+		return false;
+	}
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal & srcVal;
+	// value construction is easy for this one
+	uint64_t forwardVal = destVal & srcVal;
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateOr(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 2) {
-                DPRINTF(SuperOp, "Skipping or at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 2) {
+		DPRINTF(SuperOp, "Skipping or at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
-        uint64_t destVal = 0;
-        uint64_t srcVal = 0;
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                        if (path.archRegIdx == srcRegId && path.valid) {
-                                srcVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 2) {
-                return false;
-        }
+	// collect sources
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
+	uint64_t destVal = 0;
+	uint64_t srcVal = 0;
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+			if (path.archRegIdx == srcRegId && path.valid) {
+				srcVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 2) {
+		return false;
+	}
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal | srcVal;
+	// value construction is easy for this one
+	uint64_t forwardVal = destVal | srcVal;
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateXor(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 2) {
-                DPRINTF(SuperOp, "Skipping xor at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 2) {
+		DPRINTF(SuperOp, "Skipping xor at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
-        uint64_t destVal = 0;
-        uint64_t srcVal = 0;
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                        if (path.archRegIdx == srcRegId && path.valid) {
-                                srcVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 2) {
-                return false;
-        }
+	// collect sources
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
+	uint64_t destVal = 0;
+	uint64_t srcVal = 0;
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+			if (path.archRegIdx == srcRegId && path.valid) {
+				srcVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 2) {
+		return false;
+	}
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal ^ srcVal;
+	// value construction is easy for this one
+	uint64_t forwardVal = destVal ^ srcVal;
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateMovI(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 0) {
-                DPRINTF(SuperOp, "Skipping movi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 0) {
+		DPRINTF(SuperOp, "Skipping movi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect value
-        uint64_t forwardVal = decodedEMI->getImmediate();
-        unsigned destRegId = decodedEMI->destRegIdx(0).flatIndex();
-        DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	// collect value
+	uint64_t forwardVal = decodedEMI->getImmediate();
+	unsigned destRegId = decodedEMI->destRegIdx(0).flatIndex();
+	DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
 
-        // forward to dest
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	// forward to dest
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateSubI(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 1) {
-                DPRINTF(SuperOp, "Skipping subi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping subi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        uint64_t destVal = 0;
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 1) {
-                return false;
-        }
+	// collect sources
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	uint64_t destVal = 0;
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 1) {
+		return false;
+	}
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal - decodedEMI->getImmediate();
+	// value construction is easy for this one
+	uint64_t forwardVal = destVal - decodedEMI->getImmediate();
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); itr++) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateAddI(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 1) {
-                DPRINTF(SuperOp, "Skipping addi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping addi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        uint64_t destVal = 0;
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 1) {
-                return false;
-        }
+	// collect sources
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	uint64_t destVal = 0;
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 1) {
+		return false;
+	}
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal + decodedEMI->getImmediate();
+	// value construction is easy for this one
+	uint64_t forwardVal = destVal + decodedEMI->getImmediate();
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateAndI(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 1) {
-                DPRINTF(SuperOp, "Skipping andi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping andi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        uint64_t destVal = 0;
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 1) {
-                return false;
-        }
+	// collect sources
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	uint64_t destVal = 0;
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 1) {
+		return false;
+	}
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal & decodedEMI->getImmediate();
+	// value construction is easy for this one
+	uint64_t forwardVal = destVal & decodedEMI->getImmediate();
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+ 			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateOrI(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 1) {
-                DPRINTF(SuperOp, "Skipping ori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping ori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        uint64_t destVal = 0;
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 1) {
-                return false;
-        }
+	// collect sources
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	uint64_t destVal = 0;
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 1) {
+		return false;
+	}
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal | decodedEMI->getImmediate();
+	// value construction is easy for this one
+	uint64_t forwardVal = destVal | decodedEMI->getImmediate();
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateXorI(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 1) {
-                DPRINTF(SuperOp, "Skipping xori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping xori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        uint64_t destVal = 0;
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 1) {
-                return false;
-        }
+	// collect sources
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	uint64_t destVal = 0;
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 1) {
+		return false;
+	}
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal ^ decodedEMI->getImmediate();
+	// value construction is easy for this one
+	uint64_t forwardVal = destVal ^ decodedEMI->getImmediate();
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateSllI(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 1) {
-                DPRINTF(SuperOp, "Skipping slli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping slli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        uint64_t destVal = 0;
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 1) {
-                return false;
-        }
+	// collect sources
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	uint64_t destVal = 0;
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 1) {
+		return false;
+	}
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal << decodedEMI->getImmediate();
+	// value construction is easy for this one
+	uint64_t forwardVal = destVal << decodedEMI->getImmediate();
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateSrlI(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 1) {
-                DPRINTF(SuperOp, "Skipping srli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping srli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        uint64_t destVal = 0;
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 1) {
-                return false;
-        }
+	// collect sources
+	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	uint64_t destVal = 0;
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == destRegId && path.valid) {
+				destVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 1) {
+		return false;
+	}
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal >> decodedEMI->getImmediate();
+	// value construction is easy for this one
+	uint64_t forwardVal = destVal >> decodedEMI->getImmediate();
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateSExtI(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 1) {
-                DPRINTF(SuperOp, "Skipping sexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping sexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned srcRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        uint64_t srcVal = 0;
-        unsigned destRegId = decodedEMI->destRegIdx(0).flatIndex();
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == srcRegId && path.valid) {
-                                srcVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 1) {
-                return false;
-        }
+	// collect sources
+	unsigned srcRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	uint64_t srcVal = 0;
+	unsigned destRegId = decodedEMI->destRegIdx(0).flatIndex();
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == srcRegId && path.valid) {
+				srcVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 1) {
+		return false;
+	}
 
-        // value construction taken from isa file
-        DPRINTF(ConstProp, "Using immediate %i in a sexti as bit to extend, not value to be extended\n", decodedEMI->getImmediate());
-        int signBit = bits(srcVal, decodedEMI->getImmediate(), decodedEMI->getImmediate());
-        uint64_t signMask = mask(decodedEMI->getImmediate());
-        uint64_t forwardVal = signBit ? (srcVal | ~signMask) : (srcVal & signMask);
-        DPRINTF(ConstProp, "Produced value %x from sign bit %i and mask %x\n", forwardVal, signBit, signMask);
+	// value construction taken from isa file
+	DPRINTF(ConstProp, "Using immediate %i in a sexti as bit to extend, not value to be extended\n", decodedEMI->getImmediate());
+	int signBit = bits(srcVal, decodedEMI->getImmediate(), decodedEMI->getImmediate());
+	uint64_t signMask = mask(decodedEMI->getImmediate());
+	uint64_t forwardVal = signBit ? (srcVal | ~signMask) : (srcVal & signMask);
+	DPRINTF(ConstProp, "Produced value %x from sign bit %i and mask %x\n", forwardVal, signBit, signMask);
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
+					path.addDependency(*itr);
+				}
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateZExtI(int idx, int way, int uop) {
-        // check number of sources
-        ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 1) {
-                DPRINTF(SuperOp, "Skipping zexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
-                return false;
-        }
+	// check number of sources
+	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
+	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedEMI->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping zexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+		return false;
+	}
 
-        // collect sources
-        unsigned srcRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        uint64_t srcVal = 0;
-        unsigned destRegId = decodedEMI->destRegIdx(0).flatIndex();
-        unsigned valsFound = 0;
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == srcRegId && path.valid) {
-                                srcVal = path.value;
-                                valsFound++;
-                        }
-                }
-        }
-        if (valsFound < 1) {
-                return false;
-        }
+	// collect sources
+	unsigned srcRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	uint64_t srcVal = 0;
+	unsigned destRegId = decodedEMI->destRegIdx(0).flatIndex();
+	unsigned valsFound = 0;
+	set<unsigned> predIDs = set<unsigned>();
+	for (int i=0; i<256; i++) {
+		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+			if (path.archRegIdx == srcRegId && path.valid) {
+				srcVal = path.value;
+				valsFound++;
+				for (int j=0; j<8; j++) {
+					if (path.dataDependencies[j] != 0) {
+						predIDs.insert(path.dataDependencies[j]);
+					}
+				}
+			}
+		}
+	}
+	if (valsFound < 1) {
+		return false;
+	}
 
-        // value construction taken from isa file
-        DPRINTF(ConstProp, "Using immediate %i in a zexti as bit to extend, not value to be extended\n", decodedEMI->getImmediate());
-        uint64_t forwardVal = bits(srcVal, decodedEMI->getImmediate(), 0);
-        DPRINTF(ConstProp, "Extracted bits 0 to %i of %x for value %x\n", decodedEMI->getImmediate(), srcVal, forwardVal);
+	// value construction taken from isa file
+	DPRINTF(ConstProp, "Using immediate %i in a zexti as bit to extend, not value to be extended\n", decodedEMI->getImmediate());
+	uint64_t forwardVal = bits(srcVal, decodedEMI->getImmediate(), 0);
+	DPRINTF(ConstProp, "Extracted bits 0 to %i of %x for value %x\n", decodedEMI->getImmediate(), srcVal, forwardVal);
 
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
-        return foundDest;
+	entry->predicted = true;
+	entry->value = forwardVal;
+
+	bool foundDest = false;
+	for (int i=0; i<256; i++) {
+		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
+			ArrayDependencyTracker::InformationFlowPath& path = connections[entry->consumers[i]];
+			if (path.archRegIdx == destRegId && !path.valid) {
+				path.value = forwardVal;
+				path.valid = true;
+				foundDest = true;
+			}
+		}
+	}
+	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateWrip(int idx, int way, int uop) {
@@ -1881,7 +2129,7 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 					// Get index to add connection at
 					unsigned connectionIndex = 0;
 					bool connectionFound = false;
-					for (int c=1; c<4096; c++) {
+					for (int c=1; c<connectionCount; c++) {
 						if (!connectionsValidSpec[c] && !connectionFound) {
 							connectionIndex = c;
 							connectionFound = true;
@@ -2037,7 +2285,7 @@ void ArrayDependencyTracker::invalidateTraceInst(int idx, int way, int uop) {
 
 void ArrayDependencyTracker::moveTraceInstOneForward(int idx, int way, int uop) {
 	FullCacheIdx prevIdx = getPrevCacheIdx(FullCacheIdx(idx, way, uop));
-	assert(prevIdx.valid); // should only be called if can do
+	if (!prevIdx.valid) { return; } // should only be called if can do
 
 	decoder->speculativeCache[prevIdx.idx][prevIdx.way][prevIdx.uop] = decoder->speculativeCache[idx][way][uop];
 	decoder->speculativeAddrArray[prevIdx.idx][prevIdx.way][prevIdx.uop] = decoder->speculativeAddrArray[idx][way][uop];

@@ -109,7 +109,7 @@ namespace X86ISA
                 uint8_t scale, RegIndex index, RegIndex base,
                 uint64_t disp, uint8_t addressSize, bool rip) const;
 
-        virtual uint8_t getImmediate() { panic("getImmediate() should only be called by a RegOpImm, called by X86StaticInst"); }
+        virtual uint64_t getImmediate() { panic("getImmediate() should only be called by a RegOpImm, called by X86StaticInst"); }
 
         inline uint64_t merge(uint64_t into, uint64_t val, int size) const
         {

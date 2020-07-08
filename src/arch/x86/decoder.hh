@@ -305,6 +305,8 @@ protected:
             speculativeCountArray[idx][way] = 0;
             speculativeLRUArray[idx][way] = way;
 	    speculativeTagArray[idx][way] = 0;
+	    speculativePrevWayArray[idx][way] = 10;
+	    speculativeNextWayArray[idx][way] = 10;
 	    for (int uop = 0; uop < 6; uop++) {
 	    	speculativeAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr();
 	    }

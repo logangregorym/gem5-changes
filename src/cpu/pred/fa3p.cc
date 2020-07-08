@@ -125,6 +125,8 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
         if (threadPred.LVT[i].tag == loadAddr) {
             addressInfo = &threadPred.LVT[i];
             foundAddress = true;
+	    addressInfo->averageCycles = ((addressInfo->averageCycles * addressInfo->numUses) + cyclesElapsed + 1)/(addressInfo->numUses + 1);
+	    addressInfo->numUses++;
         }
     }
 

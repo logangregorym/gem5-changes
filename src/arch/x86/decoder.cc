@@ -1069,8 +1069,14 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop) {
 					}
 					speculativeValidArray[idx][w] = false;
 					speculativeCountArray[idx][w] = 0;
-					speculativePrevWayArray[idx][w] = 10; // default invalid
-					speculativeNextWayArray[idx][w] = 10; // default invalid
+					if (speculativePrevWayArray[idx][w] != 10) {
+						speculativeNextWayArray[idx][speculativePrevWayArray[idx][w]] = 10;
+						speculativePrevWayArray[idx][w] = 10; // default invalid
+					}
+					if (speculativeNextWayArray[idx][w] != 10) {
+						speculativePrevWayArray[idx][speculativeNextWayArray[idx][w]] = 10;
+						speculativeNextWayArray[idx][w] = 10; // default invalid
+					}
 				}
 			}
 			if (numFullWays > 0) {
@@ -1318,7 +1324,7 @@ Decoder::isDeadCode(Addr addr, unsigned uop) {
 			}
 		}
 	}
-	panic("isDeadCode was called on an addr w/o a dependency graph entry");
+	// panic("isDeadCode was called on an addr w/o a dependency graph entry");
 	return false;
 }
 

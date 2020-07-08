@@ -637,6 +637,8 @@ class BaseCPU : public MemObject
 
     Cycles syscallRetryLatency;
 
+    virtual bool instInPipeline(Addr addr, unsigned uop) { panic("instInPipeline not implemented\n"); }
+
   // Enables CPU to enter power gating on a configurable cycle count
   protected:
     void enterPwrGating();

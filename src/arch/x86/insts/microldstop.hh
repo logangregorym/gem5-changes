@@ -91,7 +91,7 @@ namespace X86ISA
             return dataSize;
         }
 
-        virtual uint8_t getImmediate() { panic("getImmediate() should only be called by RegOpImm, called by MemOp"); }
+        virtual uint64_t getImmediate() { panic("getImmediate() should only be called by RegOpImm, called by MemOp"); }
 
     };
 

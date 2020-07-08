@@ -210,6 +210,7 @@ class AtomicSimpleCPU : public BaseSimpleCPU
      * debugging).
      */
     void printAddr(Addr a);
+    virtual bool instInPipeline(Addr addr, unsigned uop) { return false; }
 };
 
 #endif // __CPU_SIMPLE_ATOMIC_HH__

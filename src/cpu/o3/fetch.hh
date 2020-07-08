@@ -383,7 +383,7 @@ class DefaultFetch
   private:
     DynInstPtr buildInst(ThreadID tid, StaticInstPtr staticInst,
                          StaticInstPtr curMacroop, TheISA::PCState thisPC,
-                         TheISA::PCState nextPC, bool trace);
+                         TheISA::PCState nextPC, bool trace, bool isDead);
 
     /** Returns the appropriate thread to fetch, given the fetch policy. */
     ThreadID getFetchingThread(FetchPriority &fetch_priority);
@@ -422,6 +422,8 @@ class DefaultFetch
     bool constantLoadValidBits[256] = {0};
 
     // unsigned constantBufferSize;
+
+    bool usingTrace = false;
 
     unsigned dumpFrequency;
 

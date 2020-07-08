@@ -7,3 +7,4 @@ class ArrayDependencyTracker(SimObject):
         cxx_header = 'arch/x86/superop/array_dependency_tracker.hh'
 	maxRecursiveDepth = Param.Unsigned(8, "Maximum depth to recurse when measuring dependency chains")
         usingControlTracking = Param.Bool(0, "Tracking control dependencies to optimize across?");
+	connectionCount = Param.Unsigned(4096, "Number of connections to track at a time")

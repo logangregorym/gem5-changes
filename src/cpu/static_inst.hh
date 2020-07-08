@@ -141,7 +141,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isNop()          const { return flags[IsNop]; }
 
     bool isMemRef()       const { return flags[IsMemRef]; }
-    bool isLoad()         const { return flags[IsLoad]; }
+    bool isLoad()         const { return Num_Flags > IsLoad && flags[IsLoad]; }
     bool isStore()        const { return flags[IsStore]; }
     bool isAtomic()       const { return flags[IsAtomic]; }
     bool isStoreConditional()     const { return flags[IsStoreConditional]; }
@@ -178,7 +178,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isIprAccess() const { return flags[IsIprAccess]; }
     bool isUnverifiable() const { return flags[IsUnverifiable]; }
     bool isSyscall() const { return flags[IsSyscall]; }
-    bool isMacroop() const { return flags[IsMacroop]; }
+    bool isMacroop() const { return Num_Flags > IsMacroop && flags[IsMacroop]; }
     bool isMicroop() const { return flags[IsMicroop]; }
     bool isDelayedCommit() const { return flags[IsDelayedCommit]; }
     bool isLastMicroop() const { return flags[IsLastMicroop]; }
@@ -355,7 +355,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
      * buffer if there wasn't enough space.
      */
     virtual size_t asBytes(void *buf, size_t max_size) { return 0; }
-    virtual uint8_t getImmediate() { panic("getImmediate() should only be called by RegOpImm, called by StaticInst"); }
+    virtual uint64_t getImmediate() { panic("getImmediate() should only be called by RegOpImm, called by StaticInst"); }
     virtual uint8_t getDataSize();
     const char * instMnem;
 

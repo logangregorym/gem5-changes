@@ -589,6 +589,8 @@ class FullO3CPU : public BaseO3CPU
      */
     bool removeInstsThisCycle;
 
+    virtual bool instInPipeline(Addr addr, unsigned uop);
+
   public:
     /** The fetch stage. */
     typename CPUPolicy::Fetch fetch;

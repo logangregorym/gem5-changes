@@ -85,6 +85,7 @@ using namespace std;
 template<class Impl>
 DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
     : cpu(_cpu),
+      usingTrace(params->usingTrace),
       // constantBufferSize(params->constantBufferSize),
       dumpFrequency(params->dumpFrequency),
       decodeToFetchDelay(params->decodeToFetchDelay),
@@ -170,6 +171,7 @@ DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
         decoder[tid]->setUopCachePresent(isUopCachePresent);
         decoder[tid]->setSpeculativeCachePresent(isSuperOptimizationPresent);
         decoder[tid]->setSuperOptimizationPresent(isSuperOptimizationPresent);
+	// decoder[tid]->depTracker->cpu = _cpu;
         // Create space to buffer the cache line data,
         // which may not hold the entire cache line.
         fetchBuffer[tid] = new uint8_t[fetchBufferSize];
@@ -660,14 +662,18 @@ DefaultFetch<Impl>::lookupAndUpdateNextPC(
 
     ThreadID tid = inst->threadNumber;
 
+/**
     LTAGE *ltage = dynamic_cast<LTAGE *>(branchPred);
     if (ltage) {
         inst->potentialLoopEnd = ltage->checkLoopEnding(nextPC.instAddr());
         // DPRINTF(LVP, "LTAGE predictor checkLoopEnding returned %d\n", inst->potentialLoopEnd);
     }
+**/
 
     predict_taken = branchPred->predict(inst->staticInst, inst->seqNum,
                                         nextPC, tid);
+
+/**
         if (inst->staticInst->isDirectCtrl()) {
                 directCtrlBranchesFetched++;
         } else if (inst->staticInst->isIndirectCtrl()) {
@@ -675,6 +681,7 @@ DefaultFetch<Impl>::lookupAndUpdateNextPC(
         } else {
                 otherBranchesFetched++;
         }
+**/
 
     if (predict_taken) {
         DPRINTF(Fetch, "[tid:%i]: [sn:%i]:  Branch predicted to be taken to %s.\n",
@@ -836,7 +843,7 @@ DefaultFetch<Impl>::finishTranslation(const Fault &fault,
         DPRINTF(Fetch, "[tid:%i]: Translation faulted, building noop.\n", tid);
         // We will use a nop in ordier to carry the fault.
         DynInstPtr instruction = buildInst(tid, StaticInst::nopStaticInstPtr,
-                                           NULL, fetchPC, fetchPC, false);
+                                           NULL, fetchPC, fetchPC, false, false);
         instruction->setNotAnInst();
 
         instruction->setPredTarg(fetchPC);
@@ -1231,10 +1238,15 @@ template<class Impl>
 typename Impl::DynInstPtr
 DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                               StaticInstPtr curMacroop, TheISA::PCState thisPC,
-                              TheISA::PCState nextPC, bool trace)
+                              TheISA::PCState nextPC, bool trace, bool isDead)
 {
     // Get a sequence number.
-    InstSeqNum seq = cpu->getAndIncrementInstSeq();
+    InstSeqNum seq;
+    if (!isDead || !usingTrace) {
+    	seq = cpu->getAndIncrementInstSeq();
+    } else {
+	seq = cpu->globalSeqNum;
+    }
 
     // Create a new DynInst from the instruction fetched.
     DynInstPtr instruction =
@@ -1246,8 +1258,8 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     instruction->setThreadState(cpu->thread[tid]);
 
     // Make load value prediction if necessary
-    string opcode = instruction->getName();
-    if ((instruction->isLoad() || opcode == "limm") || (instruction->isInteger() && loadPred->predictingArithmetic)) { // isFloating()? isVector()? isCC()?
+    // string opcode = instruction->getName();
+    if (instruction && ((instruction->isLoad()) || (instruction->isInteger() && loadPred->predictingArithmetic))) { // isFloating()? isVector()? isCC()?
         if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
             DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);
             instruction->cycleFetched = cpu->numCycles.value();
@@ -1319,28 +1331,29 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     instruction->traceData = NULL;
 #endif
 
-    // Add instruction to the CPU's list of instructions.
-    instruction->setInstListIt(cpu->addInst(instruction));
+    if (!isDead || !usingTrace) {
+    	// Add instruction to the CPU's list of instructions.
+    	instruction->setInstListIt(cpu->addInst(instruction));
 
-    // Write the instruction to the first slot in the queue
-    // that heads to decode.
-    assert(numInst < fetchWidth);
-    fetchQueue[tid].push_back(instruction);
-    assert(computeFetchQueueSize(tid) <= fetchQueueSize);
-    DPRINTF(Fetch, "[tid:%i]: Fetch queue entry created (%i/%i).\n",
-            tid, fetchQueue[tid].size(), fetchQueueSize);
-    //toDecode->insts[toDecode->size++] = instruction;
+    	// Write the instruction to the first slot in the queue
+    	// that heads to decode.
+    	assert(numInst < fetchWidth);
+    	fetchQueue[tid].push_back(instruction);
+    	assert(computeFetchQueueSize(tid) <= fetchQueueSize);
+    	DPRINTF(Fetch, "[tid:%i]: Fetch queue entry created (%i/%i).\n",
+    	        tid, fetchQueue[tid].size(), fetchQueueSize);
+    	//toDecode->insts[toDecode->size++] = instruction;
 
-    // Keep track of if we can take an interrupt at this boundary
-    delayedCommit[tid] = instruction->isDelayedCommit();
+    	// Keep track of if we can take an interrupt at this boundary
+    	delayedCommit[tid] = instruction->isDelayedCommit();
 
-    // Mark whether reducable at fetch
-    if (decoder[tid]->isSuperOptimizationPresent && decoder[tid]->depTracker->isReducable(thisPC.instAddr(), thisPC.microPC())) {
-        instruction->reducableAtFetch = true;
-        fetchedReducable++;
-    }
-
+    	// Mark whether reducable at fetch
+    	if (decoder[tid]->isSuperOptimizationPresent && decoder[tid]->depTracker->isReducable(thisPC.instAddr(), thisPC.microPC())) {
+            instruction->reducableAtFetch = true;
+       	    fetchedReducable++;
+    	}
     fetchedOps++;
+    }
 
     return instruction;
 }
@@ -1527,114 +1540,111 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         // Extract as many instructions and/or microops as we can from
         // the memory we've processed so far.
         do {
-
-	    // Hi Layne! Your TODO work is here 
-	    // Will put this somewhere to substitute fetching optimized trace
-	    // Unsure exactly where, need to improve understanding of this loop
-	    if (decoder[tid]->superoptimizedTraceAvailable(thisPC.instAddr(), thisPC.microPC())) {
-		if (decoder[tid]->isDeadCode(thisPC.instAddr(), thisPC.microPC())) {
-		    // TODO: increment PC and continue
-		    ++deadCodeInsts;
-		} else {
-		    StaticInstPtr optimizedInst = decoder[tid]->getSuperoptimizedInst(thisPC.instAddr(), thisPC.microPC());
-		    // TODO: build dynamic inst and issue, increment PC and continue
-		    ++instsPartOfOptimizedTrace;
-		}
+	   bool isDead = false, newMacro = false, fused = false; //, foundTraceInst = false;
+	   if (isSuperOptimizationPresent && decoder[tid]->isDeadCode(thisPC.instAddr(), thisPC.microPC())) { isDead = true; ++deadCodeInsts; }
+	   if (isSuperOptimizationPresent && decoder[tid]->superoptimizedTraceAvailable(thisPC.instAddr(), thisPC.microPC()) && !isDead) {
+	//	staticInst = decoder[tid]->getSuperoptimizedInst(thisPC.instAddr(), thisPC.microPC());
+	//	curMacroop = decoder[tid]->decodeInst(staticInst->machInst); // emi corresponds to the macroop
+	//	newMacro = staticInst->isLastMicroop();
+		// TODO: build dynamic inst and issue, increment PC and continue
+		++instsPartOfOptimizedTrace;
+		// foundTraceInst = true;
 	    } else {
 		++instsNotPartOfOptimizedTrace;
 	    }
+	    // if (!usingTrace || !isDead) {
+            	if (!(curMacroop || inRom)) {
+               	    if (decoder[tid]->instReady() || inUopCache) {
+                    	staticInst = decoder[tid]->decode(thisPC, cpu->numCycles.value());
+                    	for (int i=0; i<staticInst->numSrcRegs(); i++) {
+                          DPRINTF(Fetch, "arch:%d ", staticInst->srcRegIdx(i));
+                    	}
+                    	DPRINTF(Fetch, "\n");
 
-            if (!(curMacroop || inRom)) {
-                if (decoder[tid]->instReady() || inUopCache) {
-                    staticInst = decoder[tid]->decode(thisPC, cpu->numCycles.value());
+                    	// Increment stat of fetched instructions.
+                    	++fetchedInsts;
+
+                    	if (inUopCache) {
+                    	  ++uopCacheHitInsts;
+                    	}
+
+                    	if (staticInst->isMacroop()) {
+                    	    curMacroop = staticInst;
+                    	} else {
+                    	    pcOffset = 0;
+                    	}
+/**
+   	                 if (!inUopCache) {
+        	             if (staticInst->isCustomCInstruction())
+        	            	statFetchCustomC[tid]++;
+        	              else if (staticInst->isCustomBInstruction())
+        	                statFetchCustomB[tid]++;
+        	              else if (staticInst->isCustomAInstruction())
+        	                statFetchCustomA[tid]++;
+
+                      	    if (staticInst->getPredicateRegister())
+                          	statFetchPredicated[tid]++;
+                    	}
+*/
+                    } else {
+                    	// We need more bytes for this instruction so blkOffset and
+                    	// pcOffset will be updated
+                    	break;
+                    }
+            	}
+            	// Whether we're moving to a new macroop because we're at the
+            	// end of the current one, or the branch predictor incorrectly
+            	// thinks we are...
+            	if (curMacroop || inRom) {
+                    if (inRom) {
+                    	staticInst = cpu->microcodeRom.fetchMicroop(
+                            thisPC.microPC(), curMacroop);
+                    } else {
+                    	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
+                    	/* Micro-fusion. */
+                    	if (isMicroFusionPresent && thisPC.microPC() != 0) {
+                    	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
+                    	    if ((staticInst->isInteger() || staticInst->isNop() ||
+                    	            staticInst->isControl() || staticInst->isMicroBranch()) &&
+                    	            prevStaticInst->isLoad() && !prevStaticInst->isRipRel()) {
+                    	        fused = true;
+                            }
+                    	}
+                    	if (inUopCache) {
+                    	    ++uopCacheHitOps;
+                    	    DPRINTF(Fetch,"Counting pc=%s as a uopCache hit \n",thisPC);
+                    	} else {
+                    	    ++uopCacheMissOps;
+                    	    DPRINTF(Fetch,"Counting pc=%s as a uopCache miss \n",thisPC);
+                    	}
+                    	if (staticInst->isFirstMicroop() && staticInst->isLastMicroop())
+                    	    statFetchMicro[tid]++;
+                    }
                     for (int i=0; i<staticInst->numSrcRegs(); i++) {
                       DPRINTF(Fetch, "arch:%d ", staticInst->srcRegIdx(i));
                     }
                     DPRINTF(Fetch, "\n");
+                    newMacro |= staticInst->isLastMicroop();
+            	}
+	    // }
 
-                    // Increment stat of fetched instructions.
-                    ++fetchedInsts;
-
-                    if (inUopCache) {
-                      ++uopCacheHitInsts;
-                    }
-
-                    if (staticInst->isMacroop()) {
-                        curMacroop = staticInst;
-                    } else {
-                        pcOffset = 0;
-                    }
-/**
-                      if (!inUopCache) {
-                      if (staticInst->isCustomCInstruction())
-                          statFetchCustomC[tid]++;
-                      else if (staticInst->isCustomBInstruction())
-                          statFetchCustomB[tid]++;
-                      else if (staticInst->isCustomAInstruction())
-                          statFetchCustomA[tid]++;
-
-                      if (staticInst->getPredicateRegister())
-                          statFetchPredicated[tid]++;
-                    }
-*/
-                } else {
-                    // We need more bytes for this instruction so blkOffset and
-                    // pcOffset will be updated
-                    break;
-                }
-            }
-            // Whether we're moving to a new macroop because we're at the
-            // end of the current one, or the branch predictor incorrectly
-            // thinks we are...
-            bool newMacro = false, fused = false;
-            if (curMacroop || inRom) {
-                if (inRom) {
-                    staticInst = cpu->microcodeRom.fetchMicroop(
-                            thisPC.microPC(), curMacroop);
-                } else {
-                    staticInst = curMacroop->fetchMicroop(thisPC.microPC());
-                    /* Micro-fusion. */
-                    if (isMicroFusionPresent && thisPC.microPC() != 0) {
-                        StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
-                        if ((staticInst->isInteger() || staticInst->isNop() ||
-                                staticInst->isControl() || staticInst->isMicroBranch()) &&
-                                prevStaticInst->isLoad() && !prevStaticInst->isRipRel()) {
-                            fused = true;
-                        }
-                    }
-                    if (inUopCache) {
-                        ++uopCacheHitOps;
-                        DPRINTF(Fetch,"Counting pc=%s as a uopCache hit \n",thisPC);
-                    } else {
-                        ++uopCacheMissOps;
-                        DPRINTF(Fetch,"Counting pc=%s as a uopCache miss \n",thisPC);
-                    }
-                    if (staticInst->isFirstMicroop() && staticInst->isLastMicroop())
-                        statFetchMicro[tid]++;
-                }
-                for (int i=0; i<staticInst->numSrcRegs(); i++) {
-                  DPRINTF(Fetch, "arch:%d ", staticInst->srcRegIdx(i));
-                }
-                DPRINTF(Fetch, "\n");
-                newMacro |= staticInst->isLastMicroop();
-            }
-
-            DynInstPtr instruction =
+	    DynInstPtr instruction =
                 buildInst(tid, staticInst, curMacroop,
-                          thisPC, nextPC, true);
+                          thisPC, nextPC, true, isDead);
             instruction->fused = fused;
 
-            DPRINTF(Fetch, "instruction created: [sn:%lli]:%s", instruction->seqNum, instruction->pcState());
+	    if (!isDead || !usingTrace) {
+            	DPRINTF(Fetch, "instruction created: [sn:%lli]:%s", instruction->seqNum, instruction->pcState());
 
-            ppFetch->notify(instruction);
-            if (!instruction->fused) numInst++;
+            	ppFetch->notify(instruction);
+            	if (!instruction->fused) numInst++;
 
 #if TRACING_ON
-            if (DTRACE(O3PipeView)) {
-                instruction->fetchTick = curTick();
-            }
+            	if (DTRACE(O3PipeView)) {
+            	    instruction->fetchTick = curTick();
+            	}
 #endif
-
+	    }
             nextPC = thisPC;
 
             // If we're branching after this instruction, quit fetching

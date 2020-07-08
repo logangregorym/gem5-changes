@@ -87,7 +87,7 @@ namespace X86ISA
             return ext & MediaSignedOp;
         }
 
-        virtual uint8_t getImmediate() { panic("getImmediate() should only be called by RegOpImm, called by MediaOpBase"); }
+        virtual uint64_t getImmediate() { panic("getImmediate() should only be called by RegOpImm, called by MediaOpBase"); }
 
     };
 

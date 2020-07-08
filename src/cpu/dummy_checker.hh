@@ -51,6 +51,8 @@ class DummyChecker : public CheckerCPU
     DummyChecker(Params *p)
           : CheckerCPU(p)
     { }
+
+    // virtual bool instInPipeline { return false; }
 };
 
 #endif // __CPU_DUMMY_CHECKER_HH__

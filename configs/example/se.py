@@ -143,6 +143,8 @@ parser.add_option("--predictStage", default=3, type="int", action="store", help=
 parser.add_option("--maxDependencyRecursion", default=15, type="int", action="store", help="How deep to recurse when counting dependencies.");
 parser.add_option("--usingControlTracking", default=0, type="int", action="store", help="Track control dependencies to optimize across?");
 parser.add_option("--maxRecursiveDepth", default=8, type="int", action="store", help="Maximum depth to recurse to when measuring dependency chains")
+parser.add_option("--usingTrace", default=0, type="int", action="store", help="Whether to stream the optimized trace")
+parser.add_option("--connectionCount", default=4096, type="int", action="store", help="Number of connections to track at any given time");
 parser.add_option("--branchConfidenceCounterSize", default=2, type="int", action="store", help="Size of the branch confidence counters in bits.")
 parser.add_option("--branchConfidenceThreshold", default=2, type="int", action="store", help="Minimum confidence needed to do LVP across a branch.")
 parser.add_option("--doStoragelessBranchConf", action="store_true", help="Whether to use storageless TAGE confidence (Seznec 2010).")
@@ -211,8 +213,9 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.loadPred.predictingArithmetic = options.predictingArithmetic
     CPUClass.loadPred.predictStage = options.predictStage
     CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
+    CPUClass.usingTrace = options.usingTrace
     CPUClass.depTracker.usingControlTracking = options.usingControlTracking
-
+    CPUClass.depTracker.connectionCount = options.connectionCount
 
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
@@ -235,7 +238,9 @@ CPUClass.loadPred.hitThreshold = options.hitThreshold
 CPUClass.loadPred.predictingArithmetic = options.predictingArithmetic
 CPUClass.loadPred.predictStage = options.predictStage
 CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
+CPUClass.usingTrace = options.usingTrace
 CPUClass.depTracker.usingControlTracking = options.usingControlTracking
+CPUClass.depTracker.connectionCount = options.connectionCount
 CPUClass.depTracker.maxRecursiveDepth = options.maxRecursiveDepth
 CPUClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize
 CPUClass.branchPred.branchConfidenceThreshold = options.branchConfidenceThreshold

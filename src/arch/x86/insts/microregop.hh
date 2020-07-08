@@ -79,7 +79,7 @@ namespace X86ISA
             return dataSize;
         }
 
-        virtual uint8_t getImmediate() {
+        virtual uint64_t getImmediate() {
             panic("getImmediate() should only be called by RegOpImm, called by RegOpBase");
         }
     };
@@ -109,7 +109,7 @@ namespace X86ISA
     class RegOpImm : public RegOpBase
     {
       protected:
-        virtual uint8_t getImmediate() { return imm8; }
+        virtual uint64_t getImmediate() { return imm8; }
         const uint8_t imm8;
 
         // Constructor

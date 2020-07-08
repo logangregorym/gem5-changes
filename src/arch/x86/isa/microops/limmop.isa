@@ -66,6 +66,8 @@ def template MicroLimmOpDeclare {{
             const SymbolTable *symtab) const;
 
       public:
+        uint64_t getImmediate();
+
         %(class_name)s(ExtMachInst _machInst,
                 const char * instMnem,
                 uint64_t setFlags, InstRegIndex _dest,
@@ -86,6 +88,13 @@ def template MicroLimmOpDisassembly {{
         response << ", ";
         ccprintf(response, "%#x", imm);
         return response.str();
+    }
+}};
+
+def template MicroLimmOpImmediate {{
+    uint64_t %(class_name)s::getImmediate()
+    {
+        return imm;
     }
 }};
 
@@ -168,6 +177,7 @@ let {{
         header_output += MicroLimmOpDeclare.subst(iop)
         decoder_output += MicroLimmOpConstructor.subst(iop)
         decoder_output += MicroLimmOpDisassembly.subst(iop)
+        decoder_output += MicroLimmOpImmediate.subst(iop)
         exec_output += MicroLimmOpExecute.subst(iop)
 
     iop = InstObjParams("lfpimm", "Lfpimm", 'X86MicroopBase',
@@ -175,5 +185,6 @@ let {{
     header_output += MicroLimmOpDeclare.subst(iop)
     decoder_output += MicroLimmOpConstructor.subst(iop)
     decoder_output += MicroLimmOpDisassembly.subst(iop)
+    decoder_output += MicroLimmOpImmediate.subst(iop)
     exec_output += MicroLimmOpExecute.subst(iop)
 }};

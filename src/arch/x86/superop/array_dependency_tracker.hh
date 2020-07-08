@@ -16,6 +16,7 @@
 #include "debug/SuperOp.hh"
 #include "params/ArrayDependencyTracker.hh"
 #include "sim/sim_object.hh"
+#include <set>
 
 using namespace std;
 
@@ -30,6 +31,8 @@ class ArrayDependencyTracker : public SimObject
 	X86ISA::Decoder* decoder;
 
 	bool usingControlTracking = false;
+
+	unsigned connectionCount = 4096;
 
 	void addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded);
 
@@ -120,6 +123,7 @@ class ArrayDependencyTracker : public SimObject
 		bool lastUse;
 		unsigned directControlDependency = 0;
 		unsigned indirectControlDependency = 0;
+		unsigned dataDependencies[8] = {0};
 
 		InformationFlowPath() {
 			producer = FullUopAddr(0,0);
@@ -157,9 +161,26 @@ class ArrayDependencyTracker : public SimObject
 			indirectControlDependency = 0;
 		}
 
-		void predict(uint64_t v) {
+		void predict(uint64_t v, unsigned predID) {
 			value = v;
 			valid = true;
+			bool found = false;
+			for (int i = 0; i < 8; i++) {
+				if (!found && (dataDependencies[i] == 0)) {
+					dataDependencies[i] = predID;
+					found = true;
+				}
+			}
+		}
+
+		void addDependency(unsigned id) {
+			bool found = false;
+			for (int i = 0; i<8; i++) {
+				if (!found && (dataDependencies[i] == 0)) {
+					dataDependencies[i] = id;
+					found = true;
+				}
+			}
 		}
 	};
 
@@ -232,11 +253,13 @@ class ArrayDependencyTracker : public SimObject
 	DependGraphEntry* speculativeDependencyGraph[32][8][6];
 	FullUopAddr microopAddrArray[32][8][6];
 
-	InformationFlowPath connections[4096];
-	bool connectionsValidSpec[4096] = {0};
+	InformationFlowPath connections[8192]; // Must be kept identical to connectionCount
+	bool connectionsValidSpec[8192] = {0}; // Must be kept identical to connectionCount
 	ControlFlowPath branches[4096];
 	bool branchesValid[4096] = {0};
 	unsigned maxRecursiveDepth = 8;
+	Addr predictionSource[4096] = {0};
+	bool predictionSourceValid[4096] = {0};
 
 	// Exploration and stats
 	void measureChain(Addr addr, unsigned uopAddr);

@@ -172,6 +172,7 @@ class DerivO3CPU(BaseCPU):
                           "Enable TSO Memory model")
 
     maxDependencyRecursion = Param.Unsigned(15, "How deep to recurse when counting dependencies")
+    usingTrace = Param.Bool(False, "Whether to stream the optimized trace")
 
     def addCheckerCpu(self):
         if buildEnv['TARGET_ISA'] in ['arm']:

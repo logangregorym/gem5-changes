@@ -318,6 +318,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
      */
     void finishTranslation(WholeTranslationState *state);
 
+    virtual bool instInPipeline(Addr addr, unsigned uop) { return false; }
+
   private:
 
     EventFunctionWrapper fetchEvent;
@@ -363,3 +365,4 @@ class TimingSimpleCPU : public BaseSimpleCPU
 };
 
 #endif // __CPU_SIMPLE_TIMING_HH__
+

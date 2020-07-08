@@ -123,7 +123,7 @@ namespace X86ISA
 
         bool checkCondition(uint64_t flags, int condition) const;
 
-        virtual uint8_t getImmediate() {
+        virtual uint64_t getImmediate() {
                 printf("Inst is %s.%s\n", instMnem, mnemonic);
                 panic("getImmediate() should only be called by a RegOpImm, called by X86MicroopBase");
         }

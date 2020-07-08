@@ -74,6 +74,8 @@ class FA3P : public LVPredUnit
         BigSatCounter confidence;
         uint64_t tag;
         unsigned lastUsed;
+	unsigned numUses = 0;
+	unsigned averageCycles = 0;
     };
 
     struct predictor {
