@@ -1147,7 +1147,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                       case VecRegClass:
                         // Should be okay to ignore, because if predicted, assertion in inst_queue would have failed
                         // value = cpu->readVecReg(dest_reg);
-                        if (inst->confidence >= 0) { inst->lvMispred = true; }
+                        if (inst->confidence >= 0) { assert(0); inst->lvMispred = true; }
                         break;
                       case VecElemClass:
                         value = cpu->readVecElem(dest_reg);
@@ -1161,7 +1161,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                         break;
                       case MiscRegClass:
                         // Should also be okay to ignore, won't be predicted
-                        if (inst->confidence >= 0) { inst->lvMispred = true; }
+                        if (inst->confidence >= 0) { assert(0); inst->lvMispred = true; }
                         break;
                       default:
                         panic("Unknown register class: %d", (int)dest_reg->classValue());
@@ -1172,7 +1172,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                     cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
                     iewStage->loadPred->lastMisprediction = inst->memoryAccessEndCycle;
                     // Moved from commit
-                    cpu->commit.squashWokenDependents(inst);
+                    //cpu->commit.squashWokenDependents(inst);
                 }
             }
 

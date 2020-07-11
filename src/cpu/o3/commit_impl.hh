@@ -1213,12 +1213,12 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     }
 
     // Squash in event of load-value misprediction
-    if (head_inst->lvMispred) {
-        // Moved to lsq_unit_impl
-        // squashWokenDependents(head_inst);
-        head_inst->lvMispred = false;
-        return false;
-    }
+    // if (head_inst->lvMispred) {
+    //     // Moved to lsq_unit_impl
+    //     // squashWokenDependents(head_inst);
+    //     head_inst->lvMispred = false;
+    //     return false;
+    // }
 
     if (head_inst->isThreadSync()) {
         // Not handled for now.

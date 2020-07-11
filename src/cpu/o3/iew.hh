@@ -252,6 +252,7 @@ class DefaultIEW
      * misprediction.
      */
     void squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstWoken, ThreadID tid);
+    void squashDueToLVPMissprediction(DynInstPtr &inst, ThreadID tid);
 
   private:
     /** Sets Dispatch to blocked, and signals back to other stages to block. */

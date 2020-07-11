@@ -580,6 +580,33 @@ DefaultIEW<Impl>::squashDueToBranch(DynInstPtr &inst, ThreadID tid)
 
 template<class Impl>
 void
+DefaultIEW<Impl>::squashDueToLVPMissprediction(DynInstPtr &inst, ThreadID tid)
+{
+    DPRINTF(IEW, "[tid:%i]: LVP Misprediction, squashing younger "
+            "insts from %i, PC: %s [sn:%i].\n", tid, inst->seqNum, inst->pcState(), inst->seqNum);
+
+    if (!toCommit->squash[tid] ||
+            inst->seqNum < toCommit->squashedSeqNum[tid]) {
+
+        toCommit->squash[tid] = true;
+
+        toCommit->squashedSeqNum[tid] = inst->seqNum;
+
+        TheISA::PCState pc = inst->pcState();
+
+        toCommit->pc[tid] = inst->pcState();;
+        toCommit->includeSquashInst[tid] = true;
+
+        wroteToTimeBuffer = true;
+
+        
+    }
+}
+
+
+
+template<class Impl>
+void
 DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, ThreadID tid)
 {
     DPRINTF(IEW, "[tid:%i]: Memory misprediction, squashing younger "
@@ -1320,8 +1347,7 @@ DefaultIEW<Impl>::executeInsts()
     // Execute/writeback any instructions that are available.
     int insts_to_execute = fromIssue->size;
     int inst_num = 0;
-    for (; inst_num < insts_to_execute;
-          ++inst_num) {
+    for (; inst_num < insts_to_execute; ++inst_num) {
 
         DPRINTF(IEW, "Execute: Executing instructions from IQ.\n");
 
@@ -1476,7 +1502,7 @@ DefaultIEW<Impl>::executeInsts()
                 inst->execute(); // this is op specific! so need to read dest reg to get returned value
                 if (!inst->readPredicate()) {
                     inst->forwardOldRegs();
-		}
+		        }
 
                 string opcode = inst->getName();
                 if (opcode == "limm" || (inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
@@ -1503,7 +1529,7 @@ DefaultIEW<Impl>::executeInsts()
                       	  case VecRegClass:
                             // Should be okay to ignore, because if predicted, assertion in inst_queue would have failed
                             // value = cpu->readVecReg(dest_reg);
-                            if (inst->confidence >= 0) { inst->lvMispred = true; }
+                            if (inst->confidence >= 0) { assert(0); inst->lvMispred = true; }
                             break;
                       	  case VecElemClass:
                             value = cpu->readVecElem(dest_reg);
@@ -1517,18 +1543,18 @@ DefaultIEW<Impl>::executeInsts()
                             break;
                       	  case MiscRegClass:
                             // Should also be okay to ignore, won't be predicted
-                            if (inst->confidence >= 0) { inst->lvMispred = true; }
+                            if (inst->confidence >= 0) { assert(0); inst->lvMispred = true; }
                             break;
                      	  default:
                             panic("Unknown register class: %d", (int)dest_reg->classValue());
-                   	}
+                   	    }
                     }
                     if (inst->lvMispred) {
                     	DPRINTF(LVP, "OH NO! processPacketRecieved returned false :(\n");
                     	cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
                     	loadPred->lastMisprediction = inst->memoryAccessEndCycle;
                     	// Moved from commit
-                    	cpu->commit.squashWokenDependents(inst);
+                    	//cpu->commit.squashWokenDependents(inst);
                     }
             	}
             }
@@ -1603,9 +1629,14 @@ DefaultIEW<Impl>::executeInsts()
 
                 // Squash.
                 DPRINTF(LVP, "Starting mem order violation squash from %i\n", violator->seqNum);
-		squashDueToMemOrder(violator, tid);
+		        squashDueToMemOrder(violator, tid);
 
                 ++memOrderViolationEvents;
+            }
+            else if (inst->lvMispred)
+            {
+                assert(inst->isExecuted());
+                squashDueToLVPMissprediction(inst, tid);
             }
         } else {
             // Reset any state associated with redirects that will not
