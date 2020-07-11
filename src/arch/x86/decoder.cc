@@ -1228,17 +1228,16 @@ Decoder::isHitInUopCache(Addr addr)
 }
 
 bool
-Decoder::isHitInSpeculativeCache(Addr addr)
+Decoder::isHitInSpeculativeCache(Addr addr, unsigned uop)
 {
     int idx = (addr >> 5) & 0x1f;
     uint64_t tag = (addr >> 10);
     for (int way = 0; way < 8; way++) {
         if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
-            for (int uop = 0; uop < speculativeCountArray[idx][way]; uop++) {
-                // if (speculativeAddrArray[idx][way][uop] == addr) {
-                   //  DPRINTF(Decoder, "Is hit in the speculative cache? true:%#x tag:%#x idx:%#x way:%#x uop:%x size:%d.\n", addr, tag, idx, way, uop, speculativeCache[idx][way][uop]->machInst.instSize);
-                    // return true;
-                // }
+            for (int u = 0; u < speculativeCountArray[idx][way]; u++) {
+                if (speculativeAddrArray[idx][way][u] == ArrayDependencyTracker::FullUopAddr(addr, uop)) {
+					return true;
+                }
             }
         }
     }
@@ -1346,6 +1345,38 @@ Decoder::getSuperoptimizedInst(Addr addr, unsigned uop) {
 	}
 	panic("getSuperoptimizedInst called when a superoptimized translation wasn't available");
 	return NULL;
+}
+
+void
+Decoder::invalidateSpecTrace(Addr addr, unsigned uop) {
+	/*
+	 * 1. Find tag match in spec cache
+	 * 2. Clear out tag
+	 * 3. If has a previous line, clear that one too
+	 * 4. If has a next line, clear that one too
+	 * Put the check for prev and next in the tag function to call recursively
+	 */
+	int idx = (addr >> 5) & 0x1f;
+	uint64_t tag = (addr >> 10);
+	for (int way = 0; way < 8; way++) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+			invalidateSpecCacheLine(idx, way);
+		}
+	}
+}
+
+void
+Decoder::invalidateSpecCacheLine(int idx, int way) {
+	for (int u = 0; u < 6; u++) {
+		depTracker->registerRemovalOfTraceInst(idx, way, u);
+		speculativeAddrArray[idx][way][u] = ArrayDependencyTracker::FullUopAddr(0,0);
+	}
+	if (speculativePrevWayArray[idx][way] != 10) {
+		invalidateSpecCacheLine(idx, speculativePrevWayArray[idx][way]);
+	}
+	if (speculativeNextWayArray[idx][way] != 10) {
+		invalidateSpecCacheLine(idx, speculativeNextWayArray[idx][way]);
+	}
 }
 
 StaticInstPtr

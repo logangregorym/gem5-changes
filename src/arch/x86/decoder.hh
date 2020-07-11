@@ -48,10 +48,13 @@
 #include "debug/Decoder.hh"
 #include "params/DerivO3CPU.hh"
 
+class BaseCPU;
+
 namespace X86ISA
 {
 
 class ISA;
+
 class Decoder
 {
   private:
@@ -129,6 +132,8 @@ public:
     bool speculativeValidArray[32][8];
     int speculativeCountArray[32][8];
     int speculativeLRUArray[32][8];
+
+    BaseCPU *cpu;
 
 protected:
     Stats::Scalar uopCacheWayInvalidations;
@@ -273,7 +278,7 @@ protected:
     // static InstCacheMap instCacheMap;
 
   public:
-    Decoder(ISA* isa = nullptr, DerivO3CPUParams* params = nullptr) : basePC(0), origPC(0), offset(0),
+    Decoder(ISA* isa = nullptr, DerivO3CPUParams* params = nullptr) : basePC(0), origPC(0), offset(0), cpu(NULL),
         outOfBytes(true), instDone(false),
         state(ResetState)
     {
@@ -445,7 +450,7 @@ protected:
     }
 
     // Parallel cache for optimized micro-ops
-    bool isHitInSpeculativeCache(Addr addr);
+    bool isHitInSpeculativeCache(Addr addr, unsigned uop);
     StaticInstPtr fetchUopFromSpeculativeCache(Addr addr, X86ISA::PCState &nextPC);
     bool updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded);
     void updateLRUBitsSpeculative(int idx, int way);
@@ -474,6 +479,10 @@ protected:
 	bool isDeadCode(Addr addr, unsigned uop);
 
 	StaticInstPtr getSuperoptimizedInst(Addr addr, unsigned uop);
+
+	void invalidateSpecTrace(Addr addr, unsigned uop);
+
+	void invalidateSpecCacheLine(int idx, int way);
 
     void regStats();
 

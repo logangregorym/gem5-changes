@@ -449,7 +449,7 @@ void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 		}
 
 		for (int i=0; i<4096; i++) {
-			if (predictionSourceValid[i] && predictionSource[i] == speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr) {
+			if (predictionSourceValid[i] && predictionSource[i] == speculativeDependencyGraph[i1][i2][i3]->thisInst) {
 				predictionSourceValid[i] = false;
 			}
 		}
@@ -610,14 +610,14 @@ void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, uint64_t 
 	unsigned predID = 0;
 	bool foundPredID = false;
 	for (int i=1; i<4096; i++) {
-		if (predictionSourceValid[i] && (predictionSource[i] == addr) && !foundPredID) {
+		if (predictionSourceValid[i] && (predictionSource[i] == FullUopAddr(addr, uopAddr)) && !foundPredID) {
 			predID = i;
 			foundPredID = true;
 		}
 	}
 	for (int i=1; i<4096; i++) {
 		if (!predictionSourceValid[i] && !foundPredID) {
-			predictionSource[i] = addr;
+			predictionSource[i] = FullUopAddr(addr,uopAddr);
 			predictionSourceValid[i] = true;
 			predID = i;
 			foundPredID = true;
@@ -2298,6 +2298,61 @@ void ArrayDependencyTracker::moveTraceInstOneForward(int idx, int way, int uop) 
 			for (int u = 0; u < decoder->uopCountArray[affectedIdx][w]; u++) {
 				if (microopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
 					speculativeDependencyGraph[affectedIdx][w][u]->specIdx = prevIdx;
+				}
+			}
+		}
+	}
+}
+
+bool ArrayDependencyTracker::isPredictionSource(Addr addr, unsigned uop) {
+	for (int i=1; i<4096; i++) {
+		if (predictionSourceValid[i] && predictionSource[i] == FullUopAddr(addr, uop)) { return true; }
+	}
+	return false;
+}
+
+void ArrayDependencyTracker::flushMisprediction(Addr addr, unsigned uop) {
+	unsigned predId = 0;
+	for (int i=1; i<4096; i++) {
+		if (predictionSourceValid[i] && predictionSource[i] == FullUopAddr(addr, uop)) {
+			assert(predId = 0);
+			predId = i;
+		}
+	}
+	if (predId == 0) { return; }
+	flushMisprediction(predId);
+	return;
+}
+
+void ArrayDependencyTracker::flushMisprediction(unsigned predId) {
+	if (predId > 4096 || !predictionSourceValid[predId]) { return; }
+	/**
+ 	* Two steps:
+ 	* 1. Iterate through connections, remove prediction if dependence on this id
+ 	* 2. If 32-byte region of code including this inst is present in speculative cache, remove
+ 	*/ 
+	for (int i=1; i<connectionCount; i++) {
+		if (connectionsValidSpec[i] && connections[i].hasDependency(predId)) {
+			connections[i].value = 0;
+			connections[i].valid = false;
+			connections[i].removeDependency(predId);
+		}
+	}
+
+	if (decoder->isHitInSpeculativeCache(predictionSource[predId].pcAddr, predictionSource[predId].uopAddr)) {
+		decoder->invalidateSpecTrace(predictionSource[predId].pcAddr, predictionSource[predId].uopAddr);
+	}
+}
+
+void ArrayDependencyTracker::registerRemovalOfTraceInst(int idx, int way, int uop) {
+	FullUopAddr affectedAddr = decoder->speculativeAddrArray[idx][way][uop];
+	int affectedIdx = (affectedAddr.pcAddr >> 5) & 0x1f;
+	uint64_t affectedTag = (affectedAddr.pcAddr >> 10);
+	for (int w = 0; w < 8; w++) {
+		if (decoder->uopValidArray[affectedIdx][w] && decoder->uopTagArray[affectedIdx][w] == affectedTag) {
+			for (int u = 0; u < decoder->uopCountArray[affectedIdx][w]; u++) {
+				if (microopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
+					speculativeDependencyGraph[affectedIdx][w][u]->specIdx = FullCacheIdx();
 				}
 			}
 		}

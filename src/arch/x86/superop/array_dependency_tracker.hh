@@ -59,6 +59,14 @@ class ArrayDependencyTracker : public SimObject
 
 	void markLastUse(unsigned regIdx);
 
+	bool isPredictionSource(Addr addr, unsigned uop);
+
+	void flushMisprediction(Addr addr, unsigned uop);
+
+	void flushMisprediction(unsigned predId);
+
+	void registerRemovalOfTraceInst(int i1, int i2, int i3);
+
 	struct FullUopAddr {
 		Addr pcAddr;
 		unsigned uopAddr;
@@ -175,10 +183,32 @@ class ArrayDependencyTracker : public SimObject
 
 		void addDependency(unsigned id) {
 			bool found = false;
+			for (int i=0; i<8; i++) {
+				if (dataDependencies[i] == id) {
+					return; // already added!
+				}
+			}
 			for (int i = 0; i<8; i++) {
 				if (!found && (dataDependencies[i] == 0)) {
 					dataDependencies[i] = id;
 					found = true;
+				}
+			}
+		}
+
+		bool hasDependency(unsigned id) {
+			for (int i=0; i<8; i++) {
+				if (dataDependencies[i] == id) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		void removeDependency(unsigned id) {
+			for (int i=0; i<8; i++) {
+				if (dataDependencies[i] == id) {
+					dataDependencies[i] = 0;
 				}
 			}
 		}
@@ -258,7 +288,7 @@ class ArrayDependencyTracker : public SimObject
 	ControlFlowPath branches[4096];
 	bool branchesValid[4096] = {0};
 	unsigned maxRecursiveDepth = 8;
-	Addr predictionSource[4096] = {0};
+	FullUopAddr predictionSource[4096];
 	bool predictionSourceValid[4096] = {0};
 
 	// Exploration and stats
