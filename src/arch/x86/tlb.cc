@@ -244,8 +244,8 @@ TLB::finalizePhysical(const RequestPtr &req,
 {
     Addr paddr = req->getPaddr();
 
-    AddrRange m5opRange(0xFFFF0000, 0xFFFFFFFF);
-
+    //AddrRange m5opRange(0xFFFF0000, 0xFFFFFFFF);
+    AddrRange m5opRange(0xFFFFF0000, 0xFFFFFFFFF);
     if (m5opRange.contains(paddr)) {
         req->setFlags(Request::MMAPPED_IPR | Request::GENERIC_IPR |
                       Request::STRICT_ORDER);
@@ -492,6 +492,7 @@ TLB::regStats()
 void
 TLB::serialize(CheckpointOut &cp) const
 {
+    /*
     // Only store the entries in use.
     uint32_t _size = size - freeList.size();
     SERIALIZE_SCALAR(_size);
@@ -505,11 +506,13 @@ TLB::serialize(CheckpointOut &cp) const
                                 csprintf("Entry%d", _count++));
         }
     }
+    */
 }
 
 void
 TLB::unserialize(CheckpointIn &cp)
 {
+    /*
     // Do not allow to restore with a smaller tlb.
     uint32_t _size;
     UNSERIALIZE_SCALAR(_size);
@@ -529,6 +532,7 @@ TLB::unserialize(CheckpointIn &cp)
                 TlbEntryTrie::MaxBits - newEntry->logBytes, newEntry);
         }
     }
+    */
 }
 
 BaseMasterPort *
