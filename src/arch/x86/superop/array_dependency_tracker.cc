@@ -95,7 +95,7 @@ void ArrayDependencyTracker::regStats()
 	averageCyclesInSpecCache = totalCyclesInSpecCache / evictionsFromSpecCache;
 }
 
-void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded)
+void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded, ThreadID tid)
 {
 	++totalOpsInCache;
 	DPRINTF(ConstProp, "Adding entry for %x.%i to graph\n", addr, uopAddr);
@@ -434,9 +434,10 @@ void ArrayDependencyTracker::removeFromGraph(Addr addr, unsigned uopAddr, unsign
 
 void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 	if (speculativeDependencyGraph[i1][i2][i3]) {
-		/** 
-		if (cpu->instInPipeline(speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr)) {
-			printf("Ok, found one in the pipeline, neat\n");
+		/**
+		if (decoder->cpu->instInPipeline(speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr)) {
+			decoder->victimCache.push_back(*speculativeDependencyGraph[i1][i2][i3]);
+			decoder->victimEMIs.push_back(decoder->uopCache[i1][i2][i3]);
 		}
 		*/
 		DPRINTF(ConstProp, "Removing entry at spec[%i][%i][%i]\n", i1, i2, i3);

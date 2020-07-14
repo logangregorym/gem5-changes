@@ -35,6 +35,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "cpu/base.hh"
+#include "cpu/thread_context.hh"
+
 #include "arch/x86/regs/misc.hh"
 #include "arch/x86/superop/array_dependency_tracker.hh"
 #include "arch/x86/types.hh"
@@ -47,8 +50,6 @@
 #include "cpu/static_inst.hh"
 #include "debug/Decoder.hh"
 #include "params/DerivO3CPU.hh"
-
-class BaseCPU;
 
 namespace X86ISA
 {
@@ -134,6 +135,9 @@ public:
     int speculativeLRUArray[32][8];
 
     BaseCPU *cpu;
+    void setCPU(BaseCPU * newCPU, ThreadID tid=0);
+    // vector<ArrayDependencyTracker::DependGraphEntry> victimCache;
+    // vector<ExtMachInst> victimEMIs;
 
 protected:
     Stats::Scalar uopCacheWayInvalidations;
@@ -426,10 +430,10 @@ protected:
     /// @param mach_inst The binary instruction to decode.
     /// @retval A pointer to the corresponding StaticInst object.
     StaticInstPtr decode(ExtMachInst mach_inst, Addr addr);
-    StaticInstPtr decode(X86ISA::PCState &nextPC, unsigned cycleAdded);
+    StaticInstPtr decode(X86ISA::PCState &nextPC, unsigned cycleAdded, ThreadID tid);
     bool isHitInUopCache(Addr addr);
     StaticInstPtr fetchUopFromUopCache(Addr addr, X86ISA::PCState &nextPC);
-    bool updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded);
+    bool updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded, ThreadID tid);
     void updateLRUBits(int idx, int way);
     void setUopCacheActive(bool active)
     {

@@ -719,7 +719,7 @@ Decoder::updateLRUBitsSpeculative(int idx, int way)
 }
 
 bool
-Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded)
+Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded, ThreadID tid)
 {
     if (numUops > 6) {
       DPRINTF(Decoder, "More than 6 microops: Could not update microop in the microop cache: %#x.\n", addr);
@@ -749,13 +749,13 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
           StaticInstPtr inst = decodeInst(emi);
           if (inst->isMacroop()) {
             inst = inst->fetchMicroop(uopAddr);
-            depTracker->addToGraph(inst, addr, uopAddr, cycleAdded); // changed to spec
+            depTracker->addToGraph(inst, addr, uopAddr, cycleAdded, tid); // changed to spec
             uopAddr++;
             if (inst->isLastMicroop()) {
               uopAddr = 0;
             }
           } else {
-                depTracker->addToGraph(inst, addr, uopAddr, cycleAdded); // changed to spec
+                depTracker->addToGraph(inst, addr, uopAddr, cycleAdded, tid); // changed to spec
           }
           DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "1Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -799,13 +799,13 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
           StaticInstPtr inst = decodeInst(emi);
           if (inst->isMacroop()) {
               inst = inst->fetchMicroop(uop);
-              depTracker->addToGraph(inst, addr, uop, cycleAdded); // changed to spec
+              depTracker->addToGraph(inst, addr, uop, cycleAdded, tid); // changed to spec
               // uopAddr++;
               // if (inst->isLastMicroop()) {
               //     uopAddr = 0;
               // }
           } else {
-              depTracker->addToGraph(inst, addr, uop, cycleAdded); // changed to spec
+              depTracker->addToGraph(inst, addr, uop, cycleAdded, tid); // changed to spec
           }
           DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "2Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -846,13 +846,13 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
 
           if (inst->isMacroop()) {
             inst = inst->fetchMicroop(uop);
-            depTracker->addToGraph(inst, addr, uop, cycleAdded); // changed to spec
+            depTracker->addToGraph(inst, addr, uop, cycleAdded, tid); // changed to spec
             // uopAddr++;
             // if (inst->isLastMicroop()) {
             //   uopAddr = 0;
             // }
           } else {
-                depTracker->addToGraph(inst, addr, uop, cycleAdded); // changed to spec
+                depTracker->addToGraph(inst, addr, uop, cycleAdded, tid); // changed to spec
           }
           DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "3Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -902,14 +902,14 @@ Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, in
           assert(uopAddr == uop - waySize);
           if (decodeInst(emi)->isMacroop()) {
                 speculativeCache[idx][way][uop] = decodeInst(emi)->fetchMicroop(uopAddr);
-                depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uopAddr, cycleAdded);
+                // depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uopAddr, cycleAdded);
                 uopAddr++;
                 if (speculativeCache[idx][way][uop]->isLastMicroop()) {
                         uopAddr = 0;
                 }
           } else {
                 speculativeCache[idx][way][uop] = decodeInst(emi);
-                depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uopAddr, cycleAdded);
+                // depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uopAddr, cycleAdded);
           }
           DPRINTF(Decoder, "Updating microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "1Updating microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -949,14 +949,14 @@ Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, in
           emi.instSize = size;
           if (decodeInst(emi)->isMacroop()) {
                 speculativeCache[idx][way][uop] = decodeInst(emi)->fetchMicroop(uop);
-                depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uop, cycleAdded);
+                // depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uop, cycleAdded);
                 // uopAddr++;
                 // if (speculativeCache[idx][way][uop]->isLastMicroop()) {
                 // 	uopAddr = 0;
                 // }
           } else {
                 speculativeCache[idx][way][uop] = decodeInst(emi);
-                depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uop, cycleAdded);
+                // depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uop, cycleAdded);
           }
           DPRINTF(Decoder, "Updating microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "2Updating microop in the speculative cache at [%i][%i][%i]: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", idx, way, uop, addr, tag, idx, way, uop, emi.instSize);
@@ -990,14 +990,14 @@ Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, in
           emi.instSize = size;
           if (decodeInst(emi)->isMacroop()) {
                 speculativeCache[idx][way][uop] = decodeInst(emi)->fetchMicroop(uop);
-                depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uop, cycleAdded);
+                // depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uop, cycleAdded);
                 // uopAddr++;
                 // if (speculativeCache[idx][way][uop]->isLastMicroop()) {
                 // 	uopAddr = 0;
                 // }
           } else {
                 speculativeCache[idx][way][uop] = decodeInst(emi);
-                depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uop, cycleAdded);
+                // depTracker->addToGraph(speculativeCache[idx][way][uop], addr, uop, cycleAdded);
           }
           DPRINTF(Decoder, "Updating microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "3Updating microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -1380,7 +1380,7 @@ Decoder::invalidateSpecCacheLine(int idx, int way) {
 }
 
 StaticInstPtr
-Decoder::decode(PCState &nextPC, unsigned cycleAdded)
+Decoder::decode(PCState &nextPC, unsigned cycleAdded, ThreadID tid)
 {
     // if using speculative superoptimizer and optimization available, more complex decode stage
     // if (isSpeculativeCachePresent && isSpeculativeCacheActive && isHitInSpeculativeCache(nextPC.instAddr())) {
@@ -1485,7 +1485,7 @@ Decoder::decode(PCState &nextPC, unsigned cycleAdded)
         } else if (si->isMacroop()) {
             numFusedMicroops = si->getNumMicroops();
         }
-        updateUopInUopCache(si->machInst, nextPC.instAddr(), numFusedMicroops, emi.instSize, cycleAdded);
+        updateUopInUopCache(si->machInst, nextPC.instAddr(), numFusedMicroops, emi.instSize, cycleAdded, tid);
         if (isSuperOptimizationPresent) {
             // updateUopInSpeculativeCache(si->machInst, nextPC.instAddr(), numFusedMicroops, emi.instSize, cycleAdded);
         }
@@ -1544,4 +1544,11 @@ Decoder::regStats()
         .desc("Number of times we decoded a macro-op usingMSROM");
 }
 
+void
+Decoder::setCPU(BaseCPU * newCPU, ThreadID tid)
+{
+    assert(!cpu);
+    assert(newCPU);
+    cpu = newCPU;
+}
 }

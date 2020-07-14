@@ -8,9 +8,12 @@ _start:
 loopStart:
         mov 	rdx, 		0
         add 	rdx, 		-5
+	jmp 	target
+	add	rdx,		10
+target:
         mov	rbx,		rdx
 	mov	rax,		rbx
-	sub 	rdx,		-5
+	sub 	rdx,		5
         add 	rcx, 		1
         cmp 	rcx, 		loopCnt
         jne 	loopStart

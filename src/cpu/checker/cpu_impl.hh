@@ -312,7 +312,7 @@ Checker<Impl>::verify(DynInstPtr &completed_inst)
                     //MachInst at the current pc.
                     if (thread->decoder.instReady()) {
                         fetchDone = true;
-                        instPtr = thread->decoder.decode(pcState, numCycles.value());
+                        instPtr = thread->decoder.decode(pcState, numCycles.value(), thread->threadId());
                         thread->pcState(pcState);
                     } else {
                         fetchDone = false;

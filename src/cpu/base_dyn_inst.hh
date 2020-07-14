@@ -169,9 +169,11 @@ class BaseDynInst : public ExecContext, public RefCounted
      */
     std::queue<InstResult> instResult;
 
+  public:
     /** PC state for this instruction. */
     TheISA::PCState pc;
 
+  protected:
     /* An amalgamation of a lot of boolean values into one */
     std::bitset<MaxFlags> instFlags;
 

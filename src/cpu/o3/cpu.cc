@@ -1833,11 +1833,11 @@ FullO3CPU<Impl>::updateThreadPriority()
 template <class Impl>
 bool
 FullO3CPU<Impl>::instInPipeline(Addr addr, unsigned uop) {
-	//for (std::list<typename Impl::DynInstPtr>::iterator itr = instList.begin(); itr != instList.end(); ++itr) {
-	//	if ((*itr)->pc.instAddr() == addr && (*itr)->pc.microAddr()) {
-	//		return true;
-	//	}
-	//}
+	for (typename std::list<typename Impl::DynInstPtr>::iterator itr = instList.begin(); itr != instList.end(); ++itr) {
+		if ((*itr)->pc.instAddr() == addr && (*itr)->pc.microPC()) {
+			return true;
+		}
+	}
 	return false;
 }
 

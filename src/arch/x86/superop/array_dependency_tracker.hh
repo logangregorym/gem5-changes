@@ -3,6 +3,8 @@
 
 #include <vector>
 
+// #include "cpu/thread_context.hh"
+
 #include "arch/x86/regs/misc.hh"
 #include "arch/x86/types.hh"
 #include "base/bitfield.hh"
@@ -34,7 +36,7 @@ class ArrayDependencyTracker : public SimObject
 
 	unsigned connectionCount = 4096;
 
-	void addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded);
+	void addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded, ThreadID tid);
 
 	void removeFromGraph(Addr addr, unsigned uopAddr, unsigned cycledRemoved);
 
@@ -283,8 +285,8 @@ class ArrayDependencyTracker : public SimObject
 	DependGraphEntry* speculativeDependencyGraph[32][8][6];
 	FullUopAddr microopAddrArray[32][8][6];
 
-	InformationFlowPath connections[8192]; // Must be kept identical to connectionCount
-	bool connectionsValidSpec[8192] = {0}; // Must be kept identical to connectionCount
+	InformationFlowPath connections[4096]; // Must be kept identical to connectionCount
+	bool connectionsValidSpec[4096] = {0}; // Must be kept identical to connectionCount
 	ControlFlowPath branches[4096];
 	bool branchesValid[4096] = {0};
 	unsigned maxRecursiveDepth = 8;

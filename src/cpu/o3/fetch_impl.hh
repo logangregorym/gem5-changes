@@ -171,7 +171,7 @@ DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
         decoder[tid]->setUopCachePresent(isUopCachePresent);
         decoder[tid]->setSpeculativeCachePresent(isSuperOptimizationPresent);
         decoder[tid]->setSuperOptimizationPresent(isSuperOptimizationPresent);
-	// decoder[tid]->depTracker->cpu = _cpu;
+	decoder[tid]->setCPU(cpu, tid);
         // Create space to buffer the cache line data,
         // which may not hold the entire cache line.
         fetchBuffer[tid] = new uint8_t[fetchBufferSize];
@@ -1555,7 +1555,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 	    // if (!usingTrace || !isDead) {
             	if (!(curMacroop || inRom)) {
                	    if (decoder[tid]->instReady() || inUopCache) {
-                    	staticInst = decoder[tid]->decode(thisPC, cpu->numCycles.value());
+                    	staticInst = decoder[tid]->decode(thisPC, cpu->numCycles.value(), tid);
                     	for (int i=0; i<staticInst->numSrcRegs(); i++) {
                           DPRINTF(Fetch, "arch:%d ", staticInst->srcRegIdx(i));
                     	}
