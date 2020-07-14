@@ -1543,16 +1543,16 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 	   bool isDead = false, newMacro = false, fused = false; //, foundTraceInst = false;
 	   if (isSuperOptimizationPresent && decoder[tid]->isDeadCode(thisPC.instAddr(), thisPC.microPC())) { isDead = true; ++deadCodeInsts; }
 	   if (isSuperOptimizationPresent && decoder[tid]->superoptimizedTraceAvailable(thisPC.instAddr(), thisPC.microPC()) && !isDead) {
-	//	staticInst = decoder[tid]->getSuperoptimizedInst(thisPC.instAddr(), thisPC.microPC());
-	//	curMacroop = decoder[tid]->decodeInst(staticInst->machInst); // emi corresponds to the macroop
-	//	newMacro = staticInst->isLastMicroop();
+		staticInst = decoder[tid]->getSuperoptimizedInst(thisPC.instAddr(), thisPC.microPC());
+		curMacroop = decoder[tid]->decodeInst(staticInst->machInst); // emi corresponds to the macroop
+		newMacro = staticInst->isLastMicroop();
 		// TODO: build dynamic inst and issue, increment PC and continue
 		++instsPartOfOptimizedTrace;
 		// foundTraceInst = true;
 	    } else {
 		++instsNotPartOfOptimizedTrace;
 	    }
-	    // if (!usingTrace || !isDead) {
+	    if (!usingTrace || !isDead) {
             	if (!(curMacroop || inRom)) {
                	    if (decoder[tid]->instReady() || inUopCache) {
                     	staticInst = decoder[tid]->decode(thisPC, cpu->numCycles.value(), tid);
@@ -1626,7 +1626,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     DPRINTF(Fetch, "\n");
                     newMacro |= staticInst->isLastMicroop();
             	}
-	    // }
+	    }
 
 	    DynInstPtr instruction =
                 buildInst(tid, staticInst, curMacroop,

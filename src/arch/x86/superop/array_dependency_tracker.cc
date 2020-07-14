@@ -434,12 +434,12 @@ void ArrayDependencyTracker::removeFromGraph(Addr addr, unsigned uopAddr, unsign
 
 void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 	if (speculativeDependencyGraph[i1][i2][i3]) {
-		/**
+		
 		if (decoder->cpu->instInPipeline(speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr)) {
 			decoder->victimCache.push_back(*speculativeDependencyGraph[i1][i2][i3]);
 			decoder->victimEMIs.push_back(decoder->uopCache[i1][i2][i3]);
 		}
-		*/
+		
 		DPRINTF(ConstProp, "Removing entry at spec[%i][%i][%i]\n", i1, i2, i3);
 		StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
 		if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); }
@@ -2331,6 +2331,7 @@ void ArrayDependencyTracker::flushMisprediction(unsigned predId) {
  	* Two steps:
  	* 1. Iterate through connections, remove prediction if dependence on this id
  	* 2. If 32-byte region of code including this inst is present in speculative cache, remove
+	* Note that optimizations based on any prediction should be hosted in the 32-byte region corresponding to that prediction, even if they are on the other side of a branch
  	*/ 
 	for (int i=1; i<connectionCount; i++) {
 		if (connectionsValidSpec[i] && connections[i].hasDependency(predId)) {

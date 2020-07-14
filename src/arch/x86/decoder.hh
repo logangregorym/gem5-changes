@@ -136,8 +136,8 @@ public:
 
     BaseCPU *cpu;
     void setCPU(BaseCPU * newCPU, ThreadID tid=0);
-    // vector<ArrayDependencyTracker::DependGraphEntry> victimCache;
-    // vector<ExtMachInst> victimEMIs;
+    vector<ArrayDependencyTracker::DependGraphEntry> victimCache;
+    vector<ExtMachInst> victimEMIs;
 
 protected:
     Stats::Scalar uopCacheWayInvalidations;
