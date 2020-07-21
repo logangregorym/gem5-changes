@@ -168,6 +168,34 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 		branches[takenIndex].targetValid = false;
 		branches[takenIndex].propagatingTo = FullUopAddr(0,0);
 
+		// override the above vals if possible. TODO: Check all of these for imm vs disp and other little stuff
+
+		TheISA::PCState target;
+		// indirect branches have opcode 0xFF
+		if (uop->machInst.opcode.op == 0xFF) {
+			if (branchPred->iPred.lookup(fullAddr.pcAddr, branchPred->getGHR(tid, uop->branch_hist), target, tid)) {
+				branches[takenIndex].nextPc = FullUopAddr(target.instAddr(), 0);
+				branches[takenIndex].propagatingTo = FullUopAddr(target.instAddr(), 0);
+				branches[takenIndex].targetValid = true;
+			}
+		} else if (uop->machInst.opcode.op == 0xEA or uop->machInst.opcode.op == 0x9A) {  // jump absolute
+			// this is untested; these opcodes are very uncommon
+			//branches[takenIndex].nextPc = FullUopAddr(uop->machInst.immediate, 0);
+			//branches[takenIndex].propagatingTo = FullUopAddr(uop->machInst.immediate, 0);
+			//branches[takenIndex].targetValid = true;
+		} else if (uop->isReturn()) {  // use the RAS from the current bpred_unit
+			// not currently compiling (are the params for buildRetPC the wrong type?)
+			//TheISA::PCState rasTop = branchPred->RAS[tid].top();
+			//target = TheISA::buildRetPC(TheISA::PCState(fullAddr.pcAddr), rasTop);
+			//branches[takenIndex].nextPc = FullUopAddr(target.instAddr(), 0);
+			//branches[takenIndex].propagatingTo = FullUopAddr(target.instAddr(), 0);
+			//branches[takenIndex].targetValid = true;
+		} else {  // it's a direct relative (un)conditional: just add the imm
+			branches[takenIndex].nextPc = FullUopAddr(fullAddr.pcAddr + uop->machInst.immediate + uop->machInst.instSize, 0);
+			branches[takenIndex].propagatingTo = FullUopAddr(fullAddr.pcAddr + uop->machInst.immediate + uop->machInst.instSize, 0);
+			branches[takenIndex].targetValid = true;
+		}	
+
 		Addr nextPc = fullAddr.pcAddr + uop->machInst.instSize;
 		DPRINTF(ConstProp, "Not branching from %x to %x, recorded at branches[%i]\n", fullAddr.pcAddr, nextPc, notTakenIndex);
 
@@ -2039,11 +2067,19 @@ bool ArrayDependencyTracker::propagateWrip(int idx, int way, int uop) {
 	// Taken
 	unsigned takenIndex = speculativeDependencyGraph[idx][way][uop]->consumers[0];
 	if (takenIndex != 0) {
+		if (not branches[takenIndex].targetValid) {
+			// attempt to resolve target
+			// TODO: this still needs the tid.
+			//TheISA::PCState target;
+			//if (branchPred->iPred.lookup(microopAddrArray[idx][way][uop].pcAddr, branchPred->getGHR(tid, decodedEMI->branch_hist), target, tid)) {
+			// branches[takenIndex].nextPc = FullUopAddr(target.instAddr(), 0);
+			// branches[takenIndex].propagatingTo = FullUopAddr(target.instAddr(), 0);
+			// branches[takenIndex].targetValid = true;
+			//}
+		}
 		if (branches[takenIndex].targetValid) {
 			changedEither = propagateAcrossControlDependency(takenIndex, branches[takenIndex].propagatingTo);
-		} else {
-			// Try to resolve target here
-		}
+		}  // else just return false
 	}
 	return changedEither;
 }

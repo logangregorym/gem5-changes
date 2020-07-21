@@ -207,12 +207,19 @@ BPredUnit::predict(const StaticInstPtr &inst, const InstSeqNum &seqNum,
     bool pred_taken = false;
     TheISA::PCState target = pc;
 
+    DPRINTF(Branch, "[tid:%i] This branch has imm %i and disp %i.\n", tid, inst->machInst.immediate, inst->machInst.displacement);
+    DPRINTF(Branch, "[tid:%i] It's of opcode %i.\n", tid, inst->machInst.opcode.op);
+
+    uint64_t next_maybe = pc.instAddr() + inst->machInst.immediate;
+
+    DPRINTF(Branch, "[tid:%i] Addition gives a taken address of %i.\n", tid, next_maybe); 
+
     ++lookups;
     ppBranches->notify(1);
 
     void *bp_history = NULL;
 
-    if (inst->isUncondCtrl()) {
+    if (not inst->isCondCtrl()) {
         DPRINTF(Branch, "[tid:%i]: Unconditional control.\n", tid);
         pred_taken = true;
         // Tell the BP there was an unconditional branch.
@@ -230,6 +237,8 @@ BPredUnit::predict(const StaticInstPtr &inst, const InstSeqNum &seqNum,
 
     PredictorHistory predict_record(seqNum, pc.instAddr(),
                                     pred_taken, bp_history, tid);
+
+    inst->branch_hist = bp_history;
 
     // Now lookup in the BTB or RAS.
     if (pred_taken) {
@@ -267,7 +276,7 @@ BPredUnit::predict(const StaticInstPtr &inst, const InstSeqNum &seqNum,
                         tid, pc, pc, RAS[tid].topIdx());
             }
 
-            if (inst->isDirectCtrl() || !useIndirect) {
+            if (inst->isDirectCtrl() || !useIndirect || (inst->machInst.opcode.op != 255)) {
                 // Check BTB on direct branches
                 if (BTB.valid(pc.instAddr(), tid)) {
                     ++BTBHits;
@@ -289,7 +298,7 @@ BPredUnit::predict(const StaticInstPtr &inst, const InstSeqNum &seqNum,
                         btbUpdate(tid, pc.instAddr(), bp_history);
                         DPRINTF(Branch, "[tid:%i]:[sn:%i] btbUpdate"
                                 " called for %s\n", tid, seqNum, pc);
-                    } else if (inst->isCall() && !inst->isUncondCtrl()) {
+                    } else if (inst->isCall() && inst->isCondCtrl()) {
                         RAS[tid].pop();
                         predict_record.pushedRAS = false;
                     }
@@ -312,7 +321,7 @@ BPredUnit::predict(const StaticInstPtr &inst, const InstSeqNum &seqNum,
                             "target.\n", tid, pc);
                     if (!inst->isCall() && !inst->isReturn()) {
 
-                    } else if (inst->isCall() && !inst->isUncondCtrl()) {
+                    } else if (inst->isCall() && inst->isCondCtrl()) {
                         RAS[tid].pop();
                         predict_record.pushedRAS = false;
                     }
@@ -330,6 +339,7 @@ BPredUnit::predict(const StaticInstPtr &inst, const InstSeqNum &seqNum,
     }
 
     pc = target;
+    DPRINTF(Branch, "[tid:%i]: now at PC %i\n", tid, pc);
 
     predHist[tid].push_front(predict_record);
 

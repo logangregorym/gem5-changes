@@ -79,6 +79,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
         MaxInstDestRegs = TheISA::MaxInstDestRegs       //< Max dest regs
     };
 
+    void* branch_hist;  // to be used by array dependency tracker for iPred
+
   protected:
 
     /// Flag values for this instruction.

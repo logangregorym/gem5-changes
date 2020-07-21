@@ -146,7 +146,7 @@ parser.add_option("--maxRecursiveDepth", default=8, type="int", action="store", 
 parser.add_option("--usingTrace", default=0, type="int", action="store", help="Whether to stream the optimized trace")
 parser.add_option("--connectionCount", default=4096, type="int", action="store", help="Number of connections to track at any given time");
 parser.add_option("--branchConfidenceCounterSize", default=2, type="int", action="store", help="Size of the branch confidence counters in bits.")
-parser.add_option("--branchConfidenceThreshold", default=2, type="int", action="store", help="Minimum confidence needed to do LVP across a branch.")
+parser.add_option("--branchConfidenceThreshold", default=3, type="int", action="store", help="Minimum confidence needed to do LVP across a branch.")
 parser.add_option("--doStoragelessBranchConf", action="store_true", help="Whether to use storageless TAGE confidence (Seznec 2010).")
 
 if '--ruby' in sys.argv:
