@@ -289,6 +289,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
     virtual uint32_t getNumMicroops() const;
     virtual uint32_t getMacroopSize() const;
 
+    StaticInstPtr macroOp = NULL; // Should be defined iff inst is a microop
+
     /**
      * Return the target address for a PC-relative branch.
      * Invalid if not a PC-relative branch (i.e. isDirectCtrl()

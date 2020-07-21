@@ -1124,6 +1124,9 @@ DefaultFetch<Impl>::tick()
 
    for (int tid = 0; tid < numThreads; tid++) {
    	decoder[tid]->depTracker->simplifyGraph();
+	if ((((int) cpu->numCycles.value()) % 128) == 0) {
+	    decoder[tid]->tickAllHotnessCounters();
+	}
    }
 }
 
@@ -1359,6 +1362,16 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
 }
 
 template<class Impl>
+bool
+DefaultFetch<Impl>::isProfitable(Addr addr, unsigned uop) {
+    // Hotness
+    // Trace Length
+    // LVP prediction
+    // Branch prediction (if relevant)
+    return true;
+}
+
+template<class Impl>
 void
 DefaultFetch<Impl>::fetch(bool &status_change)
 {
@@ -1541,16 +1554,20 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         // the memory we've processed so far.
         do {
 	   bool isDead = false, newMacro = false, fused = false; //, foundTraceInst = false;
-	   if (isSuperOptimizationPresent && decoder[tid]->isDeadCode(thisPC.instAddr(), thisPC.microPC())) { isDead = true; ++deadCodeInsts; }
-	   if (isSuperOptimizationPresent && decoder[tid]->superoptimizedTraceAvailable(thisPC.instAddr(), thisPC.microPC()) && !isDead) {
-		staticInst = decoder[tid]->getSuperoptimizedInst(thisPC.instAddr(), thisPC.microPC());
-		curMacroop = decoder[tid]->decodeInst(staticInst->machInst); // emi corresponds to the macroop
-		newMacro = staticInst->isLastMicroop();
-		// TODO: build dynamic inst and issue, increment PC and continue
-		++instsPartOfOptimizedTrace;
-		// foundTraceInst = true;
-	    } else {
-		++instsNotPartOfOptimizedTrace;
+	   if (isSuperOptimizationPresent && isProfitable(thisPC.instAddr(), thisPC.microPC())) {
+    	       if (decoder[tid]->isDeadCode(thisPC.instAddr(), thisPC.microPC())) { isDead = true; ++deadCodeInsts; }
+	       if (decoder[tid]->superoptimizedTraceAvailable(thisPC.instAddr(), thisPC.microPC()) && !isDead) {
+		    if (usingTrace) {
+		    	staticInst = decoder[tid]->getSuperoptimizedInst(thisPC.instAddr(), thisPC.microPC());
+		    	curMacroop = staticInst->macroOp; // emi corresponds to the macroop
+		    	newMacro = staticInst->isLastMicroop();
+		    }
+		    // TODO: build dynamic inst and issue, increment PC and continue
+		    ++instsPartOfOptimizedTrace;
+		    // foundTraceInst = true;
+	        } else {
+		    ++instsNotPartOfOptimizedTrace;
+	        }
 	    }
 	    if (!usingTrace || !isDead) {
             	if (!(curMacroop || inRom)) {
@@ -1571,6 +1588,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	if (staticInst->isMacroop()) {
                     	    curMacroop = staticInst;
                     	} else {
+			    curMacroop = staticInst->macroOp;
                     	    pcOffset = 0;
                     	}
 /**

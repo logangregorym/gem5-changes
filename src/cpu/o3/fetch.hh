@@ -366,6 +366,8 @@ class DefaultFetch
      */
     void fetch(bool &status_change);
 
+    bool isProfitable(Addr addr, unsigned uop);
+
     /** Align a PC to the start of a fetch buffer block. */
     Addr fetchBufferAlignPC(Addr addr)
     {

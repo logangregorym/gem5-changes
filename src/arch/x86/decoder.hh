@@ -47,6 +47,7 @@
 #include "base/trace.hh"
 #include "base/types.hh"
 #include "cpu/decode_cache.hh"
+#include "cpu/pred/big_sat_counter.hh"
 #include "cpu/static_inst.hh"
 #include "debug/Decoder.hh"
 #include "params/DerivO3CPU.hh"
@@ -121,6 +122,7 @@ public:
     bool uopValidArray[32][8];
     int uopCountArray[32][8];
     int uopLRUArray[32][8];
+    BigSatCounter uopHotnessArray[32][8];
 
     // Parallel cache for optimized micro-ops
     bool isSpeculativeCachePresent;
@@ -133,6 +135,16 @@ public:
     bool speculativeValidArray[32][8];
     int speculativeCountArray[32][8];
     int speculativeLRUArray[32][8];
+	BigSatCounter specHotnessArray[32][8];
+
+	void tickAllHotnessCounters() {
+		for (int i=0; i<32; i++) {
+			for (int j=0; j<8; j++) {
+				uopHotnessArray[i][j].decrement();
+				specHotnessArray[i][j].decrement();
+			}
+		}
+	}
 
     BaseCPU *cpu;
     void setCPU(BaseCPU * newCPU, ThreadID tid=0);
@@ -149,6 +161,9 @@ protected:
     Stats::Scalar macroTo3MicroEncoding;
     Stats::Scalar macroTo4MicroEncoding;
     Stats::Scalar macroToROMMicroEncoding;
+	Stats::Scalar hotnessLessThanSeven;
+	Stats::Scalar hotnessGreaterThanSeven;
+
 
     uint8_t getNextByte()
     {
@@ -307,18 +322,19 @@ protected:
             uopValidArray[idx][way] = false;
             uopCountArray[idx][way] = 0;
             uopLRUArray[idx][way] = way;
-
+	    	uopHotnessArray[idx][way] = BigSatCounter(4);
 	    
-            // Parallel cache for optimized micro-ops
-            speculativeValidArray[idx][way] = false;
-            speculativeCountArray[idx][way] = 0;
-            speculativeLRUArray[idx][way] = way;
-	    speculativeTagArray[idx][way] = 0;
-	    speculativePrevWayArray[idx][way] = 10;
-	    speculativeNextWayArray[idx][way] = 10;
-	    for (int uop = 0; uop < 6; uop++) {
-	    	speculativeAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr();
-	    }
+        	// Parallel cache for optimized micro-ops
+        	speculativeValidArray[idx][way] = false;
+        	speculativeCountArray[idx][way] = 0;
+        	speculativeLRUArray[idx][way] = way;
+	    	speculativeTagArray[idx][way] = 0;
+	    	speculativePrevWayArray[idx][way] = 10;
+	    	speculativeNextWayArray[idx][way] = 10;
+	    	specHotnessArray[idx][way] = BigSatCounter(4);
+	    	for (int uop = 0; uop < 6; uop++) {
+	    		speculativeAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr();
+  	      	}
           }
         }
         if (params != nullptr){
@@ -482,11 +498,15 @@ protected:
 
 	bool isDeadCode(Addr addr, unsigned uop);
 
+	bool isSourceOfPrediction(Addr addr, unsigned uop);
+
 	StaticInstPtr getSuperoptimizedInst(Addr addr, unsigned uop);
 
 	void invalidateSpecTrace(Addr addr, unsigned uop);
 
 	void invalidateSpecCacheLine(int idx, int way);
+
+	unsigned getSpecTraceLength(Addr addr);
 
     void regStats();
 
