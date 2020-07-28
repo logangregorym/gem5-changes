@@ -810,7 +810,9 @@ bool ArrayDependencyTracker::simplifyGraph() {
 		if (changedGraph) {
 			DPRINTF(ConstProp, "CHANGED\n");
 			// printf("Trying to update\n");
+			DPRINTF(ConstProp, "About to update spec trace\n");
 			updateSpecTrace(i1, i2, i3);
+			DPRINTF(ConstProp, "Successfully updated spec trace\n");
 //			printf("Changed graph but not updating trace\n");
 		} else {
 			// printf("Simplify graph didn't change anything\n");
@@ -2247,6 +2249,7 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 			// Step 2a: If fully eliminated and present, remove from cache
 			FullCacheIdx nextIdx = getNextCacheIdx(optimizedIdx);
 			while (nextIdx.valid) {
+				DPRINTF(ConstProp, "Next Idx is %i,%i,%i\n", nextIdx.idx, nextIdx.way, nextIdx.uop);
 				moveTraceInstOneForward(nextIdx.idx, nextIdx.way, nextIdx.uop);
 				nextIdx = getNextCacheIdx(nextIdx);
 			}

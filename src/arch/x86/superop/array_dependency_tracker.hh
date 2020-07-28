@@ -34,7 +34,7 @@ class ArrayDependencyTracker : public SimObject
 
 	bool usingControlTracking = false;
 
-	unsigned connectionCount = 4096;
+	unsigned connectionCount = 8192;
 
 	void addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded, ThreadID tid);
 

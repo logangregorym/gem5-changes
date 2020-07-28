@@ -644,6 +644,11 @@ class DefaultFetch
     Stats::Scalar deadCodeInsts;
     Stats::Scalar instsPartOfOptimizedTrace;
     Stats::Scalar instsNotPartOfOptimizedTrace;
+
+    Stats::Scalar maxHotness;
+    Stats::Scalar maxLength;
+    Stats::Scalar maxConfidence;
+    Stats::Scalar maxDelay;
 };
 
 #endif //__CPU_O3_FETCH_HH__

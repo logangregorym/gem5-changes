@@ -32,6 +32,10 @@ class LVPredUnit : public SimObject
     /** Registers statistics. */
     void regStats();
 
+    virtual unsigned getConfidence(Addr addr) { return 0; }
+
+    virtual unsigned getDelay(Addr addr) { return 0; }
+
     struct lvpReturnValues {
         lvpReturnValues(uint64_t v, int8_t status, uint8_t predSource) {
             this->predictedValue = v;

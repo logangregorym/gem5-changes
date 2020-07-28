@@ -39,6 +39,24 @@ void FA3P::setUpTables(const Params *params)
     }
 }
 
+unsigned FA3P::getConfidence(Addr addr) {
+    for (int i=0; i < tableEntries; i++) {
+        if (threadPredictors[0].LVT[i].tag == addr) {
+            return threadPredictors[0].LVT[i].confidence.read();
+        }
+    }
+    return 0;
+}
+
+unsigned FA3P::getDelay(Addr addr) {
+    for (int i=0; i < tableEntries; i++) {
+        if (threadPredictors[0].LVT[i].tag == addr) {
+            return threadPredictors[0].LVT[i].averageCycles;
+        }
+    }
+    return 0;
+}
+
 LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle)
 {
 //    DPRINTF(LVP, "Inst %s called LVP makePrediction\n", inst->disassemble(pc.instAddr()));

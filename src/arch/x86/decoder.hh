@@ -508,6 +508,8 @@ protected:
 
 	unsigned getSpecTraceLength(Addr addr);
 
+	unsigned getHotnessOfTrace(Addr addr);
+
     void regStats();
 
     void dumpMicroopCache();

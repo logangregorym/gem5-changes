@@ -398,6 +398,19 @@ DefaultFetch<Impl>::regStats()
 		.name(name() + ".instsNotPartOfOptimizedTrace")
 		.desc("Number of fetched insts which did not have speculative cache translations")
 		;
+
+	maxHotness
+		.name(name() + ".maxHotness")
+		.desc("Top end of range of hotness values");
+	maxLength
+		.name(name() + ".maxLength")
+		.desc("Top end of range of trace lengths");
+	maxConfidence
+		.name(name() + ".maxConfidence")
+		.desc("Top end of range of confidences");
+	maxDelay
+		.name(name() + ".maxDelay")
+		.desc("Top end of range of load resolution delay");
 }
 
 template<class Impl>
@@ -1365,10 +1378,18 @@ template<class Impl>
 bool
 DefaultFetch<Impl>::isProfitable(Addr addr, unsigned uop) {
     // Hotness
+	unsigned hotness = decoder[0]->getHotnessOfTrace(addr); // tid=0 here
+	if (hotness > maxHotness.value()) { maxHotness = hotness; }
     // Trace Length
-    // LVP prediction
-    // Branch prediction (if relevant)
-    return true;
+    unsigned length = decoder[0]->getSpecTraceLength(addr); // tid=0 here
+	if (length > maxLength.value()) { maxLength = length; }
+    // Confidence
+	unsigned confidence = loadPred->getConfidence(addr);
+	if (confidence > maxConfidence.value()) { maxConfidence = confidence; }
+    // Delay
+    unsigned delay = loadPred->getDelay(addr);
+	if (delay > maxDelay.value()) { maxDelay = delay; }
+    return (hotness > 7 || length > 15 || confidence > 15 || delay > 50);
 }
 
 template<class Impl>

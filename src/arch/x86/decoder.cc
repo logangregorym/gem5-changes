@@ -1408,9 +1408,11 @@ Decoder::invalidateSpecCacheLine(int idx, int way) {
 	}
 	if (speculativePrevWayArray[idx][way] != 10) {
 		invalidateSpecCacheLine(idx, speculativePrevWayArray[idx][way]);
+		speculativePrevWayArray[idx][way] = 10;
 	}
 	if (speculativeNextWayArray[idx][way] != 10) {
 		invalidateSpecCacheLine(idx, speculativeNextWayArray[idx][way]);
+		speculativeNextWayArray[idx][way] = 10;
 	}
 }
 
@@ -1425,6 +1427,24 @@ Decoder::getSpecTraceLength(Addr addr) {
 		}
 	}
 	return traceLength;
+}
+
+unsigned
+Decoder::getHotnessOfTrace(Addr addr) {
+	int idx = (addr >> 5) & 0x1f;
+	uint64_t tag = (addr >> 10);
+	unsigned spec = 0;
+	unsigned uop = 0;
+	for (int way = 0; way < 8; way++) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+			spec = specHotnessArray[idx][way].read();
+		}
+		if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+			uop = uopHotnessArray[idx][way].read();
+		}
+	}
+	if (spec > uop) { return spec; }
+	return uop;
 }
 
 StaticInstPtr
