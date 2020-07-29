@@ -53,7 +53,7 @@ class MacroopBase : public X86StaticInst
   protected:
     const char *macrocodeBlock;
 
-    const uint32_t numMicroops;
+    uint32_t numMicroops;
     X86ISA::EmulEnv env;
 
     //Constructor.
@@ -111,6 +111,14 @@ class MacroopBase : public X86StaticInst
     uint32_t getMacroopSize() const
     {
         return machInst.instSize;
+    }
+
+    void deleteMicroOps() {
+	if (numMicroops > 0) {
+	    delete[] microops;
+	    microops = NULL;
+	    numMicroops = 0;
+	}
     }
 };
 }

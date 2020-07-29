@@ -81,6 +81,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
 
     void* branch_hist;  // to be used by array dependency tracker for iPred
 
+    virtual void deleteMicroOps() { panic("undoInjectMicroops: This should only be called by a macroop"); }
+
   protected:
 
     /// Flag values for this instruction.

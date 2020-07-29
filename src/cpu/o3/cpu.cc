@@ -1609,6 +1609,8 @@ FullO3CPU<Impl>::removeFrontInst(DynInstPtr &inst)
             "[sn:%lli]\n",
             inst->threadNumber, inst->pcState(), inst->seqNum);
 
+    if (inst->staticInst->isLastMicroop() && !inst->isSquashed()) { inst->macroop->deleteMicroOps(); }
+
     removeInstsThisCycle = true;
 
     // Remove the front instruction.
