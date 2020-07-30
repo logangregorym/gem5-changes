@@ -899,6 +899,8 @@ DefaultCommit<Impl>::commit()
             // then use one older sequence number.
             InstSeqNum squashed_inst = fromIEW->squashedSeqNum[tid];
 
+            toIEW->commitInfo[tid].squashDueToLVP = fromIEW->squashDueToLVP[tid];
+
             if (fromIEW->includeSquashInst[tid]) {
                 squashed_inst--;
             }
@@ -1213,12 +1215,12 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     }
 
     // Squash in event of load-value misprediction
-    if (head_inst->lvMispred) {
-        // Moved to lsq_unit_impl
-        // squashWokenDependents(head_inst);
-        head_inst->lvMispred = false;
-        return false;
-    }
+    // if (head_inst->lvMispred) {
+    //     // Moved to lsq_unit_impl
+    //     // squashWokenDependents(head_inst);
+    //     head_inst->lvMispred = false;
+    //     return false;
+    // }
 
     if (head_inst->isThreadSync()) {
         // Not handled for now.

@@ -777,7 +777,8 @@ FullO3CPU<Impl>::suspendContext(ThreadID tid)
     // Squash Throughout Pipeline
     DynInstPtr inst = commit.rob->readHeadInst(tid);
     InstSeqNum squash_seq_num = inst->seqNum;
-    fetch.squash(0, squash_seq_num, inst, tid);
+    //fetch.squash(0, squash_seq_num, inst, tid);
+    fetch.squash(0, squash_seq_num, inst, false, tid);
     decode.squash(tid);
     rename.squash(squash_seq_num, tid);
     iew.squash(tid);
@@ -903,7 +904,8 @@ FullO3CPU<Impl>::removeThread(ThreadID tid)
     // Squash Throughout Pipeline
     DynInstPtr inst = commit.rob->readHeadInst(tid);
     InstSeqNum squash_seq_num = inst->seqNum;
-    fetch.squash(0, squash_seq_num, inst, tid);
+    //fetch.squash(0, squash_seq_num, inst, tid);
+    fetch.squash(0, squash_seq_num, inst, false, tid);
     decode.squash(tid);
     rename.squash(squash_seq_num, tid);
     iew.squash(tid);

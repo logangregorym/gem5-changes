@@ -594,7 +594,7 @@ protoc_version = readCommand([main['PROTOC'], '--version'],
                              exception='').split()
 
 # First two words should be "libprotoc x.y.z"
-if len(protoc_version) < 2 or protoc_version[0] != 'libprotoc':
+if len(protoc_version) < 4 or protoc_version[0] != 'libprotoc':
     print(termcap.Yellow + termcap.Bold +
         'Warning: Protocol buffer compiler (protoc) not found.\n' +
         '         Please install protobuf-compiler for tracing support.' +

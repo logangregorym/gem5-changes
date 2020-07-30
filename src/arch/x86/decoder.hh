@@ -496,7 +496,10 @@ protected:
 
 	bool superoptimizedTraceAvailable(Addr addr, unsigned uop);
 
-	bool isDeadCode(Addr addr, unsigned uop);
+
+    bool doSquash(const StaticInstPtr si, X86ISA::PCState pc);
+
+	bool isDeadCode(Addr addr, unsigned uop, StaticInstPtr& nodeStaticInst);
 
 	bool isSourceOfPrediction(Addr addr, unsigned uop);
 
