@@ -1256,6 +1256,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                               StaticInstPtr curMacroop, TheISA::PCState thisPC,
                               TheISA::PCState nextPC, bool trace, bool isDead)
 {
+    assert(staticInst);
     // Get a sequence number.
     InstSeqNum seq;
     if (!isDead || !usingTrace) {
@@ -1575,7 +1576,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         // the memory we've processed so far.
         do {
 	   bool isDead = false, newMacro = false, fused = false; //, foundTraceInst = false;
-	   if (isSuperOptimizationPresent && isProfitable(thisPC.instAddr(), thisPC.microPC())) {
+	   if (decoder[tid]->isSourceOfPrediction(thisPC.instAddr(), thisPC.microPC())) {
+		// Empty for now
+	   } else if (isSuperOptimizationPresent && isProfitable(thisPC.instAddr(), thisPC.microPC())) {
     	       if (decoder[tid]->isDeadCode(thisPC.instAddr(), thisPC.microPC())) { isDead = true; ++deadCodeInsts; }
 	       if (decoder[tid]->superoptimizedTraceAvailable(thisPC.instAddr(), thisPC.microPC()) && !isDead) {
 		    if (usingTrace) {
@@ -1590,7 +1593,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 		    ++instsNotPartOfOptimizedTrace;
 	        }
 	    }
-	    if (!usingTrace || !isDead) {
+	    // if (!usingTrace || !isDead) {
             	if (!(curMacroop || inRom)) {
                	    if (decoder[tid]->instReady() || inUopCache) {
                     	staticInst = decoder[tid]->decode(thisPC, cpu->numCycles.value(), tid);
@@ -1665,7 +1668,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     DPRINTF(Fetch, "\n");
                     newMacro |= staticInst->isLastMicroop();
             	}
-	    }
+	    // }
 
 	    DynInstPtr instruction =
                 buildInst(tid, staticInst, curMacroop,

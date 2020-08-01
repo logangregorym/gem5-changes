@@ -136,6 +136,7 @@ public:
     int speculativeCountArray[32][8];
     int speculativeLRUArray[32][8];
 	BigSatCounter specHotnessArray[32][8];
+	BigSatCounter specConfidenceArray[32][8]; // tracks min confidence present in trace at the cache line level
 
 	void tickAllHotnessCounters() {
 		for (int i=0; i<32; i++) {

@@ -588,19 +588,24 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
     // If already squashing, LVP takes precedence
     // Using < instead of <= would give branch precedence
     if ((!toCommit->squash[tid] ||
-            firstDependent->seqNum <= toCommit->squashedSeqNum[tid])
-            && firstDependent) {
+//            firstDependent->seqNum <= toCommit->squashedSeqNum[tid])
+//            && firstDependent) {
+	      inst->seqNum <= toCommit->squashedSeqNum[tid])
+	      && inst) {
         toCommit->squash[tid] = true;
-        toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
-//        toCommit->squashedSeqNum[tid] = inst->seqNum;
-        toCommit->pc[tid] = firstDependent->pcState();
+//        toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
+        toCommit->squashedSeqNum[tid] = inst->seqNum;
+//        toCommit->pc[tid] = firstDependent->pcState();
+	toCommit->pc[tid] = inst->pcState();
         toCommit->mispredictInst[tid] = inst; // not a branch misprediction
-//        toCommit->includeSquashInst[tid] = false; // have correct value now
-        toCommit->includeSquashInst[tid] = true;
+        toCommit->includeSquashInst[tid] = false; // have correct value now
+//        toCommit->includeSquashInst[tid] = true;
 
         wroteToTimeBuffer = true;
-        instsSquashedByLVP[tid] += (cpu->globalSeqNum - firstDependent->seqNum);
-    } else if (toCommit->squash[tid] && firstDependent->seqNum > toCommit->squashedSeqNum[tid]) {
+//        instsSquashedByLVP[tid] += (cpu->globalSeqNum - firstDependent->seqNum);
+	instsSquashedByLVP[tid] += (cpu->globalSeqNum - inst->seqNum);
+//    } else if (toCommit->squash[tid] && firstDependent->seqNum > toCommit->squashedSeqNum[tid]) {
+    } else if (toCommit->squash[tid] && inst->seqNum > toCommit->squashedSeqNum[tid]) {
         DPRINTF(LVP, "Already squashing from [sn:%i], so skipping\n", toCommit->squashedSeqNum[tid]);
     }
 
