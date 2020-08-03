@@ -136,7 +136,7 @@ public:
     int speculativeCountArray[32][8];
     int speculativeLRUArray[32][8];
 	BigSatCounter specHotnessArray[32][8];
-	BigSatCounter specConfidenceArray[32][8]; // tracks min confidence present in trace at the cache line level
+	unsigned speculativeTraceSources[32][8][6]; // pred IDs of predictions used in trace
 
 	void tickAllHotnessCounters() {
 		for (int i=0; i<32; i++) {
@@ -335,6 +335,7 @@ protected:
 	    	specHotnessArray[idx][way] = BigSatCounter(4);
 	    	for (int uop = 0; uop < 6; uop++) {
 	    		speculativeAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr();
+				speculativeTraceSources[idx][way][uop] = 0;
   	      	}
           }
         }
@@ -511,9 +512,29 @@ protected:
 
 	unsigned getHotnessOfTrace(Addr addr);
 
+	unsigned minConfidence(unsigned idx, unsigned way);
+
+	unsigned maxLatency(unsigned idx, unsigned way);
+
     void regStats();
 
     void dumpMicroopCache();
+
+	struct TraceMetaData {
+		unsigned hotness;
+		unsigned minConfidence;
+		unsigned maxLatency;
+
+		TraceMetaData(unsigned h, unsigned c, unsigned m) {
+			hotness = h;
+			minConfidence = c;
+			maxLatency = m;
+		}
+	};
+
+	TraceMetaData getTraceMetaData(Addr addr);
+
+	void addSourceToCacheLine(unsigned predID, int idx, uint64_t tag);
 };
 
 } // namespace X86ISA

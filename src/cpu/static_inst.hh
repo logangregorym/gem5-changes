@@ -366,8 +366,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
     const char * instMnem;
 
     // Annotate predicted inputs here
-    unsigned sourcePredictions[16] = {0};
-    bool sourcesPredicted[16] = {0};
+    unsigned sourcePredictions[128] = {0};
+    bool sourcesPredicted[128] = {0};
 };
 
 #endif // __CPU_STATIC_INST_HH__

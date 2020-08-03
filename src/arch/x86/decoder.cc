@@ -1447,6 +1447,66 @@ Decoder::getHotnessOfTrace(Addr addr) {
 	return uop;
 }
 
+Decoder::TraceMetaData
+Decoder::getTraceMetaData(Addr addr) {
+	int idx = (addr >> 5) & 0x1f;
+	uint64_t tag = (addr >> 10);
+	for (int way = 0; way < 8; way++) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+			// will return in this if, so can use way without worrying about the loop
+			while (speculativePrevWayArray[idx][way] != 10) {
+				way = speculativePrevWayArray[idx][way]; // traverse to start of trace
+			}
+			return TraceMetaData(specHotnessArray[idx][way].read(), minConfidence(idx, way), maxLatency(idx, way));
+		}
+	}
+	panic("Requested metadata for a trace which does not exist\n");
+}
+
+unsigned
+Decoder::minConfidence(unsigned idx, unsigned way) {
+	unsigned minConf = 50;
+	for (int source = 0; source < 6; source++) {
+		if (speculativeTraceSources[idx][way][source] != 0) {
+			assert(depTracker->predictionSourceValid[speculativeTraceSources[idx][way][source]]);
+			unsigned sourceConf = depTracker->predictionConfidence[speculativeTraceSources[idx][way][source]];
+			if (sourceConf < minConf) { minConf = sourceConf; }
+		}
+	}
+	assert(minConf != 50);
+	return minConf;
+}
+
+unsigned
+Decoder::maxLatency(unsigned idx, unsigned way) {
+	unsigned maxLat = 0;
+	for (int source = 0; source < 6; source++) {
+		if (speculativeTraceSources[idx][way][source] != 0) {
+			assert(depTracker->predictionSourceValid[speculativeTraceSources[idx][way][source]]);
+			unsigned sourceLat = depTracker->predictionResolutionLatency[speculativeTraceSources[idx][way][source]];
+			if (sourceLat > maxLat) { maxLat = sourceLat; }
+		}
+	}
+	return maxLat;
+}
+
+void
+Decoder::addSourceToCacheLine(unsigned predID, int idx, uint64_t tag) {
+	for (int way = 0; way < 8; way++) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+			bool added = false;
+			for (int source = 0; source < 6 && !added; source++) {
+				if (speculativeTraceSources[idx][way][source] == 0) {
+					added = true;
+					speculativeTraceSources[idx][way][source] = predID;
+				} else if (speculativeTraceSources[idx][way][source] == predID) {
+					added = true;
+				}
+			}
+		}
+	}
+}
+
 StaticInstPtr
 Decoder::decode(PCState &nextPC, unsigned cycleAdded, ThreadID tid)
 {

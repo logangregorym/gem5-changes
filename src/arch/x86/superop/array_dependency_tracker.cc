@@ -671,6 +671,9 @@ void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, uint64_t 
 	describeEntry(idx, specway, specuop);
 	DPRINTF(ConstProp, "Adding prediction to speculative graph\n");
 	updateSpecTrace(idx, specway, specuop);
+
+	// Add source predID for tag for this inst
+	decoder->addSourceToCacheLine(predID, idx, tag);
 }
 
 bool ArrayDependencyTracker::simplifyGraph() {

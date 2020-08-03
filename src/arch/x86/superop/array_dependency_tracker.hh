@@ -292,6 +292,8 @@ class ArrayDependencyTracker : public SimObject
 	unsigned maxRecursiveDepth = 8;
 	FullUopAddr predictionSource[4096];
 	bool predictionSourceValid[4096] = {0};
+	unsigned predictionConfidence[4096] = {0};
+	unsigned predictionResolutionLatency[4096] = {0};
 
 	// Exploration and stats
 	void measureChain(Addr addr, unsigned uopAddr);
