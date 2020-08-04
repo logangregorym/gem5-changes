@@ -780,6 +780,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
           }
           uopValidArray[idx][way] = false;
           uopCountArray[idx][way] = 0;
+	  uopHotnessArray[idx][way] = BigSatCounter(4);
           uopCacheWayInvalidations++;
         }
       }
@@ -833,6 +834,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             }
             uopValidArray[idx][w] = false;
             uopCountArray[idx][w] = 0;
+	    uopHotnessArray[idx][w] = BigSatCounter(4);
             uopCacheWayInvalidations++;
           }
         }
@@ -936,9 +938,13 @@ Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, in
 
             DPRINTF(ConstProp, "Decoder is invalidating way %i, so removing spec[%i][%i][%i]\n", way, idx, way, uop);
             depTracker->removeAtIndex(idx, way, uop);
+	    speculativeTraceSources[idx][way][uop] = 0;
           }
           speculativeValidArray[idx][way] = false;
           speculativeCountArray[idx][way] = 0;
+	  specHotnessArray[idx][way] = BigSatCounter(4);
+	  speculativePrevWayArray[idx][way] = 10;
+	  speculativeNextWayArray[idx][way] = 10;
         }
       }
       return false;
@@ -984,9 +990,13 @@ Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, in
             for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) {
               //DPRINTF(Decoder, "%#x\n", speculativeAddrArray[idx][w][uop]);
               depTracker->removeAtIndex(idx, w, uop);
+	      speculativeTraceSources[idx][w][uop] = 0;
             }
             speculativeValidArray[idx][w] = false;
             speculativeCountArray[idx][w] = 0;
+	    specHotnessArray[idx][w] = BigSatCounter(4);
+	    speculativePrevWayArray[idx][w] = 10;
+	    speculativeNextWayArray[idx][w] = 10;
           }
         }
         speculativeCountArray[idx][way] = numUops;

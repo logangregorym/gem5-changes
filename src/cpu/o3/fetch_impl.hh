@@ -1390,7 +1390,7 @@ DefaultFetch<Impl>::isProfitable(Addr addr, unsigned uop) {
     // Delay
     unsigned delay = loadPred->getDelay(addr);
 	if (delay > maxDelay.value()) { maxDelay = delay; }
-    return (hotness > 7 || length > 15 || confidence > 15 || delay > 50);
+    return (hotness > 7 && (length > 15 || confidence > 15 || delay > 50));
 }
 
 template<class Impl>
