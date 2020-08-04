@@ -88,6 +88,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     /// Flag values for this instruction.
     std::bitset<Num_Flags> flags = {0};
 
+
     /// See opClass().
     OpClass _opClass;
 
@@ -219,6 +220,9 @@ class StaticInst : public RefCounted, public StaticInstFlags
     /// The binary machine instruction.
     const ExtMachInst machInst;
 
+
+    unsigned fetched_from = 0;
+    
   protected:
 
     /// See destRegIdx().

@@ -1397,6 +1397,8 @@ template<class Impl>
 void
 DefaultFetch<Impl>::fetch(bool &status_change)
 {
+
+    #define ENABLE_DEBUG 0
     //////////////////////////////////////////
     // Start actual fetch
     //////////////////////////////////////////
@@ -1575,24 +1577,34 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         // Extract as many instructions and/or microops as we can from
         // the memory we've processed so far.
         do {
-	   bool isDead = false, newMacro = false, fused = false; //, foundTraceInst = false;
-	   if (decoder[tid]->isSourceOfPrediction(thisPC.instAddr(), thisPC.microPC())) {
-		// Empty for now
-	   } else if (isSuperOptimizationPresent && isProfitable(thisPC.instAddr(), thisPC.microPC())) {
-    	       if (decoder[tid]->isDeadCode(thisPC.instAddr(), thisPC.microPC())) { isDead = true; ++deadCodeInsts; }
-	       if (decoder[tid]->superoptimizedTraceAvailable(thisPC.instAddr(), thisPC.microPC()) && !isDead) {
-		    if (usingTrace) {
-		    	staticInst = decoder[tid]->getSuperoptimizedInst(thisPC.instAddr(), thisPC.microPC());
-		    	curMacroop = staticInst->macroOp; // emi corresponds to the macroop
-		    	newMacro = staticInst->isLastMicroop();
-		    }
-		    // TODO: build dynamic inst and issue, increment PC and continue
-		    ++instsPartOfOptimizedTrace;
-		    // foundTraceInst = true;
-	        } else {
-		    ++instsNotPartOfOptimizedTrace;
-	        }
-	    }
+            bool isDead = false, newMacro = false, fused = false, foundTraceInst = false;
+            if (decoder[tid]->isSourceOfPrediction(thisPC.instAddr(), thisPC.microPC())) {
+                // Empty for now
+            } else if (isSuperOptimizationPresent && isProfitable(thisPC.instAddr(), thisPC.microPC())) {
+                    if (decoder[tid]->isDeadCode(thisPC.instAddr(), thisPC.microPC())) { 
+                        isDead = true; ++deadCodeInsts; 
+                        if (ENABLE_DEBUG)
+                           std::cout << "Dead Microop: " <<  " PCState: " <<  thisPC << 
+                                    " " << staticInst->disassemble(thisPC.pc()) << std::endl << std::flush;
+                    }
+                if (decoder[tid]->superoptimizedTraceAvailable(thisPC.instAddr(), thisPC.microPC()) && !isDead) {
+                        if (usingTrace) {
+                            staticInst = decoder[tid]->getSuperoptimizedInst(thisPC.instAddr(), thisPC.microPC());
+                            curMacroop = staticInst->macroOp; // emi corresponds to the macroop
+                            newMacro = staticInst->isLastMicroop();
+                            staticInst->fetched_from = 2;
+                            if (ENABLE_DEBUG)
+                                std::cout << "SuperOptimizedCache: " <<  " PCState: " <<  thisPC << 
+                                    " " << staticInst->disassemble(thisPC.pc()) << std::endl << std::flush;
+                            foundTraceInst = true;
+                        }
+                        // TODO: build dynamic inst and issue, increment PC and continue
+                        ++instsPartOfOptimizedTrace;
+                        
+                } else {
+                    ++instsNotPartOfOptimizedTrace;
+                    }
+            }
 	    // if (!usingTrace || !isDead) {
             	if (!(curMacroop || inRom)) {
                	    if (decoder[tid]->instReady() || inUopCache) {
@@ -1612,22 +1624,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	if (staticInst->isMacroop()) {
                     	    curMacroop = staticInst;
                     	} else {
-			    curMacroop = staticInst->macroOp;
+			            curMacroop = staticInst->macroOp;
                     	    pcOffset = 0;
                     	}
-/**
-   	                 if (!inUopCache) {
-        	             if (staticInst->isCustomCInstruction())
-        	            	statFetchCustomC[tid]++;
-        	              else if (staticInst->isCustomBInstruction())
-        	                statFetchCustomB[tid]++;
-        	              else if (staticInst->isCustomAInstruction())
-        	                statFetchCustomA[tid]++;
 
-                      	    if (staticInst->getPredicateRegister())
-                          	statFetchPredicated[tid]++;
-                    	}
-*/
                     } else {
                     	// We need more bytes for this instruction so blkOffset and
                     	// pcOffset will be updated
@@ -1637,12 +1637,16 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             	// Whether we're moving to a new macroop because we're at the
             	// end of the current one, or the branch predictor incorrectly
             	// thinks we are...
-            	if (curMacroop || inRom) {
+            	if (!foundTraceInst && (curMacroop || inRom)) {
                     if (inRom) {
                     	staticInst = cpu->microcodeRom.fetchMicroop(
                             thisPC.microPC(), curMacroop);
                     } else {
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
+                        staticInst->fetched_from = 1;
+                        if (ENABLE_DEBUG)
+                            std::cout << "Decoder || UopCache: " <<  " PCState: " <<  thisPC << 
+                            " " << staticInst->disassemble(thisPC.pc()) << std::endl << std::flush;
                     	/* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
@@ -1676,7 +1680,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             instruction->fused = fused;
 
 	    if (!isDead || !usingTrace) {
-            	DPRINTF(Fetch, "instruction created: [sn:%lli]:%s", instruction->seqNum, instruction->pcState());
+            	DPRINTF(Fetch, "instruction created: [sn:%lli]:%s\n", instruction->seqNum, instruction->pcState());
 
             	ppFetch->notify(instruction);
             	if (!instruction->fused) numInst++;

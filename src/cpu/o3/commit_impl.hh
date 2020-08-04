@@ -1308,6 +1308,12 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             }
         }
     }
+
+    
+    // std::cout << "Instruction Commited: (" << head_inst->staticInst->fetched_from << ")" <<  head_inst->seqNum << " PCState: " <<  head_inst->pcState() << 
+    //         " " << head_inst->staticInst->disassemble(head_inst->pcState().pc()) << std::endl;
+    // if (head_inst->staticInst->fetched_from == 0 && head_inst->isNop()) assert(0);
+
     DPRINTF(Commit, "Committing instruction with [sn:%lli] PC %s\n",
             head_inst->seqNum, head_inst->pcState());
     if (head_inst->traceData) {
