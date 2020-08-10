@@ -1747,7 +1747,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             // here I assume that this branch is at the end of a trace, therefore the next time we call getSuperoptimizedMicroop
                             // we should always get StaticInst::nullStaticInstPtr.
                             
-                            if (!nextPC.isValid())
+                            if (!nextPC.valid)
                             {
                                 DPRINTF(Fetch, "Branch detected at the end of trace with PC = %s\n", thisPC);
 
