@@ -136,6 +136,7 @@ public:
     int speculativeCountArray[32][8];
     int speculativeLRUArray[32][8];
 	BigSatCounter specHotnessArray[32][8];
+	unsigned speculativeTraceSources[32][8][6]; // pred IDs of predictions used in trace
 
 	void tickAllHotnessCounters() {
 		for (int i=0; i<32; i++) {
@@ -148,8 +149,8 @@ public:
 
     BaseCPU *cpu;
     void setCPU(BaseCPU * newCPU, ThreadID tid=0);
-    vector<ArrayDependencyTracker::DependGraphEntry> victimCache;
-    vector<ExtMachInst> victimEMIs;
+   // vector<ArrayDependencyTracker::DependGraphEntry> victimCache;
+   // vector<ExtMachInst> victimEMIs;
 
 protected:
     Stats::Scalar uopCacheWayInvalidations;
@@ -335,6 +336,7 @@ protected:
 	    	specHotnessArray[idx][way] = BigSatCounter(4);
 	    	for (int uop = 0; uop < 6; uop++) {
 	    		speculativeAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr();
+				speculativeTraceSources[idx][way][uop] = 0;
   	      	}
           }
         }
@@ -493,11 +495,11 @@ protected:
 
 	ArrayDependencyTracker::FullCacheIdx addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop);
 
-	bool updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop);
+	ArrayDependencyTracker::FullCacheIdx updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop);
 
 	bool addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop);
 
-	bool superoptimizedTraceAvailable(Addr addr, unsigned uop);
+
     StaticInstPtr getSuperoptimizedMicroop (const X86ISA::PCState thisPC, X86ISA::PCState& nextPC, bool &predict_taken);
     // tells fetch stage that if a speculative trace is availble for this PC
     bool isTraceAvailable(const X86ISA::PCState thisPC);
@@ -508,7 +510,7 @@ protected:
 
     bool doSquash(const StaticInstPtr si, X86ISA::PCState pc);
 
-	bool isDeadCode(Addr addr, unsigned uop, StaticInstPtr& nodeStaticInst);
+	bool isDeadCode(Addr addr, unsigned uop);
 
 	bool isSourceOfPrediction(Addr addr, unsigned uop);
 
@@ -520,9 +522,36 @@ protected:
 
 	unsigned getSpecTraceLength(Addr addr);
 
+	unsigned getHotnessOfTrace(Addr addr);
+
+	unsigned minConfidence(unsigned idx, unsigned way);
+
+	unsigned maxLatency(unsigned idx, unsigned way);
+
+	// Interface for fetch!
+	bool isTraceAvailable(const X86ISA::PCState thisPC);
+
+    StaticInstPtr getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
+
     void regStats();
 
     void dumpMicroopCache();
+
+	struct TraceMetaData {
+		unsigned hotness;
+		unsigned minConfidence;
+		unsigned maxLatency;
+
+		TraceMetaData(unsigned h, unsigned c, unsigned m) {
+			hotness = h;
+			minConfidence = c;
+			maxLatency = m;
+		}
+	};
+
+	TraceMetaData getTraceMetaData(Addr addr);
+
+	void addSourceToCacheLine(unsigned predID, int idx, uint64_t tag);
 };
 
 } // namespace X86ISA

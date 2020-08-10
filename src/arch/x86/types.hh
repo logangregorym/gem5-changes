@@ -296,6 +296,8 @@ namespace X86ISA
         uint8_t _size;
 
       public:
+	bool valid = true;
+
         void
         set(Addr val)
         {

@@ -398,6 +398,19 @@ DefaultFetch<Impl>::regStats()
 		.name(name() + ".instsNotPartOfOptimizedTrace")
 		.desc("Number of fetched insts which did not have speculative cache translations")
 		;
+
+	maxHotness
+		.name(name() + ".maxHotness")
+		.desc("Top end of range of hotness values");
+	maxLength
+		.name(name() + ".maxLength")
+		.desc("Top end of range of trace lengths");
+	maxConfidence
+		.name(name() + ".maxConfidence")
+		.desc("Top end of range of confidences");
+	maxDelay
+		.name(name() + ".maxDelay")
+		.desc("Top end of range of load resolution delay");
 }
 
 template<class Impl>
@@ -1315,6 +1328,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                               StaticInstPtr curMacroop, TheISA::PCState thisPC,
                               TheISA::PCState nextPC, bool trace)
 {
+    assert(staticInst);
     // Get a sequence number.
     InstSeqNum seq;
     seq = cpu->getAndIncrementInstSeq();
@@ -1435,16 +1449,26 @@ template<class Impl>
 bool
 DefaultFetch<Impl>::isProfitable(Addr addr, unsigned uop) {
     // Hotness
+	unsigned hotness = decoder[0]->getHotnessOfTrace(addr); // tid=0 here
+	if (hotness > maxHotness.value()) { maxHotness = hotness; }
     // Trace Length
-    // LVP prediction
-    // Branch prediction (if relevant)
-    return true;
+    unsigned length = decoder[0]->getSpecTraceLength(addr); // tid=0 here
+	if (length > maxLength.value()) { maxLength = length; }
+    // Confidence
+	unsigned confidence = loadPred->getConfidence(addr);
+	if (confidence > maxConfidence.value()) { maxConfidence = confidence; }
+    // Delay
+    unsigned delay = loadPred->getDelay(addr);
+	if (delay > maxDelay.value()) { maxDelay = delay; }
+    return (hotness > 7 && (length > 15 || confidence > 15 || delay > 50));
 }
 
 template<class Impl>
 void
 DefaultFetch<Impl>::fetch(bool &status_change)
 {
+
+    #define ENABLE_DEBUG 0
     //////////////////////////////////////////
     // Start actual fetch
     //////////////////////////////////////////
@@ -1807,8 +1831,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 {
                     ++instsNotPartOfOptimizedTrace;
                 }   
-                //*****CHANGE END**********
-	        
+
             	if (!(curMacroop || inRom)) {
                	    if (decoder[tid]->instReady() || inUopCache) {
                     	staticInst = decoder[tid]->decode(thisPC, cpu->numCycles.value(), tid);
@@ -1827,7 +1850,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	if (staticInst->isMacroop()) {
                     	    curMacroop = staticInst;
                     	} else {
-			                curMacroop = staticInst->macroOp;
+			                    curMacroop = staticInst->macroOp;
                     	    pcOffset = 0;
                     	}
 
@@ -1840,12 +1863,16 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             	// Whether we're moving to a new macroop because we're at the
             	// end of the current one, or the branch predictor incorrectly
             	// thinks we are...
-            	if ( (curMacroop || inRom)) {
+              if ( (curMacroop || inRom)) {
                     if (inRom) {
                     	staticInst = cpu->microcodeRom.fetchMicroop(
                             thisPC.microPC(), curMacroop);
                     } else {
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
+                        staticInst->fetched_from = 1;
+                        if (ENABLE_DEBUG)
+                            std::cout << "Decoder || UopCache: " <<  " PCState: " <<  thisPC << 
+                            " " << staticInst->disassemble(thisPC.pc()) << std::endl << std::flush;
                     	/* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
@@ -1871,14 +1898,12 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     DPRINTF(Fetch, "\n");
                     newMacro |= staticInst->isLastMicroop();
             	}
-	    
 
                 DynInstPtr instruction =
                         buildInst(tid, staticInst, curMacroop,
                                 thisPC, nextPC, true);
                 instruction->fused = fused;
-
-	    
+          
             	DPRINTF(Fetch, "instruction created: [sn:%lli]:%s\n", instruction->seqNum, instruction->pcState());
 
             	ppFetch->notify(instruction);

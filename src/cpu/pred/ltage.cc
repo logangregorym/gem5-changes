@@ -443,7 +443,12 @@ LTAGE::getGHR(ThreadID tid, void *bp_history) const
     unsigned val = 0;
     for (unsigned i = 0; i < 32; i++) {
         // Make sure we don't go out of bounds
-        int gh_offset = bi->ptGhist + i;
+	int gh_offset;
+	if (bi) {
+            gh_offset = bi->ptGhist + i;
+	} else {
+	    gh_offset = i;
+	}
         assert(&(threadHistory[tid].globalHistory[gh_offset]) <
                threadHistory[tid].globalHistory + histBufferSize);
         val |= ((threadHistory[tid].globalHistory[gh_offset] & 0x1) << i);

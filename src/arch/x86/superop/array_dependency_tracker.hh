@@ -34,7 +34,7 @@ class ArrayDependencyTracker : public SimObject
 
 	bool usingControlTracking = false;
 
-	unsigned connectionCount = 4096;
+	unsigned connectionCount = 8192;
 
 	void addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded, ThreadID tid);
 
@@ -115,6 +115,9 @@ class ArrayDependencyTracker : public SimObject
 
 	FullCacheIdx getNextCacheIdx(FullCacheIdx);
 	FullCacheIdx getPrevCacheIdx(FullCacheIdx);
+
+	void incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC, bool &predict_taken);
+	bool isTakenBranch(FullUopAddr addr);
 
 	unsigned registerRenameMapSpec[256] = {0};
 	FullUopAddr registerProducerMapSpec[256];
@@ -219,11 +222,13 @@ class ArrayDependencyTracker : public SimObject
 	struct ControlFlowPath {
 		FullUopAddr branchAddr = FullUopAddr(0,0);
 		FullUopAddr nextPc = FullUopAddr(0,0);
+		bool taken;
 		bool targetValid = false;
 		FullUopAddr propagatingTo = FullUopAddr(0,0);
 		unsigned registerRenameMap[256];
 		FullUopAddr registerProducerMap[256];
 		bool registerValidMap[256];
+		bool confident = false;
 
 		ControlFlowPath() {
 			branchAddr = FullUopAddr(0,0);
@@ -293,6 +298,8 @@ class ArrayDependencyTracker : public SimObject
 	unsigned maxRecursiveDepth = 8;
 	FullUopAddr predictionSource[4096];
 	bool predictionSourceValid[4096] = {0};
+	unsigned predictionConfidence[4096] = {0};
+	unsigned predictionResolutionLatency[4096] = {0};
 
 	// Exploration and stats
 	void measureChain(Addr addr, unsigned uopAddr);

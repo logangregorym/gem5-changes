@@ -81,10 +81,13 @@ class StaticInst : public RefCounted, public StaticInstFlags
 
     void* branch_hist;  // to be used by array dependency tracker for iPred
 
+    virtual void deleteMicroOps() { panic("undoInjectMicroops: This should only be called by a macroop"); }
+
   protected:
 
     /// Flag values for this instruction.
     std::bitset<Num_Flags> flags = {0};
+
 
     /// See opClass().
     OpClass _opClass;
@@ -217,6 +220,9 @@ class StaticInst : public RefCounted, public StaticInstFlags
     /// The binary machine instruction.
     const ExtMachInst machInst;
 
+
+    unsigned fetched_from = 0;
+    
   protected:
 
     /// See destRegIdx().
@@ -364,8 +370,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
     const char * instMnem;
 
     // Annotate predicted inputs here
-    unsigned sourcePredictions[16] = {0};
-    bool sourcesPredicted[16] = {0};
+    unsigned sourcePredictions[128] = {0};
+    bool sourcesPredicted[128] = {0};
 };
 
 #endif // __CPU_STATIC_INST_HH__

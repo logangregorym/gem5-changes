@@ -1611,6 +1611,11 @@ FullO3CPU<Impl>::removeFrontInst(DynInstPtr &inst)
             "[sn:%lli]\n",
             inst->threadNumber, inst->pcState(), inst->seqNum);
 
+    if (inst->staticInst->isLastMicroop() && !inst->isSquashed() &&
+        !fetch.decoder[inst->threadNumber]->isHitInSpeculativeCache(inst->pcState().instAddr(), inst->pcState().microPC())) {
+        inst->macroop->deleteMicroOps();
+    }
+
     removeInstsThisCycle = true;
 
     // Remove the front instruction.
@@ -1704,6 +1709,20 @@ FullO3CPU<Impl>::squashInstIt(const ListIt &instIt, ThreadID tid)
 
         // Mark it as squashed.
         (*instIt)->setSquashed();
+        if ((*instIt)->staticInst->isLastMicroop() &&
+            !fetch.decoder[(*instIt)->threadNumber]->isHitInSpeculativeCache((*instIt)->pcState().instAddr(), (*instIt)->pcState().microPC())) {
+            bool containsMicroBranch = false;
+            for (int i = 0; i < (*instIt)->macroop->getNumMicroops(); i++) {
+                DPRINTF(O3CPU, "Micro-op %i: %s\n", i, (*instIt)->macroop->fetchMicroop(i)->disassemble((*instIt)->pcState().instAddr()));
+                if ((*instIt)->macroop->fetchMicroop(i)->isMicroBranch()) {
+                    DPRINTF(O3CPU, "-- contains a micro-branch\n");
+                    containsMicroBranch = true;
+                }
+            }
+            if (!containsMicroBranch) {
+                (*instIt)->macroop->deleteMicroOps();
+            }
+        }
 
         // @todo: Formulate a consistent method for deleting
         // instructions from the instruction list
