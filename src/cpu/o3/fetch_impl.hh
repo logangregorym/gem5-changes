@@ -1733,7 +1733,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         curMacroop = NULL;
 
                         // to make sure that we always have the macroop for every microop
-                        assert(staticInst->macroOp != StaticInst::nullStaticInstPtr);
+                        //assert(staticInst->macroOp != StaticInst::nullStaticInstPtr);
 
                         DynInstPtr instruction = buildInst(tid, staticInst, staticInst->macroOp,
                                                             thisPC, nextPC, true);
@@ -1748,7 +1748,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
 
                         if (!instruction->isControl()) {
-                            assert(thisPC.instAddr() == nextPC.instAddr());
+                            //assert(thisPC.instAddr() == nextPC.instAddr());
                             instruction->setPredTarg(nextPC);
                             instruction->setPredTaken(false);
         
