@@ -1740,6 +1740,20 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         
                         }
                         else {
+
+                            //branch without a high confidence prediction at the end of a macroop at the end of a trace, 
+                            //in which case we aren't able to update nextPC and predicted_branch accurately from the speculative cache
+                            // here we use the default lookupAndUpdate mechanism to update the nextPC
+                            // here I assume that this branch is at the end of a trace, therefore the next time we call getSuperoptimizedMicroop
+                            // we should always get StaticInst::nullStaticInstPtr.
+                            
+                            if (!nextPC.isValid())
+                            {
+                                DPRINTF(Fetch, "Branch detected at the end of trace with PC = %s\n", thisPC);
+
+                                predict_taken = branchPred->predict(instruction->staticInst, instruction->seqNum,
+                                        nextPC, tid);
+                            }
                             
                             if (thisPC.branching()) {
                                 DPRINTF(Fetch, "Folded branch detected with PC = %s\n", thisPC);
