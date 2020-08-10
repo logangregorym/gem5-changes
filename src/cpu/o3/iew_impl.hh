@@ -573,6 +573,12 @@ DefaultIEW<Impl>::squashDueToBranch(DynInstPtr &inst, ThreadID tid)
         toCommit->mispredictInst[tid] = inst;
         toCommit->includeSquashInst[tid] = false;
 
+        // here we decide whether this was due to a folded baranch or not
+        if (inst->isStreamedFromSpeculativeCache())
+            toCommit->squashDueToLVP[tid] = true;
+        else 
+            toCommit->squashDueToLVP[tid] = false;
+
         wroteToTimeBuffer = true;
     }
 
@@ -589,14 +595,15 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
     // Using < instead of <= would give branch precedence
     if ((!toCommit->squash[tid] ||
             firstDependent->seqNum <= toCommit->squashedSeqNum[tid])
-            && firstDependent) {
+            ) {
         toCommit->squash[tid] = true;
-        toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
-//        toCommit->squashedSeqNum[tid] = inst->seqNum;
+        //toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
+        toCommit->squashedSeqNum[tid] = inst->seqNum;
         toCommit->pc[tid] = firstDependent->pcState();
         toCommit->mispredictInst[tid] = inst; // not a branch misprediction
-//        toCommit->includeSquashInst[tid] = false; // have correct value now
         toCommit->includeSquashInst[tid] = true;
+
+        toCommit->squashDueToLVP[tid] = true;
 
         wroteToTimeBuffer = true;
         instsSquashedByLVP[tid] += (cpu->globalSeqNum - firstDependent->seqNum);
@@ -635,7 +642,12 @@ DefaultIEW<Impl>::squashDueToMemOrder(DynInstPtr &inst, ThreadID tid)
         toCommit->squashedSeqNum[tid] = inst->seqNum;
         toCommit->pc[tid] = inst->pcState();
         toCommit->mispredictInst[tid] = NULL;
-
+        
+        // what should we do?
+        if (inst->isStreamedFromSpeculativeCache()) assert(0);
+        
+        toCommit->squashDueToLVP[tid] = false;
+        
         // Must include the memory violator in the squash.
         toCommit->includeSquashInst[tid] = true;
 

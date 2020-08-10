@@ -1189,11 +1189,20 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
 
         decoder[tid]->setUopCacheActive(false);
 
-        //squash super optimized cache
+        //selective squashing for LVP, branch, and MemOrder missprediction
         if (fromCommit->commitInfo[tid].squashDueToLVP)
         {
             DynInstPtr dynSpecInst =  fromCommit->commitInfo[tid].mispredictInst;
-            decoder[tid]->doSquash(dynSpecInst->staticInst, dynSpecInst->pcState());
+
+            if (!dynSpecInst) 
+                std::cout << "squashing due to mem order violation in super optmized stream!\n";
+
+            if (dynSpecInst->isControl())
+            {
+                std::cout << "squashing due to folded branch!\n";
+            }
+
+            decoder[tid]->setSpeculativeCacheActive(false);
         }
 
 
@@ -1669,6 +1678,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         DynInstPtr instruction = buildInst(tid, staticInst, curMacroop,
                                                             thisPC, nextPC, true);
 
+                        instruction->setStreamedFromSpeculativeCache(true);
 
                         DPRINTF(Fetch, "speculative instruction created: [sn:%lli]:%s", 
                                     instruction->seqNum, instruction->pcState());
