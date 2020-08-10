@@ -497,6 +497,7 @@ protected:
 
 	bool superoptimizedTraceAvailable(Addr addr, unsigned uop);
     StaticInstPtr getSuperoptimizedMicroop (const X86ISA::PCState thisPC, X86ISA::PCState& nextPC, bool &predict_taken);
+    // tells fetch stage that if a speculative trace is availble for this PC
     bool isTraceAvailable(const X86ISA::PCState thisPC);
     bool isSpeculativeCacheActive()
     {

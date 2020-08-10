@@ -1189,21 +1189,44 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
 
         decoder[tid]->setUopCacheActive(false);
 
-        //selective squashing for LVP, branch, and MemOrder missprediction
+        //CHANGE START;
+        // LVP Missprediction
         if (fromCommit->commitInfo[tid].squashDueToLVP)
         {
             DynInstPtr dynSpecInst =  fromCommit->commitInfo[tid].mispredictInst;
 
-            if (!dynSpecInst) 
-                std::cout << "squashing due to mem order violation in super optmized stream!\n";
-
-            if (dynSpecInst->isControl())
-            {
-                std::cout << "squashing due to folded branch!\n";
-            }
-
+            assert(dynSpecInst);
+            
+            // LVP missprediction, therefore, deactivate speculative cache and fetch from uop/decoder
             decoder[tid]->setSpeculativeCacheActive(false);
         }
+
+        // branch missprediction
+        if (fromCommit->commitInfo[tid].mispredictInst)
+        {
+            // folded branch
+            if (inst->isStreamedFromSpeculativeCache())
+            {
+                // again deactivate speculative cache
+                decoder[tid]->setSpeculativeCacheActive(false);
+            }
+
+        }
+
+        // Memorder violation
+        if (!fromCommit->commitInfo[tid].mispredictInst)
+        {
+            // memorder violation in a speculative trace
+            if (inst->isStreamedFromSpeculativeCache())
+            {
+                // activate speculative cache so we can fetch from it again
+                decoder[tid]->setSpeculativeCacheActive(true);
+                
+            }
+
+        }
+
+        //CHANGE END;
 
 
         // If it was a branch mispredict on a control instruction, update the
