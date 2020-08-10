@@ -80,7 +80,7 @@ class MacroopBase : public X86StaticInst
         if (microPC >= numMicroops)
             return badMicroop;
         else
-	    microops[microPC]->macroOp;
+	    //microops[microPC]->macroOp;
             return microops[microPC];
     }
 
@@ -114,11 +114,11 @@ class MacroopBase : public X86StaticInst
     }
 
     void deleteMicroOps() {
-	if (numMicroops > 0) {
-	    delete[] microops;
-	    microops = NULL;
-	    numMicroops = 0;
-	}
+        if (numMicroops > 0) {
+            delete[] microops;
+            microops = NULL;
+            numMicroops = 0;
+        }
     }
 };
 }

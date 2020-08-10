@@ -167,6 +167,7 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 		branches[takenIndex].nextPc = FullUopAddr(0,0); // TODO: replace if available
 		branches[takenIndex].targetValid = false;
 		branches[takenIndex].propagatingTo = FullUopAddr(0,0);
+		branches[takenIndex].taken = true;
 
 		// override the above vals if possible. TODO: Check all of these for imm vs disp and other little stuff
 
@@ -203,6 +204,7 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 		branches[notTakenIndex].nextPc = FullUopAddr(nextPc, 0);
 		branches[notTakenIndex].targetValid = true;
 		branches[notTakenIndex].propagatingTo = FullUopAddr(nextPc, 0);
+		branches[notTakenIndex].taken = false;
 
 		speculativeDependencyGraph[idx][specway][specuop]->consumers[0] = takenIndex;
 		speculativeDependencyGraph[idx][specway][specuop]->consumers[1] = notTakenIndex;
@@ -469,8 +471,9 @@ void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 		}
 		**/
 		DPRINTF(ConstProp, "Removing entry at spec[%i][%i][%i]\n", i1, i2, i3);
-		StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
-		if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); }
+		StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
+		StaticInstPtr decodedMicroOp = decodedMacroOp;
+		if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); }
 		for (int i=0; i<256; i++) {
 			if (mostRecentConsumer[i] == speculativeDependencyGraph[i1][i2][i3]->thisInst) {
 				consumedInWindow[i] = false;
@@ -489,7 +492,7 @@ void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 				invalidateConnection(prodIdx);
 				DPRINTF(ConstProp, "Invalidating connection at index %i in spec\n", prodIdx);
 			}
-			if (decodedEMI->isControl() && usingControlTracking) {
+			if (decodedMicroOp->isControl() && usingControlTracking) {
 				unsigned conIdx = speculativeDependencyGraph[i1][i2][i3]->consumers[i];
 				if (conIdx != 0) {
 					invalidateBranch(conIdx);
@@ -507,6 +510,7 @@ void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 				registerValidMapSpec[i] = false;
 			}
 		}
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		delete speculativeDependencyGraph[i1][i2][i3];
 		speculativeDependencyGraph[i1][i2][i3] = new DependGraphEntry();
 		DPRINTF(ConstProp, "Just created spec[%i][%i][%i]\n", i1, i2, i3);
@@ -683,9 +687,10 @@ bool ArrayDependencyTracker::simplifyGraph() {
 	int i2 = simplifyWay;
 	int i3 = simplifyUop;
 	if (decoder->uopValidArray[i1][i2] && speculativeDependencyGraph[i1][i2][i3]) { // changed to uop
-		StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
-		if (decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); }
-		string type = decodedEMI->getName();
+		StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
+		StaticInstPtr decodedMicroOp = decodedMacroOp;
+		if (decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); }
+		string type = decodedMicroOp->getName();
 		// std::cout << type << std::endl;
 		if (type == "mov") {
 			DPRINTF(ConstProp, "Found a MOV at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
@@ -695,12 +700,12 @@ bool ArrayDependencyTracker::simplifyGraph() {
 			describeEntry(i1, i2, i3);
 		} else if (type == "wrip" || type == "wripi") {
 			DPRINTF(ConstProp, "Found a WRIP/WRIPI branch at spec[%i][%i][%i], trying to propagate across...\n", i1, i2, i3);
-			// if (type == "wripi") { printf("WRIPI with immediate %i\n", decodedEMI->getImmediate()); }
+			// if (type == "wripi") { printf("WRIPI with immediate %i\n", decodedMicroOp->getImmediate()); }
 			describeEntry(i1, i2, i3);
 			changedGraph = propagateWrip(i1, i2, i3) || changedGraph;
 			DPRINTF(ConstProp, "After:\n");
 			describeEntry(i1, i2, i3);
-		} else if (decodedEMI->isControl()) {
+		} else if (decodedMicroOp->isControl()) {
 			DPRINTF(ConstProp, "Control instruction of type %s\n", type);
 		} else if (type == "movi") {
 			DPRINTF(ConstProp, "Found a MOVI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
@@ -768,7 +773,7 @@ bool ArrayDependencyTracker::simplifyGraph() {
 		} else if (type == "sexti") {
 			// Implementation has multiple ALU operations, but this is not required by the nature of the operation
 			DPRINTF(ConstProp, "Found a SEXTI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			// printf("ADDI with immediate %i\n", decodedEMI->getImmediate());
+			// printf("ADDI with immediate %i\n", decodedMicroOp->getImmediate());
 			describeEntry(i1, i2, i3);
 			changedGraph = propagateSExtI(i1, i2, i3) || changedGraph;
 			DPRINTF(ConstProp, "After:\n");
@@ -776,7 +781,7 @@ bool ArrayDependencyTracker::simplifyGraph() {
 		} else if (type == "zexti") {
 			// Implementation has multiple ALU operations, but this is not required by the nature of the operation
 			DPRINTF(ConstProp, "Found a ZEXTI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			// printf("ADDI with immediate %i\n", decodedEMI->getImmediate());
+			// printf("ADDI with immediate %i\n", decodedMicroOp->getImmediate());
 			describeEntry(i1, i2, i3);
 			changedGraph = propagateZExtI(i1, i2, i3) || changedGraph;
 			DPRINTF(ConstProp, "After:\n");
@@ -786,7 +791,7 @@ bool ArrayDependencyTracker::simplifyGraph() {
 			// TODO: two dest regs with different values? maybe too complex arithmetic?
 		} else if (type == "limm") {
 			DPRINTF(ConstProp, "Type is LIMM\n");
-			// printf("LIMM with immediate %i\n", decodedEMI->getImmediate());
+			// printf("LIMM with immediate %i\n", decodedMicroOp->getImmediate());
 			DPRINTF(ConstProp, "Found a LIMM at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
 			describeEntry(i1, i2, i3);
 			changedGraph = changedGraph || propagateLimm(i1, i2, i3);
@@ -819,7 +824,7 @@ bool ArrayDependencyTracker::simplifyGraph() {
 //			printf("Changed graph but not updating trace\n");
 		} else {
 			// printf("Simplify graph didn't change anything\n");
-			decoder->addToSpeculativeCacheIffTagExists(decodedEMI, speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr);
+			decoder->addToSpeculativeCacheIffTagExists(decodedMicroOp, speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr);
 		}
 	}
 
@@ -925,11 +930,12 @@ void ArrayDependencyTracker::measureChain(FullUopAddr addr, unsigned recursionLe
 	}
 	if (!foundMatch) { return; }
 
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(addr.uopAddr); }
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(addr.uopAddr); }
 
-	if (decodedEMI) {
-		if ((decodedEMI->isControl() || decodedEMI->isCall() || decodedEMI->isReturn() || decodedEMI->isDirectCtrl() || decodedEMI->isIndirectCtrl() || decodedEMI->isCondCtrl() || decodedEMI->isUncondCtrl() || decodedEMI->isCondDelaySlot())) {
+	if (decodedMicroOp) {
+		if ((decodedMicroOp->isControl() || decodedMicroOp->isCall() || decodedMicroOp->isReturn() || decodedMicroOp->isDirectCtrl() || decodedMicroOp->isIndirectCtrl() || decodedMicroOp->isCondCtrl() || decodedMicroOp->isUncondCtrl() || decodedMicroOp->isCondDelaySlot())) {
 			branchesOnChains++;
 			if (branchPred->getConfidenceForSSO(addr.pcAddr)) {
 				confidentBranchesOnChains++;
@@ -946,7 +952,7 @@ void ArrayDependencyTracker::measureChain(FullUopAddr addr, unsigned recursionLe
 			}
 		}
 	}
-	if (decodedEMI && allReady == decodedEMI->numSrcRegs() && allReady != 0) {
+	if (decodedMicroOp && allReady == decodedMicroOp->numSrcRegs() && allReady != 0) {
 		reducableInstCount++;
 		if (!speculativeDependencyGraph[idx][way][uop]->seen) {
 			totalReducable++;
@@ -973,6 +979,7 @@ void ArrayDependencyTracker::measureChain(FullUopAddr addr, unsigned recursionLe
 			**/
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 }
 
 bool ArrayDependencyTracker::isReducable(Addr addr, unsigned uopAddr) {
@@ -1015,13 +1022,16 @@ bool ArrayDependencyTracker::propagateLastUse(int idx, int way, int uop) {
             }
         }
     }
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+        StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+        StaticInstPtr decodedMicroOp = decodedMacroOp;
+        if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
 
-    if (allReady == 0 || (decodedEMI && allReady < decodedEMI->numSrcRegs())) { // changed to uop
+        if (allReady == 0 || (decodedMicroOp && allReady < decodedMicroOp->numSrcRegs())) { // changed to uop
+                if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
                 return false;
         }
 
+        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
         // Collect registers dead on exit
         vector<unsigned> deadRegs = vector<unsigned>();
         for (int i=0; i<256; i++) {
@@ -1067,18 +1077,20 @@ bool ArrayDependencyTracker::propagateLastUse(int idx, int way, int uop) {
 
 bool ArrayDependencyTracker::propagateMov(int idx, int way, int uop) {
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(microopAddrArray[idx][way][uop].uopAddr); }
-	string type = decodedEMI->getName();
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(microopAddrArray[idx][way][uop].uopAddr); }
+	string type = decodedMicroOp->getName();
 	//	std::cout << type << std::endl;
-	assert(decodedEMI->getName() == "mov");
-	if (decodedEMI->numSrcRegs() > 3) {
+	assert(decodedMicroOp->getName() == "mov");
+	if (decodedMicroOp->numSrcRegs() > 3) {
 		DPRINTF(SuperOp, "Skipping cmov at specCache[%i][%i][%i]\n", idx, way, uop);
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-	unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
 	uint64_t destVal = 0;
 	uint64_t srcVal = 0;
 	unsigned valsFound = 0;
@@ -1109,8 +1121,9 @@ bool ArrayDependencyTracker::propagateMov(int idx, int way, int uop) {
 		}
 	}
 
-	uint8_t size = decodedEMI->getDataSize();
+	uint8_t size = decodedMicroOp->getDataSize();
 	if ((valsFound < 2 && size < 8) || !foundSource) {
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
@@ -1151,15 +1164,17 @@ bool ArrayDependencyTracker::propagateMov(int idx, int way, int uop) {
 
 bool ArrayDependencyTracker::propagateLimm(int idx, int way, int uop) {
         ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 0) {
-                DPRINTF(SuperOp, "Skipping limm at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+        StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+        StaticInstPtr decodedMicroOp = decodedMacroOp;
+        if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+        if (decodedMicroOp->numSrcRegs() > 0) {
+                DPRINTF(SuperOp, "Skipping limm at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+                if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
                 return false;
         }
 
-        uint64_t forwardVal = decodedEMI->getImmediate();
-        unsigned destRegId = decodedEMI->destRegIdx(0).flatIndex();
+        uint64_t forwardVal = decodedMicroOp->getImmediate();
+        unsigned destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
         DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
 
         bool foundDest = false;
@@ -1173,22 +1188,25 @@ bool ArrayDependencyTracker::propagateLimm(int idx, int way, int uop) {
                         }
                 }
         }
+        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
         return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateAdd(int idx, int way, int uop) {
         // check number of sources
         ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-        if (decodedEMI->numSrcRegs() > 2) {
-                DPRINTF(SuperOp, "Skipping add at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+        StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+        StaticInstPtr decodedMicroOp = decodedMacroOp;
+        if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+        if (decodedMicroOp->numSrcRegs() > 2) {
+                DPRINTF(SuperOp, "Skipping add at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+                if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
                 return false;
         }
 
         // collect sources
-        unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-        unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
+        unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
+        unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
         uint64_t destVal = 0;
         uint64_t srcVal = 0;
         unsigned valsFound = 0;
@@ -1216,6 +1234,7 @@ bool ArrayDependencyTracker::propagateAdd(int idx, int way, int uop) {
                         }
                 }
         }
+        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
         if (valsFound < 2) {
                 return false;
         }
@@ -1246,16 +1265,18 @@ bool ArrayDependencyTracker::propagateAdd(int idx, int way, int uop) {
 bool ArrayDependencyTracker::propagateSub(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]); // changed to uop
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 2) {
-		DPRINTF(SuperOp, "Skipping sub at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]); // changed to uop
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 2) {
+		DPRINTF(SuperOp, "Skipping sub at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-	unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
 	uint64_t destVal = 0;
 	uint64_t srcVal = 0;
 	unsigned valsFound = 0;
@@ -1284,6 +1305,7 @@ bool ArrayDependencyTracker::propagateSub(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	if (valsFound < 2) {
 		return false;
 	}
@@ -1314,16 +1336,18 @@ bool ArrayDependencyTracker::propagateSub(int idx, int way, int uop) {
 bool ArrayDependencyTracker::propagateAnd(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 2) {
-		DPRINTF(SuperOp, "Skipping and at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 2) {
+		DPRINTF(SuperOp, "Skipping and at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-	unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
 	uint64_t destVal = 0;
 	uint64_t srcVal = 0;
 	unsigned valsFound = 0;
@@ -1351,6 +1375,7 @@ bool ArrayDependencyTracker::propagateAnd(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	if (valsFound < 2) {
 		return false;
 	}
@@ -1381,16 +1406,18 @@ bool ArrayDependencyTracker::propagateAnd(int idx, int way, int uop) {
 bool ArrayDependencyTracker::propagateOr(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 2) {
-		DPRINTF(SuperOp, "Skipping or at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 2) {
+		DPRINTF(SuperOp, "Skipping or at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-	unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
 	uint64_t destVal = 0;
 	uint64_t srcVal = 0;
 	unsigned valsFound = 0;
@@ -1418,6 +1445,7 @@ bool ArrayDependencyTracker::propagateOr(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	if (valsFound < 2) {
 		return false;
 	}
@@ -1448,16 +1476,18 @@ bool ArrayDependencyTracker::propagateOr(int idx, int way, int uop) {
 bool ArrayDependencyTracker::propagateXor(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 2) {
-		DPRINTF(SuperOp, "Skipping xor at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 2) {
+		DPRINTF(SuperOp, "Skipping xor at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
-	unsigned srcRegId = decodedEMI->srcRegIdx(1).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
 	uint64_t destVal = 0;
 	uint64_t srcVal = 0;
 	unsigned valsFound = 0;
@@ -1485,6 +1515,7 @@ bool ArrayDependencyTracker::propagateXor(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	if (valsFound < 2) {
 		return false;
 	}
@@ -1515,16 +1546,18 @@ bool ArrayDependencyTracker::propagateXor(int idx, int way, int uop) {
 bool ArrayDependencyTracker::propagateMovI(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 0) {
-		DPRINTF(SuperOp, "Skipping movi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 0) {
+		DPRINTF(SuperOp, "Skipping movi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect value
-	uint64_t forwardVal = decodedEMI->getImmediate();
-	unsigned destRegId = decodedEMI->destRegIdx(0).flatIndex();
+	uint64_t forwardVal = decodedMicroOp->getImmediate();
+	unsigned destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
 	DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
 
 	entry->predicted = true;
@@ -1542,21 +1575,24 @@ bool ArrayDependencyTracker::propagateMovI(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateSubI(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping subi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping subi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	uint64_t destVal = 0;
 	unsigned valsFound = 0;
 	set<unsigned> predIDs = set<unsigned>();
@@ -1575,11 +1611,12 @@ bool ArrayDependencyTracker::propagateSubI(int idx, int way, int uop) {
 		}
 	}
 	if (valsFound < 1) {
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// value construction is easy for this one
-	uint64_t forwardVal = destVal - decodedEMI->getImmediate();
+	uint64_t forwardVal = destVal - decodedMicroOp->getImmediate();
 
 	entry->predicted = true;
 	entry->value = forwardVal;
@@ -1598,21 +1635,24 @@ bool ArrayDependencyTracker::propagateSubI(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateAddI(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping addi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping addi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	uint64_t destVal = 0;
 	unsigned valsFound = 0;
 	set<unsigned> predIDs = set<unsigned>();
@@ -1631,11 +1671,12 @@ bool ArrayDependencyTracker::propagateAddI(int idx, int way, int uop) {
 		}
 	}
 	if (valsFound < 1) {
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// value construction is easy for this one
-	uint64_t forwardVal = destVal + decodedEMI->getImmediate();
+	uint64_t forwardVal = destVal + decodedMicroOp->getImmediate();
 
 	entry->predicted = true;
 	entry->value = forwardVal;
@@ -1654,21 +1695,24 @@ bool ArrayDependencyTracker::propagateAddI(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateAndI(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping andi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping andi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	uint64_t destVal = 0;
 	unsigned valsFound = 0;
 	set<unsigned> predIDs = set<unsigned>();
@@ -1687,11 +1731,12 @@ bool ArrayDependencyTracker::propagateAndI(int idx, int way, int uop) {
 		}
 	}
 	if (valsFound < 1) {
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// value construction is easy for this one
-	uint64_t forwardVal = destVal & decodedEMI->getImmediate();
+	uint64_t forwardVal = destVal & decodedMicroOp->getImmediate();
 
 	entry->predicted = true;
 	entry->value = forwardVal;
@@ -1710,21 +1755,24 @@ bool ArrayDependencyTracker::propagateAndI(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateOrI(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping ori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping ori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	uint64_t destVal = 0;
 	unsigned valsFound = 0;
 	set<unsigned> predIDs = set<unsigned>();
@@ -1743,11 +1791,12 @@ bool ArrayDependencyTracker::propagateOrI(int idx, int way, int uop) {
 		}
 	}
 	if (valsFound < 1) {
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// value construction is easy for this one
-	uint64_t forwardVal = destVal | decodedEMI->getImmediate();
+	uint64_t forwardVal = destVal | decodedMicroOp->getImmediate();
 
 	entry->predicted = true;
 	entry->value = forwardVal;
@@ -1766,21 +1815,24 @@ bool ArrayDependencyTracker::propagateOrI(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateXorI(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping xori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping xori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	uint64_t destVal = 0;
 	unsigned valsFound = 0;
 	set<unsigned> predIDs = set<unsigned>();
@@ -1799,11 +1851,12 @@ bool ArrayDependencyTracker::propagateXorI(int idx, int way, int uop) {
 		}
 	}
 	if (valsFound < 1) {
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// value construction is easy for this one
-	uint64_t forwardVal = destVal ^ decodedEMI->getImmediate();
+	uint64_t forwardVal = destVal ^ decodedMicroOp->getImmediate();
 
 	entry->predicted = true;
 	entry->value = forwardVal;
@@ -1822,21 +1875,24 @@ bool ArrayDependencyTracker::propagateXorI(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateSllI(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping slli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping slli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	uint64_t destVal = 0;
 	unsigned valsFound = 0;
 	set<unsigned> predIDs = set<unsigned>();
@@ -1855,11 +1911,12 @@ bool ArrayDependencyTracker::propagateSllI(int idx, int way, int uop) {
 		}
 	}
 	if (valsFound < 1) {
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// value construction is easy for this one
-	uint64_t forwardVal = destVal << decodedEMI->getImmediate();
+	uint64_t forwardVal = destVal << decodedMicroOp->getImmediate();
 
 	entry->predicted = true;
 	entry->value = forwardVal;
@@ -1878,21 +1935,24 @@ bool ArrayDependencyTracker::propagateSllI(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateSrlI(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping srli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping srli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned destRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	uint64_t destVal = 0;
 	unsigned valsFound = 0;
 	set<unsigned> predIDs = set<unsigned>();
@@ -1911,11 +1971,12 @@ bool ArrayDependencyTracker::propagateSrlI(int idx, int way, int uop) {
 		}
 	}
 	if (valsFound < 1) {
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// value construction is easy for this one
-	uint64_t forwardVal = destVal >> decodedEMI->getImmediate();
+	uint64_t forwardVal = destVal >> decodedMicroOp->getImmediate();
 
 	entry->predicted = true;
 	entry->value = forwardVal;
@@ -1934,23 +1995,26 @@ bool ArrayDependencyTracker::propagateSrlI(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateSExtI(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping sexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping sexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned srcRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	uint64_t srcVal = 0;
-	unsigned destRegId = decodedEMI->destRegIdx(0).flatIndex();
+	unsigned destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
 	unsigned valsFound = 0;
 	set<unsigned> predIDs = set<unsigned>();
 	for (int i=0; i<256; i++) {
@@ -1968,13 +2032,14 @@ bool ArrayDependencyTracker::propagateSExtI(int idx, int way, int uop) {
 		}
 	}
 	if (valsFound < 1) {
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// value construction taken from isa file
-	DPRINTF(ConstProp, "Using immediate %i in a sexti as bit to extend, not value to be extended\n", decodedEMI->getImmediate());
-	int signBit = bits(srcVal, decodedEMI->getImmediate(), decodedEMI->getImmediate());
-	uint64_t signMask = mask(decodedEMI->getImmediate());
+	DPRINTF(ConstProp, "Using immediate %i in a sexti as bit to extend, not value to be extended\n", decodedMicroOp->getImmediate());
+	int signBit = bits(srcVal, decodedMicroOp->getImmediate(), decodedMicroOp->getImmediate());
+	uint64_t signMask = mask(decodedMicroOp->getImmediate());
 	uint64_t forwardVal = signBit ? (srcVal | ~signMask) : (srcVal & signMask);
 	DPRINTF(ConstProp, "Produced value %x from sign bit %i and mask %x\n", forwardVal, signBit, signMask);
 
@@ -1995,23 +2060,26 @@ bool ArrayDependencyTracker::propagateSExtI(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return foundDest;
 }
 
 bool ArrayDependencyTracker::propagateZExtI(int idx, int way, int uop) {
 	// check number of sources
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
-	if (decodedEMI->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping zexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedEMI->numSrcRegs());
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping zexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// collect sources
-	unsigned srcRegId = decodedEMI->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	uint64_t srcVal = 0;
-	unsigned destRegId = decodedEMI->destRegIdx(0).flatIndex();
+	unsigned destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
 	unsigned valsFound = 0;
 	set<unsigned> predIDs = set<unsigned>();
 	for (int i=0; i<256; i++) {
@@ -2029,13 +2097,14 @@ bool ArrayDependencyTracker::propagateZExtI(int idx, int way, int uop) {
 		}
 	}
 	if (valsFound < 1) {
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	// value construction taken from isa file
-	DPRINTF(ConstProp, "Using immediate %i in a zexti as bit to extend, not value to be extended\n", decodedEMI->getImmediate());
-	uint64_t forwardVal = bits(srcVal, decodedEMI->getImmediate(), 0);
-	DPRINTF(ConstProp, "Extracted bits 0 to %i of %x for value %x\n", decodedEMI->getImmediate(), srcVal, forwardVal);
+	DPRINTF(ConstProp, "Using immediate %i in a zexti as bit to extend, not value to be extended\n", decodedMicroOp->getImmediate());
+	uint64_t forwardVal = bits(srcVal, decodedMicroOp->getImmediate(), 0);
+	DPRINTF(ConstProp, "Extracted bits 0 to %i of %x for value %x\n", decodedMicroOp->getImmediate(), srcVal, forwardVal);
 
 	entry->predicted = true;
 	entry->value = forwardVal;
@@ -2051,6 +2120,7 @@ bool ArrayDependencyTracker::propagateZExtI(int idx, int way, int uop) {
 			}
 		}
 	}
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return foundDest;
 }
 
@@ -2076,7 +2146,7 @@ bool ArrayDependencyTracker::propagateWrip(int idx, int way, int uop) {
 			// attempt to resolve target
 			// TODO: this still needs the tid.
 			//TheISA::PCState target;
-			//if (branchPred->iPred.lookup(microopAddrArray[idx][way][uop].pcAddr, branchPred->getGHR(tid, decodedEMI->branch_hist), target, tid)) {
+			//if (branchPred->iPred.lookup(microopAddrArray[idx][way][uop].pcAddr, branchPred->getGHR(tid, decodedMicroOp->branch_hist), target, tid)) {
 			// branches[takenIndex].nextPc = FullUopAddr(target.instAddr(), 0);
 			// branches[takenIndex].propagatingTo = FullUopAddr(target.instAddr(), 0);
 			// branches[takenIndex].targetValid = true;
@@ -2119,18 +2189,20 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 	DPRINTF(ConstProp, "Propagating across branches[%i] to %x.%i at spec[%i][%i][%i]\n", branchIndex, propagatingTo.pcAddr, propagatingTo.uopAddr, idx, way, uop);
 
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
 
-	if (decodedEMI->isControl()) { 
+	if (decodedMicroOp->isControl()) { 
 		DPRINTF(ConstProp, "Destination is a control inst, so not propagating\n");
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false; 
 	}
 
 	bool changeMade = false;
 
-	for (int i=0; i<decodedEMI->numSrcRegs(); i++) {
-		RegId srcReg = decodedEMI->srcRegIdx(i);
+	for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
 		DPRINTF(ConstProp, "Checking register map for producer of %i\n", srcReg.flatIndex());
 		if (branches[branchIndex].registerValidMap[srcReg.flatIndex()]) {
 			// Check whether value is already produced along path
@@ -2215,7 +2287,7 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 		nextFullAddr = FullUopAddr(propagatingTo.pcAddr, propagatingTo.uopAddr + 1);
 	} else {
 		DPRINTF(ConstProp, "Next addr is %x.%i which doesn't match :(\n", microopAddrArray[idx][way][uop+1].pcAddr, microopAddrArray[idx][way][uop+1].uopAddr);
-		Addr nextPc = propagatingTo.pcAddr + decodedEMI->machInst.instSize;
+		Addr nextPc = propagatingTo.pcAddr + decodedMicroOp->machInst.instSize;
 		nextFullAddr = FullUopAddr(nextPc, 0);
 	}
 
@@ -2223,14 +2295,16 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 	DPRINTF(ConstProp, "Incrementing propagatingTo from %x.%i to %x.%i\n", propagatingTo.pcAddr, propagatingTo.uopAddr, nextFullAddr.pcAddr, nextFullAddr.uopAddr);
 	branches[branchIndex].propagatingTo = nextFullAddr;
 
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return changeMade;
 }
 
 void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 	// At least for now, control-dependent paths will be handled separately
 	assert(speculativeDependencyGraph[idx][way][uop]);
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr); }
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr); }
 
 	bool allDestsReady = true;
 	for (int i=0; i<256; i++) {
@@ -2278,12 +2352,13 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 	} else {
 		if (allDestsReady) {
 			// Step 2b: Mark DependGraphEntry as dead code to know to skip
-			decoder->updateTagInSpeculativeCacheWithoutAdding(speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
+			FullCacheIdx newIdx = decoder->updateTagInSpeculativeCacheWithoutAdding(speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
 			speculativeDependencyGraph[idx][way][uop]->deadCode = true;
+			speculativeDependencyGraph[idx][way][uop]->specIdx = newIdx;
 			// printf("Marked an inst as dead code\n");
 		} else {
 			// Step 3a: If not dead and not present, call decodeInst and add	
-			FullCacheIdx loc = decoder->addUopToSpeculativeCache(decodedEMI, speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
+			FullCacheIdx loc = decoder->addUopToSpeculativeCache(decodedMicroOp, speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
 			if (loc.valid) {
 				speculativeDependencyGraph[idx][way][uop]->specIdx = loc;
 			//	printf("Added an inst to spec graph at [%i][%i][%i]\n", loc.idx, loc.way, loc.uop);
@@ -2294,11 +2369,11 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 				if (speculativeDependencyGraph[idx][way][uop]->producers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->producers[i] != 5000) {
 					InformationFlowPath dataIn = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]];
 					if (dataIn.valid && dataIn.directControlDependency == 0 && dataIn.indirectControlDependency == 0) {
-						for (int j=0; j<decodedEMI->numSrcRegs(); j++) {
-							unsigned srcIdx = decodedEMI->srcRegIdx(j).flatIndex();
+						for (int j=0; j<decodedMicroOp->numSrcRegs(); j++) {
+							unsigned srcIdx = decodedMicroOp->srcRegIdx(j).flatIndex();
 							if (srcIdx == dataIn.archRegIdx) {
-								decodedEMI->sourcePredictions[j] = dataIn.value;
-								decodedEMI->sourcesPredicted[j] = true;
+								decodedMicroOp->sourcePredictions[j] = dataIn.value;
+								decodedMicroOp->sourcesPredicted[j] = true;
 							}
 						}
 					}
@@ -2407,18 +2482,19 @@ void ArrayDependencyTracker::registerRemovalOfTraceInst(int idx, int way, int uo
 
 void ArrayDependencyTracker::describeEntry(int idx, int way, int uop) {
 	ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedEMI = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	if (decodedEMI && decodedEMI->isMacroop()) { decodedEMI = decodedEMI->fetchMicroop(entry->thisInst.uopAddr); }
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); }
 	DPRINTF(ConstProp, "Entry for inst %x.%i\n", entry->thisInst.pcAddr, entry->thisInst.uopAddr);
-	DPRINTF(ConstProp, "Disassembly: %s\n", decodedEMI->disassemble(entry->thisInst.pcAddr));
-	DPRINTF(ConstProp, "SrcRegs (%i):\n", decodedEMI->numSrcRegs());
-	for (int i=0; i<decodedEMI->numSrcRegs(); i++) {
-		RegId srcReg = decodedEMI->srcRegIdx(i);
+	DPRINTF(ConstProp, "Disassembly: %s\n", decodedMicroOp->disassemble(entry->thisInst.pcAddr));
+	DPRINTF(ConstProp, "SrcRegs (%i):\n", decodedMicroOp->numSrcRegs());
+	for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
 		DPRINTF(ConstProp, "Register %i\n", srcReg.flatIndex());
 	}
-	DPRINTF(ConstProp, "Dest Regs (%i):\n", decodedEMI->numDestRegs());
-	for (int i=0; i<decodedEMI->numDestRegs(); i++) {
-		RegId destReg = decodedEMI->destRegIdx(i);
+	DPRINTF(ConstProp, "Dest Regs (%i):\n", decodedMicroOp->numDestRegs());
+	for (int i=0; i<decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
 		DPRINTF(ConstProp, "Register %i\n", destReg.flatIndex());
 	}
 	DPRINTF(ConstProp, "Incoming data paths:\n");
@@ -2448,6 +2524,7 @@ void ArrayDependencyTracker::describeEntry(int idx, int way, int uop) {
 		}
 	}
 	DPRINTF(ConstProp, "Done Describing\n");
+  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 }
 
 void ArrayDependencyTracker::describeFullGraph() {
@@ -2482,4 +2559,29 @@ ArrayDependencyTracker::FullCacheIdx ArrayDependencyTracker::getPrevCacheIdx(Arr
 		return FullCacheIdx();
 	}
 	return FullCacheIdx(start.idx, decoder->speculativePrevWayArray[start.idx][start.way], 5);
+}
+
+
+void ArrayDependencyTracker::incrementPC(ArrayDependencyTracker::FullCacheIdx specIdx, X86ISA::PCState &nextPC, bool &predict_taken) {
+	// Step 1: Use specIdx and getNextCacheIdx to find next inst
+	// Step 2: Set nextPC instAddr and microPC to those of next inst
+	// Step 3: If inst at specIdx is a branch, use control flow table to set taken
+	// Step 4: If didn't have a next index, or if the StaticInstPtr at the next index is null, this is the end of a trace
+	FullCacheIdx nextIdx = getNextCacheIdx(specIdx);
+	if (nextIdx.valid && decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]) {
+		nextPC._pc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr;
+		nextPC._upc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr;
+		predict_taken = isTakenBranch(decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop]);
+	} else {
+		nextPC.valid = false;
+	}
+}
+
+bool ArrayDependencyTracker::isTakenBranch(FullUopAddr addr) {
+	for (int i=0; i<4096; i++) {
+		if (branchesValid[i] && branches[i].branchAddr == addr && branches[i].confident) {
+			return branches[i].taken;
+		}
+	}
+	return false;
 }

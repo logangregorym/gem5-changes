@@ -149,8 +149,8 @@ public:
 
     BaseCPU *cpu;
     void setCPU(BaseCPU * newCPU, ThreadID tid=0);
-    vector<ArrayDependencyTracker::DependGraphEntry> victimCache;
-    vector<ExtMachInst> victimEMIs;
+   // vector<ArrayDependencyTracker::DependGraphEntry> victimCache;
+   // vector<ExtMachInst> victimEMIs;
 
 protected:
     Stats::Scalar uopCacheWayInvalidations;
@@ -492,11 +492,9 @@ protected:
 
 	ArrayDependencyTracker::FullCacheIdx addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop);
 
-	bool updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop);
+	ArrayDependencyTracker::FullCacheIdx updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop);
 
 	bool addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop);
-
-	bool superoptimizedTraceAvailable(Addr addr, unsigned uop);
 
 	bool isDeadCode(Addr addr, unsigned uop);
 
@@ -515,6 +513,11 @@ protected:
 	unsigned minConfidence(unsigned idx, unsigned way);
 
 	unsigned maxLatency(unsigned idx, unsigned way);
+
+	// Interface for fetch!
+	bool isTraceAvailable(const X86ISA::PCState thisPC);
+
+    StaticInstPtr getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
 
     void regStats();
 

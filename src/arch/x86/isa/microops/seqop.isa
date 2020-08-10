@@ -143,6 +143,7 @@ let {{
         className = "MicroBranch"
 
         def getAllocator(self, microFlags):
+            microFlags.append("IsMicroBranch")
             if "IsLastMicroop" in microFlags:
                 microFlags.remove("IsLastMicroop")
             if not "IsDelayedCommit" in microFlags:

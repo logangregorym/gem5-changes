@@ -116,6 +116,9 @@ class ArrayDependencyTracker : public SimObject
 	FullCacheIdx getNextCacheIdx(FullCacheIdx);
 	FullCacheIdx getPrevCacheIdx(FullCacheIdx);
 
+	void incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC, bool &predict_taken);
+	bool isTakenBranch(FullUopAddr addr);
+
 	unsigned registerRenameMapSpec[256] = {0};
 	FullUopAddr registerProducerMapSpec[256];
 	FullUopAddr mostRecentConsumer[256];
@@ -219,11 +222,13 @@ class ArrayDependencyTracker : public SimObject
 	struct ControlFlowPath {
 		FullUopAddr branchAddr = FullUopAddr(0,0);
 		FullUopAddr nextPc = FullUopAddr(0,0);
+		bool taken;
 		bool targetValid = false;
 		FullUopAddr propagatingTo = FullUopAddr(0,0);
 		unsigned registerRenameMap[256];
 		FullUopAddr registerProducerMap[256];
 		bool registerValidMap[256];
+		bool confident = false;
 
 		ControlFlowPath() {
 			branchAddr = FullUopAddr(0,0);

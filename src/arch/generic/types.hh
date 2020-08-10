@@ -49,14 +49,13 @@ namespace GenericISA
 // The guaranteed interface.
 class PCStateBase : public Serializable
 {
-  protected:
+  public:
     Addr _pc;
     Addr _npc;
 
     PCStateBase() : _pc(0), _npc(0) {}
     PCStateBase(Addr val) : _pc(0), _npc(0) { set(val); }
 
-  public:
     /**
      * Returns the memory address the bytes of this instruction came from.
      *
@@ -190,13 +189,11 @@ operator<<(std::ostream & os, const SimplePCState<MachInst> &pc)
 template <class MachInst>
 class UPCState : public SimplePCState<MachInst>
 {
-  protected:
+  public:
     typedef SimplePCState<MachInst> Base;
 
     MicroPC _upc;
     MicroPC _nupc;
-
-  public:
 
     MicroPC upc() const { return _upc; }
     void upc(MicroPC val) { _upc = val; }

@@ -1587,9 +1587,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                            std::cout << "Dead Microop: " <<  " PCState: " <<  thisPC << 
                                     " " << staticInst->disassemble(thisPC.pc()) << std::endl << std::flush;
                     }
-                if (decoder[tid]->superoptimizedTraceAvailable(thisPC.instAddr(), thisPC.microPC()) && !isDead) {
+                if (decoder[tid]->isTraceAvailable(thisPC) && !isDead) {
                         if (usingTrace) {
-                            staticInst = decoder[tid]->getSuperoptimizedInst(thisPC.instAddr(), thisPC.microPC());
+                            staticInst = decoder[tid]->getSuperOptimizedMicroop(thisPC, nextPC, predictedBranch);
                             curMacroop = staticInst->macroOp; // emi corresponds to the macroop
                             newMacro = staticInst->isLastMicroop();
                             staticInst->fetched_from = 2;
