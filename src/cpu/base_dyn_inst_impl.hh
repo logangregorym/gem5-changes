@@ -111,6 +111,8 @@ BaseDynInst<Impl>::initVars()
     // Initialize the fault to be NoFault.
     fault = NoFault;
 
+    isStreamedFromSpecCache = false;
+
 #ifndef NDEBUG
     ++cpu->instcount;
 

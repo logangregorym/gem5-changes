@@ -899,6 +899,10 @@ DefaultCommit<Impl>::commit()
             // then use one older sequence number.
             InstSeqNum squashed_inst = fromIEW->squashedSeqNum[tid];
 
+            //*****CHANGE START**********
+            toIEW->commitInfo[tid].squashDueToLVP = fromIEW->squashDueToLVP[tid];
+            //*****CHANGE END**********
+
             if (fromIEW->includeSquashInst[tid]) {
                 squashed_inst--;
             }
@@ -1213,12 +1217,12 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     }
 
     // Squash in event of load-value misprediction
-    if (head_inst->lvMispred) {
-        // Moved to lsq_unit_impl
-        // squashWokenDependents(head_inst);
-        head_inst->lvMispred = false;
-        return false;
-    }
+    // if (head_inst->lvMispred) {
+    //     // Moved to lsq_unit_impl
+    //     // squashWokenDependents(head_inst);
+    //     head_inst->lvMispred = false;
+    //     return false;
+    // }
 
     if (head_inst->isThreadSync()) {
         // Not handled for now.
@@ -1573,16 +1577,18 @@ DefaultCommit<Impl>::oldestReady()
     }
 }
 
+//*****CHANGE START**********
 template<class Impl>
 void
 DefaultCommit<Impl>::squashWokenDependents(DynInstPtr &inst) {
     DynInstPtr firstWoken = cpu->rob.firstDependentOf(inst->threadNumber, inst);
-    if (firstWoken) {
+   // if (firstWoken) {
         DPRINTF(LVP, "Load Value Mispredicted for [sn:%i], squashing from first dependent [sn:%i]\n", inst->seqNum, firstWoken->seqNum);
         cpu->iew.squashDueToLoad(inst, firstWoken, inst->threadNumber);
-    } else {
-        DPRINTF(LVP, "Load Value Mispredicted for [sn:%i] but no dependent instructions woken\n", inst->seqNum);
-    }
+    //} else {
+    //    DPRINTF(LVP, "Load Value Mispredicted for [sn:%i] but no dependent instructions woken\n", inst->seqNum);
+    //}
 }
+//*****CHANGE END**********
 
 #endif//__CPU_O3_COMMIT_IMPL_HH__

@@ -126,7 +126,7 @@ public:
 
     // Parallel cache for optimized micro-ops
     bool isSpeculativeCachePresent;
-    bool isSpeculativeCacheActive;
+    bool speculativeCacheActive;
     StaticInstPtr speculativeCache[32][8][6];
     ArrayDependencyTracker::FullUopAddr speculativeAddrArray[32][8][6];
     uint64_t speculativeTagArray[32][8];
@@ -318,6 +318,7 @@ protected:
         isUopCachePresent = false;
         isMicroFusionPresent = false;
         isSpeculativeCachePresent = false;
+        speculativeCacheActive = false;
         for (int idx=0; idx<32; idx++) {
           for (int way=0; way<8; way++) {
             uopValidArray[idx][way] = false;
@@ -477,11 +478,13 @@ protected:
     bool updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded);
     void updateLRUBitsSpeculative(int idx, int way);
 
+    //*****CHANGE START**********
     void setSpeculativeCacheActive(bool active)
     {
-        isSpeculativeCacheActive = active;
-        if (!active) { instDone = false; state = ResetState; }
+        speculativeCacheActive = active;
+        //if (!active) { instDone = false; state = ResetState; }
     }
+    //*****CHANGE END**********
     void setSpeculativeCachePresent(bool present)
     {
         isSpeculativeCachePresent = present;
@@ -495,6 +498,17 @@ protected:
 	ArrayDependencyTracker::FullCacheIdx updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop);
 
 	bool addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop);
+
+
+    StaticInstPtr getSuperoptimizedMicroop (const X86ISA::PCState thisPC, X86ISA::PCState& nextPC, bool &predict_taken);
+    // tells fetch stage that if a speculative trace is availble for this PC
+    bool isTraceAvailable(const X86ISA::PCState thisPC);
+    bool isSpeculativeCacheActive()
+    {
+        return speculativeCacheActive;
+    }
+
+    bool doSquash(const StaticInstPtr si, X86ISA::PCState pc);
 
 	bool isDeadCode(Addr addr, unsigned uop);
 

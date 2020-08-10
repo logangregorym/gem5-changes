@@ -233,7 +233,7 @@ class BaseDynInst : public ExecContext, public RefCounted
     /** Store queue index. */
     int16_t sqIdx;
 
-
+    bool isStreamedFromSpecCache;
     /////////////////////// TLB Miss //////////////////////
     /**
      * Saved memory requests (needed when the DTB address translation is
@@ -509,6 +509,8 @@ class BaseDynInst : public ExecContext, public RefCounted
     //
     //  Instruction types.  Forward checks to StaticInst object.
     //
+    bool isStreamedFromSpeculativeCache() const {return isStreamedFromSpecCache;}
+    void setStreamedFromSpeculativeCache(bool state)      {isStreamedFromSpecCache = state;}
     bool isNop()          const { return staticInst->isNop(); }
     bool isMemRef()       const { return staticInst->isMemRef(); }
     bool isLoad()         const { return staticInst->isLoad(); }

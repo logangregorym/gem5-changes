@@ -63,6 +63,8 @@ Decoder::doResetState()
 
     emi.modRM = 0;
     emi.sib = 0;
+
+    
 /**
     if (instBytes->si) {
         return FromCacheState;
@@ -1353,15 +1355,52 @@ Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 	return false;
 }
 
+
+
 bool
-Decoder::isDeadCode(Addr addr, unsigned uop) {
+Decoder::doSquash(const StaticInstPtr si, X86ISA::PCState pc) {
+       
+  // if (depTracker->isPredictionSource(pc.instAddr(), pc.microPC()))
+  // {
+    //std::cout << "Instrucion is source of prediction with PC: " << pc << " " << si->disassemble(pc.pc()) << "\n"; 
+    depTracker->flushMisprediction(pc.instAddr(), pc.microPC());
+    return true;
+ // }
+
+    //   return false;
+}
+
+
+
+// sends back the microop from the active trace
+// In case of a folded branch, nextPC and predict_taken should be set by the function
+StaticInstPtr 
+Decoder::getSuperoptimizedMicroop (const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken)
+{
+    return StaticInst::nullStaticInstPtr;
+
+}
+
+bool 
+Decoder::isTraceAvailable(const X86ISA::PCState thisPC)
+{
+
+  return false;
+
+}
+
+
+bool
+Decoder::isDeadCode(Addr addr, unsigned uop, StaticInstPtr& nodeStaticInst) {
 	// Should only be called if superoptimizedTraceAvailable returned true
+  nodeStaticInst = StaticInst::nullStaticInstPtr;
 	int idx = (addr >> 5) & 0x1f;
 	uint64_t tag = (addr >> 10);
 	for (int way = 0; way < 8; way++) {
 		if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
 			for (int u = 0; u < uopCountArray[idx][way]; u++) {
 				if (depTracker->microopAddrArray[idx][way][u] == ArrayDependencyTracker::FullUopAddr(addr, uop)) {
+          nodeStaticInst = depTracker->speculativeDependencyGraph[idx][way][u]->nodeStaticInst;
 					return depTracker->speculativeDependencyGraph[idx][way][u]->deadCode;
 				}
 			}

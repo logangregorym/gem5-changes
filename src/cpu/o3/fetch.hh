@@ -300,6 +300,8 @@ class DefaultFetch
      */
     bool lookupAndUpdateNextPC(DynInstPtr &inst, TheISA::PCState &pc);
 
+    bool lookupAndUpdateSpecPC(StaticInstPtr &inst, TheISA::PCState &specPC);
+
     /**
      * Fetches the cache line that contains the fetch PC.  Returns any
      * fault that happened.  Puts the data into the class variable
@@ -325,7 +327,7 @@ class DefaultFetch
 
     /** Squashes a specific thread and resets the PC. */
     inline void doSquash(const TheISA::PCState &newPC,
-                         const DynInstPtr squashInst, ThreadID tid);
+                         const DynInstPtr squashInst, bool squashDuoToLVP, ThreadID tid);
 
     /** Squashes a specific thread and resets the PC. Also tells the CPU to
      * remove any instructions between fetch and decode that should be sqaushed.
@@ -347,7 +349,7 @@ class DefaultFetch
      * squash should be the commit stage.
      */
     void squash(const TheISA::PCState &newPC, const InstSeqNum seq_num,
-                DynInstPtr squashInst, ThreadID tid);
+                DynInstPtr squashInst, bool squashDueToLVP, ThreadID tid);
 
     /** Ticks the fetch stage, processing all inputs signals and fetching
      * as many instructions as possible.
@@ -385,7 +387,7 @@ class DefaultFetch
   private:
     DynInstPtr buildInst(ThreadID tid, StaticInstPtr staticInst,
                          StaticInstPtr curMacroop, TheISA::PCState thisPC,
-                         TheISA::PCState nextPC, bool trace, bool isDead);
+                         TheISA::PCState nextPC, bool trace);
 
     /** Returns the appropriate thread to fetch, given the fetch policy. */
     ThreadID getFetchingThread(FetchPriority &fetch_priority);
