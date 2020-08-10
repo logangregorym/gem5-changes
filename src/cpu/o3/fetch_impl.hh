@@ -1186,34 +1186,41 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
         decoder[tid]->setUopCacheActive(false);
 
         //*****CHANGE START**********
-        // LVP Missprediction
-        if (fromCommit->commitInfo[tid].squashDueToLVP)
-        {
-            DynInstPtr dynSpecInst =  fromCommit->commitInfo[tid].mispredictInst;
-
-            assert(dynSpecInst);
-            
-            // LVP missprediction, therefore, deactivate speculative cache and fetch from uop/decoder
-            decoder[tid]->setSpeculativeCacheActive(false);
-        }
-
+        
+        // LVP missprediction               <== mispredictInst != NULL && squashDueToLVP == true;
+        // folded branch missprediction     <== mispredictInst != NULL && squashDueToLVP == false;
+        // MemOrder Violation               <== mispredictInst == NULL && squashDueToLVP == true;
         // branch missprediction
         if (fromCommit->commitInfo[tid].mispredictInst)
         {
-            // folded branch
-            if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
+            // LVP Missprediction
+            if (fromCommit->commitInfo[tid].squashDueToLVP)
+            {
+                DynInstPtr dynSpecInst =  fromCommit->commitInfo[tid].mispredictInst;
+
+                assert(dynSpecInst);
+                
+                // LVP missprediction, therefore, deactivate speculative cache and fetch from uop/decoder
+                decoder[tid]->setSpeculativeCacheActive(false);
+            }
+            // folded branch missprediction
+            else if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
             {
                 // again deactivate speculative cache
                 decoder[tid]->setSpeculativeCacheActive(false);
             }
+            // not a folded branch or LVP missprediction
+            else 
+            {
+                // TODO: do we need to deactivate speculative cache?
+                ;
+            }
 
         }
-
-        // Memorder violation
-        if (!fromCommit->commitInfo[tid].mispredictInst)
+        else 
         {
             // memorder violation in a speculative trace
-            if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
+            if (fromCommit->commitInfo[tid].squashDueToLVP)
             {
                 // activate speculative cache so we can fetch from it again
                 decoder[tid]->setSpeculativeCacheActive(true);

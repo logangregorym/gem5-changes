@@ -573,11 +573,7 @@ DefaultIEW<Impl>::squashDueToBranch(DynInstPtr &inst, ThreadID tid)
         toCommit->mispredictInst[tid] = inst;
         toCommit->includeSquashInst[tid] = false;
 
-        // // here we decide whether this was due to a folded baranch or not
-        // if (inst->isStreamedFromSpeculativeCache())
-        //     toCommit->squashDueToLVP[tid] = true;
-        // else 
-            toCommit->squashDueToLVP[tid] = false;
+        toCommit->squashDueToLVP[tid] = false;
 
         wroteToTimeBuffer = true;
     }
@@ -645,7 +641,11 @@ DefaultIEW<Impl>::squashDueToMemOrder(DynInstPtr &inst, ThreadID tid)
         toCommit->pc[tid] = inst->pcState();
         toCommit->mispredictInst[tid] = NULL;
         
-        toCommit->squashDueToLVP[tid] = false;
+        // in this way we can find out whether mem order violation was in the trace or not
+        if (inst->isStreamedFromSpeculativeCache())
+            toCommit->squashDueToLVP[tid] = true;
+        else 
+            toCommit->squashDueToLVP[tid] = false;
         
         // Must include the memory violator in the squash.
         toCommit->includeSquashInst[tid] = true;
