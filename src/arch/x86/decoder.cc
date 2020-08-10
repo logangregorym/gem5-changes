@@ -63,6 +63,8 @@ Decoder::doResetState()
 
     emi.modRM = 0;
     emi.sib = 0;
+
+    
 /**
     if (instBytes->si) {
         return FromCacheState;
@@ -1350,6 +1352,22 @@ Decoder::doSquash(const StaticInstPtr si, X86ISA::PCState pc) {
 
 
 
+// sends back the microop from the active trace
+// In case of a folded branch, nextPC and predict_taken should be set by the function
+StaticInstPtr 
+Decoder::getSuperoptimizedMicroop (const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken)
+{
+    return StaticInst::nullStaticInstPtr;
+
+}
+
+bool 
+Decoder::isTraceAvailable(const X86ISA::PCState thisPC)
+{
+
+  return false;
+
+}
 
 
 bool
