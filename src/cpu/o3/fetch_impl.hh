@@ -1740,7 +1740,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                         instruction->setStreamedFromSpeculativeCache(true);
 
-                        DPRINTF(Fetch, "Speculative instruction created: [sn:%lli]:%s", 
+                        DPRINTF(Fetch, "Speculative instruction created: [sn:%lli]:%s\n", 
                                     instruction->seqNum, instruction->pcState());
 
             	        ppFetch->notify(instruction);

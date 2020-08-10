@@ -1056,6 +1056,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop) {
 			speculativeCache[idx][way][waySize] = inst;
 			speculativeAddrArray[idx][way][waySize] = ArrayDependencyTracker::FullUopAddr(addr, uop);
 			updateLRUBitsSpeculative(idx, way);
+      DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d.\n", addr, tag, idx, way, uop);
 			return ArrayDependencyTracker::FullCacheIdx(idx, way, waySize);
 		}
 	}
@@ -1083,6 +1084,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop) {
 			speculativeCache[idx][way][0] = inst;
 			speculativeAddrArray[idx][way][0] = ArrayDependencyTracker::FullUopAddr(addr, uop);
 			updateLRUBitsSpeculative(idx, way);
+      DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:0.\n", addr, tag, idx, way);
 			return ArrayDependencyTracker::FullCacheIdx(idx, way, 0);
 		}
 	}
@@ -1090,6 +1092,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop) {
 	// If we make it here, we need to evict a way to make space
 	for (int way = 0; way < 8; way++) {
 		if (speculativeLRUArray[idx][way] == 0) {
+      DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%#x way:%#x.\n Affected PCs:\n", tag, idx, way);
 			for (int w = 0; w < 8; w++) {
 				if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == speculativeTagArray[idx][way]) {
 					for (int u = 0; u < speculativeCountArray[idx][w]; u++) {
@@ -1121,6 +1124,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop) {
 			speculativeCache[idx][way][0] = inst;
 			speculativeAddrArray[idx][way][0] = ArrayDependencyTracker::FullUopAddr(addr, uop);
 			updateLRUBitsSpeculative(idx, way);	
+      DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:0.\n", addr, tag, idx, way);
 			return ArrayDependencyTracker::FullCacheIdx(idx, way, 0);
 		}
 	}
@@ -1510,6 +1514,8 @@ StaticInstPtr
 Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken) {
 	int idx = (thisPC.instAddr() >> 5) & 0x1f;
 	uint64_t tag = (thisPC.instAddr() >> 10);
+
+  DPRINTF(Decoder, "getSuperOptimizedMicroop called at:%s\n", thisPC);
 	for (int way = 0; way < 8; way++) {
 		if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
 			for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
@@ -1525,12 +1531,16 @@ Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState 
 						depTracker->incrementPC(specIdx, nextPC, predict_taken);
 						
 						// return optimized inst
+            DPRINTF(Decoder, "getSuperOptimizedMicroop: idx:%#x way:%#x uop:%#x, nextPC:%s, pred_taken:%d\n", specIdx.idx, specIdx.way, specIdx.uop, nextPC, predict_taken);
 						return speculativeCache[specIdx.idx][specIdx.way][specIdx.uop];
 					}
+          DPRINTF(Decoder, "No valid specIdx found at idx:%#x way:%#x uop:%#x\n", idx, way, uop);
 				}
 			}
+      DPRINTF(Decoder, "No valid uop found at idx:%x way:%x\n", idx, way);
 		}
 	}
+  DPRINTF(Decoder, "No valid ways found at idx:%x tag:%x\n", idx, tag);
 
 	return StaticInst::nullStaticInstPtr;
 }
