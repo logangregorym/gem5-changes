@@ -899,7 +899,9 @@ DefaultCommit<Impl>::commit()
             // then use one older sequence number.
             InstSeqNum squashed_inst = fromIEW->squashedSeqNum[tid];
 
+            //*****CHANGE START**********
             toIEW->commitInfo[tid].squashDueToLVP = fromIEW->squashDueToLVP[tid];
+            //*****CHANGE END**********
 
             if (fromIEW->includeSquashInst[tid]) {
                 squashed_inst--;
@@ -1569,6 +1571,7 @@ DefaultCommit<Impl>::oldestReady()
     }
 }
 
+//*****CHANGE START**********
 template<class Impl>
 void
 DefaultCommit<Impl>::squashWokenDependents(DynInstPtr &inst) {
@@ -1580,5 +1583,6 @@ DefaultCommit<Impl>::squashWokenDependents(DynInstPtr &inst) {
     //    DPRINTF(LVP, "Load Value Mispredicted for [sn:%i] but no dependent instructions woken\n", inst->seqNum);
     //}
 }
+//*****CHANGE END**********
 
 #endif//__CPU_O3_COMMIT_IMPL_HH__

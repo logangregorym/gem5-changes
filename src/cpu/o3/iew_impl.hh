@@ -584,12 +584,13 @@ DefaultIEW<Impl>::squashDueToBranch(DynInstPtr &inst, ThreadID tid)
 
 }
 
+//*****CHANGE START**********
 template<class Impl>
 void
 DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, ThreadID tid)
 {
     DPRINTF(IEW, "[tid:%i]: Memory misprediction, squashing younger "
-            "insts from %i, PC: %s [sn:%i].\n", tid, firstDependent->seqNum, inst->pcState(), inst->seqNum);
+            "insts from %i, PC: %s [sn:%i].\n", tid, inst->seqNum, inst->pcState(), inst->seqNum);
 
     // If already squashing, LVP takes precedence
     // Using < instead of <= would give branch precedence
@@ -599,15 +600,15 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
         toCommit->squash[tid] = true;
         //toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
         toCommit->squashedSeqNum[tid] = inst->seqNum;
-        toCommit->pc[tid] = firstDependent->pcState();
+        toCommit->pc[tid] = inst->pcState();
         toCommit->mispredictInst[tid] = inst; // not a branch misprediction
         toCommit->includeSquashInst[tid] = true;
 
         toCommit->squashDueToLVP[tid] = true;
 
         wroteToTimeBuffer = true;
-        instsSquashedByLVP[tid] += (cpu->globalSeqNum - firstDependent->seqNum);
-    } else if (toCommit->squash[tid] && firstDependent->seqNum > toCommit->squashedSeqNum[tid]) {
+        instsSquashedByLVP[tid] += (cpu->globalSeqNum - inst->seqNum);
+    } else if (toCommit->squash[tid] && inst->seqNum > toCommit->squashedSeqNum[tid]) {
         DPRINTF(LVP, "Already squashing from [sn:%i], so skipping\n", toCommit->squashedSeqNum[tid]);
     }
 
@@ -622,6 +623,7 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
         squashedLoadsInNeitherCache[tid]++;
     }
 }
+//*****CHANGE END**********
 
 template<class Impl>
 void

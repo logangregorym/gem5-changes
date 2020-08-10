@@ -476,11 +476,13 @@ protected:
     bool updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded);
     void updateLRUBitsSpeculative(int idx, int way);
 
+    //*****CHANGE START**********
     void setSpeculativeCacheActive(bool active)
     {
         speculativeCacheActive = active;
         //if (!active) { instDone = false; state = ResetState; }
     }
+    //*****CHANGE END**********
     void setSpeculativeCachePresent(bool present)
     {
         isSpeculativeCachePresent = present;
