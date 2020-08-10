@@ -1735,13 +1735,17 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         // to make sure that we always have the macroop for every microop
                         //assert(staticInst->macroOp != StaticInst::nullStaticInstPtr);
 
+                        // we need to update thisPC manually, this is done in decoder with UpdatNPC() function
+                        // we will do it in another way
+                        thisPC.npc(nextPC.pc());
+
                         DynInstPtr instruction = buildInst(tid, staticInst, staticInst->macroOp,
                                                             thisPC, nextPC, true);
 
                         instruction->setStreamedFromSpeculativeCache(true);
 
-                        DPRINTF(Fetch, "Speculative instruction created: [sn:%lli]:%s\n", 
-                                    instruction->seqNum, instruction->pcState());
+                        DPRINTF(Fetch, "Speculative instruction created: [sn:%lli]:%s thisPC = %s nextPC = %s\n", 
+                                    instruction->seqNum, instruction->pcState(), thisPC, nextPC);
 
             	        ppFetch->notify(instruction);
             	        numInst++;
