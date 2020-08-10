@@ -136,7 +136,7 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 
 	speculativeDependencyGraph[idx][specway][specuop]->thisInst = fullAddr;
 	speculativeDependencyGraph[idx][specway][specuop]->cycleAdded = cycleAdded;
-	speculativeDependencyGraph[idx][specway][specuop]->nodeStaticInst = uop;
+
 
 	// Branches handled differently
 	if (uop->isControl() && usingControlTracking) {

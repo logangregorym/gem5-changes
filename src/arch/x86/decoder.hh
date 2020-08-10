@@ -500,9 +500,9 @@ protected:
 	bool addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop);
 
 
-    StaticInstPtr getSuperoptimizedMicroop (const X86ISA::PCState thisPC, X86ISA::PCState& nextPC, bool &predict_taken);
-    // tells fetch stage that if a speculative trace is availble for this PC
-    bool isTraceAvailable(const X86ISA::PCState thisPC);
+    
+    
+
     bool isSpeculativeCacheActive()
     {
         return speculativeCacheActive;
@@ -510,7 +510,6 @@ protected:
 
     bool doSquash(const StaticInstPtr si, X86ISA::PCState pc);
 
-	bool isDeadCode(Addr addr, unsigned uop);
 
 	bool isSourceOfPrediction(Addr addr, unsigned uop);
 
@@ -529,6 +528,7 @@ protected:
 	unsigned maxLatency(unsigned idx, unsigned way);
 
 	// Interface for fetch!
+    // tells fetch stage that if a speculative trace is availble for this PC
 	bool isTraceAvailable(const X86ISA::PCState thisPC);
 
     StaticInstPtr getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken);

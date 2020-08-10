@@ -655,23 +655,6 @@ DefaultFetch<Impl>::deactivateThread(ThreadID tid)
 }
 
 
-template <class Impl>
-bool
-DefaultFetch<Impl>::lookupAndUpdateSpecPC(StaticInstPtr &staticInst, TheISA::PCState &specPC)
-{
-    // Do branch prediction check here.
-    // A bit of a misnomer...next_PC is actually the current PC until
-    // this function updates it.
-    bool predict_taken = true;
-
-    if (!staticInst->isControl()) {
-        TheISA::advancePC(specPC, staticInst);
-        return false;
-    }
-
-
-    return predict_taken;
-}
 
 
 template <class Impl>
@@ -1218,7 +1201,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
         if (fromCommit->commitInfo[tid].mispredictInst)
         {
             // folded branch
-            if (inst->isStreamedFromSpeculativeCache())
+            if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
             {
                 // again deactivate speculative cache
                 decoder[tid]->setSpeculativeCacheActive(false);
@@ -1230,7 +1213,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
         if (!fromCommit->commitInfo[tid].mispredictInst)
         {
             // memorder violation in a speculative trace
-            if (inst->isStreamedFromSpeculativeCache())
+            if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
             {
                 // activate speculative cache so we can fetch from it again
                 decoder[tid]->setSpeculativeCacheActive(true);
@@ -1683,7 +1666,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         bool predict_taken = false;
                         // fetch next microop and also update the nextPC, so we can decide whether there is
                         // TODO: fetchBufferPC[tid] ?
-                        staticInst = decoder[tid]->getSuperoptimizedMicroop(thisPC, nextPC, predict_taken);
+                        staticInst = decoder[tid]->getSuperOptimizedMicroop(thisPC, nextPC, predict_taken);
                         if (staticInst == StaticInst::nullStaticInstPtr)
                         {
                             inSpeculativeCache = false;

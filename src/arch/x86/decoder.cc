@@ -1368,47 +1368,11 @@ Decoder::doSquash(const StaticInstPtr si, X86ISA::PCState pc) {
  // }
 
     //   return false;
+    assert(0);
 }
 
 
 
-// sends back the microop from the active trace
-// In case of a folded branch, nextPC and predict_taken should be set by the function
-StaticInstPtr 
-Decoder::getSuperoptimizedMicroop (const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken)
-{
-    return StaticInst::nullStaticInstPtr;
-
-}
-
-bool 
-Decoder::isTraceAvailable(const X86ISA::PCState thisPC)
-{
-
-  return false;
-
-}
-
-
-bool
-Decoder::isDeadCode(Addr addr, unsigned uop, StaticInstPtr& nodeStaticInst) {
-	// Should only be called if superoptimizedTraceAvailable returned true
-  nodeStaticInst = StaticInst::nullStaticInstPtr;
-	int idx = (addr >> 5) & 0x1f;
-	uint64_t tag = (addr >> 10);
-	for (int way = 0; way < 8; way++) {
-		if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
-			for (int u = 0; u < uopCountArray[idx][way]; u++) {
-				if (depTracker->microopAddrArray[idx][way][u] == ArrayDependencyTracker::FullUopAddr(addr, uop)) {
-          nodeStaticInst = depTracker->speculativeDependencyGraph[idx][way][u]->nodeStaticInst;
-					return depTracker->speculativeDependencyGraph[idx][way][u]->deadCode;
-				}
-			}
-		}
-	}
-	// panic("isDeadCode was called on an addr w/o a dependency graph entry");
-	return false;
-}
 
 bool
 Decoder::isSourceOfPrediction(Addr addr, unsigned uop) {
@@ -1540,13 +1504,16 @@ Decoder::addSourceToCacheLine(unsigned predID, int idx, uint64_t tag) {
 	}
 }
 
-StaticInstPtr Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPc, X86ISA::PCState &nextPc, bool &predict_taken) {
-	int idx = (thisPc.instAddr() >> 5) & 0x1f;
-	uint64_t tag = (thisPc.instAddr() >> 10);
+// sends back the microop from the active trace
+// In case of a folded branch, nextPC and predict_taken should be set by the function
+StaticInstPtr 
+Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken) {
+	int idx = (thisPC.instAddr() >> 5) & 0x1f;
+	uint64_t tag = (thisPC.instAddr() >> 10);
 	for (int way = 0; way < 8; way++) {
 		if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
 			for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
-				if (depTracker->microopAddrArray[idx][way][uop].pcAddr == thisPc.instAddr() && depTracker->microopAddrArray[idx][way][uop].uopAddr == thisPc.microPC()) {
+				if (depTracker->microopAddrArray[idx][way][uop].pcAddr == thisPC.instAddr() && depTracker->microopAddrArray[idx][way][uop].uopAddr == thisPC.microPC()) {
 					if (depTracker->speculativeDependencyGraph[idx][way][uop]->specIdx.valid) {
 						ArrayDependencyTracker::FullCacheIdx specIdx = depTracker->speculativeDependencyGraph[idx][way][uop]->specIdx;
 
@@ -1555,7 +1522,7 @@ StaticInstPtr Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPc, X8
 						assert(speculativePrevWayArray[specIdx.idx][specIdx.way] == 10);
 
 						// update nextPc and predict_taken
-						depTracker->incrementPC(specIdx, nextPc, predict_taken);
+						depTracker->incrementPC(specIdx, nextPC, predict_taken);
 						
 						// return optimized inst
 						return speculativeCache[specIdx.idx][specIdx.way][specIdx.uop];

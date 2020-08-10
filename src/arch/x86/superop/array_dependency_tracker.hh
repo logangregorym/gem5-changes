@@ -252,7 +252,7 @@ class ArrayDependencyTracker : public SimObject
 	};
 
 	struct DependGraphEntry {
-		StaticInstPtr nodeStaticInst = StaticInst::nullStaticInstPtr;
+		
 		FullUopAddr thisInst = FullUopAddr(0, 0);
 		unsigned producers[256] = {0};
 		unsigned consumers[256] = {0};

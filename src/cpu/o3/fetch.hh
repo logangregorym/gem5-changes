@@ -300,7 +300,6 @@ class DefaultFetch
      */
     bool lookupAndUpdateNextPC(DynInstPtr &inst, TheISA::PCState &pc);
 
-    bool lookupAndUpdateSpecPC(StaticInstPtr &inst, TheISA::PCState &specPC);
 
     /**
      * Fetches the cache line that contains the fetch PC.  Returns any
