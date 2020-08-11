@@ -497,7 +497,7 @@ protected:
 
 	ArrayDependencyTracker::FullCacheIdx updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop);
 
-	bool addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop);
+	ArrayDependencyTracker::FullCacheIdx addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop);
 
 
     
