@@ -503,7 +503,7 @@ class BaseDynInst : public ExecContext, public RefCounted
     {
         TheISA::PCState tempPC = pc;
         TheISA::advancePC(tempPC, staticInst);
-        return !(tempPC == predPC);
+        return !(tempPC.instAddr() == predPC.instAddr());
     }
 
     //

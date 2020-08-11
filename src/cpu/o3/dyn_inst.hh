@@ -272,25 +272,28 @@ class BaseO3DynInst : public BaseDynInst<Impl>
     IntReg readIntRegOperand(const StaticInst *si, int idx)
     {
         if (si->sourcesPredicted[idx]) {
-	    return si->sourcePredictions[idx];
-	}
-	return this->cpu->readIntReg(this->_srcRegIdx[idx]);
+            DPRINTF(IEW, "Returning Predicted Value: %#x\n", si->sourcePredictions[idx]);
+            return si->sourcePredictions[idx];
+        }
+        return this->cpu->readIntReg(this->_srcRegIdx[idx]);
     }
 
     FloatReg readFloatRegOperand(const StaticInst *si, int idx)
     {
         if (si->sourcesPredicted[idx]) {
-	    return si->sourcePredictions[idx];
-	}
-	return this->cpu->readFloatReg(this->_srcRegIdx[idx]);
+            DPRINTF(IEW, "Returning Predicted Value: %#x\n", si->sourcePredictions[idx]);
+            return si->sourcePredictions[idx];
+        }
+        return this->cpu->readFloatReg(this->_srcRegIdx[idx]);
     }
 
     FloatRegBits readFloatRegOperandBits(const StaticInst *si, int idx)
     {
         if (si->sourcesPredicted[idx]) {
-	    return si->sourcePredictions[idx];
-	}
-	return this->cpu->readFloatRegBits(this->_srcRegIdx[idx]);
+            DPRINTF(IEW, "Returning Predicted Value: %#x\n", si->sourcePredictions[idx]);
+            return si->sourcePredictions[idx];
+        }
+        return this->cpu->readFloatRegBits(this->_srcRegIdx[idx]);
     }
 
     const VecRegContainer&

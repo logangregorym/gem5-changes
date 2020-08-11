@@ -224,13 +224,7 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 			consumedInWindow[i] = false;
 		}
 		DPRINTF(ConstProp, "Control signals are wild. Here are the bools for this %s: isControl %i; isCall %i; isReturn %i; isDirectCtrl %i; isIndirectCtrl %i; isCondCtrl %i; isUncondCtrl %i; isCondDelaySlot %i\n", uop->getName(), uop->isControl(), uop->isCall(), uop->isReturn(), uop->isDirectCtrl(), uop->isIndirectCtrl(), uop->isCondCtrl(), uop->isUncondCtrl(), uop->isCondDelaySlot());
-	} else if (uop->isControl() && uop->isLastMicroop()) {
-		for (int i=0; i<256; i++) {
-      DPRINTF(SuperOp, "registerValidMapSpec[%d] = false\n", i);
-			registerValidMapSpec[i] = false;
-			consumedInWindow[i] = false;
-		}
-	}
+	} 
 
 	// Search for source registers in graph
 	for (int i = 0; i < uop->numSrcRegs(); i++) {
@@ -371,6 +365,13 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 			registerRenameMapSpec[destReg.flatIndex()] = nextRegNameSpec;
 			nextRegNameSpec++;
 			markLastUse(destReg.flatIndex());
+		}
+	}
+  if (uop->isControl() && uop->isLastMicroop()) {
+		for (int i=0; i<256; i++) {
+      DPRINTF(SuperOp, "registerValidMapSpec[%d] = false\n", i);
+			registerValidMapSpec[i] = false;
+			consumedInWindow[i] = false;
 		}
 	}
 
@@ -617,7 +618,7 @@ void ArrayDependencyTracker::invalidateBranch(unsigned branchIndex) {
 	branchesValid[branchIndex] = false;
 }
 
-void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, uint64_t value)
+void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, int64_t value)
 {
 	DPRINTF(ConstProp, "Predicted %x for inst at %x.%i\n", value, addr, uopAddr);
 	int idx = (addr >> 5) & 0x1f;
@@ -835,6 +836,21 @@ bool ArrayDependencyTracker::simplifyGraph() {
 			if (loc.valid) {
 				speculativeDependencyGraph[i1][i2][i3]->specIdx = loc;
 			//	printf("Added an inst to spec graph at [%i][%i][%i]\n", loc.idx, loc.way, loc.uop);
+			}
+      ArrayDependencyTracker::DependGraphEntry* entry = speculativeDependencyGraph[i1][i2][i3];
+      for (int i=0; i<256; i++) {
+        if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
+          ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
+          if (path.valid) {
+            for (int j=0; j<decodedMicroOp->numSrcRegs(); j++) {
+              unsigned srcIdx = decodedMicroOp->srcRegIdx(j).flatIndex();
+              if (srcIdx == path.archRegIdx) {
+                decodedMicroOp->sourcePredictions[j] = path.value;
+                decodedMicroOp->sourcesPredicted[j] = true;
+              }
+            }
+          }
+				}
 			}
 		}
 	}
@@ -2585,6 +2601,12 @@ void ArrayDependencyTracker::incrementPC(ArrayDependencyTracker::FullCacheIdx sp
 	if (nextIdx.valid && decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]) {
 		nextPC._pc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr;
 		nextPC._upc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr;
+    nextPC._npc = nextPC._pc + decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getMacroopSize();
+    if (nextPC._upc < decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getNumMicroops() - 1) {
+        nextPC._nupc = (nextPC._upc + 1 ) % decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getNumMicroops();
+    } else {
+        nextPC._nupc = decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getNumMicroops();
+    }
 		predict_taken = isTakenBranch(decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop]);
 	} else {
 		nextPC.valid = false;
