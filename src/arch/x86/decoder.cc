@@ -38,6 +38,8 @@
 #include "debug/ConstProp.hh"
 #include "debug/SuperOp.hh"
 
+#include <iostream>
+
 namespace X86ISA
 {
 
@@ -1525,7 +1527,7 @@ Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState 
 	int idx = (thisPC.instAddr() >> 5) & 0x1f;
 	uint64_t tag = (thisPC.instAddr() >> 10);
 
-  DPRINTF(Decoder, "getSuperOptimizedMicroop called at:%s\n", thisPC);
+	DPRINTF(Decoder, "getSuperOptimizedMicroop called at:%s\n", thisPC);
 	for (int way = 0; way < 8; way++) {
 		if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
 			for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
@@ -1534,20 +1536,22 @@ Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState 
 						ArrayDependencyTracker::FullCacheIdx specIdx = depTracker->speculativeDependencyGraph[idx][way][uop]->specIdx;
 
 						// update nextPc and predict_taken
+						printf("Calling incrementPC\n");
 						depTracker->incrementPC(specIdx, nextPC, predict_taken);
 						
 						// return optimized inst
-            DPRINTF(Decoder, "getSuperOptimizedMicroop: idx:%#x way:%#x uop:%#x, nextPC:%s, pred_taken:%d\n", specIdx.idx, specIdx.way, specIdx.uop, nextPC, predict_taken);
+	        			DPRINTF(Decoder, "getSuperOptimizedMicroop: idx:%#x way:%#x uop:%#x, nextPC:%s, pred_taken:%d\n", specIdx.idx, specIdx.way, specIdx.uop, nextPC, predict_taken);
 						return speculativeCache[specIdx.idx][specIdx.way][specIdx.uop];
 					}
-          DPRINTF(Decoder, "No valid specIdx found at idx:%#x way:%#x uop:%#x\n", idx, way, uop);
+	      		DPRINTF(Decoder, "No valid specIdx found at idx:%#x way:%#x uop:%#x\n", idx, way, uop);
 				}
 			}
-      DPRINTF(Decoder, "No valid uop found at idx:%x way:%x\n", idx, way);
+	  		DPRINTF(Decoder, "No valid uop found at idx:%x way:%x\n", idx, way);
 		}
 	}
-  DPRINTF(Decoder, "No valid ways found at idx:%x tag:%x\n", idx, tag);
+	DPRINTF(Decoder, "No valid ways found at idx:%x tag:%x\n", idx, tag);
 
+	std::cout << "Okay, returning nullStaticInstPtr" << std::endl;
 	return StaticInst::nullStaticInstPtr;
 }
 
