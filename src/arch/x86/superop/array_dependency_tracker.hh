@@ -42,7 +42,7 @@ class ArrayDependencyTracker : public SimObject
 
 	void removeAtIndex(int i1, int i2, int i3);
 
-	void predictValue(Addr addr, unsigned uopAddr, uint64_t value);
+	void predictValue(Addr addr, unsigned uopAddr, int64_t value);
 
 	bool simplifyGraph();
 	unsigned simplifyIdx = 0;
@@ -131,7 +131,7 @@ class ArrayDependencyTracker : public SimObject
 		FullUopAddr consumer = FullUopAddr(0, 0);
 		unsigned archRegIdx;
 		unsigned renamedRegIdx;
-		uint64_t value;
+		int64_t value;
 		bool valid;
 		bool lastUse;
 		unsigned directControlDependency = 0;
@@ -259,7 +259,7 @@ class ArrayDependencyTracker : public SimObject
 		bool seen = false;
 		unsigned cycleAdded = 0;
 		bool predicted = false;
-		uint64_t value = 0;
+		int64_t value = 0;
 		bool deadCode = false;
 		FullCacheIdx specIdx = FullCacheIdx();
 

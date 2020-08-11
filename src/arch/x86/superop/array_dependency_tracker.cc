@@ -618,7 +618,7 @@ void ArrayDependencyTracker::invalidateBranch(unsigned branchIndex) {
 	branchesValid[branchIndex] = false;
 }
 
-void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, uint64_t value)
+void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, int64_t value)
 {
 	DPRINTF(ConstProp, "Predicted %x for inst at %x.%i\n", value, addr, uopAddr);
 	int idx = (addr >> 5) & 0x1f;

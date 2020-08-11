@@ -370,7 +370,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     const char * instMnem;
 
     // Annotate predicted inputs here
-    unsigned sourcePredictions[128] = {0};
+    int64_t sourcePredictions[128] = {0};
     bool sourcesPredicted[128] = {0};
 };
 

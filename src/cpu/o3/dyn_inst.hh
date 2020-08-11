@@ -272,7 +272,7 @@ class BaseO3DynInst : public BaseDynInst<Impl>
     IntReg readIntRegOperand(const StaticInst *si, int idx)
     {
         if (si->sourcesPredicted[idx]) {
-            DPRINTF(IEW, "Returning Predicted Value\n");
+            DPRINTF(IEW, "Returning Predicted Value: %#x\n", si->sourcePredictions[idx]);
             return si->sourcePredictions[idx];
         }
         return this->cpu->readIntReg(this->_srcRegIdx[idx]);
@@ -281,7 +281,7 @@ class BaseO3DynInst : public BaseDynInst<Impl>
     FloatReg readFloatRegOperand(const StaticInst *si, int idx)
     {
         if (si->sourcesPredicted[idx]) {
-            DPRINTF(IEW, "Returning Predicted Value\n");
+            DPRINTF(IEW, "Returning Predicted Value: %#x\n", si->sourcePredictions[idx]);
             return si->sourcePredictions[idx];
         }
         return this->cpu->readFloatReg(this->_srcRegIdx[idx]);
@@ -290,7 +290,7 @@ class BaseO3DynInst : public BaseDynInst<Impl>
     FloatRegBits readFloatRegOperandBits(const StaticInst *si, int idx)
     {
         if (si->sourcesPredicted[idx]) {
-            DPRINTF(IEW, "Returning Predicted Value\n");
+            DPRINTF(IEW, "Returning Predicted Value: %#x\n", si->sourcePredictions[idx]);
             return si->sourcePredictions[idx];
         }
         return this->cpu->readFloatRegBits(this->_srcRegIdx[idx]);
