@@ -2343,6 +2343,7 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 			}
 			// Steb 2b: Mark DependGraphEntry as dead code to know to skip
 			speculativeDependencyGraph[idx][way][uop]->deadCode = true;
+			speculativeDependencyGraph[idx][way][uop]->specIdx.valid = false;
 		} else {
 			// Step 3b: Mark all predicted values on the StaticInst
 			for (int i=0; i<256; i++) {
@@ -2366,6 +2367,7 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 			FullCacheIdx newIdx = decoder->updateTagInSpeculativeCacheWithoutAdding(speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
 			speculativeDependencyGraph[idx][way][uop]->deadCode = true;
 			speculativeDependencyGraph[idx][way][uop]->specIdx = newIdx;
+			speculativeDependencyGraph[idx][way][uop]->specIdx.valid = false;
 			// printf("Marked an inst as dead code\n");
 		} else {
 			// Step 3a: If not dead and not present, call decodeInst and add	

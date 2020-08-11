@@ -1324,7 +1324,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     seq = cpu->getAndIncrementInstSeq();
 
     // Create a new DynInst from the instruction fetched.
-    assert(curMacroop);
+    // assert(curMacroop);
     DynInstPtr instruction =
         new DynInst(staticInst, curMacroop, thisPC, nextPC, seq, cpu);
     instruction->setTid(tid);
@@ -1898,7 +1898,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     newMacro |= staticInst->isLastMicroop();
             	}
 
-		assert(curMacroop);
+		// assert(curMacroop);
                 DynInstPtr instruction =
                         buildInst(tid, staticInst, curMacroop,
                                 thisPC, nextPC, true);
