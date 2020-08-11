@@ -1,0 +1,58 @@
+gem5 Simulator System.  http://gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 compiled Aug 10 2020 23:25:07
+gem5 started Aug 10 2020 23:26:11
+gem5 executing on dante, pid 8636
+command line: /home/dante/gem5-changes/build/X86/gem5.opt /home/dante/gem5-changes/configs/example/se.py -c tests/test-progs/hello/bin/x86/linux/hello --cpu-type=O3_X86_skylake_1 --caches --l2cache --mem-type=DDR4_2400_16x4 --mem-channels=2 --enable-microop-cache --enable-micro-fusion --enable-superoptimization --lvpredType=fa3p --dynamicThreshold=0 --constantThreshold=3 --predictingArithmetic=1 --usingControlTracking=0 --maxRecursiveDepth=1
+
+Global frequency set at 1000000000000 ticks per second
+**** REAL SIMULATION ****
+Instruction Commited: (0)1 PCState: (0x400190=>0x400193).(0=>1)   XOR_R_R : xor   rbp, rbp, rbp
+Instruction Commited: (0)2 PCState: (0x400193=>0x400196).(0=>1)   MOV_R_R : mov   r9, r9, rdx
+Instruction Commited: (0)3 PCState: (0x400196=>0x400197).(0=>1)   POP_R : ldis   t1, SS:[rsp]
+Instruction Commited: (0)4 PCState: (0x400196=>0x400197).(1=>2)   POP_R : addi   rsp, rsp, 0x8
+Instruction Commited: (0)5 PCState: (0x400196=>0x400197).(2=>3)   POP_R : mov   rsi, rsi, t1
+Instruction Commited: (0)6 PCState: (0x400197=>0x40019a).(0=>1)   MOV_R_R : mov   rdx, rdx, rsp
+Instruction Commited: (0)7 PCState: (0x40019a=>0x40019e).(0=>1)   AND_R_I : limm   t1, 0xfffffffffffffff0
+Instruction Commited: (0)8 PCState: (0x40019a=>0x40019e).(1=>2)   AND_R_I : and   rsp, rsp, t1
+Instruction Commited: (0)9 PCState: (0x40019e=>0x40019f).(0=>1)   PUSH_R : stis   rax, SS:[rsp + 0xfffffffffffffff8]
+Instruction Commited: (0)10 PCState: (0x40019e=>0x40019f).(1=>2)   PUSH_R : subi   rsp, rsp, 0x8
+Instruction Commited: (0)11 PCState: (0x40019f=>0x4001a0).(0=>1)   PUSH_R : stis   rsp, SS:[rsp + 0xfffffffffffffff8]
+Instruction Commited: (0)12 PCState: (0x40019f=>0x4001a0).(1=>2)   PUSH_R : subi   rsp, rsp, 0x8
+Instruction Commited: (0)13 PCState: (0x4001a0=>0x4001a7).(0=>1)   MOV_R_I : limm   r8, 0x40a060
+Instruction Commited: (0)14 PCState: (0x4001a7=>0x4001ae).(0=>1)   MOV_R_I : limm   rcx, 0x409ff0
+Instruction Commited: (0)15 PCState: (0x4001ae=>0x4001b5).(0=>1)   MOV_R_I : limm   rdi, 0x400274
+Instruction Commited: (0)16 PCState: (0x4001b5=>0x4001ba).(0=>1)   CALL_NEAR_I : limm   t1, 0x9846
+Instruction Commited: (0)17 PCState: (0x4001b5=>0x4001ba).(1=>2)   CALL_NEAR_I : rdip   t7, %ctrl153, 
+Instruction Commited: (0)18 PCState: (0x4001b5=>0x4001ba).(2=>3)   CALL_NEAR_I : stis   t7, SS:[rsp + 0xfffffffffffffff8]
+Instruction Commited: (0)19 PCState: (0x4001b5=>0x4001ba).(3=>4)   CALL_NEAR_I : subi   rsp, rsp, 0x8
+Instruction Commited: (0)20 PCState: (0x4001b5=>0x409a00).(4=>5)   CALL_NEAR_I : wrip   , t7, t1
+Instruction Commited: (0)22 PCState: (0x409a00=>0x409a02).(0=>1)   PUSH_R : stis   r15, SS:[rsp + 0xfffffffffffffff8]
+Instruction Commited: (0)23 PCState: (0x409a00=>0x409a02).(1=>2)   PUSH_R : subi   rsp, rsp, 0x8
+Instruction Commited: (0)24 PCState: (0x409a02=>0x409a05).(0=>1)   MOVSXD_R_R : sexti   rax, rsi, 0x1f
+Instruction Commited: (0)25 PCState: (0x409a05=>0x409a08).(0=>1)   MOV_R_R : mov   r15, r15, r9
+Instruction Commited: (0)26 PCState: (0x409a08=>0x409a0a).(0=>1)   PUSH_R : stis   r14, SS:[rsp + 0xfffffffffffffff8]
+Instruction Commited: (0)27 PCState: (0x409a08=>0x409a0a).(1=>2)   PUSH_R : subi   rsp, rsp, 0x8
+Instruction Commited: (0)28 PCState: (0x409a0a=>0x409a0d).(0=>1)   MOV_R_R : mov   r14, r14, rdx
+Instruction Commited: (0)29 PCState: (0x409a0d=>0x409a0f).(0=>1)   PUSH_R : stis   r13, SS:[rsp + 0xfffffffffffffff8]
+Instruction Commited: (0)30 PCState: (0x409a0d=>0x409a0f).(1=>2)   PUSH_R : subi   rsp, rsp, 0x8
+Instruction Commited: (0)31 PCState: (0x409a0f=>0x409a12).(0=>1)   MOV_R_R : mov   r13d, r13d, esi
+Instruction Commited: (0)32 PCState: (0x409a12=>0x409a14).(0=>1)   PUSH_R : stis   r12, SS:[rsp + 0xfffffffffffffff8]
+Instruction Commited: (0)33 PCState: (0x409a12=>0x409a14).(1=>2)   PUSH_R : subi   rsp, rsp, 0x8
+Instruction Commited: (0)34 PCState: (0x409a14=>0x409a15).(0=>1)   PUSH_R : stis   rbp, SS:[rsp + 0xfffffffffffffff8]
+Instruction Commited: (0)35 PCState: (0x409a14=>0x409a15).(1=>2)   PUSH_R : subi   rsp, rsp, 0x8
+Instruction Commited: (0)36 PCState: (0x409a15=>0x409a16).(0=>1)   PUSH_R : stis   rbx, SS:[rsp + 0xfffffffffffffff8]
+Instruction Commited: (0)37 PCState: (0x409a15=>0x409a16).(1=>2)   PUSH_R : subi   rsp, rsp, 0x8
+Instruction Commited: (0)38 PCState: (0x409a16=>0x409a1d).(0=>1)   SUB_R_I : limm   t1, 0x1f8
+Instruction Commited: (0)39 PCState: (0x409a16=>0x409a1d).(1=>2)   SUB_R_I : sub   rsp, rsp, t1
+Instruction Commited: (0)40 PCState: (0x409a1d=>0x409a22).(0=>1)   MOV_M_R : st   rdi, DS:[rsp + 0x18]
+Instruction Commited: (0)41 PCState: (0x409a22=>0x409a27).(0=>1)   LEA_R_M : lea   rdi, DS:[8*rax + rdx + 0x8]
+Instruction Commited: (0)42 PCState: (0x409a27=>0x409a2c).(0=>1)   MOV_R_I : limm   eax, 0
+Instruction Commited: (0)43 PCState: (0x409a2c=>0x409a2e).(0=>1)   XOR_R_R : xor   edx, edx, edx
+Instruction Commited: (0)44 PCState: (0x409a2e=>0x409a31).(0=>1)   TEST_R_R : and   t0, rax, rax
+Instruction Commited: (0)45 PCState: (0x409a31=>0x409a36).(0=>1)   MOV_M_R : st   rcx, DS:[rsp + 0x10]
+Instruction Commited: (0)46 PCState: (0x409a36=>0x409a3b).(0=>1)   MOV_M_R : st   r8, DS:[rsp + 0x8]
+Instruction Commited: (0)47 PCState: (0x409a3b=>0x409a3d).(0=>1)   JZ_I : rdip   t1, %ctrl153, 
+Instruction Commited: (0)48 PCState: (0x409a3b=>0x409a3d).(1=>2)   JZ_I : limm   t2, 0x12
+Instruction Commited: (0)49 PCState: (0x409a3b=>0x409a4f).(2=>3)   JZ_I : wrip   , t1, t2

@@ -1,0 +1,10 @@
+gem5 Simulator System.  http://gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 compiled Aug 10 2020 23:46:31
+gem5 started Aug 10 2020 23:46:55
+gem5 executing on dante, pid 10436
+command line: /home/dante/gem5-changes/build/X86/gem5.opt /home/dante/gem5-changes/configs/example/se.py -c tests/test-progs/hello/bin/x86/linux/hello --cpu-type=O3_X86_skylake_1 --caches --l2cache --mem-type=DDR4_2400_16x4 --mem-channels=2 --enable-microop-cache --enable-micro-fusion
+
+Global frequency set at 1000000000000 ticks per second
+**** REAL SIMULATION ****
