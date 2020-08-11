@@ -2305,7 +2305,7 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 	assert(speculativeDependencyGraph[idx][way][uop]);
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr); }
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
 
 	bool allDestsReady = true;
 	for (int i=0; i<256; i++) {
