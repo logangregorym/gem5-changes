@@ -1324,6 +1324,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     seq = cpu->getAndIncrementInstSeq();
 
     // Create a new DynInst from the instruction fetched.
+    assert(curMacroop);
     DynInstPtr instruction =
         new DynInst(staticInst, curMacroop, thisPC, nextPC, seq, cpu);
     instruction->setTid(tid);
@@ -1740,6 +1741,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         // we will do it in another way
                         thisPC.npc(nextPC.pc());
 
+			assert(staticInst->macroOp);
                         DynInstPtr instruction = buildInst(tid, staticInst, staticInst->macroOp,
                                                             thisPC, nextPC, true);
 
@@ -1862,8 +1864,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     if (inRom) {
                     	staticInst = cpu->microcodeRom.fetchMicroop(
                             thisPC.microPC(), curMacroop);
+			staticInst->macroOp = curMacroop;
                     } else {
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
+			staticInst->macroOp = curMacroop;
                         staticInst->fetched_from = 1;
                         if (ENABLE_DEBUG)
                             std::cout << "Decoder || UopCache: " <<  " PCState: " <<  thisPC << 
@@ -1871,6 +1875,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	/* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
+			    prevStaticInst->macroOp = curMacroop;
                     	    if ((staticInst->isInteger() || staticInst->isNop() ||
                     	            staticInst->isControl() || staticInst->isMicroBranch()) &&
                     	            prevStaticInst->isLoad() && !prevStaticInst->isRipRel()) {
@@ -1894,6 +1899,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     newMacro |= staticInst->isLastMicroop();
             	}
 
+		assert(curMacroop);
                 DynInstPtr instruction =
                         buildInst(tid, staticInst, curMacroop,
                                 thisPC, nextPC, true);

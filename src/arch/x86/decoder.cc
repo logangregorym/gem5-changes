@@ -1647,7 +1647,9 @@ Decoder::decode(PCState &nextPC, unsigned cycleAdded, ThreadID tid)
         if (si->isMacroop() && isMicroFusionPresent) {
             for (int i = 1; i < si->getNumMicroops(); i++) {
                 StaticInstPtr cur = si->fetchMicroop(i);
+		cur->macroOp = si;
                 StaticInstPtr prev = si->fetchMicroop(i-1);
+		prev->macroOp = si;
                 if ((cur->isInteger() || cur->isNop() || cur->isControl() || cur->isMicroBranch()) && prev->isLoad() && !prev->isRipRel()) {
                     i++;
                 }

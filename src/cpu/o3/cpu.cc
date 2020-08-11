@@ -1613,7 +1613,9 @@ FullO3CPU<Impl>::removeFrontInst(DynInstPtr &inst)
 
     if (inst->staticInst->isLastMicroop() && !inst->isSquashed() &&
         !fetch.decoder[inst->threadNumber]->isHitInSpeculativeCache(inst->pcState().instAddr(), inst->pcState().microPC())) {
-        inst->macroop->deleteMicroOps();
+	assert(inst->isMacroop() || inst->macroop);
+	assert(inst->macroop);
+	inst->macroop->deleteMicroOps();
     }
 
     removeInstsThisCycle = true;
