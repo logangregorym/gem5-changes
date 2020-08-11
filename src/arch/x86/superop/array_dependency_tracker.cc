@@ -825,7 +825,11 @@ bool ArrayDependencyTracker::simplifyGraph() {
 //			printf("Changed graph but not updating trace\n");
 		} else {
 			// printf("Simplify graph didn't change anything\n");
-			decoder->addToSpeculativeCacheIffTagExists(decodedMicroOp, speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr);
+			FullCacheIdx loc = decoder->addToSpeculativeCacheIffTagExists(decodedMicroOp, speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr);
+			if (loc.valid) {
+				speculativeDependencyGraph[i1][i2][i3]->specIdx = loc;
+			//	printf("Added an inst to spec graph at [%i][%i][%i]\n", loc.idx, loc.way, loc.uop);
+			}
 		}
 	}
 

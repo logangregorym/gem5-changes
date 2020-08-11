@@ -1132,7 +1132,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop) {
 	return ArrayDependencyTracker::FullCacheIdx();
 }
 
-bool
+ArrayDependencyTracker::FullCacheIdx
 Decoder::addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop) {
 	int idx = (addr >> 5) & 0x1f;
 	uint64_t tag = (addr >> 10);
@@ -1150,25 +1150,27 @@ Decoder::addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsign
 			speculativeAddrArray[idx][way][waySize] = ArrayDependencyTracker::FullUopAddr(addr, uop);
 			updateLRUBitsSpeculative(idx, way);
       DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d.\n", addr, tag, idx, way, waySize);
-			return true;
+			return ArrayDependencyTracker::FullCacheIdx(idx, way, waySize);
 		}
 	}
 
 	// If we make it here, then we need to add a way for this tag
-	for (int way = 0; way < 8; way++) {
-		if (!speculativeValidArray[idx][way]) {
-			speculativeCountArray[idx][way] = 1;
-			speculativeValidArray[idx][way] = true;
-			speculativeTagArray[idx][way] = tag;
-			speculativeCache[idx][way][0] = inst;
-			speculativeAddrArray[idx][way][0] = ArrayDependencyTracker::FullUopAddr(addr, uop);
-			updateLRUBitsSpeculative(idx, way);
-      DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d.\n", addr, tag, idx, way, uop);
-			return true;
-		}
-	}
+	if (numFullWays > 0 && numFullWays < 6) {
+    for (int way = 0; way < 8; way++) {
+      if (!speculativeValidArray[idx][way]) {
+        speculativeCountArray[idx][way] = 1;
+        speculativeValidArray[idx][way] = true;
+        speculativeTagArray[idx][way] = tag;
+        speculativeCache[idx][way][0] = inst;
+        speculativeAddrArray[idx][way][0] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+        updateLRUBitsSpeculative(idx, way);
+        DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d.\n", addr, tag, idx, way, 0);
+        return ArrayDependencyTracker::FullCacheIdx(idx, way, 0);
+      }
+    }
+  }
 	DPRINTF(SuperOp, "Tag not found in cache, so not adding inst\n");
-	return false;
+	return ArrayDependencyTracker::FullCacheIdx();
 }
 
 ArrayDependencyTracker::FullCacheIdx
