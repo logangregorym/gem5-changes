@@ -79,9 +79,8 @@ class MacroopBase : public X86StaticInst
     {
         if (microPC >= numMicroops)
             return badMicroop;
-        else
-	    //microops[microPC]->macroOp;
-            return microops[microPC];
+        else 
+	    return microops[microPC];
     }
 
     std::string
