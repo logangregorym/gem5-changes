@@ -1684,6 +1684,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             // fetchBufferPC[tid] is updated at the begining of streaming microops from speculative cache 
                             
                             thisPC = nextPC; 
+                            thisPC.upc(0); thisPC.nupc(1);
                             
                             // 
                             // When we are done with streaming from speculative cache we always know that we are at the 
@@ -1703,7 +1704,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             if (!fetchBufferValid[tid] || fetchBufferBlockPC != fetchBufferPC[tid])
                             {
                                 DPRINTF(Fetch, "[tid:%i]: Done streaming from speculative cache and "
-                                                "fetch buffer is not valid anymore!.\n", tid);
+                                                "fetch buffer is not valid anymore!. Fetch continues to stream from %s\n", tid, thisPC);
                                 
                                 fetchBufferValid[tid] = false;
                                 // when we break, we need to make sure that decoder[tid]->instReady() always return false;
