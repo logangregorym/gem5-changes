@@ -2569,6 +2569,7 @@ void ArrayDependencyTracker::incrementPC(ArrayDependencyTracker::FullCacheIdx sp
 	// Step 3: If inst at specIdx is a branch, use control flow table to set taken
 	// Step 4: If didn't have a next index, or if the StaticInstPtr at the next index is null, this is the end of a trace
 	FullCacheIdx nextIdx = getNextCacheIdx(specIdx);
+  DPRINTF(ConstProp, "Next Idx is %i,%i,%i\n", nextIdx.idx, nextIdx.way, nextIdx.uop);
 	if (nextIdx.valid && decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]) {
 		nextPC._pc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr;
 		nextPC._upc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr;

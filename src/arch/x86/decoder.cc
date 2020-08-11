@@ -1350,7 +1350,9 @@ Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 			for (int u = 0; u < uopCountArray[idx][way]; u++) {
 				if (depTracker->microopAddrArray[idx][way][u] == ArrayDependencyTracker::FullUopAddr(thisPC.instAddr(), thisPC.microPC())) {
 					// Found a match, should have a dependency graph entry
-					assert(depTracker->speculativeDependencyGraph[idx][way][u]);
+					if (!depTracker->speculativeDependencyGraph[idx][way][u]) {
+						printf("no entry at %i, %i, %i for %lx.%i\n", idx, way, u, thisPC.instAddr(), thisPC.microPC());
+					}
 					if (depTracker->speculativeDependencyGraph[idx][way][u]->specIdx.valid || depTracker->speculativeDependencyGraph[idx][way][u]->deadCode) {
 						ArrayDependencyTracker::FullCacheIdx specIdx = depTracker->speculativeDependencyGraph[idx][way][u]->specIdx;
 						if ((specIdx.uop == 0) && speculativePrevWayArray[specIdx.idx][specIdx.way] == 10) {
@@ -1528,10 +1530,6 @@ Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState 
 				if (depTracker->microopAddrArray[idx][way][uop].pcAddr == thisPC.instAddr() && depTracker->microopAddrArray[idx][way][uop].uopAddr == thisPC.microPC()) {
 					if (depTracker->speculativeDependencyGraph[idx][way][uop]->specIdx.valid) {
 						ArrayDependencyTracker::FullCacheIdx specIdx = depTracker->speculativeDependencyGraph[idx][way][uop]->specIdx;
-
-						// should be start of trace
-//						assert(specIdx.uop == 0);
-//						assert(speculativePrevWayArray[specIdx.idx][specIdx.way] == 10);
 
 						// update nextPc and predict_taken
 						depTracker->incrementPC(specIdx, nextPC, predict_taken);
