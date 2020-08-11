@@ -1576,6 +1576,9 @@ DefaultIEW<Impl>::executeInsts()
             // that have not been executed.
             bool loadNotExecuted = !inst->isExecuted() && inst->isLoad();
 
+            TheISA::PCState tempPC = inst->pcState();
+            TheISA::advancePC(tempPC, inst->staticInst);
+            DPRINTF(IEW, "mismatch? target PC=%s, predicted PC=%s\n", tempPC, inst->readPredTarg());
             if ((!inst->isStreamedFromSpeculativeCache() || (inst->isControl() && inst->isLastMicroop())) && inst->mispredicted() && !loadNotExecuted) {
                 fetchRedirect[tid] = true;
 

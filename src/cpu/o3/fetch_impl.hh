@@ -1737,11 +1737,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         // to make sure that we always have the macroop for every microop
                         //assert(staticInst->macroOp != StaticInst::nullStaticInstPtr);
 
-                        // we need to update thisPC manually, this is done in decoder with UpdatNPC() function
-                        // we will do it in another way
-                        thisPC.npc(nextPC.pc());
-
-			assert(staticInst->macroOp);
+                        assert(staticInst->macroOp);
                         DynInstPtr instruction = buildInst(tid, staticInst, staticInst->macroOp,
                                                             thisPC, nextPC, true);
 
@@ -1749,6 +1745,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                         DPRINTF(Fetch, "Speculative instruction created: [sn:%lli]:%s thisPC = %s nextPC = %s\n", 
                                     instruction->seqNum, instruction->pcState(), thisPC, nextPC);
+                        for (int j=0; j<staticInst->numSrcRegs(); j++) {
+                            if (staticInst->sourcesPredicted[j])
+                                DPRINTF(Fetch, "Speculative instruction has propagated constant %#x at operand %#x\n", staticInst->sourcePredictions[j], j);
+                        }
 
             	        ppFetch->notify(instruction);
             	        numInst++;
@@ -1790,6 +1790,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                             DPRINTF(Fetch, "[tid:%i]: [sn:%i] Folded branch predicted to go to %s.\n",
                                         tid, instruction->seqNum, nextPC);
+                            
                             instruction->setPredTarg(nextPC);
                             instruction->setPredTaken(predict_taken);
 
