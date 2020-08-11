@@ -1673,13 +1673,13 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         bool predict_taken = false;
                         // fetch next microop and also update the nextPC, so we can decide whether there is
                         // TODO: fetchBufferPC[tid] ?
-			std::cout << "Asking SPEC for microop at " << thisPC << " and to update " << nextPC << " (" << nextPC.valid << ")" << std::endl;
+			                  DPRINTF(Fetch, "Asking SPEC for microop at %s and to update %s (%d)\n", thisPC, nextPC, nextPC.valid);
                         staticInst = decoder[tid]->getSuperOptimizedMicroop(thisPC, nextPC, predict_taken);
-			if (staticInst == StaticInst::nullStaticInstPtr) {
-				std::cout << "Recieved from SPEC nextPC " << nextPC << " (" << nextPC.valid << ") and a nullStaticInstPtr" << std::endl;
-			} else {
-				std::cout << "Recieved from SPEC nextPC " << nextPC << " (" << nextPC.valid << ") and a valid next inst" << std::endl;
-			}
+                        if (staticInst == StaticInst::nullStaticInstPtr) {
+                            DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and a nullStaticInstPtr\n", nextPC, nextPC.valid);
+                        } else {
+                            DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and a valid next inst\n", nextPC, nextPC.valid);
+                        }
                         if (staticInst == StaticInst::nullStaticInstPtr)
                         {
                             inSpeculativeCache = false;
