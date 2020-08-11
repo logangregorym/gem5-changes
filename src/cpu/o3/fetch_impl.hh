@@ -1847,7 +1847,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	if (staticInst->isMacroop()) {
                     	    curMacroop = staticInst;
                     	} else {
-			                    curMacroop = staticInst->macroOp;
                     	    pcOffset = 0;
                     	}
 
