@@ -1544,7 +1544,7 @@ Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState 
 						ArrayDependencyTracker::FullCacheIdx specIdx = depTracker->speculativeDependencyGraph[idx][way][uop]->specIdx;
 
 						// update nextPc and predict_taken
-						printf("Calling incrementPC\n");
+						DPRINTF(Decoder, "Calling incrementPC\n");
 						depTracker->incrementPC(specIdx, nextPC, predict_taken);
 						
 						// return optimized inst
@@ -1559,7 +1559,7 @@ Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState 
 	}
 	DPRINTF(Decoder, "No valid ways found at idx:%x tag:%x\n", idx, tag);
 
-	std::cout << "Okay, returning nullStaticInstPtr" << std::endl;
+	DPRINTF(Decoder, "Okay, returning nullStaticInstPtr\n");
 	return StaticInst::nullStaticInstPtr;
 }
 

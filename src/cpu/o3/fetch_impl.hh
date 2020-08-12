@@ -1198,22 +1198,25 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             {
                 DynInstPtr dynSpecInst =  fromCommit->commitInfo[tid].mispredictInst;
 
-                assert(dynSpecInst);
+                // assert(dynSpecInst);
                 
                 // LVP missprediction, therefore, deactivate speculative cache and fetch from uop/decoder
                 decoder[tid]->setSpeculativeCacheActive(false);
+                decoder[tid]->redirectDueToLVP = true;
             }
             // folded branch missprediction
             else if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
             {
                 // again deactivate speculative cache
                 decoder[tid]->setSpeculativeCacheActive(false);
+                decoder[tid]->redirectDueToLVP = true;
             }
             // not a folded branch or LVP missprediction
             else 
             {
-                // TODO: do we need to deactivate speculative cache?
-                ;
+                
+                decoder[tid]->redirectDueToLVP = false;
+                
             }
 
         }
@@ -1224,10 +1227,16 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             {
                 // activate speculative cache so we can fetch from it again
                 decoder[tid]->setSpeculativeCacheActive(true);
+                decoder[tid]->redirectDueToLVP = true;
                 
+            }
+            else {
+                decoder[tid]->redirectDueToLVP = false;
             }
 
         }
+
+        
 
         //*****CHANGE END**********
 
@@ -1504,13 +1513,13 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
         //*****CHANGE START**********
         // check the speculative cache even before the microop cahce
-        if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive())
+        if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive() )
         {
             DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s.\n", thisPC);
             inSpeculativeCache = true;
             //fetchBufferValid[tid] = false;
         }
-        else if (isSuperOptimizationPresent && decoder[tid]->isTraceAvailable(thisPC)) 
+        else if (isSuperOptimizationPresent && decoder[tid]->isTraceAvailable(thisPC) && !decoder[tid]->redirectDueToLVP) 
         {
         
           DPRINTF(Fetch, "Setting speculative cache active at Pc %s.\n", thisPC);
@@ -1673,13 +1682,13 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         bool predict_taken = false;
                         // fetch next microop and also update the nextPC, so we can decide whether there is
                         // TODO: fetchBufferPC[tid] ?
-			std::cout << "Asking SPEC for microop at " << thisPC << " and to update " << nextPC << " (" << nextPC.valid << ")" << std::endl;
+			                  DPRINTF(Fetch, "Asking SPEC for microop at %s and to update %s (%d)\n", thisPC, nextPC, nextPC.valid);
                         staticInst = decoder[tid]->getSuperOptimizedMicroop(thisPC, nextPC, predict_taken);
-			if (staticInst == StaticInst::nullStaticInstPtr) {
-				std::cout << "Recieved from SPEC nextPC " << nextPC << " (" << nextPC.valid << ") and a nullStaticInstPtr" << std::endl;
-			} else {
-				std::cout << "Recieved from SPEC nextPC " << nextPC << " (" << nextPC.valid << ") and a valid next inst" << std::endl;
-			}
+                        if (staticInst == StaticInst::nullStaticInstPtr) {
+                            DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and a nullStaticInstPtr\n", nextPC, nextPC.valid);
+                        } else {
+                            DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and a valid next inst\n", nextPC, nextPC.valid);
+                        }
                         if (staticInst == StaticInst::nullStaticInstPtr)
                         {
                             inSpeculativeCache = false;
