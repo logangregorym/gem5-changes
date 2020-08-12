@@ -1346,7 +1346,7 @@ Decoder::fetchUopFromSpeculativeCache(Addr addr, PCState &nextPC)
 
 bool
 Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
-	// Two questions: does a translation exist, and is it the start of its trace
+	// Three questions: does a translation exist, is it the start of its trace, and is it profitable to optimize here
 	int idx = (thisPC.instAddr() >> 5) & 0x1f;
 	uint64_t tag = (thisPC.instAddr() >> 10);
 	for (int way = 0; way < 8; way++) {
@@ -1360,7 +1360,7 @@ Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 					if (depTracker->speculativeDependencyGraph[idx][way][u]->specIdx.valid || depTracker->speculativeDependencyGraph[idx][way][u]->deadCode) {
 						ArrayDependencyTracker::FullCacheIdx specIdx = depTracker->speculativeDependencyGraph[idx][way][u]->specIdx;
 						if ((specIdx.uop == 0) && speculativePrevWayArray[specIdx.idx][specIdx.way] == 10) {
-							return true;
+							return isProfitable(thisPC.instAddr(), thisPC.microPC());
 						}
 					}
 				}
@@ -1371,7 +1371,15 @@ Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 	return false;
 }
 
-
+bool
+Decoder::isProfitable(Addr addr, unsigned uop) {
+	Decoder::TraceMetaData info = getTraceMetaData(addr);
+	unsigned hotness = info.hotness;
+	unsigned length = getSpecTraceLength(addr);
+	unsigned confidence = info.minConfidence;
+	unsigned delay = info.maxLatency;
+	return (hotness > 7 && (length > 15 || confidence > 15 || delay > 50));
+}
 
 bool
 Decoder::doSquash(const StaticInstPtr si, X86ISA::PCState pc) {
@@ -1486,7 +1494,7 @@ Decoder::minConfidence(unsigned idx, unsigned way) {
 			if (sourceConf < minConf) { minConf = sourceConf; }
 		}
 	}
-	assert(minConf != 50);
+	if (minConf == 50) { return 0; }
 	return minConf;
 }
 

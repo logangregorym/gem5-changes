@@ -531,6 +531,8 @@ protected:
     // tells fetch stage that if a speculative trace is availble for this PC
 	bool isTraceAvailable(const X86ISA::PCState thisPC);
 
+	bool isProfitable(Addr addr, unsigned uop);
+
     StaticInstPtr getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
 
     void regStats();
