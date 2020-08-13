@@ -1434,10 +1434,10 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     	delayedCommit[tid] = instruction->isDelayedCommit();
 
     	// Mark whether reducable at fetch
-    	if (decoder[tid]->isSuperOptimizationPresent && decoder[tid]->depTracker->isReducable(thisPC.instAddr(), thisPC.microPC())) {
-            instruction->reducableAtFetch = true;
-       	    fetchedReducable++;
-    	}
+    	//if (decoder[tid]->isSuperOptimizationPresent && decoder[tid]->depTracker->isReducable(thisPC.instAddr(), thisPC.microPC())) {
+        //    instruction->reducableAtFetch = true;
+       	//    fetchedReducable++;
+    	//}
     fetchedOps++;
     
 

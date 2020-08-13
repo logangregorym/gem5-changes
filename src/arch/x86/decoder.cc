@@ -755,14 +755,14 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             StaticInstPtr new_inst = inst->fetchMicroop(uopAddr);
             new_inst->macroOp = inst;
             inst = new_inst;
-            depTracker->addToGraph(inst, addr, uopAddr, cycleAdded, tid); // changed to spec
+            depTracker->addToGraph(inst, addr, uopAddr, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
             uopAddr++;
             if (inst->isLastMicroop()) {
               uopAddr = 0;
             }
             inst->macroOp->deleteMicroOps();
           } else {
-            depTracker->addToGraph(inst, addr, uopAddr, cycleAdded, tid); // changed to spec
+            depTracker->addToGraph(inst, addr, uopAddr, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
           }
           DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "1Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -809,14 +809,14 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
               StaticInstPtr new_inst = inst->fetchMicroop(uop);
               new_inst->macroOp = inst;
               inst = new_inst;
-              depTracker->addToGraph(inst, addr, uop, cycleAdded, tid); // changed to spec
+              depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
               // uopAddr++;
               // if (inst->isLastMicroop()) {
               //     uopAddr = 0;
               // }
               inst->macroOp->deleteMicroOps();
           } else {
-              depTracker->addToGraph(inst, addr, uop, cycleAdded, tid); // changed to spec
+              depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
           }
           DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "2Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -860,14 +860,14 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             StaticInstPtr new_inst = inst->fetchMicroop(uop);
             new_inst->macroOp = inst;
             inst = new_inst;
-            depTracker->addToGraph(inst, addr, uop, cycleAdded, tid); // changed to spec
+            depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
             // uopAddr++;
             // if (inst->isLastMicroop()) {
             //   uopAddr = 0;
             // }
             inst->macroOp->deleteMicroOps();
           } else {
-            depTracker->addToGraph(inst, addr, uop, cycleAdded, tid); // changed to spec
+            depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
           }
           DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "3Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -1481,15 +1481,14 @@ Decoder::getTraceMetaData(Addr addr) {
 			return TraceMetaData(specHotnessArray[idx][way].read(), minConfidence(idx, way), maxLatency(idx, way));
 		}
 	}
-	panic("Requested metadata for a trace which does not exist\n");
+	return TraceMetaData(0,0,0);
 }
 
 unsigned
 Decoder::minConfidence(unsigned idx, unsigned way) {
 	unsigned minConf = 50;
 	for (int source = 0; source < 6; source++) {
-		if (speculativeTraceSources[idx][way][source] != 0) {
-			assert(depTracker->predictionSourceValid[speculativeTraceSources[idx][way][source]]);
+		if (speculativeTraceSources[idx][way][source] != 0 && depTracker->predictionSourceValid[speculativeTraceSources[idx][way][source]]) {
 			unsigned sourceConf = depTracker->predictionConfidence[speculativeTraceSources[idx][way][source]];
 			if (sourceConf < minConf) { minConf = sourceConf; }
 		}
@@ -1502,8 +1501,7 @@ unsigned
 Decoder::maxLatency(unsigned idx, unsigned way) {
 	unsigned maxLat = 0;
 	for (int source = 0; source < 6; source++) {
-		if (speculativeTraceSources[idx][way][source] != 0) {
-			assert(depTracker->predictionSourceValid[speculativeTraceSources[idx][way][source]]);
+		if (speculativeTraceSources[idx][way][source] != 0 && depTracker->predictionSourceValid[speculativeTraceSources[idx][way][source]]) {
 			unsigned sourceLat = depTracker->predictionResolutionLatency[speculativeTraceSources[idx][way][source]];
 			if (sourceLat > maxLat) { maxLat = sourceLat; }
 		}
@@ -1517,7 +1515,7 @@ Decoder::addSourceToCacheLine(unsigned predID, int idx, uint64_t tag) {
 		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
 			bool added = false;
 			for (int source = 0; source < 6 && !added; source++) {
-				if (speculativeTraceSources[idx][way][source] == 0) {
+				if (speculativeTraceSources[idx][way][source] == 0 || !depTracker->predictionSourceValid[speculativeTraceSources[idx][way][source]]) {
 					added = true;
 					speculativeTraceSources[idx][way][source] = predID;
 				} else if (speculativeTraceSources[idx][way][source] == predID) {
