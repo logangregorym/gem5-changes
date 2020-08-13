@@ -125,7 +125,7 @@ public:
     BigSatCounter uopHotnessArray[32][8];
 
     // Parallel cache for optimized micro-ops
-    bool redirectDueToLVP;
+    bool redirectDueToLVPSquashing;
     bool isSpeculativeCachePresent;
     bool speculativeCacheActive;
     StaticInstPtr speculativeCache[32][8][6];
@@ -320,7 +320,7 @@ protected:
         isMicroFusionPresent = false;
         isSpeculativeCachePresent = false;
         speculativeCacheActive = false;
-        redirectDueToLVP = false;
+        redirectDueToLVPSquashing = false;
         for (int idx=0; idx<32; idx++) {
           for (int way=0; way<8; way++) {
             uopValidArray[idx][way] = false;

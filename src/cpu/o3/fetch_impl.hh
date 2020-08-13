@@ -1196,26 +1196,23 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             // LVP Missprediction
             if (fromCommit->commitInfo[tid].squashDueToLVP)
             {
-                DynInstPtr dynSpecInst =  fromCommit->commitInfo[tid].mispredictInst;
 
-                // assert(dynSpecInst);
-                
                 // LVP missprediction, therefore, deactivate speculative cache and fetch from uop/decoder
                 decoder[tid]->setSpeculativeCacheActive(false);
-                decoder[tid]->redirectDueToLVP = true;
+                decoder[tid]->redirectDueToLVPSquashing = true;
             }
             // folded branch missprediction
             else if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
             {
                 // again deactivate speculative cache
                 decoder[tid]->setSpeculativeCacheActive(false);
-                decoder[tid]->redirectDueToLVP = true;
+                decoder[tid]->redirectDueToLVPSquashing = true;
             }
             // not a folded branch or LVP missprediction
             else 
             {
                 
-                decoder[tid]->redirectDueToLVP = false;
+                decoder[tid]->redirectDueToLVPSquashing = false;
                 
             }
 
@@ -1227,12 +1224,13 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             {
                 // activate speculative cache so we can fetch from it again
                 decoder[tid]->setSpeculativeCacheActive(true);
-                decoder[tid]->redirectDueToLVP = true;
                 
             }
             else {
-                decoder[tid]->redirectDueToLVP = false;
+                ;
             }
+
+            decoder[tid]->redirectDueToLVPSquashing = false;
 
         }
 
@@ -1516,15 +1514,25 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive() )
         {
             DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s.\n", thisPC);
+            // Speculative Cache is already enabled
             inSpeculativeCache = true;
+            //Disable Uop Cache
+            inUopCache = false;
+            useUopCache = false;
+            decoder[tid]->setUopCacheActive(false);
             //fetchBufferValid[tid] = false;
         }
-        else if (isSuperOptimizationPresent && decoder[tid]->isTraceAvailable(thisPC) && !decoder[tid]->redirectDueToLVP) 
+        else if (isSuperOptimizationPresent && decoder[tid]->isTraceAvailable(thisPC) && !decoder[tid]->redirectDueToLVPSquashing) 
         {
         
           DPRINTF(Fetch, "Setting speculative cache active at Pc %s.\n", thisPC);
+          //Enable Speculative Cache
           inSpeculativeCache = true;
           decoder[tid]->setSpeculativeCacheActive(true);
+          //Disable Uop Cache
+          inUopCache = false;
+          useUopCache = false;
+          decoder[tid]->setUopCacheActive(false);
           //fetchBufferValid[tid] = false;
           
         }
@@ -1534,11 +1542,16 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         // in the micro-op cache, bypass icache fetch and decode.
         else if (isUopCachePresent && (!fetchBufferValid[tid] || !macroop[tid]) &&
                 decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
-          DPRINTF(Fetch, "setting microop cache active at Pc %s.\n", thisPC);
+          DPRINTF(Fetch, "Setting microop cache active at Pc %s.\n", thisPC);
+          // enable UopCache
           inUopCache = true;
           useUopCache = true;
           decoder[tid]->setUopCacheActive(true);
           fetchBufferValid[tid] = false;
+
+          // Disable Speculative Cache
+          inSpeculativeCache = false;
+          decoder[tid]->setSpeculativeCacheActive(false);
           
         } else if (!(fetchBufferValid[tid] && fetchBufferBlockPC == fetchBufferPC[tid])
             && !inRom && !macroop[tid]) {
@@ -1568,6 +1581,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
                 decoder[tid]->setUopCacheActive(false);
             }
+
+            // do we need to do anything here for speculative cache?
+
             return;
         }
     } else {
@@ -1622,6 +1638,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     // Need to halt fetch if quiesce instruction detected
     bool quiesce = false;
 
+    // we use this falg to find out if we want to switch fetching from uopcache/decoder to speculative cache
+    bool switchFromUopCacheDecoderToSpeculativeCache = false;
+    
     const unsigned numInsts = fetchBufferSize / instSize;
     unsigned blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
 
@@ -1741,7 +1760,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             //  (curMacroop || decoder[tid]->instReady() || inUopCache) <== false; 
                             // breaks from the outer loop
                             // TODO: not sure if we should check for uop cache here or not. I think we should we check for uop cache here
-                            continue;
+                            break;
                         
                         }
 
@@ -1874,14 +1893,14 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             	// Whether we're moving to a new macroop because we're at the
             	// end of the current one, or the branch predictor incorrectly
             	// thinks we are...
-              if ( (curMacroop || inRom)) {
+                if ( (curMacroop || inRom)) {
                     if (inRom) {
                     	staticInst = cpu->microcodeRom.fetchMicroop(
                             thisPC.microPC(), curMacroop);
-			staticInst->macroOp = curMacroop;
+			            staticInst->macroOp = curMacroop;
                     } else {
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
-			staticInst->macroOp = curMacroop;
+			            staticInst->macroOp = curMacroop;
                         staticInst->fetched_from = 1;
                         if (ENABLE_DEBUG)
                             std::cout << "Decoder || UopCache: " <<  " PCState: " <<  thisPC << 
@@ -1889,7 +1908,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	/* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
-			    prevStaticInst->macroOp = curMacroop;
+			                prevStaticInst->macroOp = curMacroop;
                     	    if ((staticInst->isInteger() || staticInst->isNop() ||
                     	            staticInst->isControl() || staticInst->isMicroBranch()) &&
                     	            prevStaticInst->isLoad() && !prevStaticInst->isRipRel()) {
@@ -1948,7 +1967,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
                     pcOffset = 0;
                     curMacroop = NULL;
+
                 }
+
+                
 
                 if (instruction->isQuiesce()) {
                     DPRINTF(Fetch,
@@ -1958,6 +1980,30 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     quiesce = true;
                     break;
                 }
+
+                //*****CHANGE START**********
+                // whenever we need to fetch a new macroop check whether we can start fetching from speculative cahce
+                if (newMacro)
+                {
+                    
+                    if (isSuperOptimizationPresent && decoder[tid]->isTraceAvailable(thisPC) && !decoder[tid]->redirectDueToLVPSquashing) 
+                    {
+        
+                        DPRINTF(Fetch, "Swithching from Uop$/Decoder to Speculative Cache active at Pc %s as profitability analysis unit requested.\n", thisPC);
+                        inSpeculativeCache = true;
+                        decoder[tid]->setSpeculativeCacheActive(true);
+                        // this will cause outer loop to exit and therefore a switch with one cycle penalty
+                        switchFromUopCacheDecoderToSpeculativeCache = true;
+                        //fetchBufferValid[tid] = false;
+                        inUopCache = false;
+                        useUopCache = false;
+                        decoder[tid]->setUopCacheActive(false);
+                        break;
+                    }
+                
+                }
+                //*****CHANGE END**********
+
                 if (useUopCache && !inUopCache) {
                     DPRINTF(Fetch, "PC:%s is not in microop cache\n", thisPC);
                     break;
@@ -1967,9 +2013,19 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         } while (((inSpeculativeCache) || (curMacroop || decoder[tid]->instReady() || inUopCache)) &&
                  numInst < fetchWidth &&
                  computeFetchQueueSize(tid) < fetchQueueSize);
+
+        // When fetching from Uop Cache/Decoder, the profitability analysis unit may request a switch to speculative cache 
+        // this will cause outer loop to exit and therefore a switch with one cycle penalty will happen
+        // note that we never issue a I-Cache request as we are activating the speculative cache
+        if (isSuperOptimizationPresent && switchFromUopCacheDecoderToSpeculativeCache)
+        {
+             break;
+        }
+        // CHANGE ME!///
         if (useUopCache && !inUopCache) {
           break;
         }
+
     }
 
     if (useUopCache && !inUopCache) {
@@ -2002,17 +2058,18 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     fetchAddr = (thisPC.instAddr() + pcOffset) & BaseCPU::PCMask;
     Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
 
-    //DPRINTF(Fetch,"thisPC = %x pcOffset = %x fetchAddr = %x fetchBufferBlockPC = %x fetchBufferPC = %x\n", thisPC.instAddr(), pcOffset, fetchAddr, fetchBufferBlockPC, fetchBufferPC[tid]);
     
-    //*****CHANGE END**********
-    // I added inSpeculativeCache flag here, hopefully it's not gonna change the behaviour of fetch stage
+    //*****CHANGE START**********
+    // I added inSpeculativeCache flag here, because when we know that in the next cycle we are going to fetch from speculative cache ...
+    // we should never issue an I-cache fetch
+    // hopefully it's not gonna change the behaviour of fetch stage
     issuePipelinedIfetch[tid] = fetchBufferBlockPC != fetchBufferPC[tid] &&
         fetchStatus[tid] != IcacheWaitResponse &&
         fetchStatus[tid] != ItlbWait &&
         fetchStatus[tid] != IcacheWaitRetry &&
         fetchStatus[tid] != QuiescePending &&
         !curMacroop && !useUopCache && !inSpeculativeCache;
-    //*****CHANGE START**********
+    //*****CHANGE END**********
 }
 
 template<class Impl>
