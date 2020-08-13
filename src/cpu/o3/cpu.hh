@@ -147,7 +147,6 @@ class FullO3CPU : public BaseO3CPU
             : MasterPort(_cpu->name() + ".icache_port", _cpu), fetch(_fetch)
         { }
 
-	virtual LVPredUnit* getLVP() { return fetch->loadPred; }
 
       protected:
 
@@ -257,6 +256,7 @@ class FullO3CPU : public BaseO3CPU
     /** Registers statistics. */
     void regStats() override;
 
+    LVPredUnit* getLVP() { return fetch.loadPred; }
     ProbePointArg<PacketPtr> *ppInstAccessComplete;
     ProbePointArg<std::pair<DynInstPtr, PacketPtr> > *ppDataAccessComplete;
 
