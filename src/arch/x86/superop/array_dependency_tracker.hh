@@ -36,9 +36,7 @@ class ArrayDependencyTracker : public SimObject
 
 	unsigned connectionCount = 8192;
 
-	void addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded, ThreadID tid);
-
-	void removeFromGraph(Addr addr, unsigned uopAddr, unsigned cycledRemoved);
+	// void removeFromGraph(Addr addr, unsigned uopAddr, unsigned cycledRemoved);
 
 	void removeAtIndex(int i1, int i2, int i3);
 
@@ -111,6 +109,14 @@ class ArrayDependencyTracker : public SimObject
 			uop = 0;
 			valid = false;
 		}
+
+		bool operator==(const FullCacheIdx& rhs) {
+			return (idx == rhs.idx) && (way == rhs.way) && (uop == rhs.uop);
+		}
+
+		bool operator!=(const FullCacheIdx& rhs) {
+			return (idx != rhs.idx) || (way != rhs.way) || (uop != rhs.uop);
+		}
 	};
 
 	FullCacheIdx getNextCacheIdx(FullCacheIdx);
@@ -119,16 +125,18 @@ class ArrayDependencyTracker : public SimObject
 	void incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC, bool &predict_taken);
 	bool isTakenBranch(FullUopAddr addr);
 
+	void addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded, ThreadID tid, FullCacheIdx idx);
+
 	unsigned registerRenameMapSpec[256] = {0};
-	FullUopAddr registerProducerMapSpec[256];
-	FullUopAddr mostRecentConsumer[256];
+	FullCacheIdx registerProducerMapSpec[256];
+	FullCacheIdx mostRecentConsumer[256];
 	bool consumedInWindow[256] = {0};
 	bool registerValidMapSpec[256] = {0};
 	unsigned nextRegNameSpec = 1;
 
 	struct InformationFlowPath {
-		FullUopAddr producer = FullUopAddr(0, 0);
-		FullUopAddr consumer = FullUopAddr(0, 0);
+		FullCacheIdx producer = FullCacheIdx();
+		FullCacheIdx consumer = FullCacheIdx();
 		unsigned archRegIdx;
 		unsigned renamedRegIdx;
 		int64_t value;
@@ -139,8 +147,8 @@ class ArrayDependencyTracker : public SimObject
 		unsigned dataDependencies[8] = {0};
 
 		InformationFlowPath() {
-			producer = FullUopAddr(0,0);
-			consumer = FullUopAddr(0,0);
+			producer = FullCacheIdx();
+			consumer = FullCacheIdx();
 			archRegIdx = 0;
 			renamedRegIdx = 0;
 			value = 0;
@@ -150,7 +158,7 @@ class ArrayDependencyTracker : public SimObject
 			indirectControlDependency = 0;
 		}
 
-		InformationFlowPath(FullUopAddr p, FullUopAddr c, unsigned a, unsigned r) {
+		InformationFlowPath(FullCacheIdx p, FullCacheIdx c, unsigned a, unsigned r) {
 			producer = p;
 			consumer = c;
 			archRegIdx = a;
@@ -162,7 +170,7 @@ class ArrayDependencyTracker : public SimObject
 			indirectControlDependency = 0;
 		}
 
-		InformationFlowPath(FullUopAddr p, FullUopAddr c, unsigned a, unsigned r, uint64_t v, bool b, bool d) {
+		InformationFlowPath(FullCacheIdx p, FullCacheIdx c, unsigned a, unsigned r, uint64_t v, bool b, bool d) {
 			producer = p;
 			consumer = c;
 			archRegIdx = a;
@@ -226,7 +234,7 @@ class ArrayDependencyTracker : public SimObject
 		bool targetValid = false;
 		FullUopAddr propagatingTo = FullUopAddr(0,0);
 		unsigned registerRenameMap[256];
-		FullUopAddr registerProducerMap[256];
+		FullCacheIdx registerProducerMap[256];
 		bool registerValidMap[256];
 		bool confident = false;
 
@@ -235,7 +243,7 @@ class ArrayDependencyTracker : public SimObject
 			nextPc = FullUopAddr(0,0);
 			for (int i=0; i<256; i++) {
 				registerRenameMap[i] = 0;
-				registerProducerMap[i] = FullUopAddr(0,0);
+				registerProducerMap[i] = FullCacheIdx();
 				registerValidMap[i] = false;
 			}
 		}
@@ -245,7 +253,7 @@ class ArrayDependencyTracker : public SimObject
 			nextPc = bt;
 			for (int i=0; i<256; i++) {
 				registerRenameMap[i] = 0;
-				registerProducerMap[i] = FullUopAddr(0,0);
+				registerProducerMap[i] = FullCacheIdx();
 				registerValidMap[i] = false;
 			}
 		}

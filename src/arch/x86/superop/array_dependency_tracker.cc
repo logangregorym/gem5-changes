@@ -17,8 +17,8 @@ using namespace std;
 
 ArrayDependencyTracker::ArrayDependencyTracker(ArrayDependencyTrackerParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking), connectionCount(p->connectionCount), maxRecursiveDepth(p->maxRecursiveDepth) {
 	for (int i=0; i<256; i++) {
-		registerProducerMapSpec[i] = FullUopAddr(0,0);
-		mostRecentConsumer[i] = FullUopAddr(0,0);
+		registerProducerMapSpec[i] = FullCacheIdx();
+		mostRecentConsumer[i] = FullCacheIdx();
 	}
 }
 
@@ -95,16 +95,20 @@ void ArrayDependencyTracker::regStats()
 	averageCyclesInSpecCache = totalCyclesInSpecCache / evictionsFromSpecCache;
 }
 
-void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded, ThreadID tid)
+void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded, ThreadID tid, FullCacheIdx idxToAddAt)
 {
 	++totalOpsInCache;
 	DPRINTF(ConstProp, "Adding entry for %x.%i to graph\n", addr, uopAddr);
 
 
 	// Clear the slot
-	removeFromGraph(addr, uopAddr, cycleAdded);
+	removeAtIndex(idxToAddAt.idx, idxToAddAt.way, idxToAddAt.uop); // , cycleAdded);
 
 	ArrayDependencyTracker::FullUopAddr fullAddr = ArrayDependencyTracker::FullUopAddr(addr, uopAddr);
+
+/** 
+ * Cutting tag search
+ 
 	int idx = (addr >> 5) & 0x1f;
 	uint64_t tag = (addr >> 10);
 
@@ -133,9 +137,11 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 	assert(!(speculativeDependencyGraph[idx][specway][specuop]->thisInst == fullAddr)); // means same inst loaded twice
 
 	DPRINTF(ConstProp, "Adding at spec[%i][%i][%i]\n", idx, specway, specuop);
+*/
+	speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop] = new DependGraphEntry();
 
-	speculativeDependencyGraph[idx][specway][specuop]->thisInst = fullAddr;
-	speculativeDependencyGraph[idx][specway][specuop]->cycleAdded = cycleAdded;
+	speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->thisInst = fullAddr;
+	speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->cycleAdded = cycleAdded;
 
 
 	// Branches handled differently
@@ -207,8 +213,8 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 		branches[notTakenIndex].propagatingTo = FullUopAddr(nextPc, 0);
 		branches[notTakenIndex].taken = false;
 
-		speculativeDependencyGraph[idx][specway][specuop]->consumers[0] = takenIndex;
-		speculativeDependencyGraph[idx][specway][specuop]->consumers[1] = notTakenIndex;
+		speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->consumers[0] = takenIndex;
+		speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->consumers[1] = notTakenIndex;
 
 		for (int i=0; i<256; i++) {
 			branches[takenIndex].registerRenameMap[i] = registerRenameMapSpec[i];
@@ -231,10 +237,14 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 		RegId srcReg = uop->srcRegIdx(i);
     DPRINTF(SuperOp, "registerValidMapSpec[%d] = %d\n", srcReg.flatIndex(), registerValidMapSpec[srcReg.flatIndex()]);
 		if (registerValidMapSpec[srcReg.flatIndex()]) {
-			DPRINTF(ConstProp, "Reg %i was written by inst %x.%i\n", srcReg.flatIndex(), registerProducerMapSpec[srcReg.flatIndex()].pcAddr, registerProducerMapSpec[srcReg.flatIndex()].uopAddr);
+			// DPRINTF(ConstProp, "Reg %i was written by inst %x.%i\n", srcReg.flatIndex(), registerProducerMapSpec[srcReg.flatIndex()].pcAddr, registerProducerMapSpec[srcReg.flatIndex()].uopAddr);
 			// Update consumer tracking for last use
-			mostRecentConsumer[srcReg.flatIndex()] = fullAddr;
+			mostRecentConsumer[srcReg.flatIndex()] = idxToAddAt;
 			consumedInWindow[srcReg.flatIndex()] = true;
+
+/**
+ * Tag search no longer needed
+ 
 			int prodIdx = (registerProducerMapSpec[srcReg.flatIndex()].pcAddr >> 5) & 0x1f;
 			uint64_t prodTag = (registerProducerMapSpec[srcReg.flatIndex()].pcAddr >> 10);
 			bool foundProducerEntry = false;
@@ -254,7 +264,7 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 					}
 				}
 			}
-
+*/ 
 			// if written in window, create an information flow path to this inst
 			unsigned flowPathIdx = 1; // 0 reserved for invalid
 			bool foundSource = false;
@@ -268,16 +278,17 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 				}
 			}
 			if (foundSource) {
-				if (foundProducerEntry) {
-					DPRINTF(ConstProp, "Found entry for producer at spec[%i][%i][%i]\n", prodIdx, prodWay, prodUop);
+				FullCacheIdx prodIdx = registerProducerMapSpec[srcReg.flatIndex()];
+				if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]) {
+					// DPRINTF(ConstProp, "Found entry for producer at spec[%i][%i][%i]\n", prodIdx, prodWay, prodUop);
 					// Add to the producer inst as a consumer!
 					bool foundConsumerIdx = false;
 					int consumerIndex = 0;
 					while (consumerIndex < 256 && !foundConsumerIdx) {
-						if (speculativeDependencyGraph[prodIdx][prodWay][prodUop]->consumers[consumerIndex] == 0) {
+						if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[consumerIndex] == 0) {
 							foundConsumerIdx = true;
-							speculativeDependencyGraph[prodIdx][prodWay][prodUop]->consumers[consumerIndex] = flowPathIdx;
-						} else if (speculativeDependencyGraph[prodIdx][prodWay][prodUop]->consumers[consumerIndex] == flowPathIdx) {
+							speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[consumerIndex] = flowPathIdx;
+						} else if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[consumerIndex] == flowPathIdx) {
 							DPRINTF(ConstProp, "Consumer at connections[%i] has already been added???\n", flowPathIdx);
 							foundConsumerIdx = true;
 						} else {
@@ -285,7 +296,7 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 						}
 					}
 					if (!foundConsumerIdx) {
-						DPRINTF(ConstProp, "Not enough entries in consumers for inst at uop[%i][%i][%i]\n", prodIdx, prodWay, prodUop);
+						DPRINTF(ConstProp, "Not enough entries in consumers for inst at uop[%i][%i][%i]\n", prodIdx.idx, prodIdx.way, prodIdx.uop);
 					}
 
 					// mark with value if already predicted? Might cause problems with prediction ids
@@ -296,25 +307,25 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 					}
 					*/
 				} else {
-					panic("Failed to find entry for producer %x.%i with tag %x and index %i in spec graph\n", registerProducerMapSpec[srcReg.flatIndex()].pcAddr, registerProducerMapSpec[srcReg.flatIndex()].uopAddr, prodTag, prodIdx);
+					// panic("Failed to find entry for producer %x.%i with tag %x and index %i in spec graph\n", registerProducerMapSpec[srcReg.flatIndex()].pcAddr, registerProducerMapSpec[srcReg.flatIndex()].uopAddr, prodTag, prodIdx);
 				}
 
-				connections[flowPathIdx] = InformationFlowPath(registerProducerMapSpec[srcReg.flatIndex()], fullAddr, srcReg.flatIndex(), registerRenameMapSpec[srcReg.flatIndex()]);
+				connections[flowPathIdx] = InformationFlowPath(registerProducerMapSpec[srcReg.flatIndex()], idxToAddAt, srcReg.flatIndex(), registerRenameMapSpec[srcReg.flatIndex()]);
 				connectionsValidSpec[flowPathIdx] = true;
-				DPRINTF(ConstProp, "Created connection at index %i through register %i (SSA ID %i) from %x.%i to %x.%i\n", flowPathIdx, srcReg.flatIndex(), registerRenameMapSpec[srcReg.flatIndex()], registerProducerMapSpec[srcReg.flatIndex()].pcAddr, registerProducerMapSpec[srcReg.flatIndex()].uopAddr, fullAddr.pcAddr, fullAddr.uopAddr);
+				// DPRINTF(ConstProp, "Created connection at index %i through register %i (SSA ID %i) from %x.%i to %x.%i\n", flowPathIdx, srcReg.flatIndex(), registerRenameMapSpec[srcReg.flatIndex()], registerProducerMapSpec[srcReg.flatIndex()].pcAddr, registerProducerMapSpec[srcReg.flatIndex()].uopAddr, fullAddr.pcAddr, fullAddr.uopAddr);
 
 				// Add the path to this inst's producers
-				unsigned prodIdx = 0;
+				unsigned producerIdx = 0;
 				bool found = false;
-				while (prodIdx < 256 && !found) {
-					if (speculativeDependencyGraph[idx][specway][specuop]->producers[prodIdx] == 0) {
+				while (producerIdx < 256 && !found) {
+					if (speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->producers[producerIdx] == 0) {
 						found = true;
-						speculativeDependencyGraph[idx][specway][specuop]->producers[prodIdx] = flowPathIdx;
-					} else if (speculativeDependencyGraph[idx][specway][specuop]->producers[prodIdx] == flowPathIdx) {
+						speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->producers[producerIdx] = flowPathIdx;
+					} else if (speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->producers[producerIdx] == flowPathIdx) {
 						DPRINTF(ConstProp, "Producer at connections [%i] has already been added???\n", flowPathIdx);
 						found = true;
 					} else {
-						prodIdx++;
+						producerIdx++;
 					}
 				}
 				if (!found) {
@@ -325,14 +336,14 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 			}
 		} else {
 			// Add dummy producer
-			unsigned prodIdx = 0;
+			unsigned producerIdx = 0;
 			bool found = false;
-			while (prodIdx < 256 && !found) {
-				if (speculativeDependencyGraph[idx][specway][specuop]->producers[prodIdx] == 0) {
+			while (producerIdx < 256 && !found) {
+				if (speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->producers[producerIdx] == 0) {
 					found = true;
-					speculativeDependencyGraph[idx][specway][specuop]->producers[prodIdx] = 5000;
+					speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->producers[producerIdx] = 5000;
 				} else {
-					prodIdx++;
+					producerIdx++;
 				}
 			}
 			if (!found) {
@@ -343,6 +354,7 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 
 	// Update information for registers written by this instruction
 	if (uop->isControl() && usingControlTracking) {
+/**
 		for (int i=0; i<uop->numDestRegs(); i++) {
 			// Note: since control insts lack consumers, this code should never be run
 			RegId destReg = uop->destRegIdx(i);
@@ -356,20 +368,21 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 			nextRegNameSpec++;
 			markLastUse(destReg.flatIndex());
 		}
+*/
 	} else {
 		for (int i = 0; i < uop->numDestRegs(); i++) {
 			RegId destReg = uop->destRegIdx(i);
-			registerProducerMapSpec[destReg.flatIndex()] = fullAddr;
+			registerProducerMapSpec[destReg.flatIndex()] = idxToAddAt;
 			registerValidMapSpec[destReg.flatIndex()] = true;
-      DPRINTF(SuperOp, "registerValidMapSpec[%d] = true\n", destReg.flatIndex());
+  		    DPRINTF(SuperOp, "registerValidMapSpec[%d] = true\n", destReg.flatIndex());
 			registerRenameMapSpec[destReg.flatIndex()] = nextRegNameSpec;
 			nextRegNameSpec++;
 			markLastUse(destReg.flatIndex());
 		}
 	}
-  if (uop->isControl() && uop->isLastMicroop()) {
+  	if (uop->isControl() && uop->isLastMicroop()) {
 		for (int i=0; i<256; i++) {
-      DPRINTF(SuperOp, "registerValidMapSpec[%d] = false\n", i);
+     	 DPRINTF(SuperOp, "registerValidMapSpec[%d] = false\n", i);
 			registerValidMapSpec[i] = false;
 			consumedInWindow[i] = false;
 		}
@@ -388,7 +401,11 @@ void ArrayDependencyTracker::markLastUse(unsigned regIdx) {
 		DPRINTF(ConstProp, "Consumer of reg %i not in window\n", regIdx);
 		return;
 	}
-	ArrayDependencyTracker::FullUopAddr consumer = mostRecentConsumer[regIdx];
+	FullCacheIdx consumer = mostRecentConsumer[regIdx];
+
+/**
+ * Tag search is gone now
+ 
 	int idx = (consumer.pcAddr >> 5) & 0x1f;
 	uint64_t tag = (consumer.pcAddr >> 10);
 	int way = 0;
@@ -411,15 +428,18 @@ void ArrayDependencyTracker::markLastUse(unsigned regIdx) {
 		DPRINTF(ConstProp, "Can't mark last use of %i because consumer %x.%i with idx %i and tag %x not found\n", regIdx, consumer.pcAddr, consumer.uopAddr, idx, tag);
 		return;
 	}
+*/
+
 	for (int i=0; i<256; i++) {
-		if (speculativeDependencyGraph[idx][way][uop]->producers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->producers[i] != 5000) {
-			if (connectionsValidSpec[speculativeDependencyGraph[idx][way][uop]->producers[i]] && connections[speculativeDependencyGraph[idx][way][uop]->producers[i]].archRegIdx == regIdx) {
-				connections[speculativeDependencyGraph[idx][way][uop]->producers[i]].lastUse = true;
+		if (speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i] != 0 && speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i] != 5000) {
+			if (connectionsValidSpec[speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i]] && connections[speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i]].archRegIdx == regIdx) {
+				connections[speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i]].lastUse = true;
 			}
 		}
 	}
 }
 
+/**
 void ArrayDependencyTracker::removeFromGraph(Addr addr, unsigned uopAddr, unsigned cycleRemoved)
 {
 	DPRINTF(ConstProp, "Removing entry for %x.%i\n", addr, uopAddr);
@@ -468,6 +488,7 @@ void ArrayDependencyTracker::removeFromGraph(Addr addr, unsigned uopAddr, unsign
 		}
 	}
 }
+*/
 
 void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 	if (speculativeDependencyGraph[i1][i2][i3]) {
@@ -482,13 +503,14 @@ void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 		StaticInstPtr decodedMicroOp = decodedMacroOp;
 		if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
 		for (int i=0; i<256; i++) {
-			if (mostRecentConsumer[i] == speculativeDependencyGraph[i1][i2][i3]->thisInst) {
+			if (mostRecentConsumer[i] == FullCacheIdx(i1, i2, i3)) {
 				consumedInWindow[i] = false;
 			}
 		}
 
 		for (int i=0; i<4096; i++) {
-			if (predictionSourceValid[i] && predictionSource[i] == speculativeDependencyGraph[i1][i2][i3]->thisInst) {
+			if (predictionSource[i] == speculativeDependencyGraph[i1][i2][i3]->thisInst) {
+				// TODO: Do we need to add code here?
 				predictionSourceValid[i] = false;
 			}
 		}
@@ -513,8 +535,8 @@ void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 					DPRINTF(ConstProp, "Invalidating connection at index %i in spec\n", conIdx);
 				}
 			}
-			if (registerProducerMapSpec[i] == speculativeDependencyGraph[i1][i2][i3]->thisInst) {
-        DPRINTF(SuperOp, "registerValidMapSpec[%d] = false\n", i);
+			if (registerProducerMapSpec[i] == FullCacheIdx(i1, i2, i3)) {
+        		DPRINTF(SuperOp, "registerValidMapSpec[%d] = false\n", i);
 				registerValidMapSpec[i] = false;
 			}
 		}
@@ -528,8 +550,13 @@ void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 }
 
 void ArrayDependencyTracker::invalidateConnection(unsigned connectionIndex) {
-	FullUopAddr prodAddr = connections[connectionIndex].producer;
-	FullUopAddr conAddr = connections[connectionIndex].consumer;
+	FullCacheIdx prodIdx = connections[connectionIndex].producer;
+	FullCacheIdx conIdx = connections[connectionIndex].consumer;
+	connectionsValidSpec[connectionIndex] = false;
+
+/**
+ * Tag searches begone
+
 	// connectionsValid[connectionIndex] = false;
 	int prodIdx = (prodAddr.pcAddr >> 5) & 0x1f;
 	uint64_t prodTag = (prodAddr.pcAddr >> 10);
@@ -556,19 +583,23 @@ void ArrayDependencyTracker::invalidateConnection(unsigned connectionIndex) {
 			}
 		}
 	}
+*/
 
-	if (foundProdSpec) {
-		DPRINTF(ConstProp, "Found match for producer %x.%i to invalidate at spec[%i][%i][%i]\n", prodAddr.pcAddr, prodAddr.uopAddr, prodIdx, prodSpecWay, prodSpecUop);
+	if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]) {
+		// DPRINTF(ConstProp, "Found match for producer %x.%i to invalidate at spec[%i][%i][%i]\n", prodAddr.pcAddr, prodAddr.uopAddr, prodIdx, prodSpecWay, prodSpecUop);
 		for (int i=0; i<256; i++) {
-			if (speculativeDependencyGraph[prodIdx][prodSpecWay][prodSpecUop]->consumers[i] == connectionIndex) {
-				speculativeDependencyGraph[prodIdx][prodSpecWay][prodSpecUop]->consumers[i] = 5000;
+			if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[i] == connectionIndex) {
+				speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[i] = 5000;
 			}
 		}
-	} else {
-		DPRINTF(ConstProp, "Failed to find match for producer %x.%i in spec graph\n", prodAddr.pcAddr, prodAddr.uopAddr);
-		DPRINTF(ConstProp, "Hit in microop cache? %i\n", decoder->isHitInUopCache(prodAddr.pcAddr)); // changed to uop
-	}
+	}// else {
+		// DPRINTF(ConstProp, "Failed to find match for producer %x.%i in spec graph\n", prodAddr.pcAddr, prodAddr.uopAddr);
+	//	DPRINTF(ConstProp, "Hit in microop cache? %i\n", decoder->isHitInUopCache(prodAddr.pcAddr)); // changed to uop
+//	}
 
+/**
+ * Tags
+ 
 	// Replace consumer with dummy in spec cache
 	int conSpecWay = 0;
 	int conSpecUop = 0;
@@ -588,18 +619,19 @@ void ArrayDependencyTracker::invalidateConnection(unsigned connectionIndex) {
 			}
 		}
 	}
+*/
 
-	if (foundConSpec) {
-		DPRINTF(ConstProp, "Found match for consumer %x.%i to invalidate at spec[%i][%i][%i]\n", conAddr.pcAddr, conAddr.uopAddr, conIdx, conSpecWay, conSpecUop);
+	if (speculativeDependencyGraph[conIdx.idx][conIdx.way][conIdx.uop]) {
+		// DPRINTF(ConstProp, "Found match for consumer %x.%i to invalidate at spec[%i][%i][%i]\n", conAddr.pcAddr, conAddr.uopAddr, conIdx, conSpecWay, conSpecUop);
 		for (int i=0; i<256; i++) {
-			if (speculativeDependencyGraph[conIdx][conSpecWay][conSpecUop]->producers[i] == connectionIndex) {
-				speculativeDependencyGraph[conIdx][conSpecWay][conSpecUop]->producers[i] = 5000;
+			if (speculativeDependencyGraph[conIdx.idx][conIdx.way][conIdx.uop]->producers[i] == connectionIndex) {
+				speculativeDependencyGraph[conIdx.idx][conIdx.way][conIdx.uop]->producers[i] = 5000;
 			}
 		}
-	} else {
-		DPRINTF(ConstProp, "Failed to find match for consumer %x.%i in spec graph\n", conAddr.pcAddr, conAddr.uopAddr);
-		DPRINTF(ConstProp, "Hit in microop cache? %i\n", decoder->isHitInUopCache(conAddr.pcAddr)); // changed to uop
-	}
+	} // else {
+	//	DPRINTF(ConstProp, "Failed to find match for consumer %x.%i in spec graph\n", conAddr.pcAddr, conAddr.uopAddr);
+	//	DPRINTF(ConstProp, "Hit in microop cache? %i\n", decoder->isHitInUopCache(conAddr.pcAddr)); // changed to uop
+	//}
 }
 
 void ArrayDependencyTracker::invalidateBranch(unsigned branchIndex) {
@@ -871,6 +903,7 @@ bool ArrayDependencyTracker::simplifyGraph() {
 	return changedGraph;
 }
 
+/*
 void ArrayDependencyTracker::measureChain(Addr addr, unsigned uopAddr)
 {
 	numChainsMeasured++;
@@ -919,12 +952,12 @@ void ArrayDependencyTracker::measureChain(Addr addr, unsigned uopAddr)
 			// found a consumer
 			FullUopAddr conAddr = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].consumer;
 			measureChain(conAddr, 1);
-			/**
+			
 			if (std::count(checked.begin(), checked.end(), conAddr) == 0) {
 				// recursive call
 				measureChain(conAddr, 1, checked);
 			}
-			**/
+			
 		}
 	}
 }
@@ -998,12 +1031,12 @@ void ArrayDependencyTracker::measureChain(FullUopAddr addr, unsigned recursionLe
 			// Found a consumer
 			FullUopAddr conAddr = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].consumer;
 			measureChain(conAddr, recursionLevel+1);
-			/**
+			
 			if (std::count(checked.begin(), checked.end(), conAddr) == 0) {
 				// Recursive call
 				measureChain(conAddr, recursionLevel+1, checked);
 			}
-			**/
+			
 		}
 	}
   if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
@@ -1032,6 +1065,7 @@ bool ArrayDependencyTracker::isReducable(Addr addr, unsigned uopAddr) {
 
 	return speculativeDependencyGraph[idx][way][uop] && speculativeDependencyGraph[idx][way][uop]->seen;
 }
+*/
 
 ArrayDependencyTracker* ArrayDependencyTrackerParams::create() {
 	return new ArrayDependencyTracker(this);
@@ -2233,7 +2267,7 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 		DPRINTF(ConstProp, "Checking register map for producer of %i\n", srcReg.flatIndex());
 		if (branches[branchIndex].registerValidMap[srcReg.flatIndex()]) {
 			// Check whether value is already produced along path
-			DPRINTF(ConstProp, "Register %i was written on the other side of the branch by %x.%i\n", srcReg.flatIndex(), branches[branchIndex].registerProducerMap[srcReg.flatIndex()].pcAddr, branches[branchIndex].registerProducerMap[srcReg.flatIndex()].uopAddr);
+			// DPRINTF(ConstProp, "Register %i was written on the other side of the branch by %x.%i\n", srcReg.flatIndex(), branches[branchIndex].registerProducerMap[srcReg.flatIndex()].pcAddr, branches[branchIndex].registerProducerMap[srcReg.flatIndex()].uopAddr);
 
 			bool alreadyProduced = false;
 			for (int i=1; i<256; i++) {
@@ -2243,6 +2277,8 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 			}
 
 			if (!alreadyProduced) {
+/**
+ * Tags
 				// Confirm that producer is still in graph
 				FullUopAddr prodAddr = branches[branchIndex].registerProducerMap[srcReg.flatIndex()];
 
@@ -2265,8 +2301,9 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 						}
 					}
 				}
-
-				if (foundProd) {
+*/
+				FullCacheIdx prodIdx = branches[branchIndex].registerProducerMap[srcReg.flatIndex()];
+				if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]) {
 					// Get index to add connection at
 					unsigned connectionIndex = 0;
 					bool connectionFound = false;
@@ -2278,8 +2315,8 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 					}
 					if (connectionFound) {
 						changeMade = true;
-						connections[connectionIndex].producer = prodAddr;
-						connections[connectionIndex].consumer = propagatingTo;
+						connections[connectionIndex].producer = prodIdx;
+						connections[connectionIndex].consumer = FullCacheIdx(idx, way, uop);
 						connections[connectionIndex].archRegIdx = srcReg.flatIndex();
 						connections[connectionIndex].renamedRegIdx = branches[branchIndex].registerRenameMap[srcReg.flatIndex()];
 						connections[connectionIndex].value = 0;
@@ -2295,8 +2332,8 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 								speculativeDependencyGraph[idx][way][uop]->producers[i] = connectionIndex;
 								addedAsProducer = true;
 							}
-							if (speculativeDependencyGraph[prodIdx][prodWay][prodUop]->consumers[i] == 0 && !addedAsConsumer) {
-								speculativeDependencyGraph[prodIdx][prodWay][prodUop]->consumers[i] = connectionIndex;
+							if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[i] == 0 && !addedAsConsumer) {
+								speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[i] = connectionIndex;
 								addedAsConsumer = true;
 							}
 						}
@@ -2342,6 +2379,9 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 			}
 		}
 	} 
+
+	// Prevent an inst registering as dead if it is a prediction source
+	allDestsReady &= !isPredictionSource(speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
 
 	// Step 1: Determine whether the inst is already in the speculative cache
 	if (speculativeDependencyGraph[idx][way][uop]->specIdx.valid) {
@@ -2533,7 +2573,7 @@ void ArrayDependencyTracker::describeEntry(int idx, int way, int uop) {
 		} else if (entry->producers[i] != 0) {
 			if (connectionsValidSpec[entry->producers[i]]) {
 				ArrayDependencyTracker::InformationFlowPath path = connections[entry->producers[i]];
-				DPRINTF(ConstProp, "Connections[%i]: Register %i (SSA ID %i) from %x.%i to %x.%i with value %x (%i) along control path branches[%i] - lastUse? %i\n", entry->producers[i], path.archRegIdx, path.renamedRegIdx, path.producer.pcAddr, path.producer.uopAddr, path.consumer.pcAddr, path.consumer.uopAddr, path.value, path.valid, path.directControlDependency, path.lastUse);
+				DPRINTF(ConstProp, "Connections[%i]: Register %i (SSA ID %i) from spec[%i][%i][%i] with value %x (%i) along control path branches[%i] - lastUse? %i\n", entry->producers[i], path.archRegIdx, path.renamedRegIdx, path.producer.idx, path.producer.way, path.producer.uop, path.value, path.valid, path.directControlDependency, path.lastUse);
 			} else {
 				DPRINTF(ConstProp, "Connection through %i has been invalidated\n", entry->producers[i]);
 			}
@@ -2546,7 +2586,7 @@ void ArrayDependencyTracker::describeEntry(int idx, int way, int uop) {
 		} else if (entry->consumers[i] != 0) {
 			if (connectionsValidSpec[entry->consumers[i]]) {
 				ArrayDependencyTracker::InformationFlowPath path = connections[entry->consumers[i]];
-				DPRINTF(ConstProp, "Connections[%i]: Register %i (SSA ID %i) from %x.%i to %x.%i with value %x (%i) along control path branches[%i] - lastUse? %i\n", entry->consumers[i], path.archRegIdx, path.renamedRegIdx, path.producer.pcAddr, path.producer.uopAddr, path.consumer.pcAddr, path.consumer.uopAddr, connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].value, connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].valid, path.directControlDependency, path.lastUse);
+				DPRINTF(ConstProp, "Connections[%i]: Register %i (SSA ID %i) to spec[%i][%i][%i] with value %x (%i) along control path branches[%i] - lastUse? %i\n", entry->consumers[i], path.archRegIdx, path.renamedRegIdx, path.consumer.idx, path.consumer.way, path.consumer.uop, connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].value, connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].valid, path.directControlDependency, path.lastUse);
 			} else {
 				DPRINTF(ConstProp, "Connection through %i has been invalidated\n", entry->consumers[i]);
 			}
