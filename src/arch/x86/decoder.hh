@@ -521,7 +521,8 @@ protected:
 
 	void invalidateSpecCacheLine(int idx, int way);
 
-	unsigned getSpecTraceLength(Addr addr);
+//	unsigned getSpecTraceLength(Addr addr);
+	unsigned getSpecTraceLength(ArrayDependencyTracker::FullCacheIdx specIdx);
 
 	unsigned getHotnessOfTrace(Addr addr);
 
@@ -533,7 +534,8 @@ protected:
     // tells fetch stage that if a speculative trace is availble for this PC
 	bool isTraceAvailable(const X86ISA::PCState thisPC);
 
-	bool isProfitable(Addr addr, unsigned uop);
+//	bool isProfitable(Addr addr, unsigned uop);
+	bool isProfitable(ArrayDependencyTracker::FullCacheIdx specIdx, ArrayDependencyTracker::FullCacheIdx uopIdx);
 
     StaticInstPtr getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
 
@@ -553,7 +555,8 @@ protected:
 		}
 	};
 
-	TraceMetaData getTraceMetaData(Addr addr);
+//	TraceMetaData getTraceMetaData(Addr addr);
+	TraceMetaData getTraceMetaData(ArrayDependencyTracker::FullCacheIdx specIdx, ArrayDependencyTracker::FullCacheIdx uopIdx);
 
 	void addSourceToCacheLine(unsigned predID, int idx, uint64_t tag);
 };

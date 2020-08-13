@@ -367,7 +367,7 @@ class DefaultFetch
      */
     void fetch(bool &status_change);
 
-    bool isProfitable(Addr addr, unsigned uop);
+//    bool isProfitable(Addr addr, unsigned uop);
 
     /** Align a PC to the start of a fetch buffer block. */
     Addr fetchBufferAlignPC(Addr addr)
@@ -410,13 +410,14 @@ class DefaultFetch
     /** Profile the reasons of fetch stall. */
     void profileStall(ThreadID tid);
 
-  private:
     /** Pointer to the O3CPU. */
     O3CPU *cpu;
 
+  public:
     /** Pointer to the Load Value Prediction Unit. */
     LVPredUnit *loadPred;
 
+  private:
     /** Constant buffer lists load inst addresses that predict correctly. */
     // vector<Addr> constantLoads;
 

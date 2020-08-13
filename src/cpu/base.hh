@@ -58,6 +58,8 @@
 #include "arch/isa_traits.hh"
 #include "arch/microcode_rom.hh"
 #include "base/statistics.hh"
+#include "cpu/o3/fetch.hh"
+#include "cpu/pred/lvpred_unit.hh"
 #include "mem/mem_object.hh"
 #include "sim/eventq.hh"
 #include "sim/full_system.hh"
@@ -299,6 +301,8 @@ class BaseCPU : public MemObject
     { return reinterpret_cast<const Params *>(_params); }
     BaseCPU(Params *params, bool is_checker = false);
     virtual ~BaseCPU();
+
+    virtual LVPredUnit* getLVP() { panic("getLVP called on cpu type other than FullO3CPU\n"); }
 
     void init() override;
     void startup() override;

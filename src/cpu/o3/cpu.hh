@@ -57,6 +57,7 @@
 #include "arch/types.hh"
 #include "base/statistics.hh"
 #include "config/the_isa.hh"
+#include "cpu/pred/lvpred_unit.hh"
 #include "cpu/o3/comm.hh"
 #include "cpu/o3/cpu_policy.hh"
 #include "cpu/o3/scoreboard.hh"
@@ -145,6 +146,8 @@ class FullO3CPU : public BaseO3CPU
         IcachePort(DefaultFetch<Impl> *_fetch, FullO3CPU<Impl>* _cpu)
             : MasterPort(_cpu->name() + ".icache_port", _cpu), fetch(_fetch)
         { }
+
+	virtual LVPredUnit* getLVP() { return fetch->loadPred; }
 
       protected:
 

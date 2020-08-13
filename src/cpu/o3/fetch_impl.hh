@@ -886,8 +886,8 @@ DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
     DPRINTF(Fetch, "[tid:%i]: Squashing, setting PC to: %s.\n",
             tid, newPC);
 
-    if (squashDuoToLVP)
-        std::cout << "Squashing due to LVP missprediction setting PC to: " <<  newPC << "\n";
+    // if (squashDuoToLVP)
+    //     std::cout << "Squashing due to LVP missprediction setting PC to: " <<  newPC << "\n";
 
 
     pc[tid] = newPC;
@@ -1444,6 +1444,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     return instruction;
 }
 
+/*
 template<class Impl>
 bool
 DefaultFetch<Impl>::isProfitable(Addr addr, unsigned uop) {
@@ -1461,6 +1462,7 @@ DefaultFetch<Impl>::isProfitable(Addr addr, unsigned uop) {
 	if (delay > maxDelay.value()) { maxDelay = delay; }
     return (hotness > 7 && (length > 15 || confidence > 15 || delay > 50));
 }
+*/
 
 template<class Impl>
 void

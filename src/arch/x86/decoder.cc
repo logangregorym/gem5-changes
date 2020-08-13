@@ -34,6 +34,7 @@
 #include "base/logging.hh"
 #include "base/trace.hh"
 #include "base/types.hh"
+#include "cpu/o3/cpu.hh"
 #include "debug/Decoder.hh"
 #include "debug/ConstProp.hh"
 #include "debug/SuperOp.hh"
@@ -1360,7 +1361,8 @@ Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 					if (depTracker->speculativeDependencyGraph[idx][way][u]->specIdx.valid || depTracker->speculativeDependencyGraph[idx][way][u]->deadCode) {
 						ArrayDependencyTracker::FullCacheIdx specIdx = depTracker->speculativeDependencyGraph[idx][way][u]->specIdx;
 						if ((specIdx.uop == 0) && speculativePrevWayArray[specIdx.idx][specIdx.way] == 10) {
-							return isProfitable(thisPC.instAddr(), thisPC.microPC());
+//							return isProfitable(thisPC.instAddr(), thisPC.microPC());
+							return isProfitable(specIdx, ArrayDependencyTracker::FullCacheIdx(idx, way, u));
 						}
 					}
 				}
@@ -1371,6 +1373,7 @@ Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 	return false;
 }
 
+/*
 bool
 Decoder::isProfitable(Addr addr, unsigned uop) {
 	Decoder::TraceMetaData info = getTraceMetaData(addr);
@@ -1378,7 +1381,20 @@ Decoder::isProfitable(Addr addr, unsigned uop) {
 	unsigned length = getSpecTraceLength(addr);
 	unsigned confidence = info.minConfidence;
 	unsigned delay = info.maxLatency;
+	printf("Trace for %lx.%i has hotness %i, length %i, confidence %i, and delay %i\n", addr, uop, hotness, length, confidence, delay);
 	return (hotness > 7 && (length > 15 || confidence > 15 || delay > 50));
+}
+*/
+
+bool
+Decoder::isProfitable(ArrayDependencyTracker::FullCacheIdx specIdx, ArrayDependencyTracker::FullCacheIdx uopIdx) {
+	TraceMetaData info = getTraceMetaData(specIdx, uopIdx);
+	unsigned hotness = info.hotness;
+	unsigned length = getSpecTraceLength(specIdx);
+	unsigned confidence = info.minConfidence;
+	unsigned delay = info.maxLatency;
+	printf("Trace at spec[%i][%i][%i] has hotness %i, length %i, confidence %i, and delay %i\n", specIdx.idx, specIdx.way, specIdx.uop, hotness, length, confidence, delay);
+	return hotness > 7 && (length > 15 || confidence > 15 || delay > 50);
 }
 
 bool
@@ -1437,6 +1453,7 @@ Decoder::invalidateSpecCacheLine(int idx, int way) {
 	}
 }
 
+/*
 unsigned
 Decoder::getSpecTraceLength(Addr addr) {
 	int idx = (addr >> 5) & 0x1f;
@@ -1446,6 +1463,21 @@ Decoder::getSpecTraceLength(Addr addr) {
 		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
 			traceLength += speculativeCountArray[idx][way];
 		}
+	}
+	return traceLength;
+}
+*/
+
+unsigned
+Decoder::getSpecTraceLength(ArrayDependencyTracker::FullCacheIdx specIdx) {
+	int way = specIdx.way;
+	while (speculativePrevWayArray[specIdx.idx][way] != 10) {
+		way = speculativePrevWayArray[specIdx.idx][way];
+	}
+	unsigned traceLength = speculativeCountArray[specIdx.idx][way];
+	while (speculativeNextWayArray[specIdx.idx][way] != 10) {
+		way = speculativeNextWayArray[specIdx.idx][way];
+		traceLength += speculativeCountArray[specIdx.idx][way];
 	}
 	return traceLength;
 }
@@ -1468,6 +1500,7 @@ Decoder::getHotnessOfTrace(Addr addr) {
 	return uop;
 }
 
+/*
 Decoder::TraceMetaData
 Decoder::getTraceMetaData(Addr addr) {
 	int idx = (addr >> 5) & 0x1f;
@@ -1481,7 +1514,18 @@ Decoder::getTraceMetaData(Addr addr) {
 			return TraceMetaData(specHotnessArray[idx][way].read(), minConfidence(idx, way), maxLatency(idx, way));
 		}
 	}
+	printf("Trace not found\n");
 	return TraceMetaData(0,0,0);
+}
+*/
+
+Decoder::TraceMetaData
+Decoder::getTraceMetaData(ArrayDependencyTracker::FullCacheIdx specIdx, ArrayDependencyTracker::FullCacheIdx uopIdx) {
+	int way = specIdx.way;
+	while (speculativePrevWayArray[specIdx.idx][way] != 10) {
+		way = speculativePrevWayArray[specIdx.idx][way];
+	}
+	return TraceMetaData(uopHotnessArray[uopIdx.idx][uopIdx.way].read(), minConfidence(specIdx.idx, way), maxLatency(specIdx.idx, way));
 }
 
 unsigned
@@ -1489,7 +1533,11 @@ Decoder::minConfidence(unsigned idx, unsigned way) {
 	unsigned minConf = 50;
 	for (int source = 0; source < 6; source++) {
 		if (speculativeTraceSources[idx][way][source] != 0 && depTracker->predictionSourceValid[speculativeTraceSources[idx][way][source]]) {
-			unsigned sourceConf = depTracker->predictionConfidence[speculativeTraceSources[idx][way][source]];
+			printf("Found a source!\n");
+			// unsigned sourceConf = depTracker->predictionConfidence[speculativeTraceSources[idx][way][source]];
+			// FullO3CPU* cpu2 = (FullO3CPU*) cpu;
+			unsigned sourceConf = cpu->getLVP()->getConfidence(depTracker->predictionSource[speculativeTraceSources[idx][way][source]].pcAddr);
+			printf("Has confidence %i\n", sourceConf);
 			if (sourceConf < minConf) { minConf = sourceConf; }
 		}
 	}
@@ -1502,7 +1550,9 @@ Decoder::maxLatency(unsigned idx, unsigned way) {
 	unsigned maxLat = 0;
 	for (int source = 0; source < 6; source++) {
 		if (speculativeTraceSources[idx][way][source] != 0 && depTracker->predictionSourceValid[speculativeTraceSources[idx][way][source]]) {
-			unsigned sourceLat = depTracker->predictionResolutionLatency[speculativeTraceSources[idx][way][source]];
+			// unsigned sourceLat = depTracker->predictionResolutionLatency[speculativeTraceSources[idx][way][source]];
+			//FullO3CPU* cpu2 = (FullO3CPU*) cpu;
+			unsigned sourceLat = cpu->getLVP()->getDelay(depTracker->predictionSource[speculativeTraceSources[idx][way][source]].pcAddr);
 			if (sourceLat > maxLat) { maxLat = sourceLat; }
 		}
 	}
