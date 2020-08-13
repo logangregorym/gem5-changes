@@ -1510,11 +1510,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
 
         //*****CHANGE START**********
-        // check the speculative cache even before the microop cahce
+        // check the speculative cache even before the microop cache
         if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive() )
         {
             DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s.\n", thisPC);
-            // Speculative Cache is already enabled
+            // Speculative Cache is already enabled, continue fetchinf from it
             inSpeculativeCache = true;
             //Disable Uop Cache
             inUopCache = false;
@@ -1525,15 +1525,15 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         else if (isSuperOptimizationPresent && decoder[tid]->isTraceAvailable(thisPC) && !decoder[tid]->redirectDueToLVPSquashing) 
         {
         
-          DPRINTF(Fetch, "Setting speculative cache active at Pc %s.\n", thisPC);
-          //Enable Speculative Cache
-          inSpeculativeCache = true;
-          decoder[tid]->setSpeculativeCacheActive(true);
-          //Disable Uop Cache
-          inUopCache = false;
-          useUopCache = false;
-          decoder[tid]->setUopCacheActive(false);
-          //fetchBufferValid[tid] = false;
+            DPRINTF(Fetch, "Setting speculative cache active at Pc %s.\n", thisPC);
+            //Enable Speculative Cache
+            inSpeculativeCache = true;
+            decoder[tid]->setSpeculativeCacheActive(true);
+            //Disable Uop Cache
+            inUopCache = false;
+            useUopCache = false;
+            decoder[tid]->setUopCacheActive(false);
+            //fetchBufferValid[tid] = false;
           
         }
         //*****CHANGE END**********
@@ -1543,15 +1543,19 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         else if (isUopCachePresent && (!fetchBufferValid[tid] || !macroop[tid]) &&
                 decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
           DPRINTF(Fetch, "Setting microop cache active at Pc %s.\n", thisPC);
-          // enable UopCache
+          // Enable UopCache
           inUopCache = true;
           useUopCache = true;
           decoder[tid]->setUopCacheActive(true);
           fetchBufferValid[tid] = false;
 
-          // Disable Speculative Cache
-          inSpeculativeCache = false;
-          decoder[tid]->setSpeculativeCacheActive(false);
+           // Disable Speculative Cache
+           if (isSuperOptimizationPresent)
+           {
+                inSpeculativeCache = false;
+                decoder[tid]->setSpeculativeCacheActive(false);
+                
+           }
           
         } else if (!(fetchBufferValid[tid] && fetchBufferBlockPC == fetchBufferPC[tid])
             && !inRom && !macroop[tid]) {
@@ -1559,9 +1563,18 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         // to the next cache block, AND we have no remaining ucode
         // from a macro-op, then start fetch from icache.
             DPRINTF(Fetch, "[tid:%i]: Attempting to translate and read "
-                    "instruction, starting at PC %s.\n", tid, thisPC);
+                    "instruction from legacy decoder, starting at PC %s.\n", tid, thisPC);
 
+            //Disable uop cache
             decoder[tid]->setUopCacheActive(false);
+
+            //Disable Speculative Cache
+            if (isSuperOptimizationPresent)
+            {
+                inSpeculativeCache = false;
+                decoder[tid]->setSpeculativeCacheActive(false);
+            }
+
             fetchCacheLine(fetchAddr, tid, thisPC.instAddr());
 
             if (fetchStatus[tid] == IcacheWaitResponse)
@@ -1577,12 +1590,22 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             // are not interruptable by interrupts, only faults)
             ++fetchMiscStallCycles;
             DPRINTF(Fetch, "[tid:%i]: Fetch is stalled!\n", tid);
+
+            //Disable Uop Cache
             if (isUopCachePresent && !useUopCache &&
                 decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
                 decoder[tid]->setUopCacheActive(false);
             }
 
+
             // do we need to do anything here for speculative cache?
+            //Disable Speculative Cache
+            if (isSuperOptimizationPresent)
+            {
+                inSpeculativeCache = false;
+                decoder[tid]->setSpeculativeCacheActive(false);
+            }
+
 
             return;
         }
@@ -1638,11 +1661,17 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     // Need to halt fetch if quiesce instruction detected
     bool quiesce = false;
 
-    // we use this falg to find out if we want to switch fetching from uopcache/decoder to speculative cache
+    // we use this flag to find out if we want to switch fetching from uopcache/decoder to speculative cache
     bool switchFromUopCacheDecoderToSpeculativeCache = false;
+    bool switchFromSpeculativeCacheToUopCacheDecoder = false;
     
     const unsigned numInsts = fetchBufferSize / instSize;
     unsigned blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
+
+    // every cycle check to see if we are coming back from a LVP/folded branch squash
+    // one cycle is enough to fall back from speculative cache to uop cache in case of a LVP/folded branch missprediction
+    if (decoder[tid]->redirectDueToLVPSquashing) decoder[tid]->redirectDueToLVPSquashing = false;
+
 
     // Loop through instruction memory from the cache.
     // Keep issuing while fetchWidth is available and branch is not
@@ -1695,28 +1724,33 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         
         do {
                 bool newMacro = false, fused = false;
+
                 //*****CHANGE START**********
                 if (isSuperOptimizationPresent && inSpeculativeCache) {
                         
                         bool predict_taken = false;
                         // fetch next microop and also update the nextPC, so we can decide whether there is
                         // TODO: fetchBufferPC[tid] ?
-			                  DPRINTF(Fetch, "Asking SPEC for microop at %s and to update %s (%d)\n", thisPC, nextPC, nextPC.valid);
+			            DPRINTF(Fetch, "Asking SPEC for microop at %s and to update %s (%d)\n", thisPC, nextPC, nextPC.valid);
+
                         staticInst = decoder[tid]->getSuperOptimizedMicroop(thisPC, nextPC, predict_taken);
+
                         if (staticInst == StaticInst::nullStaticInstPtr) {
                             DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and a nullStaticInstPtr\n", nextPC, nextPC.valid);
                         } else {
                             DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and a valid next inst\n", nextPC, nextPC.valid);
                         }
+
                         if (staticInst == StaticInst::nullStaticInstPtr)
                         {
+                            // Disable Speculative Cache
                             inSpeculativeCache = false;
                             decoder[tid]->setSpeculativeCacheActive(false);
+
                             // set where to fetch for the next cycle
                             // we need to make sure that fetchBuffer has the necessary data for the next macroop fetch
                             // do we need pcOffset? 
                             // fetchBufferPC[tid] is updated at the begining of streaming microops from speculative cache 
-                            
                             thisPC = nextPC; 
                             thisPC.upc(0); thisPC.nupc(1);
                             
@@ -1727,6 +1761,13 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             curMacroop = NULL;
                             newMacro = true;
 
+                            // To make sure that Uop cache is also disabled
+                            // if we don't disable microop cache here, we may fall back to Uop cache after we reach to the end of a trace
+                            // Disable Uop Cache
+                            inUopCache = false;
+                            useUopCache = false;
+                            decoder[tid]->setUopCacheActive(false);
+
                             
                             // lets check to see if there is enough bytes in the current fetchBuffer so the decoder can use them   
                             // if we have passed the border between two fetch buffer we need to issue an I-cache request
@@ -1735,7 +1776,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
                             Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
                             // fortunatly fetchBufferPC[tid] is updated somewhere else
-                            if (!fetchBufferValid[tid] || fetchBufferBlockPC != fetchBufferPC[tid])
+                            if ( fetchBufferBlockPC != fetchBufferPC[tid])
                             {
                                 DPRINTF(Fetch, "[tid:%i]: Done streaming from speculative cache and "
                                                 "fetch buffer is not valid anymore!. Fetch continues to stream from %s\n", tid, thisPC);
@@ -1748,6 +1789,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                 break;
                             }
                             
+                            // if one of these asserts gets activated it means there is a corner case
+                            // it doesn't make sense (fetchBufferBlockPC == fetchBufferPC[tid]) to false
+                            // assert(fetchBufferBlockPC == fetchBufferPC[tid]);
+
                             DPRINTF(Fetch, "[tid:%i]: Done streaming from speculative cache and "
                                                 "fetch buffer is still valid!.\n", tid);
                             fetchBufferValid[tid] = true;
@@ -1755,6 +1800,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             // decoder never should say the next instruction is ready at anytime when returning from the speculative cache
                             // if this assert gets activated we need to reset instReady manualy in decoder. 
                             assert(!decoder[tid]->instReady()); 
+
+                            // this will breaks from the outer loop
+                            // this is necessary as we don't want to fetch from both speculative cahce and uop cache in the same cycle
+                            switchFromSpeculativeCacheToUopCacheDecoder = true;
+
                             // jumps to the while loop condition and because:
                             //  inSpeculativeCache <== false; 
                             //  (curMacroop || decoder[tid]->instReady() || inUopCache) <== false; 
@@ -1862,6 +1912,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 {
                     ++instsNotPartOfOptimizedTrace;
                 }   
+                //*****CHANGE END**********
 
             	if (!(curMacroop || inRom)) {
                	    if (decoder[tid]->instReady() || inUopCache) {
@@ -2010,6 +2061,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 } else if (useUopCache && inUopCache) {
                     DPRINTF(Fetch, "PC:%s is in microop cache\n", thisPC);
                 }
+
         } while (((inSpeculativeCache) || (curMacroop || decoder[tid]->instReady() || inUopCache)) &&
                  numInst < fetchWidth &&
                  computeFetchQueueSize(tid) < fetchQueueSize);
@@ -2021,6 +2073,17 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         {
              break;
         }
+
+        // At the end of a trace we should stop fetching because we can't have both uop cache/decoder and speculative cache active in the same cycle
+        // and continue fetching from them seamlessly 
+        // this will cause outer loop to exit and therefore a switch with one cycle penalty will happen
+        // note if the fetchBuffer is valid, we will not issue an I-Cache request
+        // note this haas higher priority and therefore, even if there is a hit in Uop Cache, we still break
+        if (isSuperOptimizationPresent && switchFromSpeculativeCacheToUopCacheDecoder)
+        {
+            break;
+        }
+
         // CHANGE ME!///
         if (useUopCache && !inUopCache) {
           break;
