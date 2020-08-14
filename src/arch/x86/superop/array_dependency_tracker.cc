@@ -2642,7 +2642,12 @@ void ArrayDependencyTracker::incrementPC(ArrayDependencyTracker::FullCacheIdx sp
 	if (nextIdx.valid && decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]) {
 		nextPC._pc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr;
 		nextPC._upc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr;
-        nextPC._npc = nextPC._pc + decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getMacroopSize();
+	// DEBUGGING
+	StaticInstPtr macroOp = decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop];
+	if (!macroOp->isMacroop()) { macroOp = macroOp->macroOp; }
+	int size = macroOp->getMacroopSize();
+	// DEBUGGING
+        nextPC._npc = nextPC._pc + size; // decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getMacroopSize();
     if (nextPC._upc < decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getNumMicroops() - 1) {
         nextPC._nupc = (nextPC._upc + 1 ) % decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getNumMicroops();
     } else {
