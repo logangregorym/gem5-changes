@@ -119,6 +119,8 @@ public:
     ExtMachInst uopCache[32][8][6]; // 48, 8, 6
     Addr uopAddrArray[32][8][6];
     uint64_t uopTagArray[32][8];
+	int uopPrevWayArray[32][8];
+	int uopNextWayArray[32][8];
     bool uopValidArray[32][8];
     int uopCountArray[32][8];
     int uopLRUArray[32][8];
@@ -323,7 +325,9 @@ protected:
         redirectDueToLVPSquashing = false;
         for (int idx=0; idx<32; idx++) {
           for (int way=0; way<8; way++) {
-            uopValidArray[idx][way] = false;
+            uopPrevWayArray[idx][way] = 10;
+			uopNextWayArray[idx][way] = 10;
+			uopValidArray[idx][way] = false;
             uopCountArray[idx][way] = 0;
             uopLRUArray[idx][way] = way;
 	    	uopHotnessArray[idx][way] = BigSatCounter(4);

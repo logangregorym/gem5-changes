@@ -726,10 +726,27 @@ void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, int64_t v
 
 bool ArrayDependencyTracker::simplifyGraph() {
 	// Propagate constants
+	if (!simplifyIdx.valid) { 
+		for (int idx = 0; idx < 32; idx++) {
+			for (int way = 0; way < 8; way++) {
+				if (decoder->uopHotnessArray[idx][way].read() > 3 && !simplifyIdx.valid) {
+					int wayToStart = way;
+					assert(wayToStart >= 0);
+					assert(wayToStart < 8);
+					while (decoder->uopPrevWayArray[idx][wayToStart] != 10) {
+						wayToStart = decoder->uopPrevWayArray[idx][wayToStart];
+					}
+					simplifyIdx = FullCacheIdx(idx, wayToStart, 0); // found hot line
+				}
+			}
+		}
+		if (!simplifyIdx.valid) { return false; }
+	}
+
 	bool changedGraph = false;
-	int i1 = simplifyIdx;
-	int i2 = simplifyWay;
-	int i3 = simplifyUop;
+	int i1 = simplifyIdx.idx;
+	int i2 = simplifyIdx.way;
+	int i3 = simplifyIdx.uop;
 	if (decoder->uopValidArray[i1][i2] && speculativeDependencyGraph[i1][i2][i3]) { // changed to uop
 		StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
 		StaticInstPtr decodedMicroOp = decodedMacroOp;
@@ -891,16 +908,13 @@ bool ArrayDependencyTracker::simplifyGraph() {
 		}
 	}
 
-	simplifyUop++;
-	if (simplifyUop >= 6) {
-		simplifyUop = 0;
-		simplifyWay++;
-		if (simplifyWay >= 8) {
-			simplifyWay = 0;
-			simplifyIdx++;
-			if (simplifyIdx >= 32) {
-				simplifyIdx = 0;
-			}
+	simplifyIdx.uop++;
+	if (simplifyIdx.uop >= decoder->uopCountArray[simplifyIdx.idx][simplifyIdx.way]) {
+		simplifyIdx.uop = 0;
+		if (decoder->uopNextWayArray[simplifyIdx.idx][simplifyIdx.way] != 10) {
+			simplifyIdx.way = decoder->uopNextWayArray[simplifyIdx.idx][simplifyIdx.way];
+		} else {
+			simplifyIdx = FullCacheIdx();
 		}
 	}
 

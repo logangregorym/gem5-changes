@@ -43,9 +43,6 @@ class ArrayDependencyTracker : public SimObject
 	void predictValue(Addr addr, unsigned uopAddr, int64_t value);
 
 	bool simplifyGraph();
-	unsigned simplifyIdx = 0;
-	unsigned simplifyWay = 0;
-	unsigned simplifyUop = 0;
 
 	void updateSpecTrace(int i1, int i2, int i3);
 
@@ -121,6 +118,8 @@ class ArrayDependencyTracker : public SimObject
 
 	FullCacheIdx getNextCacheIdx(FullCacheIdx);
 	FullCacheIdx getPrevCacheIdx(FullCacheIdx);
+
+	FullCacheIdx simplifyIdx = FullCacheIdx();
 
 	void incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC, bool &predict_taken);
 	bool isTakenBranch(FullUopAddr addr);

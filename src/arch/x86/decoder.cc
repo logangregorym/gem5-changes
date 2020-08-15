@@ -787,7 +787,9 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
           uopValidArray[idx][way] = false;
           uopCountArray[idx][way] = 0;
           uopHotnessArray[idx][way] = BigSatCounter(4);
-          uopCacheWayInvalidations++;
+          uopPrevWayArray[idx][way] = 10;
+		  uopNextWayArray[idx][way] = 10;
+		  uopCacheWayInvalidations++;
         }
       }
       return false;
@@ -795,6 +797,12 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
 
     for (int way = 0; way < 8; way++) {
       if (!uopValidArray[idx][way]) {
+		for (int w = 0; w < 8; w++) {
+			if (uopValidArray[idx][w] && uopTagArray[idx][w] == tag && uopNextWayArray[idx][w] == 10) {
+				uopNextWayArray[idx][w] = way;
+				uopPrevWayArray[idx][way] = w;
+			}
+		}
         uopCountArray[idx][way] = numUops;
         uopValidArray[idx][way] = true;
         uopTagArray[idx][way] = tag;
@@ -842,6 +850,8 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             uopValidArray[idx][w] = false;
             uopCountArray[idx][w] = 0;
             uopHotnessArray[idx][w] = BigSatCounter(4);
+			uopPrevWayArray[idx][w] = 10;
+			uopNextWayArray[idx][w] = 10;
             uopCacheWayInvalidations++;
           }
         }
@@ -1398,8 +1408,8 @@ Decoder::isProfitable(ArrayDependencyTracker::FullCacheIdx specIdx, ArrayDepende
 	unsigned length = getSpecTraceLength(specIdx);
 	unsigned confidence = info.minConfidence;
 	unsigned delay = info.maxLatency;
-	DPRINTF(Decoder, "Trace at spec[%i][%i][%i] has hotness %i, length %i, confidence %i, and delay %i\n", specIdx.idx, specIdx.way, specIdx.uop, hotness, length, confidence, delay);
-	return hotness > 7 && (length > 5 || confidence > 5 || delay > 5);
+	printf("Trace at spec[%i][%i][%i] has hotness %i, length %i, confidence %i, and delay %i\n", specIdx.idx, specIdx.way, specIdx.uop, hotness, length, confidence, delay);
+	return hotness > 3 && (length > 5 || confidence > 5 || delay > 5);
 }
 
 bool
@@ -1542,18 +1552,18 @@ Decoder::minConfidence(unsigned idx, unsigned way) {
 			// unsigned sourceConf = depTracker->predictionConfidence[speculativeTraceSources[idx][way][source]];
 			// FullO3CPU* cpu2 = (FullO3CPU*) cpu;
 			unsigned sourceConf = cpu->getLVP()->getConfidence(depTracker->predictionSource[speculativeTraceSources[idx][way][source]].pcAddr);
-			printf("Has confidence %i\n", sourceConf);
+	//		printf("Has confidence %i\n", sourceConf);
 			if (sourceConf < minConf) { minConf = sourceConf; }
 		}
 	}
 	if (minConf == 50) { 
-		printf("No source found for spec [%i][%i]\n", idx, way);
-		for (int u=0; u<speculativeCountArray[idx][way]; u++) {
-			if (speculativeCache[idx][way][u]) {
-				string instPrint = speculativeCache[idx][way][u]->disassemble(speculativeAddrArray[idx][way][u].pcAddr);
-				printf("%s\n", instPrint.c_str());
-			}
-		} 
+	//	printf("No source found for spec [%i][%i]\n", idx, way);
+	//	for (int u=0; u<speculativeCountArray[idx][way]; u++) {
+	//		if (speculativeCache[idx][way][u]) {
+	//			string instPrint = speculativeCache[idx][way][u]->disassemble(speculativeAddrArray[idx][way][u].pcAddr);
+	//			printf("%s\n", instPrint.c_str());
+	//		}
+	//	} 
 		return 0; 
 	}
 	return minConf;
