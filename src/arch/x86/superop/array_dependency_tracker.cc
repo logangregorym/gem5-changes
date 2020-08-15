@@ -862,7 +862,7 @@ bool ArrayDependencyTracker::simplifyGraph() {
 			updateSpecTrace(i1, i2, i3);
 			DPRINTF(ConstProp, "Successfully updated spec trace\n");
 //			printf("Changed graph but not updating trace\n");
-		} else {
+		} else if (type != "NOP") {
 			// printf("Simplify graph didn't change anything\n");
 			FullCacheIdx loc = decoder->addToSpeculativeCacheIffTagExists(decodedMicroOp, speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr);
 			if (loc.valid) {
@@ -2639,7 +2639,7 @@ void ArrayDependencyTracker::incrementPC(ArrayDependencyTracker::FullCacheIdx sp
 	FullCacheIdx nextIdx = getNextCacheIdx(specIdx);
 	DPRINTF(ConstProp, "Transitioning from spec[%i][%i][%i] to spec[%i][%i][%i]\n", specIdx.idx, specIdx.way, specIdx.uop, nextIdx.idx, nextIdx.way, nextIdx.uop);
 	DPRINTF(ConstProp, "That is, from addr %#x.%#x to addr %#x.%#x\n", decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop].pcAddr, decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop].uopAddr, decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr, decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr);
-	if (nextIdx.valid && decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]) {
+	if (speculativeDependencyGraph[nextIdx.idx][nextIdx.way][nextIdx.uop]->specIdx.valid && decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]) {
 		nextPC._pc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr;
 		nextPC._upc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr;
 	// DEBUGGING
