@@ -1585,6 +1585,11 @@ Decoder::addSourceToCacheLine(unsigned predID, int idx, uint64_t tag) {
 // In case of a folded branch, nextPC and predict_taken should be set by the function
 StaticInstPtr 
 Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken) {
+  if (!thisPC.valid) {
+    nextPC = thisPC;
+    DPRINTF(Decoder, "Provided an invalid PC to getSuperOptimizedMicroop\n");
+    return StaticInst::nullStaticInstPtr;
+  }
 
 	int idx = (thisPC.instAddr() >> 5) & 0x1f;
 	uint64_t tag = (thisPC.instAddr() >> 10);
