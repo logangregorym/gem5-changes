@@ -1533,7 +1533,7 @@ Decoder::minConfidence(unsigned idx, unsigned way) {
 	unsigned minConf = 50;
 	for (int source = 0; source < 6; source++) {
 		if (speculativeTraceSources[idx][way][source] != 0 && depTracker->predictionSourceValid[speculativeTraceSources[idx][way][source]]) {
-			printf("Found a source!\n");
+//			printf("Found a source!\n");
 			// unsigned sourceConf = depTracker->predictionConfidence[speculativeTraceSources[idx][way][source]];
 			// FullO3CPU* cpu2 = (FullO3CPU*) cpu;
 			unsigned sourceConf = cpu->getLVP()->getConfidence(depTracker->predictionSource[speculativeTraceSources[idx][way][source]].pcAddr);
@@ -1541,7 +1541,16 @@ Decoder::minConfidence(unsigned idx, unsigned way) {
 			if (sourceConf < minConf) { minConf = sourceConf; }
 		}
 	}
-	if (minConf == 50) { return 0; }
+	if (minConf == 50) { 
+		printf("No source found for spec [%i][%i]\n", idx, way);
+		for (int u=0; u<speculativeCountArray[idx][way]; u++) {
+			if (speculativeCache[idx][way][u]) {
+				string instPrint = speculativeCache[idx][way][u]->disassemble(speculativeAddrArray[idx][way][u].pcAddr);
+				printf("%s\n", instPrint.c_str());
+			}
+		} 
+		return 0; 
+	}
 	return minConf;
 }
 
