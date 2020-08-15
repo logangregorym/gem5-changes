@@ -10,6 +10,7 @@
 #include "base/types.hh"
 #include "debug/SuperOp.hh"
 #include "debug/ConstProp.hh"
+#include "cpu/reg_class.hh"
 
 #include <set>
 
@@ -235,6 +236,9 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 	// Search for source registers in graph
 	for (int i = 0; i < uop->numSrcRegs(); i++) {
 		RegId srcReg = uop->srcRegIdx(i);
+    if (srcReg.classValue() != IntRegClass && !uop->isControl()) {
+      continue;
+    }
     DPRINTF(SuperOp, "registerValidMapSpec[%d] = %d\n", srcReg.flatIndex(), registerValidMapSpec[srcReg.flatIndex()]);
 		if (registerValidMapSpec[srcReg.flatIndex()]) {
 			// DPRINTF(ConstProp, "Reg %i was written by inst %x.%i\n", srcReg.flatIndex(), registerProducerMapSpec[srcReg.flatIndex()].pcAddr, registerProducerMapSpec[srcReg.flatIndex()].uopAddr);
@@ -1646,8 +1650,15 @@ bool ArrayDependencyTracker::propagateSubI(int idx, int way, int uop) {
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
 	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping subi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+  int numSrcRegs = 0;
+  for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
+    if (srcReg.classValue() == IntRegClass) {
+      numSrcRegs++;
+    }
+  }
+	if (numSrcRegs > 1) {
+		DPRINTF(SuperOp, "Skipping subi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
     if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
@@ -1706,8 +1717,15 @@ bool ArrayDependencyTracker::propagateAddI(int idx, int way, int uop) {
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
 	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping addi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+  int numSrcRegs = 0;
+  for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
+    if (srcReg.classValue() == IntRegClass) {
+      numSrcRegs++;
+    }
+  }
+	if (numSrcRegs > 1) {
+		DPRINTF(SuperOp, "Skipping addi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
     if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
@@ -1766,8 +1784,15 @@ bool ArrayDependencyTracker::propagateAndI(int idx, int way, int uop) {
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
 	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping andi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+  int numSrcRegs = 0;
+  for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
+    if (srcReg.classValue() == IntRegClass) {
+      numSrcRegs++;
+    }
+  }
+	if (numSrcRegs > 1) {
+		DPRINTF(SuperOp, "Skipping andi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
     if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
@@ -1826,8 +1851,15 @@ bool ArrayDependencyTracker::propagateOrI(int idx, int way, int uop) {
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
 	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping ori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+  int numSrcRegs = 0;
+  for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
+    if (srcReg.classValue() == IntRegClass) {
+      numSrcRegs++;
+    }
+  }
+	if (numSrcRegs > 1) {
+		DPRINTF(SuperOp, "Skipping ori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
     if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
@@ -1886,8 +1918,15 @@ bool ArrayDependencyTracker::propagateXorI(int idx, int way, int uop) {
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
 	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping xori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+  int numSrcRegs = 0;
+  for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
+    if (srcReg.classValue() == IntRegClass) {
+      numSrcRegs++;
+    }
+  }
+	if (numSrcRegs > 1) {
+		DPRINTF(SuperOp, "Skipping xori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
     if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
@@ -1946,8 +1985,15 @@ bool ArrayDependencyTracker::propagateSllI(int idx, int way, int uop) {
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
 	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping slli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+  int numSrcRegs = 0;
+  for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
+    if (srcReg.classValue() == IntRegClass) {
+      numSrcRegs++;
+    }
+  }
+	if (numSrcRegs > 1) {
+		DPRINTF(SuperOp, "Skipping slli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
     if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
@@ -2006,8 +2052,15 @@ bool ArrayDependencyTracker::propagateSrlI(int idx, int way, int uop) {
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
 	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping srli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+  int numSrcRegs = 0;
+  for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
+    if (srcReg.classValue() == IntRegClass) {
+      numSrcRegs++;
+    }
+  }
+	if (numSrcRegs > 1) {
+		DPRINTF(SuperOp, "Skipping srli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
     if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
@@ -2066,8 +2119,15 @@ bool ArrayDependencyTracker::propagateSExtI(int idx, int way, int uop) {
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
 	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping sexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+  int numSrcRegs = 0;
+  for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
+    if (srcReg.classValue() == IntRegClass) {
+      numSrcRegs++;
+    }
+  }
+	if (numSrcRegs > 1) {
+		DPRINTF(SuperOp, "Skipping sexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
     if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
@@ -2131,12 +2191,19 @@ bool ArrayDependencyTracker::propagateZExtI(int idx, int way, int uop) {
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
 	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 1) {
-		DPRINTF(SuperOp, "Skipping zexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+
+  int numSrcRegs = 0;
+  for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
+    if (srcReg.classValue() == IntRegClass) {
+      numSrcRegs++;
+    }
+  }
+	if (numSrcRegs > 1) {
+		DPRINTF(SuperOp, "Skipping zexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
     if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
-
 	// collect sources
 	unsigned srcRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	uint64_t srcVal = 0;
@@ -2264,6 +2331,9 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 
 	for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
 		RegId srcReg = decodedMicroOp->srcRegIdx(i);
+    if (srcReg.classValue() != IntRegClass) {
+      continue;
+    }
 		DPRINTF(ConstProp, "Checking register map for producer of %i\n", srcReg.flatIndex());
 		if (branches[branchIndex].registerValidMap[srcReg.flatIndex()]) {
 			// Check whether value is already produced along path
@@ -2398,6 +2468,7 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 				nextIdx = getNextCacheIdx(nextIdx);
 			}
 			// Steb 2b: Mark DependGraphEntry as dead code to know to skip
+			DPRINTF(ConstProp, "Dead code at idx:%#x way:%#x uop:%#x\n", idx, way, uop);
 			speculativeDependencyGraph[idx][way][uop]->deadCode = true;
 			speculativeDependencyGraph[idx][way][uop]->specIdx.valid = false;
 		} else {
@@ -2421,6 +2492,7 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 		if (allDestsReady) {
 			// Step 2b: Mark DependGraphEntry as dead code to know to skip
 			FullCacheIdx newIdx = decoder->updateTagInSpeculativeCacheWithoutAdding(speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
+			DPRINTF(ConstProp, "Dead code at idx:%#x way:%#x uop:%#x\n", idx, way, uop);
 			speculativeDependencyGraph[idx][way][uop]->deadCode = true;
 			speculativeDependencyGraph[idx][way][uop]->specIdx = newIdx;
 			speculativeDependencyGraph[idx][way][uop]->specIdx.valid = false;
@@ -2559,12 +2631,12 @@ void ArrayDependencyTracker::describeEntry(int idx, int way, int uop) {
 	DPRINTF(ConstProp, "SrcRegs (%i):\n", decodedMicroOp->numSrcRegs());
 	for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
 		RegId srcReg = decodedMicroOp->srcRegIdx(i);
-		DPRINTF(ConstProp, "Register %i\n", srcReg.flatIndex());
+    DPRINTF(ConstProp, "%s register %i\n", srcReg.className(), srcReg.flatIndex());
 	}
 	DPRINTF(ConstProp, "Dest Regs (%i):\n", decodedMicroOp->numDestRegs());
 	for (int i=0; i<decodedMicroOp->numDestRegs(); i++) {
 		RegId destReg = decodedMicroOp->destRegIdx(i);
-		DPRINTF(ConstProp, "Register %i\n", destReg.flatIndex());
+    DPRINTF(ConstProp, "%s register %i\n", destReg.className(), destReg.flatIndex());
 	}
 	DPRINTF(ConstProp, "Incoming data paths:\n");
 	for (int i=0; i<256; i++) {
@@ -2637,17 +2709,39 @@ void ArrayDependencyTracker::incrementPC(ArrayDependencyTracker::FullCacheIdx sp
 	// Step 3: If inst at specIdx is a branch, use control flow table to set taken
 	// Step 4: If didn't have a next index, or if the StaticInstPtr at the next index is null, this is the end of a trace
 	FullCacheIdx nextIdx = getNextCacheIdx(specIdx);
-	DPRINTF(ConstProp, "Transitioning from spec[%i][%i][%i] to spec[%i][%i][%i]\n", specIdx.idx, specIdx.way, specIdx.uop, nextIdx.idx, nextIdx.way, nextIdx.uop);
+	int idx = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 5) & 0x1f;
+	uint64_t tag = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 10);
+  bool endOfTrace = true;
+
+	DPRINTF(ConstProp, "Transitioning from specCache[%i][%i][%i] to specCache[%i][%i][%i]\n", specIdx.idx, specIdx.way, specIdx.uop, nextIdx.idx, nextIdx.way, nextIdx.uop);
 	DPRINTF(ConstProp, "That is, from addr %#x.%#x to addr %#x.%#x\n", decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop].pcAddr, decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop].uopAddr, decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr, decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr);
-	if (speculativeDependencyGraph[nextIdx.idx][nextIdx.way][nextIdx.uop]->specIdx.valid && decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]) {
+
+  if (nextIdx.valid) {
+    for (int way = 0; way < 8; way++) {
+      if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
+        for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
+          if (microopAddrArray[idx][way][uop].pcAddr == decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr &&
+              microopAddrArray[idx][way][uop].uopAddr == decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr) {
+            if (speculativeDependencyGraph[idx][way][uop]->specIdx.valid) {
+              DPRINTF(ConstProp, "Found a valid next index at spec[%i][%i][%i]\n", idx, way, uop);
+              endOfTrace = false;
+              break;
+            }  
+          }
+        }
+      }
+    }
+  }
+
+	if (!endOfTrace && decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]) {
 		nextPC._pc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr;
 		nextPC._upc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr;
-	// DEBUGGING
-	StaticInstPtr macroOp = decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop];
-	if (!macroOp->macroOp) { printf("%s\n", macroOp->disassemble(decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr).c_str()); }
-	int size = macroOp->getMacroopSize();
-	// DEBUGGING
-        nextPC._npc = nextPC._pc + size; // decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getMacroopSize();
+    // DEBUGGING
+    StaticInstPtr macroOp = decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop];
+    if (!macroOp->isMacroop()) { macroOp = macroOp->macroOp; }
+    int size = macroOp->getMacroopSize();
+    // DEBUGGING
+    nextPC._npc = nextPC._pc + size; // decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getMacroopSize();
     if (nextPC._upc < decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getNumMicroops() - 1) {
         nextPC._nupc = (nextPC._upc + 1 ) % decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getNumMicroops();
     } else {

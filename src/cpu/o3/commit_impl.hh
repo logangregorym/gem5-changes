@@ -1582,8 +1582,9 @@ template<class Impl>
 void
 DefaultCommit<Impl>::squashWokenDependents(DynInstPtr &inst) {
     DynInstPtr firstWoken = cpu->rob.firstDependentOf(inst->threadNumber, inst);
-   // if (firstWoken) {
+    if (firstWoken) {
         DPRINTF(LVP, "Load Value Mispredicted for [sn:%i], squashing from first dependent [sn:%i]\n", inst->seqNum, firstWoken->seqNum);
+    }
         cpu->iew.squashDueToLoad(inst, firstWoken, inst->threadNumber);
     //} else {
     //    DPRINTF(LVP, "Load Value Mispredicted for [sn:%i] but no dependent instructions woken\n", inst->seqNum);
