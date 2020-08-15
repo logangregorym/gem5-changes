@@ -2637,9 +2637,28 @@ void ArrayDependencyTracker::incrementPC(ArrayDependencyTracker::FullCacheIdx sp
 	// Step 3: If inst at specIdx is a branch, use control flow table to set taken
 	// Step 4: If didn't have a next index, or if the StaticInstPtr at the next index is null, this is the end of a trace
 	FullCacheIdx nextIdx = getNextCacheIdx(specIdx);
-	DPRINTF(ConstProp, "Transitioning from spec[%i][%i][%i] to spec[%i][%i][%i]\n", specIdx.idx, specIdx.way, specIdx.uop, nextIdx.idx, nextIdx.way, nextIdx.uop);
+	int idx = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 5) & 0x1f;
+	uint64_t tag = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 10);
+  bool nextIdxValid = false;
+
+	DPRINTF(ConstProp, "Transitioning from specCache[%i][%i][%i] to specCache[%i][%i][%i]\n", specIdx.idx, specIdx.way, specIdx.uop, nextIdx.idx, nextIdx.way, nextIdx.uop);
 	DPRINTF(ConstProp, "That is, from addr %#x.%#x to addr %#x.%#x\n", decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop].pcAddr, decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop].uopAddr, decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr, decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr);
-	if (speculativeDependencyGraph[nextIdx.idx][nextIdx.way][nextIdx.uop]->specIdx.valid && decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]) {
+
+	for (int way = 0; way < 8; way++) {
+		if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
+			for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
+				if (microopAddrArray[idx][way][uop].pcAddr == decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr &&
+            microopAddrArray[idx][way][uop].uopAddr == decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr) {
+					if (speculativeDependencyGraph[idx][way][uop]->specIdx.valid) {
+            DPRINTF(ConstProp, "Found a valid next index at spec[%i][%i][%i]\n", idx, way, uop);
+            nextIdxValid = true;
+            break;
+          }  
+        }
+      }
+    }
+  }
+	if (nextIdxValid && decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]) {
 		nextPC._pc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr;
 		nextPC._upc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr;
 	// DEBUGGING
