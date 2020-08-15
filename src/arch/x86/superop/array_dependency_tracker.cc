@@ -2644,7 +2644,7 @@ void ArrayDependencyTracker::incrementPC(ArrayDependencyTracker::FullCacheIdx sp
 		nextPC._upc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr;
 	// DEBUGGING
 	StaticInstPtr macroOp = decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop];
-	if (!macroOp->isMacroop()) { macroOp = macroOp->macroOp; }
+	if (!macroOp->macroOp) { printf("%s\n", macroOp->disassemble(decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr).c_str()); }
 	int size = macroOp->getMacroopSize();
 	// DEBUGGING
         nextPC._npc = nextPC._pc + size; // decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getMacroopSize();
