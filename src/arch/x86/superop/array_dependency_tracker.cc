@@ -727,7 +727,7 @@ void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, int64_t v
 bool ArrayDependencyTracker::simplifyGraph() {
 	// Propagate constants
 	if (!simplifyIdx.valid) { 
-		for (int idx = 0; idx < 32; idx++) {
+		for (int idx = simplifyIdx.idx; idx < 32; idx++) {
 			for (int way = 0; way < 8; way++) {
 				if (decoder->uopHotnessArray[idx][way].read() > 3 && !simplifyIdx.valid) {
 					int wayToStart = way;
@@ -914,7 +914,9 @@ bool ArrayDependencyTracker::simplifyGraph() {
 		if (decoder->uopNextWayArray[simplifyIdx.idx][simplifyIdx.way] != 10) {
 			simplifyIdx.way = decoder->uopNextWayArray[simplifyIdx.idx][simplifyIdx.way];
 		} else {
-			simplifyIdx = FullCacheIdx();
+			simplifyIdx.idx++;
+			if (simplifyIdx.idx >= 32) { simplifyIdx.idx = 0; }
+			simplifyIdx.valid = false;
 		}
 	}
 

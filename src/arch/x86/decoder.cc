@@ -1408,7 +1408,7 @@ Decoder::isProfitable(ArrayDependencyTracker::FullCacheIdx specIdx, ArrayDepende
 	unsigned length = getSpecTraceLength(specIdx);
 	unsigned confidence = info.minConfidence;
 	unsigned delay = info.maxLatency;
-	printf("Trace at spec[%i][%i][%i] has hotness %i, length %i, confidence %i, and delay %i\n", specIdx.idx, specIdx.way, specIdx.uop, hotness, length, confidence, delay);
+	// printf("Trace at spec[%i][%i][%i] has hotness %i, length %i, confidence %i, and delay %i\n", specIdx.idx, specIdx.way, specIdx.uop, hotness, length, confidence, delay);
 	return hotness > 3 && (length > 5 || confidence > 5 || delay > 5);
 }
 
