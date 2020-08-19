@@ -44,6 +44,61 @@
 namespace X86ISA
 {
 
+Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), offset(0), cpu(NULL), outOfBytes(true), instDone(false), state(ResetState)
+{
+    emi.reset();
+    mode = LongMode;
+    submode = SixtyFourBitMode;
+    emi.mode.mode = mode;
+    emi.mode.submode = submode;
+    altOp = 0;
+    defOp = 0;
+    altAddr = 0;
+    defAddr = 0;
+    stack = 0;
+    instBytes = &dummy;
+    decodePages = NULL;
+    // instMap = NULL;
+    isUopCachePresent = false;
+    isMicroFusionPresent = false;
+    isSpeculativeCachePresent = false;
+    speculativeCacheActive = false;
+    redirectDueToLVPSquashing = false;
+    for (int idx=0; idx<32; idx++) {
+        for (int way=0; way<8; way++) {
+            uopPrevWayArray[idx][way] = 10;
+	    uopNextWayArray[idx][way] = 10;
+	    uopValidArray[idx][way] = false;
+            uopCountArray[idx][way] = 0;
+            uopLRUArray[idx][way] = way;
+	    uopHotnessArray[idx][way] = BigSatCounter(4);
+	    
+            // Parallel cache for optimized micro-ops
+            speculativeValidArray[idx][way] = false;
+            speculativeCountArray[idx][way] = 0;
+            speculativeLRUArray[idx][way] = way;
+	    speculativeTagArray[idx][way] = 0;
+	    speculativePrevWayArray[idx][way] = 10;
+    	    speculativeNextWayArray[idx][way] = 10;
+    	    specHotnessArray[idx][way] = BigSatCounter(4);
+	    for (int uop = 0; uop < 6; uop++) {
+	    	speculativeAddrArray[idx][way][uop] = FullUopAddr();
+		speculativeTraceSources[idx][way][uop] = 0;
+  	    }
+        }
+    }
+    if (params != nullptr){
+        if (params->depTracker != nullptr){
+            depTracker = params->depTracker;
+            depTracker->decoder = this;
+            depTracker->branchPred = params->branchPred;
+        } else {
+            // CPUO3 without depTracker?!
+            assert(0);
+        }
+    }
+}
+
 Decoder::State
 Decoder::doResetState()
 {
@@ -747,7 +802,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         for (int uop = waySize; uop < (waySize + numUops); uop++) {
           assert(uopAddr == uop - waySize);
           uopAddrArray[idx][way][uop] = addr;
-          depTracker->microopAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr(addr, uopAddr);
+          depTracker->microopAddrArray[idx][way][uop] = FullUopAddr(addr, uopAddr);
           DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uopAddr);
           emi.instSize = size;
           uopCache[idx][way][uop] = emi;
@@ -756,14 +811,14 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             StaticInstPtr new_inst = inst->fetchMicroop(uopAddr);
             new_inst->macroOp = inst;
             inst = new_inst;
-            depTracker->addToGraph(inst, addr, uopAddr, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
+            depTracker->addToGraph(inst, addr, uopAddr, cycleAdded, tid, FullCacheIdx(idx, way, uop)); // changed to spec
             uopAddr++;
             if (inst->isLastMicroop()) {
               uopAddr = 0;
             }
             inst->macroOp->deleteMicroOps();
           } else {
-            depTracker->addToGraph(inst, addr, uopAddr, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
+            depTracker->addToGraph(inst, addr, uopAddr, cycleAdded, tid, FullCacheIdx(idx, way, uop)); // changed to spec
           }
           DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "1Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -782,7 +837,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][way][uop], true);
             DPRINTF(ConstProp, "Decoder is invalidating way %i, so removing uop[%i][%i][%i]\n", way, idx, way, uop);
             depTracker->removeAtIndex(idx, way, uop); // changed to spec
-            depTracker->microopAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr(0,0);
+            depTracker->microopAddrArray[idx][way][uop] = FullUopAddr(0,0);
           }
           uopValidArray[idx][way] = false;
           uopCountArray[idx][way] = 0;
@@ -809,7 +864,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, way, tag);
         for (int uop = 0; uop < numUops; uop++) {
           uopAddrArray[idx][way][uop] = addr;
-          depTracker->microopAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr(addr,uop);
+          depTracker->microopAddrArray[idx][way][uop] = FullUopAddr(addr,uop);
           DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uop);
           emi.instSize = size;
           uopCache[idx][way][uop] = emi;
@@ -818,14 +873,14 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
               StaticInstPtr new_inst = inst->fetchMicroop(uop);
               new_inst->macroOp = inst;
               inst = new_inst;
-              depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
+              depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, FullCacheIdx(idx, way, uop)); // changed to spec
               // uopAddr++;
               // if (inst->isLastMicroop()) {
               //     uopAddr = 0;
               // }
               inst->macroOp->deleteMicroOps();
           } else {
-              depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
+              depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, FullCacheIdx(idx, way, uop)); // changed to spec
           }
           DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "2Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -845,7 +900,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
               DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][w][uop]);
               uopConflictMisses++;
               depTracker->removeAtIndex(idx, w, uop); // changed to spec
-              depTracker->microopAddrArray[idx][w][uop] = ArrayDependencyTracker::FullUopAddr(0,0);
+              depTracker->microopAddrArray[idx][w][uop] = FullUopAddr(0,0);
             }
             uopValidArray[idx][w] = false;
             uopCountArray[idx][w] = 0;
@@ -861,7 +916,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, way, tag);
         for (int uop = 0; uop < numUops; uop++) {
           uopAddrArray[idx][way][uop] = addr;
-          depTracker->microopAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+          depTracker->microopAddrArray[idx][way][uop] = FullUopAddr(addr, uop);
           DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uop);
           emi.instSize = size;
           uopCache[idx][way][uop] = emi;
@@ -871,14 +926,14 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             StaticInstPtr new_inst = inst->fetchMicroop(uop);
             new_inst->macroOp = inst;
             inst = new_inst;
-            depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
+            depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, FullCacheIdx(idx, way, uop)); // changed to spec
             // uopAddr++;
             // if (inst->isLastMicroop()) {
             //   uopAddr = 0;
             // }
             inst->macroOp->deleteMicroOps();
           } else {
-            depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, ArrayDependencyTracker::FullCacheIdx(idx, way, uop)); // changed to spec
+            depTracker->addToGraph(inst, addr, uop, cycleAdded, tid, FullCacheIdx(idx, way, uop)); // changed to spec
           }
           DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
           // DPRINTF(ConstProp, "3Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -1052,7 +1107,7 @@ Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, in
     return false;
 }
 
-ArrayDependencyTracker::FullCacheIdx
+FullCacheIdx
 Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop) {
 	int idx = (addr >> 5) & 0x1f;
 	uint64_t tag = (addr >> 10);
@@ -1066,13 +1121,13 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop) {
 			}
 			speculativeCountArray[idx][way]++;
 			speculativeCache[idx][way][waySize] = inst;
-			speculativeAddrArray[idx][way][waySize] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+			speculativeAddrArray[idx][way][waySize] = FullUopAddr(addr, uop);
 			updateLRUBitsSpeculative(idx, way);
       DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d.\n", addr, tag, idx, way, uop);
       if (speculativeCountArray[idx][way] == 6) {
         numFullWays++;
       }
-			return ArrayDependencyTracker::FullCacheIdx(idx, way, waySize);
+			return FullCacheIdx(idx, way, waySize);
 		}
 	}
 
@@ -1096,10 +1151,10 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop) {
 			speculativeValidArray[idx][way] = true;
 			speculativeTagArray[idx][way] = tag;
 			speculativeCache[idx][way][0] = inst;
-			speculativeAddrArray[idx][way][0] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+			speculativeAddrArray[idx][way][0] = FullUopAddr(addr, uop);
 			updateLRUBitsSpeculative(idx, way);
       DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:0.\n", addr, tag, idx, way);
-			return ArrayDependencyTracker::FullCacheIdx(idx, way, 0);
+			return FullCacheIdx(idx, way, 0);
 		}
 	}
 
@@ -1136,17 +1191,17 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop) {
 			speculativeValidArray[idx][way] = true;
 			speculativeTagArray[idx][way] = tag;
 			speculativeCache[idx][way][0] = inst;
-			speculativeAddrArray[idx][way][0] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+			speculativeAddrArray[idx][way][0] = FullUopAddr(addr, uop);
 			updateLRUBitsSpeculative(idx, way);	
       DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:0.\n", addr, tag, idx, way);
-			return ArrayDependencyTracker::FullCacheIdx(idx, way, 0);
+			return FullCacheIdx(idx, way, 0);
 		}
 	}
 	DPRINTF(ConstProp, "Optimized trace could not be loaded into speculative cache because no tag has LRU bits equal to 0\n");
-	return ArrayDependencyTracker::FullCacheIdx();
+	return FullCacheIdx();
 }
 
-ArrayDependencyTracker::FullCacheIdx
+FullCacheIdx
 Decoder::addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop) {
 	int idx = (addr >> 5) & 0x1f;
 	uint64_t tag = (addr >> 10);
@@ -1160,13 +1215,13 @@ Decoder::addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsign
 			}
 			speculativeCountArray[idx][way]++;
 			speculativeCache[idx][way][waySize] = inst;
-			speculativeAddrArray[idx][way][waySize] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+			speculativeAddrArray[idx][way][waySize] = FullUopAddr(addr, uop);
 			updateLRUBitsSpeculative(idx, way);
       DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d.\n", addr, tag, idx, way, waySize);
       if (speculativeCountArray[idx][way] == 6) {
         numFullWays++;
       }
-			return ArrayDependencyTracker::FullCacheIdx(idx, way, waySize);
+			return FullCacheIdx(idx, way, waySize);
 		}
 	}
 
@@ -1182,17 +1237,17 @@ Decoder::addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsign
       speculativeValidArray[idx][way] = true;
       speculativeTagArray[idx][way] = tag;
       speculativeCache[idx][way][0] = inst;
-      speculativeAddrArray[idx][way][0] = ArrayDependencyTracker::FullUopAddr(addr, uop);
+      speculativeAddrArray[idx][way][0] = FullUopAddr(addr, uop);
       updateLRUBitsSpeculative(idx, way);
       DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d.\n", addr, tag, idx, way, 0);
-      return ArrayDependencyTracker::FullCacheIdx(idx, way, 0);
+      return FullCacheIdx(idx, way, 0);
     }
   }
 	DPRINTF(SuperOp, "Tag not found in cache, so not adding inst\n");
-	return ArrayDependencyTracker::FullCacheIdx();
+	return FullCacheIdx();
 }
 
-ArrayDependencyTracker::FullCacheIdx
+FullCacheIdx
 Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop) {
 	int idx = (addr >> 5) & 0x1f;
 	uint64_t tag = (addr >> 10);
@@ -1207,7 +1262,7 @@ Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop) {
 			// No need to add a new way, there's space in this one
 			updateLRUBits(idx, way);
       DPRINTF(Decoder, "Skipping microop update in the speculative cache: %#x tag:%#x idx:%#x way:%#x.\n", addr, tag, idx, way);
-			return ArrayDependencyTracker::FullCacheIdx(idx, way, waySize+1);
+			return FullCacheIdx(idx, way, waySize+1);
 		}
 	}
 
@@ -1231,7 +1286,7 @@ Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop) {
 			speculativeTagArray[idx][way] = tag;
 			updateLRUBitsSpeculative(idx, way);
       DPRINTF(Decoder, "Skipping microop update in the speculative cache: %#x tag:%#x idx:%#x way:%#x.\n", addr, tag, idx, way);
-			return ArrayDependencyTracker::FullCacheIdx(idx, way, 0);
+			return FullCacheIdx(idx, way, 0);
 		}
 	}
 
@@ -1260,11 +1315,11 @@ Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop) {
 			speculativeTagArray[idx][way] = tag;
 			updateLRUBitsSpeculative(idx, way);
       DPRINTF(Decoder, "Skipping microop update in the speculative cache: %#x tag:%#x idx:%#x way:%#x.\n", addr, tag, idx, way);
-			return ArrayDependencyTracker::FullCacheIdx(idx, way, 0);
+			return FullCacheIdx(idx, way, 0);
 		}
 	}
 	DPRINTF(SuperOp, "Optimized trace could not be loaded into speculative cache because no tag has LRU bits equal to 0\n");
-	return ArrayDependencyTracker::FullCacheIdx();
+	return FullCacheIdx();
 }
 
 bool
@@ -1293,7 +1348,7 @@ Decoder::isHitInSpeculativeCache(Addr addr, unsigned uop)
     for (int way = 0; way < 8; way++) {
         if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
             for (int u = 0; u < speculativeCountArray[idx][way]; u++) {
-                if (speculativeAddrArray[idx][way][u] == ArrayDependencyTracker::FullUopAddr(addr, uop)) {
+                if (speculativeAddrArray[idx][way][u] == FullUopAddr(addr, uop)) {
                     return true;
                 }
             }
@@ -1368,16 +1423,16 @@ Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 	for (int way = 0; way < 8; way++) {
 		if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
 			for (int u = 0; u < uopCountArray[idx][way]; u++) {
-				if (depTracker->microopAddrArray[idx][way][u] == ArrayDependencyTracker::FullUopAddr(thisPC.instAddr(), thisPC.microPC())) {
+				if (depTracker->microopAddrArray[idx][way][u] == FullUopAddr(thisPC.instAddr(), thisPC.microPC())) {
 					// Found a match, should have a dependency graph entry
 					if (!depTracker->speculativeDependencyGraph[idx][way][u]) {
 						printf("no entry at %i, %i, %i for %lx.%i\n", idx, way, u, thisPC.instAddr(), thisPC.microPC());
 					}
 					if (depTracker->speculativeDependencyGraph[idx][way][u]->specIdx.valid || depTracker->speculativeDependencyGraph[idx][way][u]->deadCode) {
-						ArrayDependencyTracker::FullCacheIdx specIdx = depTracker->speculativeDependencyGraph[idx][way][u]->specIdx;
+						FullCacheIdx specIdx = depTracker->speculativeDependencyGraph[idx][way][u]->specIdx;
 						if ((specIdx.uop == 0) && speculativePrevWayArray[specIdx.idx][specIdx.way] == 10) {
 //							return isProfitable(thisPC.instAddr(), thisPC.microPC());
-							return isProfitable(specIdx, ArrayDependencyTracker::FullCacheIdx(idx, way, u));
+							return isProfitable(specIdx, FullCacheIdx(idx, way, u));
 						}
 					}
 				}
@@ -1402,7 +1457,7 @@ Decoder::isProfitable(Addr addr, unsigned uop) {
 */
 
 bool
-Decoder::isProfitable(ArrayDependencyTracker::FullCacheIdx specIdx, ArrayDependencyTracker::FullCacheIdx uopIdx) {
+Decoder::isProfitable(FullCacheIdx specIdx, FullCacheIdx uopIdx) {
 	TraceMetaData info = getTraceMetaData(specIdx, uopIdx);
 	unsigned hotness = info.hotness;
 	unsigned length = getSpecTraceLength(specIdx);
@@ -1456,7 +1511,7 @@ void
 Decoder::invalidateSpecCacheLine(int idx, int way) {
 	for (int u = 0; u < 6; u++) {
 		depTracker->registerRemovalOfTraceInst(idx, way, u);
-		speculativeAddrArray[idx][way][u] = ArrayDependencyTracker::FullUopAddr(0,0);
+		speculativeAddrArray[idx][way][u] = FullUopAddr(0,0);
 	}
 	if (speculativePrevWayArray[idx][way] != 10) {
 		invalidateSpecCacheLine(idx, speculativePrevWayArray[idx][way]);
@@ -1484,7 +1539,7 @@ Decoder::getSpecTraceLength(Addr addr) {
 */
 
 unsigned
-Decoder::getSpecTraceLength(ArrayDependencyTracker::FullCacheIdx specIdx) {
+Decoder::getSpecTraceLength(FullCacheIdx specIdx) {
 	int way = specIdx.way;
 	while (speculativePrevWayArray[specIdx.idx][way] != 10) {
 		way = speculativePrevWayArray[specIdx.idx][way];
@@ -1535,7 +1590,7 @@ Decoder::getTraceMetaData(Addr addr) {
 */
 
 Decoder::TraceMetaData
-Decoder::getTraceMetaData(ArrayDependencyTracker::FullCacheIdx specIdx, ArrayDependencyTracker::FullCacheIdx uopIdx) {
+Decoder::getTraceMetaData(FullCacheIdx specIdx, FullCacheIdx uopIdx) {
 	int way = specIdx.way;
 	while (speculativePrevWayArray[specIdx.idx][way] != 10) {
 		way = speculativePrevWayArray[specIdx.idx][way];
@@ -1620,7 +1675,7 @@ Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState 
 				if (depTracker->microopAddrArray[idx][way][uop].pcAddr == thisPC.instAddr() && depTracker->microopAddrArray[idx][way][uop].uopAddr == thisPC.microPC()) {
             while (true) {
               if (depTracker->speculativeDependencyGraph[idx][way][uop]->specIdx.valid) {
-                ArrayDependencyTracker::FullCacheIdx specIdx = depTracker->speculativeDependencyGraph[idx][way][uop]->specIdx;
+                FullCacheIdx specIdx = depTracker->speculativeDependencyGraph[idx][way][uop]->specIdx;
 
                 // update nextPc and predict_taken
                 DPRINTF(Decoder, "Calling incrementPC\n");
@@ -1631,7 +1686,7 @@ Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState 
                 return speculativeCache[specIdx.idx][specIdx.way][specIdx.uop];
               } else if (depTracker->speculativeDependencyGraph[idx][way][uop]->deadCode) {
                 DPRINTF(Decoder, "getSuperOptimizedMicroop: dead code at %s\n", thisPC);
-                ArrayDependencyTracker::FullCacheIdx nextIdx = depTracker->getNextCacheIdx(ArrayDependencyTracker::FullCacheIdx(idx, way, uop));
+                FullCacheIdx nextIdx = depTracker->getNextCacheIdx(FullCacheIdx(idx, way, uop));
                 idx = nextIdx.idx;
                 way = nextIdx.way;
                 uop = nextIdx.uop;
