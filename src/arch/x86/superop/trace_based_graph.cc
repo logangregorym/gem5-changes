@@ -11,14 +11,12 @@
 #include "debug/ConstProp.hh"
 #include "cpu/reg_class.hh"
 
-#include <set>
-
 using namespace std;
 
-TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking), connectionCount(p->connectionCount) {
-	for (int i=0; i<256; i++) {
-		registerProducerMapSpec[i] = FullCacheIdx();
-		mostRecentConsumer[i] = FullCacheIdx();
+TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking) {
+	traceQueue = queue<unsigned>();
+	for (int i=0; i<4096; i++) {
+		traceHead[i] = FullCacheIdx();
 	}
 }
 
@@ -95,711 +93,200 @@ void TraceBasedGraph::regStats()
 	averageCyclesInSpecCache = totalCyclesInSpecCache / evictionsFromSpecCache;
 }
 
-void TraceBasedGraph::addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded, ThreadID tid, FullCacheIdx idxToAddAt)
-{
-	++totalOpsInCache;
-	DPRINTF(ConstProp, "Adding entry for %x.%i to graph\n", addr, uopAddr);
-
-
-	// Clear the slot
-	removeAtIndex(idxToAddAt.idx, idxToAddAt.way, idxToAddAt.uop);
-
-	FullUopAddr fullAddr = FullUopAddr(addr, uopAddr);
-
-	speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop] = new DependGraphEntry();
-
-	speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->thisInst = fullAddr;
-	speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->cycleAdded = cycleAdded;
-
-
-	// Branches handled differently
-	if (uop->isControl() && usingControlTracking) {
-		DPRINTF(ConstProp, "Branch found with disassembly: %s\n", uop->disassemble(fullAddr.pcAddr));
-		// Add one new control path for taken, and one for not taken
-		unsigned takenIndex = 0;
-		unsigned notTakenIndex = 0;
-		for (int i=1; i<4096; i++) {
-			if (!branchesValid[i] && takenIndex == 0) {
-				branchesValid[i] = true;
-				takenIndex = i;
-			} else if (!branchesValid[i] && notTakenIndex == 0) {
-				branchesValid[i] = true;
-				notTakenIndex = i;
-			}
-		}
-
-		string type = uop->getName();
-		if (type == "wripi") {
-			// PC-relative branches can be resolved at fetch
-			DPRINTF(ConstProp, "Branch with type wripi\n");
-		} else if (type == "wrip") {
-			DPRINTF(ConstProp, "Branch with type wrip\n");
-		} else {
-			DPRINTF(ConstProp, "Branch with type %s\n", type);
-		}
-
-		branches[takenIndex].branchAddr = fullAddr;
-		branches[takenIndex].nextPc = FullUopAddr(0,0); // TODO: replace if available
-		branches[takenIndex].targetValid = false;
-		branches[takenIndex].propagatingTo = FullUopAddr(0,0);
-		branches[takenIndex].taken = true;
-
-		// override the above vals if possible. TODO: Check all of these for imm vs disp and other little stuff
-
-		TheISA::PCState target;
-		// indirect branches have opcode 0xFF
-		if (uop->machInst.opcode.op == 0xFF) {
-			if (branchPred->iPred.lookup(fullAddr.pcAddr, branchPred->getGHR(tid, uop->branch_hist), target, tid)) {
-				branches[takenIndex].nextPc = FullUopAddr(target.instAddr(), 0);
-				branches[takenIndex].propagatingTo = FullUopAddr(target.instAddr(), 0);
-				branches[takenIndex].targetValid = true;
-			}
-		} else if (uop->machInst.opcode.op == 0xEA or uop->machInst.opcode.op == 0x9A) {  // jump absolute
-			// this is untested; these opcodes are very uncommon
-			//branches[takenIndex].nextPc = FullUopAddr(uop->machInst.immediate, 0);
-			//branches[takenIndex].propagatingTo = FullUopAddr(uop->machInst.immediate, 0);
-			//branches[takenIndex].targetValid = true;
-		} else if (uop->isReturn()) {  // use the RAS from the current bpred_unit
-			// not currently compiling (are the params for buildRetPC the wrong type?)
-			//TheISA::PCState rasTop = branchPred->RAS[tid].top();
-			//target = TheISA::buildRetPC(TheISA::PCState(fullAddr.pcAddr), rasTop);
-			//branches[takenIndex].nextPc = FullUopAddr(target.instAddr(), 0);
-			//branches[takenIndex].propagatingTo = FullUopAddr(target.instAddr(), 0);
-			//branches[takenIndex].targetValid = true;
-		} else {  // it's a direct relative (un)conditional: just add the imm
-			branches[takenIndex].nextPc = FullUopAddr(fullAddr.pcAddr + uop->machInst.immediate + uop->machInst.instSize, 0);
-			branches[takenIndex].propagatingTo = FullUopAddr(fullAddr.pcAddr + uop->machInst.immediate + uop->machInst.instSize, 0);
-			branches[takenIndex].targetValid = true;
-		}	
-
-		Addr nextPc = fullAddr.pcAddr + uop->machInst.instSize;
-		DPRINTF(ConstProp, "Not branching from %x to %x, recorded at branches[%i]\n", fullAddr.pcAddr, nextPc, notTakenIndex);
-
-		branches[notTakenIndex].branchAddr = fullAddr;
-		branches[notTakenIndex].nextPc = FullUopAddr(nextPc, 0);
-		branches[notTakenIndex].targetValid = true;
-		branches[notTakenIndex].propagatingTo = FullUopAddr(nextPc, 0);
-		branches[notTakenIndex].taken = false;
-
-		speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->consumers[0] = takenIndex;
-		speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->consumers[1] = notTakenIndex;
-
-		for (int i=0; i<256; i++) {
-			branches[takenIndex].registerRenameMap[i] = registerRenameMapSpec[i];
-			branches[takenIndex].registerProducerMap[i] = registerProducerMapSpec[i];
-			branches[takenIndex].registerValidMap[i] = registerValidMapSpec[i];
-
-			branches[notTakenIndex].registerRenameMap[i] = registerRenameMapSpec[i];
-			branches[notTakenIndex].registerProducerMap[i] = registerProducerMapSpec[i];
-			branches[notTakenIndex].registerValidMap[i] = registerValidMapSpec[i];
-
-      			DPRINTF(SuperOp, "registerValidMapSpec[%d] = false\n", i);
-			registerValidMapSpec[i] = false;
-			consumedInWindow[i] = false;
-		}
-		DPRINTF(ConstProp, "Control signals are wild. Here are the bools for this %s: isControl %i; isCall %i; isReturn %i; isDirectCtrl %i; isIndirectCtrl %i; isCondCtrl %i; isUncondCtrl %i; isCondDelaySlot %i\n", uop->getName(), uop->isControl(), uop->isCall(), uop->isReturn(), uop->isDirectCtrl(), uop->isIndirectCtrl(), uop->isCondCtrl(), uop->isUncondCtrl(), uop->isCondDelaySlot());
-	} 
-
-	// Search for source registers in graph
-	for (int i = 0; i < uop->numSrcRegs(); i++) {
-		RegId srcReg = uop->srcRegIdx(i);
-    if (srcReg.classValue() != IntRegClass && !uop->isControl()) {
-      continue;
-    }
-    DPRINTF(SuperOp, "registerValidMapSpec[%d] = %d\n", srcReg.flatIndex(), registerValidMapSpec[srcReg.flatIndex()]);
-		if (registerValidMapSpec[srcReg.flatIndex()]) {
-			// DPRINTF(ConstProp, "Reg %i was written by inst %x.%i\n", srcReg.flatIndex(), registerProducerMapSpec[srcReg.flatIndex()].pcAddr, registerProducerMapSpec[srcReg.flatIndex()].uopAddr);
-			// Update consumer tracking for last use
-			mostRecentConsumer[srcReg.flatIndex()] = idxToAddAt;
-			consumedInWindow[srcReg.flatIndex()] = true;
-
-			// if written in window, create an information flow path to this inst
-			unsigned flowPathIdx = 1; // 0 reserved for invalid
-			bool foundSource = false;
-			while (flowPathIdx < connectionCount && !foundSource) {
-				if (!connectionsValidSpec[flowPathIdx]) {
-					foundSource = true;
-					DPRINTF(ConstProp, "Found an empty IFP slot at %i\n", flowPathIdx);
-					break;
-				} else {
-					flowPathIdx++;
-				}
-			}
-			if (foundSource) {
-				FullCacheIdx prodIdx = registerProducerMapSpec[srcReg.flatIndex()];
-				if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]) {
-					// DPRINTF(ConstProp, "Found entry for producer at spec[%i][%i][%i]\n", prodIdx, prodWay, prodUop);
-					// Add to the producer inst as a consumer!
-					bool foundConsumerIdx = false;
-					int consumerIndex = 0;
-					while (consumerIndex < 256 && !foundConsumerIdx) {
-						if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[consumerIndex] == 0) {
-							foundConsumerIdx = true;
-							speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[consumerIndex] = flowPathIdx;
-						} else if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[consumerIndex] == flowPathIdx) {
-							DPRINTF(ConstProp, "Consumer at connections[%i] has already been added???\n", flowPathIdx);
-							foundConsumerIdx = true;
-						} else {
-							consumerIndex++;
-						}
-					}
-					if (!foundConsumerIdx) {
-						DPRINTF(ConstProp, "Not enough entries in consumers for inst at uop[%i][%i][%i]\n", prodIdx.idx, prodIdx.way, prodIdx.uop);
-					}
-
-				}
-				connections[flowPathIdx] = InformationFlowPath(registerProducerMapSpec[srcReg.flatIndex()], idxToAddAt, srcReg.flatIndex(), registerRenameMapSpec[srcReg.flatIndex()]);
-				connectionsValidSpec[flowPathIdx] = true;
-
-				// Add the path to this inst's producers
-				unsigned producerIdx = 0;
-				bool found = false;
-				while (producerIdx < 256 && !found) {
-					if (speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->producers[producerIdx] == 0) {
-						found = true;
-						speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->producers[producerIdx] = flowPathIdx;
-					} else if (speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->producers[producerIdx] == flowPathIdx) {
-						DPRINTF(ConstProp, "Producer at connections [%i] has already been added???\n", flowPathIdx);
-						found = true;
-					} else {
-						producerIdx++;
-					}
-				}
-				if (!found) {
-					DPRINTF(SuperOp, "Not enough entries in producers for inst %s (%i)\n", uop->getName(), uop->numSrcRegs());
-				}
-			} else {
-				DPRINTF(SuperOp, "Not enough entries in connections\n");
-			}
-		} else {
-			// Add dummy producer
-			unsigned producerIdx = 0;
-			bool found = false;
-			while (producerIdx < 256 && !found) {
-				if (speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->producers[producerIdx] == 0) {
-					found = true;
-					speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->producers[producerIdx] = 5000;
-				} else {
-					producerIdx++;
-				}
-			}
-			if (!found) {
-				DPRINTF(SuperOp, "Not enough entries in producers for inst %s (%i)\n", uop->getName(), uop->numSrcRegs());
-			}
+void TraceBasedGraph::invalidateBranch(Addr addr) {
+	for (int i=0; i<4096; i++) {
+		if (sourceIsBranch[i] && predictionSource[i].pcAddr == addr) {
+			predictionSourceValid[i] = false;
 		}
 	}
-
-	// Update information for registers written by this instruction
-	if (!(uop->isControl() && usingControlTracking)) {
-		for (int i = 0; i < uop->numDestRegs(); i++) {
-			RegId destReg = uop->destRegIdx(i);
-			registerProducerMapSpec[destReg.flatIndex()] = idxToAddAt;
-			registerValidMapSpec[destReg.flatIndex()] = true;
-  		    DPRINTF(SuperOp, "registerValidMapSpec[%d] = true\n", destReg.flatIndex());
-			registerRenameMapSpec[destReg.flatIndex()] = nextRegNameSpec;
-			nextRegNameSpec++;
-			markLastUse(destReg.flatIndex());
-		}
-	}
-  	if (uop->isControl() && uop->isLastMicroop()) {
-		for (int i=0; i<256; i++) {
-     	 DPRINTF(SuperOp, "registerValidMapSpec[%d] = false\n", i);
-			registerValidMapSpec[i] = false;
-			consumedInWindow[i] = false;
-		}
-	}
-}
-
-void TraceBasedGraph::markLastUse(unsigned regIdx) {
-	if (!consumedInWindow[regIdx]) {
-		DPRINTF(ConstProp, "Consumer of reg %i not in window\n", regIdx);
-		return;
-	}
-	FullCacheIdx consumer = mostRecentConsumer[regIdx];
-
-	for (int i=0; i<256; i++) {
-		if (speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i] != 0 && speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i] != 5000) {
-			if (connectionsValidSpec[speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i]] && connections[speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i]].archRegIdx == regIdx) {
-				connections[speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i]].lastUse = true;
-			}
-		}
-	}
-}
-
-void TraceBasedGraph::removeAtIndex(int i1, int i2, int i3) {
-	if (speculativeDependencyGraph[i1][i2][i3]) {
-		DPRINTF(ConstProp, "Removing entry at spec[%i][%i][%i]\n", i1, i2, i3);
-		StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
-		StaticInstPtr decodedMicroOp = decodedMacroOp;
-		if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-		for (int i=0; i<256; i++) {
-			if (mostRecentConsumer[i] == FullCacheIdx(i1, i2, i3)) {
-				consumedInWindow[i] = false;
-			}
-		}
-
-		for (int i=0; i<4096; i++) {
-			if (predictionSource[i] == speculativeDependencyGraph[i1][i2][i3]->thisInst) {
-				// TODO: Do we need to add code here?
-				predictionSourceValid[i] = false;
-			}
-		}
-
-		for (int i = 0; i < 256; i++) {
-			unsigned prodIdx = speculativeDependencyGraph[i1][i2][i3]->producers[i];
-			if (prodIdx != 0 && prodIdx != 5000) {
-				invalidateConnection(prodIdx);
-				DPRINTF(ConstProp, "Invalidating connection at index %i in spec\n", prodIdx);
-			}
-			if (decodedMicroOp->isControl() && usingControlTracking) {
-				unsigned conIdx = speculativeDependencyGraph[i1][i2][i3]->consumers[i];
-				if (conIdx != 0) {
-					invalidateBranch(conIdx);
-					DPRINTF(ConstProp, "Invalidating branch at index %i in spec\n", conIdx);
-					speculativeDependencyGraph[i1][i2][i3]->consumers[i] = 0;
-				}
-			} else {
-				unsigned conIdx = speculativeDependencyGraph[i1][i2][i3]->consumers[i];
-				if (conIdx != 0 && conIdx != 5000) {
-					invalidateConnection(conIdx);
-					DPRINTF(ConstProp, "Invalidating connection at index %i in spec\n", conIdx);
-				}
-			}
-			if (registerProducerMapSpec[i] == FullCacheIdx(i1, i2, i3)) {
-        		DPRINTF(SuperOp, "registerValidMapSpec[%d] = false\n", i);
-				registerValidMapSpec[i] = false;
-			}
-		}
-    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-		delete speculativeDependencyGraph[i1][i2][i3];
-		speculativeDependencyGraph[i1][i2][i3] = new DependGraphEntry();
-		DPRINTF(ConstProp, "Just created spec[%i][%i][%i]\n", i1, i2, i3);
-	} else {
-		DPRINTF(ConstProp, "Couldn't remove spec[%i][%i][%i] because it doesn't exist\n", i1, i2, i3);
-	}
-}
-
-void TraceBasedGraph::invalidateConnection(unsigned connectionIndex) {
-	FullCacheIdx prodIdx = connections[connectionIndex].producer;
-	FullCacheIdx conIdx = connections[connectionIndex].consumer;
-	connectionsValidSpec[connectionIndex] = false;
-	if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]) {
-		for (int i=0; i<256; i++) {
-			if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[i] == connectionIndex) {
-				speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]->consumers[i] = 5000;
-			}
-		}
-	}
-	if (speculativeDependencyGraph[conIdx.idx][conIdx.way][conIdx.uop]) {
-		for (int i=0; i<256; i++) {
-			if (speculativeDependencyGraph[conIdx.idx][conIdx.way][conIdx.uop]->producers[i] == connectionIndex) {
-				speculativeDependencyGraph[conIdx.idx][conIdx.way][conIdx.uop]->producers[i] = 5000;
-			}
-		}
-	}
-}
-
-void TraceBasedGraph::invalidateBranch(unsigned branchIndex) {
-	// branch should be removed for this to be called, don't need to find and invalidate
-
-	// update connections that depend on this branch
-	for (int i=1; i<connectionCount; i++) {
-		if (connectionsValidSpec[i] && connections[i].directControlDependency == branchIndex) {
-			invalidateConnection(i);
-			connectionsValidSpec[i] = false;
-		} else if (connectionsValidSpec[i] && connections[i].indirectControlDependency == branchIndex) {
-			connections[i].valid = false;
-		}
-	}
-	// update the branch table itself
-	branchesValid[branchIndex] = false;
 }
 
 void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
 {
-	DPRINTF(ConstProp, "Predicted %x for inst at %x.%i\n", value, addr, uopAddr);
-	int idx = (addr >> 5) & 0x1f;
-	uint64_t tag = (addr >> 10);
-	int specway = 0;
-	int specuop = 0;
-	bool foundMatch = false;
-	// Mark IFPs ready with value, only spec...
-	for (int w=0; w < 8; w++) {
-		if (decoder->uopValidArray[idx][w] && decoder->uopTagArray[idx][w] == tag && !foundMatch) { // changed to uop
-			assert(decoder->uopCountArray[idx][w] != 0); // changed to uop
-			for (int uop = 0; uop < decoder->uopCountArray[idx][w]; uop++) { // changed to uop
-				if (microopAddrArray[idx][w][uop] == FullUopAddr(addr, uopAddr) && !foundMatch) { // changed to uop
-					assert(speculativeDependencyGraph[idx][w][uop]);
-					specway = w;
-					specuop = uop;
-					foundMatch = true;
-				}
-			}
-		}
-	}
-	if (!foundMatch) { return; }
-
-	DPRINTF(ConstProp, "Found match for prediction at spec[%i][%i][%i]\n", idx, specway, specuop);
-	DPRINTF(ConstProp, "Before prediction:\n");
-	describeEntry(idx, specway, specuop);
-
-	// Get prediction ID
-	unsigned predID = 0;
-	bool foundPredID = false;
-	for (int i=1; i<4096; i++) {
-		if (predictionSourceValid[i] && (predictionSource[i] == FullUopAddr(addr, uopAddr)) && !foundPredID) {
-			predID = i;
-			foundPredID = true;
-		}
-	}
-	for (int i=1; i<4096; i++) {
-		if (!predictionSourceValid[i] && !foundPredID) {
-			predictionSource[i] = FullUopAddr(addr,uopAddr);
+	// Add predictin source for this inst if not hear already
+	for (int i=0; i<4096; i++) {
+		if (predictionSource[i] == FullUopAddr(addr, uopAddr)) {
 			predictionSourceValid[i] = true;
-			predID = i;
-			foundPredID = true;
+			return;
 		}
 	}
-
-	if (!foundPredID) { return; }
-
-	speculativeDependencyGraph[idx][specway][specuop]->predicted = true;
-	speculativeDependencyGraph[idx][specway][specuop]->value = value;
-
-	for (int i=0; i<256; i++) {
-		if (speculativeDependencyGraph[idx][specway][specuop]->consumers[i] != 0 && speculativeDependencyGraph[idx][specway][specuop]->consumers[i] != 5000) {
-			DPRINTF(ConstProp, "Found a consumer at connections[%i] to predict\n", speculativeDependencyGraph[idx][specway][specuop]->consumers[i]);
-			connections[speculativeDependencyGraph[idx][specway][specuop]->consumers[i]].predict(value, predID);
+	for (int i=0; i<4096; i++) {
+		if (predictionSourceValid[i] == false) {
+			predictionSource[i] = FullUopAddr(addr, uopAddr);
+			predictionSourceValid[i] = true;
 		}
 	}
-
-	DPRINTF(ConstProp, "After prediction:\n");
-	describeEntry(idx, specway, specuop);
-	DPRINTF(ConstProp, "Adding prediction to speculative graph\n");
-	updateSpecTrace(idx, specway, specuop);
-
-	// Add source predID for tag for this inst
-	decoder->addSourceToCacheLine(predID, idx, tag);
+	panic("Ran out of space in predictionSource array\n");
 }
 
-bool TraceBasedGraph::simplifyGraph() {
-	// Propagate constants
+bool TraceBasedGraph::generateNextTraceInst() {
 	if (!simplifyIdx.valid) { 
-		for (int idx = simplifyIdx.idx; idx < 32; idx++) {
-			for (int way = 0; way < 8; way++) {
-				if (decoder->uopHotnessArray[idx][way].read() > 3 && !simplifyIdx.valid) {
-					int wayToStart = way;
-					assert(wayToStart >= 0);
-					assert(wayToStart < 8);
-					while (decoder->uopPrevWayArray[idx][wayToStart] != 10) {
-						wayToStart = decoder->uopPrevWayArray[idx][wayToStart];
-					}
-					simplifyIdx = FullCacheIdx(idx, wayToStart, 0); // found hot line
-				}
-			}
-		}
-		if (!simplifyIdx.valid) { return false; }
-	}
+		// Pop a new trace from the queue, start at top
+		assert(!currentTrace);
+		currentTrace = traceQueue.front();
+		traceQueue.pop();
+		simplifyIdx = traceHead[currentTrace];
 
-	bool changedGraph = false;
+		// Invalidate leftover predictions
+		for (int i=0; i<256; i++) {
+			registerValid[i] = false;
+		}
+	} else { assert(currentTrace); }
+
+	if (!simplifyIdx.valid) { return false; } // no traces in queue to pop
+
 	int i1 = simplifyIdx.idx;
 	int i2 = simplifyIdx.way;
 	int i3 = simplifyIdx.uop;
-	if (decoder->uopValidArray[i1][i2] && speculativeDependencyGraph[i1][i2][i3]) { // changed to uop
-		StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
-		StaticInstPtr decodedMicroOp = decodedMacroOp;
-		if (decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(microopAddrArray[i1][i2][i3].uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-		string type = decodedMicroOp->getName();
-		if (type == "mov") {
-			DPRINTF(ConstProp, "Found a MOV at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateMov(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "wrip" || type == "wripi") {
-			DPRINTF(ConstProp, "Found a WRIP/WRIPI branch at spec[%i][%i][%i], trying to propagate across...\n", i1, i2, i3);
-			// if (type == "wripi") { printf("WRIPI with immediate %i\n", decodedMicroOp->getImmediate()); }
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateWrip(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (decodedMicroOp->isControl()) {
-			DPRINTF(ConstProp, "Control instruction of type %s\n", type);
-		} else if (type == "movi") {
-			DPRINTF(ConstProp, "Found a MOVI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateMovI(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "and") {
-			DPRINTF(ConstProp, "Found an AND at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateAnd(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "add") {
-			DPRINTF(ConstProp, "Found an ADD at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateAdd(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "sub") {
-			DPRINTF(ConstProp, "Found a SUB at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateSub(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "xor") {
-			DPRINTF(ConstProp, "Found an XOR at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateXor(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "or") {
-			DPRINTF(ConstProp, "Found an OR at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateOr(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "subi") {
-			DPRINTF(ConstProp, "Found a SUBI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateSubI(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "addi") {
-			DPRINTF(ConstProp, "Found an ADDI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateAddI(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "slli") {
-			DPRINTF(ConstProp, "Found a SLLI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateSllI(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "srli") {
-			DPRINTF(ConstProp, "Found a SRLI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateSrlI(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "lea") {
-			DPRINTF(ConstProp, "Type is LEA");
-			// Requires multiple ALU operations to propagate, not using
-		} else if (type == "sexti") {
-			// Implementation has multiple ALU operations, but this is not required by the nature of the operation
-			DPRINTF(ConstProp, "Found a SEXTI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			// printf("ADDI with immediate %i\n", decodedMicroOp->getImmediate());
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateSExtI(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "zexti") {
-			// Implementation has multiple ALU operations, but this is not required by the nature of the operation
-			DPRINTF(ConstProp, "Found a ZEXTI at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			// printf("ADDI with immediate %i\n", decodedMicroOp->getImmediate());
-			describeEntry(i1, i2, i3);
-			changedGraph = propagateZExtI(i1, i2, i3) || changedGraph;
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
-			DPRINTF(ConstProp, "Type is MUL1S, MUL1U, MULEL, or MULEH\n");
-			// TODO: two dest regs with different values? maybe too complex arithmetic?
-		} else if (type == "limm") {
-			DPRINTF(ConstProp, "Type is LIMM\n");
-			// printf("LIMM with immediate %i\n", decodedMicroOp->getImmediate());
-			DPRINTF(ConstProp, "Found a LIMM at spec[%i][%i][%i], trying to propagate...\n", i1, i2, i3);
-			describeEntry(i1, i2, i3);
-			changedGraph = changedGraph || propagateLimm(i1, i2, i3);
-			DPRINTF(ConstProp, "After:\n");
-			describeEntry(i1, i2, i3);
-		} else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
-			DPRINTF(ConstProp, "Type  is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
-			// TODO: add control registers to graph?
-		} else if (type == "rdtsc" || type == "rdval") {
-			DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
-			// TODO: determine whether direct register file access needs to be handled differently?
-		} else if (type == "panic" || type == "NOP" || type == "CPUID") {
-			DPRINTF(ConstProp, "Type is PANIC, NOP, or CPUID\n");
-			// TODO: possibly remove, what is purpose?
-		} else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp" || "rdip") {
-			DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, CALL_FAR_MP, or RDIP\n");
-			// TODO: cannot remove
-		} else {
-			DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
-		}
-		// Propagate Last Use
-		// changedGraph = propagateLastUse(i1, i2, i3) || changedGraph;
-//		if (changedGraph && (type == "mov" || type == "movi" || type == "and" || type == "add" || type == "sub" || type == "xor" || type == "or" || type == "subi" || type == "addi" || type == "slli" || type == "srli" || type == "sexti" || type == "zexti")) {
-		if (changedGraph) {
-			DPRINTF(ConstProp, "CHANGED\n");
-			// printf("Trying to update\n");
-			DPRINTF(ConstProp, "About to update spec trace\n");
-			updateSpecTrace(i1, i2, i3);
-			DPRINTF(ConstProp, "Successfully updated spec trace\n");
-//			printf("Changed graph but not updating trace\n");
-		} else if (type != "NOP") {
-			// printf("Simplify graph didn't change anything\n");
-			FullCacheIdx loc = decoder->addToSpeculativeCacheIffTagExists(decodedMicroOp, speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr);
-			if (loc.valid) {
-				speculativeDependencyGraph[i1][i2][i3]->specIdx = loc;
-			//	printf("Added an inst to spec graph at [%i][%i][%i]\n", loc.idx, loc.way, loc.uop);
-			}
-			TraceBasedGraph::DependGraphEntry* entry = speculativeDependencyGraph[i1][i2][i3];
-			for (int i=0; i<256; i++) {
-				if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-					TraceBasedGraph::InformationFlowPath path = connections[entry->producers[i]];
-					if (path.valid) {
-						for (int j=0; j<decodedMicroOp->numSrcRegs(); j++) {
-							unsigned srcIdx = decodedMicroOp->srcRegIdx(j).flatIndex();
-							if (srcIdx == path.archRegIdx) {
-								decodedMicroOp->sourcePredictions[j] = path.value;
-								decodedMicroOp->sourcesPredicted[j] = true;
-							}
-						}
-					}
+	if ((!decoder->uopValidArray[i1][i2]) || (i3 >= decoder->uopCountArray[i1][i2])) {
+		panic("Trying to simplify inst which does not exist\n");
+	}
+
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[i1][i2][i3].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	
+	// Any inst in a trace may be a prediction source
+	for (int i=0; i<4; i++) {
+		if (predictionSourceValid[traceSources[currentTrace][i]]) {
+			if (predictionSource[traceSources[currentTrace][i]] == decoder->uopAddrArray[simplifyIdx.idx][simplifyIdx.way][simplifyIdx.uop]) {
+				// Step 1: Get inst and determine dest register(s)
+				// Step 2: Get predicted value from LVP
+				// Step 3: Annotate dest register entries with that value
+				// Step 4: Add inst to speculative trace
+				uint64_t predictedValue = decoder->cpu->getLVP()->getValuePredicted(decoder->uopAddrArray[i1][i2][i3].pcAddr);
+				for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+					RegId destReg = decodedMicroOp->destRegIdx(i);
+					registerValue[destReg.flatIndex()] = predictedValue;
+					registerValid[destReg.flatIndex()] = true;
 				}
+				updateSpecTrace(i1, i2, i3, currentTrace);
+				return true;
 			}
 		}
 	}
+	
+	// On a trace, but not a source
+	string type = decodedMicroOp->getName();
+	if (type == "mov") {
+		DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateMov(i1, i2, i3);
+	} else if (type == "wrip" || type == "wripi") {
+		DPRINTF(ConstProp, "Found a WRIP/WRIPI branch at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		// propagateWrip(i1, i2, i3);
+	} else if (decodedMicroOp->isControl()) {
+		// printf("Control instruction of type %s\n", type);
+	} else if (type == "movi") {
+		DPRINTF(ConstProp, "Found a MOVI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateMovI(i1, i2, i3);
+	} else if (type == "and") {
+		DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateAnd(i1, i2, i3);
+	} else if (type == "add") {
+		DPRINTF(ConstProp, "Found an ADD at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateAdd(i1, i2, i3);
+	} else if (type == "sub") {
+		DPRINTF(ConstProp, "Found a SUB at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateSub(i1, i2, i3);
+	} else if (type == "xor") {
+		DPRINTF(ConstProp, "Found an XOR at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateXor(i1, i2, i3);
+	} else if (type == "or") {
+		DPRINTF(ConstProp, "Found an OR at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateOr(i1, i2, i3);
+	} else if (type == "subi") {
+		DPRINTF(ConstProp, "Found a SUBI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateSubI(i1, i2, i3);
+	} else if (type == "addi") {
+		DPRINTF(ConstProp, "Found an ADDI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateAddI(i1, i2, i3);
+	} else if (type == "slli") {
+		DPRINTF(ConstProp, "Found a SLLI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateSllI(i1, i2, i3);
+	} else if (type == "srli") {
+		DPRINTF(ConstProp, "Found a SRLI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateSrlI(i1, i2, i3);
+	} else if (type == "lea") {
+		DPRINTF(ConstProp, "Type is LEA");
+		// Requires multiple ALU operations to propagate, not using
+	} else if (type == "sexti") {
+		// Implementation has multiple ALU operations, but this is not required by the nature of the operation
+		DPRINTF(ConstProp, "Found a SEXTI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateSExtI(i1, i2, i3);
+	} else if (type == "zexti") {
+		// Implementation has multiple ALU operations, but this is not required by the nature of the operation
+		DPRINTF(ConstProp, "Found a ZEXTI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateZExtI(i1, i2, i3);
+	} else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
+		DPRINTF(ConstProp, "Type is MUL1S, MUL1U, MULEL, or MULEH\n");
+		// TODO: two dest regs with different values? maybe too complex arithmetic?
+	} else if (type == "limm") {
+		DPRINTF(ConstProp, "Found a LIMM at [%i][%i][%i], compacting...\n", i1, i2, i3);
+		propagateLimm(i1, i2, i3);
+	} else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
+		DPRINTF(ConstProp, "Type  is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
+		// TODO: add control registers to graph?
+	} else if (type == "rdtsc" || type == "rdval") {
+		DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
+		// TODO: determine whether direct register file access needs to be handled differently?
+	} else if (type == "panic" || type == "NOP" || type == "CPUID") {
+		DPRINTF(ConstProp, "Type is PANIC, NOP, or CPUID\n");
+		// TODO: possibly remove, what is purpose?
+	} else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp" || "rdip") {
+		DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, CALL_FAR_MP, or RDIP\n");
+		// TODO: cannot remove
+	} else {
+		DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
+	}
 
+	updateSpecTrace(i1, i2, i3, currentTrace);
+
+	// Update index
 	simplifyIdx.uop++;
 	if (simplifyIdx.uop >= decoder->uopCountArray[simplifyIdx.idx][simplifyIdx.way]) {
 		simplifyIdx.uop = 0;
 		if (decoder->uopNextWayArray[simplifyIdx.idx][simplifyIdx.way] != 10) {
 			simplifyIdx.way = decoder->uopNextWayArray[simplifyIdx.idx][simplifyIdx.way];
 		} else {
-			simplifyIdx.idx++;
-			if (simplifyIdx.idx >= 32) { simplifyIdx.idx = 0; }
 			simplifyIdx.valid = false;
 		}
 	}
 
-	return changedGraph;
+	return true;
 }
 
 TraceBasedGraph* TraceBasedGraphParams::create() {
 	return new TraceBasedGraph(this);
 }
 
-bool TraceBasedGraph::propagateLastUse(int idx, int way, int uop) {
-        TraceBasedGraph::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-
-        // Check that inst is reducable
-        int allReady = 0;
-    	for (int i=0; i<256; i++) {
-        	if (entry->producers[i] != 0 && entry->producers[i] != 5000) {
-            		if (connections[entry->producers[i]].valid) {
-                		allReady++;
-            		}
-        	}
-    	}
-        StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        StaticInstPtr decodedMicroOp = decodedMacroOp;
-        if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-
-        if (allReady == 0 || (decodedMicroOp && allReady < decodedMicroOp->numSrcRegs())) { // changed to uop
-                if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-                return false;
-        }
-
-        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-        // Collect registers dead on exit
-        vector<unsigned> deadRegs = vector<unsigned>();
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        InformationFlowPath path = connections[entry->consumers[i]];
-                        if (path.lastUse) {
-                                deadRegs.push_back(path.archRegIdx);
-                        }
-                }
-        }
-
-        // Check that dead values aren't live elsewhere
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        InformationFlowPath path = connections[entry->consumers[i]];
-                        vector<unsigned>::iterator loc = std::find(deadRegs.begin(), deadRegs.end(), path.archRegIdx);
-                        if (loc != deadRegs.end()) {
-                                deadRegs.erase(loc);
-                        }
-                }
-        }
-        if (deadRegs.size() == 0) {
-                return false; // no dead values found
-        }
-
-        // Find producers of these values
-        bool foundMatch = false;
-
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        for (int r=0; r<deadRegs.size(); r++) {
-                                if (connections[entry->producers[i]].archRegIdx == deadRegs[r]) {
-                                        connections[entry->producers[i]].lastUse = true;
-                                        foundMatch = true;
-                                }
-                        }
-                }
-        }
-
-        // Graph has changed iff a producer was marked dead
-        return foundMatch;
-}
-
 bool TraceBasedGraph::propagateMov(int idx, int way, int uop) {
-	TraceBasedGraph::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(microopAddrArray[idx][way][uop].uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
 	string type = decodedMicroOp->getName();
-	//	std::cout << type << std::endl;
-	assert(decodedMicroOp->getName() == "mov");
+	assert(type  == "mov");
+	
 	if (decodedMicroOp->numSrcRegs() > 3) {
-		DPRINTF(SuperOp, "Skipping cmov at specCache[%i][%i][%i]\n", idx, way, uop);
-    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+		DPRINTF(SuperOp, "Skipping mov at [%i][%i][%i]\n", idx, way, uop);
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
-	uint64_t destVal = 0;
-	uint64_t srcVal = 0;
-	unsigned valsFound = 0;
-	bool foundSource = false;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			TraceBasedGraph::InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-			if (path.archRegIdx == srcRegId && path.valid) {
-				srcVal = path.value;
-				valsFound++;
-				foundSource = true;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-
 	uint8_t size = decodedMicroOp->getDataSize();
-	if ((valsFound < 2 && size < 8) || !foundSource) {
-    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if ((!registerValid[destRegId]) || (size < 8 && !registerValid[srcRegId])) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = registerValue[srcRegId];
 
 	// construct the value
 	uint64_t forwardVal;
@@ -815,1052 +302,608 @@ bool TraceBasedGraph::propagateMov(int idx, int way, int uop) {
 		return false;
 	}
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	// now pass it along!
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			TraceBasedGraph::InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr=predIDs.begin(); itr!=predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
-	return foundDest;
+	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	return true;
 }
 
 bool TraceBasedGraph::propagateLimm(int idx, int way, int uop) {
-        TraceBasedGraph::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        StaticInstPtr decodedMicroOp = decodedMacroOp;
-        if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-        if (decodedMicroOp->numSrcRegs() > 0) {
-                DPRINTF(SuperOp, "Skipping limm at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
-                if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-                return false;
-        }
-
-        uint64_t forwardVal = decodedMicroOp->getImmediate();
-        unsigned destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
-        DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        TraceBasedGraph::InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-                        }
-                }
-        }
+ 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+    if (decodedMicroOp->numSrcRegs() > 0) {
+		DPRINTF(SuperOp, "Skipping limm at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
         if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-        return foundDest;
+        return false;
+    }
+
+    uint64_t forwardVal = decodedMicroOp->getImmediate();
+    unsigned destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
+	}
+	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	return true;
 }
 
 bool TraceBasedGraph::propagateAdd(int idx, int way, int uop) {
-        // check number of sources
-        TraceBasedGraph::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-        StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        StaticInstPtr decodedMicroOp = decodedMacroOp;
-        if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-        if (decodedMicroOp->numSrcRegs() > 2) {
-                DPRINTF(SuperOp, "Skipping add at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
-                if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-                return false;
-        }
+ 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
+	StaticInstPtr decodedMicroOp = decodedMacroOp;
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "add");
+	
+	if (decodedMicroOp->numSrcRegs() > 3) {
+		DPRINTF(SuperOp, "Skipping add at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+		return false;
+	}
 
-        // collect sources
-        unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
-        unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
-        uint64_t destVal = 0;
-        uint64_t srcVal = 0;
-        unsigned valsFound = 0;
-		set<unsigned> predIDs = set<unsigned>();
-        for (int i=0; i<256; i++) {
-                if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-                        TraceBasedGraph::InformationFlowPath path = connections[entry->producers[i]];
-                        if (path.archRegIdx == destRegId && path.valid) {
-                                destVal = path.value;
-                                valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-                        }
-                        if (path.archRegIdx == srcRegId && path.valid) {
-                                srcVal = path.value;
-                                valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-                        }
-                }
-        }
-        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-        if (valsFound < 2) {
-                return false;
-        }
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
+	unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
+	if ((!registerValid[srcRegId]) || (!registerValid[destRegId])) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+		return false;
+	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = registerValue[srcRegId];
 
-        // value construction is easy for this one
-        uint64_t forwardVal = destVal + srcVal;
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal + srcVal;
 
-		entry->predicted = true;
-		entry->value = forwardVal;
-
-        bool foundDest = false;
-        for (int i=0; i<256; i++) {
-                if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-                        InformationFlowPath& path = connections[entry->consumers[i]];
-                        if (path.archRegIdx == destRegId && !path.valid) {
-                                path.value = forwardVal;
-                                path.valid = true;
-                                foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-                        }
-                }
-        }
-        return foundDest;
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
+	}
+	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	return true;
 }
 
 bool TraceBasedGraph::propagateSub(int idx, int way, int uop) {
-	// check number of sources
-	TraceBasedGraph::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]); // changed to uop
+	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 2) {
-		DPRINTF(SuperOp, "Skipping sub at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
-    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "sub");
+	
+	if (decodedMicroOp->numSrcRegs() > 3) {
+		DPRINTF(SuperOp, "Skipping sub at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
-	uint64_t destVal = 0;
-	uint64_t srcVal = 0;
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			TraceBasedGraph::InformationFlowPath path = connections[entry->producers[i]];
-			DPRINTF(ConstProp, "Path through arch reg %i found\n", path.archRegIdx);
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-			if (path.archRegIdx == srcRegId && path.valid) {
-				srcVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-  	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	if (valsFound < 2) {
+	if ((!registerValid[srcRegId]) || (!registerValid[destRegId])) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = registerValue[srcRegId];
 
-	// value construction is easy for this one
-	uint64_t forwardVal = destVal - srcVal;
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal - srcVal;
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if ((path.archRegIdx == destRegId || path.archRegIdx < 32) && !path.valid) { // i.e., is int reg
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
-	return foundDest;
+	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	return true;
 }
 
 bool TraceBasedGraph::propagateAnd(int idx, int way, int uop) {
-	// check number of sources
-	TraceBasedGraph::DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 2) {
-		DPRINTF(SuperOp, "Skipping and at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
-    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "and");
+	
+	if (decodedMicroOp->numSrcRegs() > 3) {
+		DPRINTF(SuperOp, "Skipping and at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
-	uint64_t destVal = 0;
-	uint64_t srcVal = 0;
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-			if (path.archRegIdx == srcRegId && path.valid) {
-				srcVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	if (valsFound < 2) {
+	if ((!registerValid[srcRegId]) || (!registerValid[destRegId])) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = registerValue[srcRegId];
 
-	// value construction is easy for this one
-	uint64_t forwardVal = destVal & srcVal;
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal & srcVal;
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
-	return foundDest;
+	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	return true;
 }
 
 bool TraceBasedGraph::propagateOr(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 2) {
-		DPRINTF(SuperOp, "Skipping or at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
-    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "or");
+	
+	if (decodedMicroOp->numSrcRegs() > 3) {
+		DPRINTF(SuperOp, "Skipping or at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
-	uint64_t destVal = 0;
-	uint64_t srcVal = 0;
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-			if (path.archRegIdx == srcRegId && path.valid) {
-				srcVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-  	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	if (valsFound < 2) {
+	if ((!registerValid[srcRegId]) || (!registerValid[destRegId])) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = registerValue[srcRegId];
 
-	// value construction is easy for this one
-	uint64_t forwardVal = destVal | srcVal;
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal | srcVal;
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
-	return foundDest;
+	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	return true;
 }
 
 bool TraceBasedGraph::propagateXor(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	if (decodedMicroOp->numSrcRegs() > 2) {
-		DPRINTF(SuperOp, "Skipping xor at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
-    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "xor");
+	
+	if (decodedMicroOp->numSrcRegs() > 3) {
+		DPRINTF(SuperOp, "Skipping xor at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
 	unsigned srcRegId = decodedMicroOp->srcRegIdx(1).flatIndex();
-	uint64_t destVal = 0;
-	uint64_t srcVal = 0;
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-			if (path.archRegIdx == srcRegId && path.valid) {
-				srcVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-  	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	if (valsFound < 2) {
+	if ((!registerValid[srcRegId]) || (!registerValid[destRegId])) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = registerValue[srcRegId];
 
-	// value construction is easy for this one
-	uint64_t forwardVal = destVal ^ srcVal;
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal ^ srcVal;
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
-	return foundDest;
+	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	return true;
 }
 
 bool TraceBasedGraph::propagateMovI(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "movi");
+	
 	if (decodedMicroOp->numSrcRegs() > 0) {
-		DPRINTF(SuperOp, "Skipping movi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
-    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+		DPRINTF(SuperOp, "Skipping movi at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect value
 	uint64_t forwardVal = decodedMicroOp->getImmediate();
-	unsigned destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
-	DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	// forward to dest
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-			}
-		}
+    unsigned destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
-  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	return foundDest;
+	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	return true;
 }
 
 bool TraceBasedGraph::propagateSubI(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-  	int numSrcRegs = 0;
-  	for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
-		RegId srcReg = decodedMicroOp->srcRegIdx(i);
-    		if (srcReg.classValue() == IntRegClass) {
-     			numSrcRegs++;
-    		}
-  	}
-	if (numSrcRegs > 1) {
-		DPRINTF(SuperOp, "Skipping subi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "subi");
+	
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping subi at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
-	uint64_t destVal = 0;
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-	if (valsFound < 1) {
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (!registerValid[destRegId]) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = decodedMicroOp->getImmediate();
 
-	// value construction is easy for this one
-	uint64_t forwardVal = destVal - decodedMicroOp->getImmediate();
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal - srcVal;
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); itr++) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
   	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	return foundDest;
+	return true;
 }
 
 bool TraceBasedGraph::propagateAddI(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-  	int numSrcRegs = 0;
-  	for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
-		RegId srcReg = decodedMicroOp->srcRegIdx(i);
-    		if (srcReg.classValue() == IntRegClass) {
-      			numSrcRegs++;
-    		}
-  	}
-	if (numSrcRegs > 1) {
-		DPRINTF(SuperOp, "Skipping addi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "addi");
+	
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping addi at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
-	uint64_t destVal = 0;
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-	if (valsFound < 1) {
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (!registerValid[destRegId]) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = decodedMicroOp->getImmediate();
 
-	// value construction is easy for this one
-	uint64_t forwardVal = destVal + decodedMicroOp->getImmediate();
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal + srcVal;
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
   	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	return foundDest;
+	return true;
 }
 
 bool TraceBasedGraph::propagateAndI(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-  	int numSrcRegs = 0;
-  	for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
-		RegId srcReg = decodedMicroOp->srcRegIdx(i);
-    		if (srcReg.classValue() == IntRegClass) {
-      			numSrcRegs++;
-    		}
-  	}
-	if (numSrcRegs > 1) {
-		DPRINTF(SuperOp, "Skipping andi at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "andi");
+	
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping andi at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
-	uint64_t destVal = 0;
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-	if (valsFound < 1) {
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (!registerValid[destRegId]) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = decodedMicroOp->getImmediate();
 
-	// value construction is easy for this one
-	uint64_t forwardVal = destVal & decodedMicroOp->getImmediate();
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal & srcVal;
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
- 			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
   	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	return foundDest;
+	return true;
 }
 
 bool TraceBasedGraph::propagateOrI(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-  	int numSrcRegs = 0;
-  	for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
-		RegId srcReg = decodedMicroOp->srcRegIdx(i);
-    		if (srcReg.classValue() == IntRegClass) {
-      			numSrcRegs++;
-    		}
-  	}
-	if (numSrcRegs > 1) {
-		DPRINTF(SuperOp, "Skipping ori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "ori");
+	
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping ori at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
-	uint64_t destVal = 0;
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-	if (valsFound < 1) {
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (!registerValid[destRegId]) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = decodedMicroOp->getImmediate();
 
-	// value construction is easy for this one
-	uint64_t forwardVal = destVal | decodedMicroOp->getImmediate();
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal | srcVal;
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
   	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	return foundDest;
+	return true;
 }
 
 bool TraceBasedGraph::propagateXorI(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-  	int numSrcRegs = 0;
-  	for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
-		RegId srcReg = decodedMicroOp->srcRegIdx(i);
-    		if (srcReg.classValue() == IntRegClass) {
-      			numSrcRegs++;
-    		}
-  	}
-	if (numSrcRegs > 1) {
-		DPRINTF(SuperOp, "Skipping xori at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "xori");
+	
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping xori at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
-	uint64_t destVal = 0;
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-	if (valsFound < 1) {
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (!registerValid[destRegId]) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = decodedMicroOp->getImmediate();
 
-	// value construction is easy for this one
-	uint64_t forwardVal = destVal ^ decodedMicroOp->getImmediate();
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal ^ srcVal;
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
   	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	return foundDest;
+	return true;
 }
 
 bool TraceBasedGraph::propagateSllI(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-  	int numSrcRegs = 0;
-  	for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
-		RegId srcReg = decodedMicroOp->srcRegIdx(i);
-    		if (srcReg.classValue() == IntRegClass) {
-      			numSrcRegs++;
-    		}
-  	}
-	if (numSrcRegs > 1) {
-		DPRINTF(SuperOp, "Skipping slli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "slli");
+	
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping slli at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
-	uint64_t destVal = 0;
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-	if (valsFound < 1) {
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (!registerValid[destRegId]) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = decodedMicroOp->getImmediate();
 
-	// value construction is easy for this one
-	uint64_t forwardVal = destVal << decodedMicroOp->getImmediate();
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal << srcVal;
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
   	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	return foundDest;
+	return true;
 }
 
 bool TraceBasedGraph::propagateSrlI(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-  	int numSrcRegs = 0;
-  	for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
-		RegId srcReg = decodedMicroOp->srcRegIdx(i);
-    		if (srcReg.classValue() == IntRegClass) {
-      		numSrcRegs++;
-    		}
-  	}
-	if (numSrcRegs > 1) {
-		DPRINTF(SuperOp, "Skipping srli at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "srli");
+	
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping srli at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
 	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
-	uint64_t destVal = 0;
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == destRegId && path.valid) {
-				destVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-	if (valsFound < 1) {
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (!registerValid[destRegId]) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = decodedMicroOp->getImmediate();
 
-	// value construction is easy for this one
-	uint64_t forwardVal = destVal >> decodedMicroOp->getImmediate();
+    // value construction is easy for this one
+    uint64_t forwardVal = destVal >> srcVal;
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
   	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	return foundDest;
+	return true;
 }
 
 bool TraceBasedGraph::propagateSExtI(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-  	int numSrcRegs = 0;
-  	for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
-		RegId srcReg = decodedMicroOp->srcRegIdx(i);
-    		if (srcReg.classValue() == IntRegClass) {
-      		numSrcRegs++;
-    		}
-  	}
-	if (numSrcRegs > 1) {
-		DPRINTF(SuperOp, "Skipping sexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "sexti");
+	
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping sexti at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
 
-	// collect sources
-	unsigned srcRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
-	uint64_t srcVal = 0;
-	unsigned destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == srcRegId && path.valid) {
-				srcVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-	if (valsFound < 1) {
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
+	if (!registerValid[destRegId]) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = decodedMicroOp->getImmediate();
 
 	// value construction taken from isa file
-	DPRINTF(ConstProp, "Using immediate %i in a sexti as bit to extend, not value to be extended\n", decodedMicroOp->getImmediate());
-	int signBit = bits(srcVal, decodedMicroOp->getImmediate(), decodedMicroOp->getImmediate());
-	uint64_t signMask = mask(decodedMicroOp->getImmediate());
-	uint64_t forwardVal = signBit ? (srcVal | ~signMask) : (srcVal & signMask);
-	DPRINTF(ConstProp, "Produced value %x from sign bit %i and mask %x\n", forwardVal, signBit, signMask);
+	int signBit = bits(destVal, srcVal, srcVal);
+	uint64_t signMask = mask(srcVal);
+	uint64_t forwardVal = signBit ? (destVal | ~signMask) : (destVal & signMask);
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-				for (set<unsigned>::iterator itr = predIDs.begin(); itr != predIDs.end(); ++itr) {
-					path.addDependency(*itr);
-				}
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
   	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	return foundDest;
+	return true;
 }
 
 bool TraceBasedGraph::propagateZExtI(int idx, int way, int uop) {
-	// check number of sources
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
+	if (decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
+	string type = decodedMicroOp->getName();
+	assert(type  == "zexti");
+	
+	if (decodedMicroOp->numSrcRegs() > 1) {
+		DPRINTF(SuperOp, "Skipping zexti at [%i][%i][%i] because it has %i sources\n", idx, way, uop, decodedMicroOp->numSrcRegs());
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+		return false;
+	}
 
-  	int numSrcRegs = 0;
-  	for (int i = 0; i < decodedMicroOp->numSrcRegs(); i++) {
-		RegId srcReg = decodedMicroOp->srcRegIdx(i);
-    		if (srcReg.classValue() == IntRegClass) {
-      			numSrcRegs++;
-    		}
-  	}
-	if (numSrcRegs > 1) {
-		DPRINTF(SuperOp, "Skipping zexti at specCache[%i][%i][%i] becaause it has %i sources\n", idx, way, uop, numSrcRegs);
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+	unsigned destRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
+	if (!registerValid[destRegId]) {
+    	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 		return false;
 	}
-	// collect sources
-	unsigned srcRegId = decodedMicroOp->srcRegIdx(0).flatIndex();
-	uint64_t srcVal = 0;
-	unsigned destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
-	unsigned valsFound = 0;
-	set<unsigned> predIDs = set<unsigned>();
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] != 0 && entry->producers[i] != 5000 && connectionsValidSpec[entry->producers[i]]) {
-			InformationFlowPath path = connections[entry->producers[i]];
-			if (path.archRegIdx == srcRegId && path.valid) {
-				srcVal = path.value;
-				valsFound++;
-				for (int j=0; j<8; j++) {
-					if (path.dataDependencies[j] != 0) {
-						predIDs.insert(path.dataDependencies[j]);
-					}
-				}
-			}
-		}
-	}
-	if (valsFound < 1) {
-    		if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-		return false;
-	}
+	uint64_t destVal = registerValue[destRegId];
+	uint64_t srcVal = decodedMicroOp->getImmediate();
 
 	// value construction taken from isa file
-	DPRINTF(ConstProp, "Using immediate %i in a zexti as bit to extend, not value to be extended\n", decodedMicroOp->getImmediate());
-	uint64_t forwardVal = bits(srcVal, decodedMicroOp->getImmediate(), 0);
-	DPRINTF(ConstProp, "Extracted bits 0 to %i of %x for value %x\n", decodedMicroOp->getImmediate(), srcVal, forwardVal);
+	uint64_t forwardVal = bits(destVal, srcVal, 0);
 
-	entry->predicted = true;
-	entry->value = forwardVal;
-
-	bool foundDest = false;
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] != 0 && entry->consumers[i] != 5000 && connectionsValidSpec[entry->consumers[i]]) {
-			InformationFlowPath& path = connections[entry->consumers[i]];
-			if (path.archRegIdx == destRegId && !path.valid) {
-				path.value = forwardVal;
-				path.valid = true;
-				foundDest = true;
-			}
-		}
+    destRegId = decodedMicroOp->destRegIdx(0).flatIndex();
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+	for (int i = 0; i < decodedMicroOp->numDestRegs(); i++) {
+		RegId destReg = decodedMicroOp->destRegIdx(i);
+		registerValue[destReg.flatIndex()] = forwardVal;
+		registerValid[destReg.flatIndex()] = true;
 	}
   	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-	return foundDest;
+	return true;
 }
 
+/*
 bool TraceBasedGraph::propagateWrip(int idx, int way, int uop) {
 	bool changedEither = false;
 
@@ -1906,7 +949,7 @@ bool TraceBasedGraph::propagateAcrossControlDependency(unsigned branchIndex, Ful
 		if (decoder->uopValidArray[idx][w] && decoder->uopTagArray[idx][w] == tag && !found) { // changed to uop
 			assert(decoder->uopCountArray[idx][w] > 0); // changed to uop
 			for (int u=0; u < decoder->uopCountArray[idx][w]; u++) { // changed to uop
-				if (microopAddrArray[idx][w][u] == propagatingTo && !found) { // changed to uop
+				if (decoder->uopAddrArray[idx][w][u] == propagatingTo && !found) { // changed to uop
 					assert(speculativeDependencyGraph[idx][w][u]);
 					way = w;
 					uop = u;
@@ -1999,10 +1042,10 @@ bool TraceBasedGraph::propagateAcrossControlDependency(unsigned branchIndex, Ful
 
 	// increment propagatingTo
 	FullUopAddr nextFullAddr;
-	if (microopAddrArray[idx][way][uop+1].pcAddr == propagatingTo.pcAddr && microopAddrArray[idx][way][uop+1].uopAddr == propagatingTo.uopAddr + 1) {
+	if (decoder->uopAddrArray[idx][way][uop+1].pcAddr == propagatingTo.pcAddr && decoder->uopAddrArray[idx][way][uop+1].uopAddr == propagatingTo.uopAddr + 1) {
 		nextFullAddr = FullUopAddr(propagatingTo.pcAddr, propagatingTo.uopAddr + 1);
 	} else {
-		DPRINTF(ConstProp, "Next addr is %x.%i which doesn't match :(\n", microopAddrArray[idx][way][uop+1].pcAddr, microopAddrArray[idx][way][uop+1].uopAddr);
+		DPRINTF(ConstProp, "Next addr is %x.%i which doesn't match :(\n", decoder->uopAddrArray[idx][way][uop+1].pcAddr, decoder->uopAddrArray[idx][way][uop+1].uopAddr);
 		Addr nextPc = propagatingTo.pcAddr + decodedMicroOp->machInst.instSize;
 		nextFullAddr = FullUopAddr(nextPc, 0);
 	}
@@ -2014,98 +1057,53 @@ bool TraceBasedGraph::propagateAcrossControlDependency(unsigned branchIndex, Ful
   	if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
 	return changeMade;
 }
+*/
 
-void TraceBasedGraph::updateSpecTrace(int idx, int way, int uop) {
+void TraceBasedGraph::updateSpecTrace(int idx, int way, int uop, unsigned traceID) {
+	// IMPORTANT NOTE: This is written assuming the trace will be traversed in order, and so the register map will be accurate for the current point in the trace
+
 	// At least for now, control-dependent paths will be handled separately
-	assert(speculativeDependencyGraph[idx][way][uop]);
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
 	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
+	if (decodedMacroOp && decodedMacroOp->isMacroop()) {
+		decodedMicroOp = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+		decodedMicroOp->macroOp = decodedMacroOp;
+	}
 
-	bool allDestsReady = true;
-	for (int i=0; i<256; i++) {
-		if (speculativeDependencyGraph[idx][way][uop]->consumers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->consumers[i] != 5000) {
-			InformationFlowPath dataOut = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]];
-			if ((!dataOut.valid) && dataOut.directControlDependency == 0 && dataOut.indirectControlDependency == 0) {
-				allDestsReady = false;
-			}
-		}
-	} 
+	// Rather than checking dests, check sources; if all sources, then all dests in trace
+	bool allSrcsReady = true;
+	for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
+		RegId srcReg = decodedMicroOp->srcRegIdx(i);
+		allSrcsReady = allSrcsReady && registerValid[srcReg.flatIndex()];
+	}
+
+	string type = decodedMicroOp->getName();
+	bool isDeadCode = allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "slri" || type == "slli" || type == "sexti" || type == "zexti");
 
 	// Prevent an inst registering as dead if it is a prediction source
-	allDestsReady &= !isPredictionSource(speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
+	isDeadCode &= !isPredictionSource(decoder->uopAddrArray[idx][way][uop].pcAddr, decoder->uopAddrArray[idx][way][uop].uopAddr, traceID);
 
-	// Step 1: Determine whether the inst is already in the speculative cache
-	if (speculativeDependencyGraph[idx][way][uop]->specIdx.valid) {
-		FullCacheIdx optimizedIdx = speculativeDependencyGraph[idx][way][uop]->specIdx;
-		StaticInstPtr optimizedInst = decoder->speculativeCache[optimizedIdx.idx][optimizedIdx.way][optimizedIdx.uop];
-		
-		// Step 2a: If fully eliminated and present, remove from cache
-		if (allDestsReady) {
-			// Step 2a: If fully eliminated and present, remove from cache
-			FullCacheIdx nextIdx = getNextCacheIdx(optimizedIdx);
-			while (nextIdx.valid) {
-				DPRINTF(ConstProp, "Next Idx is %i,%i,%i\n", nextIdx.idx, nextIdx.way, nextIdx.uop);
-				moveTraceInstOneForward(nextIdx.idx, nextIdx.way, nextIdx.uop);
-				nextIdx = getNextCacheIdx(nextIdx);
-			}
-			// Steb 2b: Mark DependGraphEntry as dead code to know to skip
-			DPRINTF(ConstProp, "Dead code at idx:%#x way:%#x uop:%#x\n", idx, way, uop);
-			speculativeDependencyGraph[idx][way][uop]->deadCode = true;
-			speculativeDependencyGraph[idx][way][uop]->specIdx.valid = false;
-		} else {
-			// Step 3b: Mark all predicted values on the StaticInst
-			for (int i=0; i<256; i++) {
-				if (speculativeDependencyGraph[idx][way][uop]->producers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->producers[i] != 5000) {
-					InformationFlowPath dataIn = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]];
-					if (dataIn.valid && dataIn.directControlDependency == 0 && dataIn.indirectControlDependency == 0) {
-						for (int j=0; j<optimizedInst->numSrcRegs(); j++) {
-							unsigned srcIdx = optimizedInst->srcRegIdx(j).flatIndex();
-							if (srcIdx == dataIn.archRegIdx) {
-								optimizedInst->sourcePredictions[j] = dataIn.value;
-								optimizedInst->sourcesPredicted[j] = true;
-							}
-						}
-					}
-				}
-			}
-		}
+	// Inst will never already be in this trace, single pass
+	if (isDeadCode) {
+		// Step 2b: Mark DependGraphEntry as dead code to know to skip
+		decoder->updateTagInSpeculativeCacheWithoutAdding(decoder->uopAddrArray[idx][way][uop].pcAddr, decoder->uopAddrArray[idx][way][uop].uopAddr, traceID);
+		DPRINTF(ConstProp, "Dead code at idx:%#x way:%#x uop:%#x\n", idx, way, uop);
 	} else {
-		if (allDestsReady) {
-			// Step 2b: Mark DependGraphEntry as dead code to know to skip
-			FullCacheIdx newIdx = decoder->updateTagInSpeculativeCacheWithoutAdding(speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
-			DPRINTF(ConstProp, "Dead code at idx:%#x way:%#x uop:%#x\n", idx, way, uop);
-			speculativeDependencyGraph[idx][way][uop]->deadCode = true;
-			speculativeDependencyGraph[idx][way][uop]->specIdx = newIdx;
-			speculativeDependencyGraph[idx][way][uop]->specIdx.valid = false;
-			// printf("Marked an inst as dead code\n");
-		} else {
-			// Step 3a: If not dead and not present, call decodeInst and add	
-			FullCacheIdx loc = decoder->addUopToSpeculativeCache(decodedMicroOp, speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
-			if (loc.valid) {
-				speculativeDependencyGraph[idx][way][uop]->specIdx = loc;
-			//	printf("Added an inst to spec graph at [%i][%i][%i]\n", loc.idx, loc.way, loc.uop);
-			}
+		// Step 3a: If not dead and not present, call decodeInst and add
+		decoder->addUopToSpeculativeCache(decodedMicroOp, decoder->uopAddrArray[idx][way][uop].pcAddr, decoder->uopAddrArray[idx][way][uop].uopAddr, traceID);
 
-			// Step 3b: Mark all predicted values on the StaticInst
-			for (int i=0; i<256; i++) {
-				if (speculativeDependencyGraph[idx][way][uop]->producers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->producers[i] != 5000) {
-					InformationFlowPath dataIn = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]];
-					if (dataIn.valid && dataIn.directControlDependency == 0 && dataIn.indirectControlDependency == 0) {
-						for (int j=0; j<decodedMicroOp->numSrcRegs(); j++) {
-							unsigned srcIdx = decodedMicroOp->srcRegIdx(j).flatIndex();
-							if (srcIdx == dataIn.archRegIdx) {
-								decodedMicroOp->sourcePredictions[j] = dataIn.value;
-								decodedMicroOp->sourcesPredicted[j] = true;
-							}
-						}
-					}
-				}
+		// Step 3b: Mark all predicted values on the StaticInst
+		for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
+			unsigned srcIdx = decodedMicroOp->srcRegIdx(i).flatIndex();
+			if (registerValid[srcIdx]) {
+				decodedMicroOp->sourcePredictions[i] = registerValue[i];
+				decodedMicroOp->sourcesPredicted[i] = true;
 			}
 		}
 	}
 }
 
+/*
 void TraceBasedGraph::invalidateTraceInst(int idx, int way, int uop) {
 	FullUopAddr affectedAddr = decoder->speculativeAddrArray[idx][way][uop];
 	int affectedIdx = (affectedAddr.pcAddr >> 5) & 0x1f;
@@ -2113,7 +1111,7 @@ void TraceBasedGraph::invalidateTraceInst(int idx, int way, int uop) {
 	for (int w = 0; w < 8; w++) {
 		if (decoder->uopValidArray[affectedIdx][w] && decoder->uopTagArray[affectedIdx][w] == affectedTag) {
 			for (int u = 0; u < decoder->uopCountArray[affectedIdx][w]; u++) {
-				if (microopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
+				if (decoder->uopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
 					// When clearing whole ways, may call this on an inst that doesn't exist
 					// Addr 0.0 would then match with an empty slot in the uop cache
 					// The additional if condition prevents that error
@@ -2137,15 +1135,16 @@ void TraceBasedGraph::moveTraceInstOneForward(int idx, int way, int uop) {
 	for (int w = 0; w < 8; w++) {
 		if (decoder->uopValidArray[affectedIdx][w] && decoder->uopTagArray[affectedIdx][w] == affectedTag) {
 			for (int u = 0; u < decoder->uopCountArray[affectedIdx][w]; u++) {
-				if (microopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
+				if (decoder->uopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
 					speculativeDependencyGraph[affectedIdx][w][u]->specIdx = prevIdx;
 				}
 			}
 		}
 	}
 }
+*/
 
-bool TraceBasedGraph::isPredictionSource(Addr addr, unsigned uop) {
+bool TraceBasedGraph::isPredictionSource(Addr addr, unsigned uop, unsigned traceID) {
 	for (int i=1; i<4096; i++) {
 		if (predictionSourceValid[i] && predictionSource[i] == FullUopAddr(addr, uop)) { 
 			return true;
@@ -2163,18 +1162,22 @@ void TraceBasedGraph::flushMisprediction(Addr addr, unsigned uop) {
 		}
 	}
 	if (predId == 0) { return; }
-	flushMisprediction(predId);
+	
+	predictionSourceValid[predId] = false;
+	
+	// flushMisprediction(predId);
 	return;
 }
 
+/*
 void TraceBasedGraph::flushMisprediction(unsigned predId) {
 	if (predId > 4096 || !predictionSourceValid[predId]) { return; }
-	/**
+	**
  	* Two steps:
  	* 1. Iterate through connections, remove prediction if dependence on this id
  	* 2. If 32-byte region of code including this inst is present in speculative cache, remove
 	* Note that optimizations based on any prediction should be hosted in the 32-byte region corresponding to that prediction, even if they are on the other side of a branch
- 	*/ 
+ 	* 
 	for (int i=1; i<connectionCount; i++) {
 		if (connectionsValidSpec[i] && connections[i].hasDependency(predId)) {
 			connections[i].value = 0;
@@ -2195,73 +1198,14 @@ void TraceBasedGraph::registerRemovalOfTraceInst(int idx, int way, int uop) {
 	for (int w = 0; w < 8; w++) {
 		if (decoder->uopValidArray[affectedIdx][w] && decoder->uopTagArray[affectedIdx][w] == affectedTag) {
 			for (int u = 0; u < decoder->uopCountArray[affectedIdx][w]; u++) {
-				if (microopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
+				if (decoder->uopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
 					speculativeDependencyGraph[affectedIdx][w][u]->specIdx = FullCacheIdx();
 				}
 			}
 		}
 	}
 }
-
-void TraceBasedGraph::describeEntry(int idx, int way, int uop) {
-	DependGraphEntry* entry = speculativeDependencyGraph[idx][way][uop];
-	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(entry->thisInst.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-	DPRINTF(ConstProp, "Entry for inst %x.%i\n", entry->thisInst.pcAddr, entry->thisInst.uopAddr);
-	DPRINTF(ConstProp, "Disassembly: %s\n", decodedMicroOp->disassemble(entry->thisInst.pcAddr));
-	DPRINTF(ConstProp, "SrcRegs (%i):\n", decodedMicroOp->numSrcRegs());
-	for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
-		RegId srcReg = decodedMicroOp->srcRegIdx(i);
-    DPRINTF(ConstProp, "%s register %i\n", srcReg.className(), srcReg.flatIndex());
-	}
-	DPRINTF(ConstProp, "Dest Regs (%i):\n", decodedMicroOp->numDestRegs());
-	for (int i=0; i<decodedMicroOp->numDestRegs(); i++) {
-		RegId destReg = decodedMicroOp->destRegIdx(i);
-    DPRINTF(ConstProp, "%s register %i\n", destReg.className(), destReg.flatIndex());
-	}
-	DPRINTF(ConstProp, "Incoming data paths:\n");
-	for (int i=0; i<256; i++) {
-		if (entry->producers[i] == 5000) {
-			DPRINTF(ConstProp, "Source not ready\n");
-		} else if (entry->producers[i] != 0) {
-			if (connectionsValidSpec[entry->producers[i]]) {
-				InformationFlowPath path = connections[entry->producers[i]];
-				DPRINTF(ConstProp, "Connections[%i]: Register %i (SSA ID %i) from spec[%i][%i][%i] with value %x (%i) along control path branches[%i] - lastUse? %i\n", entry->producers[i], path.archRegIdx, path.renamedRegIdx, path.producer.idx, path.producer.way, path.producer.uop, path.value, path.valid, path.directControlDependency, path.lastUse);
-			} else {
-				DPRINTF(ConstProp, "Connection through %i has been invalidated\n", entry->producers[i]);
-			}
-		}
-	}
-	DPRINTF(ConstProp, "Outgoing data paths:\n");
-	for (int i=0; i<256; i++) {
-		if (entry->consumers[i] == 5000) {
-			// DPRINTF(ConstProp, "Dest not ready\n");
-		} else if (entry->consumers[i] != 0) {
-			if (connectionsValidSpec[entry->consumers[i]]) {
-				InformationFlowPath path = connections[entry->consumers[i]];
-				DPRINTF(ConstProp, "Connections[%i]: Register %i (SSA ID %i) to spec[%i][%i][%i] with value %x (%i) along control path branches[%i] - lastUse? %i\n", entry->consumers[i], path.archRegIdx, path.renamedRegIdx, path.consumer.idx, path.consumer.way, path.consumer.uop, connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].value, connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].valid, path.directControlDependency, path.lastUse);
-			} else {
-				DPRINTF(ConstProp, "Connection through %i has been invalidated\n", entry->consumers[i]);
-			}
-		}
-	}
-	DPRINTF(ConstProp, "Done Describing\n");
-  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-}
-
-void TraceBasedGraph::describeFullGraph() {
-	for (int i1=0; i1<32; i1++) {
-		for (int i2=0; i2<8; i2++) {
-			for (int i3=0; i3<6; i3++) {
-				if (speculativeDependencyGraph[i1][i2][i3]) {
-					DPRINTF(ConstProp, "Describing entry at spec[%i][%i][%i]:\n", i1, i2, i3);
-					describeEntry(i1, i2, i3);
-				}
-			}
-		}
-	}
-}
+*/
 
 FullCacheIdx TraceBasedGraph::getNextCacheIdx(FullCacheIdx start) {
 	if (start.uop < 5) {
@@ -2302,7 +1246,7 @@ void TraceBasedGraph::incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC,
     		for (int way = 0; way < 8; way++) {
       			if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
         			for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
-          				if (microopAddrArray[idx][way][uop].pcAddr == decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr && microopAddrArray[idx][way][uop].uopAddr == decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr) {
+          				if (decoder->uopAddrArray[idx][way][uop].pcAddr == decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr && decoder->uopAddrArray[idx][way][uop].uopAddr == decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr) {
             					if (speculativeDependencyGraph[idx][way][uop]->specIdx.valid) {
               						DPRINTF(ConstProp, "Found a valid next index at spec[%i][%i][%i]\n", idx, way, uop);
               						endOfTrace = false;

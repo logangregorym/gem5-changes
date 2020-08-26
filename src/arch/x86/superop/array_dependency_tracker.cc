@@ -884,7 +884,7 @@ bool ArrayDependencyTracker::simplifyGraph() {
 //			printf("Changed graph but not updating trace\n");
 		} else if (type != "NOP") {
 			// printf("Simplify graph didn't change anything\n");
-			FullCacheIdx loc = decoder->addToSpeculativeCacheIffTagExists(decodedMicroOp, speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr);
+			FullCacheIdx loc = decoder->addToSpeculativeCacheIffTagExists(decodedMicroOp, speculativeDependencyGraph[i1][i2][i3]->thisInst.pcAddr, speculativeDependencyGraph[i1][i2][i3]->thisInst.uopAddr, 0);
 			if (loc.valid) {
 				speculativeDependencyGraph[i1][i2][i3]->specIdx = loc;
 			//	printf("Added an inst to spec graph at [%i][%i][%i]\n", loc.idx, loc.way, loc.uop);
@@ -2506,7 +2506,7 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 	} else {
 		if (allDestsReady) {
 			// Step 2b: Mark DependGraphEntry as dead code to know to skip
-			FullCacheIdx newIdx = decoder->updateTagInSpeculativeCacheWithoutAdding(speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
+			FullCacheIdx newIdx = decoder->updateTagInSpeculativeCacheWithoutAdding(speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr, 0);
 			DPRINTF(ConstProp, "Dead code at idx:%#x way:%#x uop:%#x\n", idx, way, uop);
 			speculativeDependencyGraph[idx][way][uop]->deadCode = true;
 			speculativeDependencyGraph[idx][way][uop]->specIdx = newIdx;
@@ -2514,7 +2514,7 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 			// printf("Marked an inst as dead code\n");
 		} else {
 			// Step 3a: If not dead and not present, call decodeInst and add	
-			FullCacheIdx loc = decoder->addUopToSpeculativeCache(decodedMicroOp, speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr);
+			FullCacheIdx loc = decoder->addUopToSpeculativeCache(decodedMicroOp, speculativeDependencyGraph[idx][way][uop]->thisInst.pcAddr, speculativeDependencyGraph[idx][way][uop]->thisInst.uopAddr, 0);
 			if (loc.valid) {
 				speculativeDependencyGraph[idx][way][uop]->specIdx = loc;
 			//	printf("Added an inst to spec graph at [%i][%i][%i]\n", loc.idx, loc.way, loc.uop);

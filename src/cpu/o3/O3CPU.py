@@ -49,6 +49,7 @@ from O3Checker import O3Checker
 from BranchPredictor import *
 from LoadValuePredictor import *
 from ArrayDependencyTracker import *
+from TraceBasedGraph import *
 
 class DerivO3CPU(BaseCPU):
     type = 'DerivO3CPU'
@@ -168,6 +169,7 @@ class DerivO3CPU(BaseCPU):
                                        "Branch Predictor")
     loadPred = Param.LoadValuePredictor(LoadValuePredictor(), "Load Value Predictor")
     depTracker = Param.ArrayDependencyTracker(ArrayDependencyTracker(), "Dependency Tracking Unit")
+    traceConstructor = Param.TraceBasedGraph(TraceBasedGraph(), "Trace Construction Unit")
     needsTSO = Param.Bool(buildEnv['TARGET_ISA'] == 'x86',
                           "Enable TSO Memory model")
 

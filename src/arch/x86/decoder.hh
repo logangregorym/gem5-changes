@@ -118,7 +118,7 @@ class Decoder
     bool isUopCacheActive;
     bool isSuperOptimizationPresent;
     ExtMachInst uopCache[32][8][6]; // 48, 8, 6
-    Addr uopAddrArray[32][8][6];
+    FullUopAddr uopAddrArray[32][8][6];
     uint64_t uopTagArray[32][8];
 	int uopPrevWayArray[32][8];
 	int uopNextWayArray[32][8];
@@ -392,7 +392,8 @@ protected:
   public:
 
     // Dependency Tracking Unit for Speculative Superoptimization
-    ArrayDependencyTracker* depTracker;
+    // ArrayDependencyTracker* depTracker;
+    TraceBasedGraph* traceConstructor;
 
     StaticInstPtr decodeInst(ExtMachInst mach_inst);
 
@@ -444,11 +445,11 @@ protected:
 	// Interface for superoptimization, interacts with cache differently in gem5
 	// In hardware wouldn't need a different interface, as both are streaming caches
 
-	FullCacheIdx addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop);
+	FullCacheIdx addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, unsigned traceID);
 
-	FullCacheIdx updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop);
+	FullCacheIdx updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsigned traceID);
 
-	FullCacheIdx addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop);
+	FullCacheIdx addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop, unsigned traceID);
 
 
     

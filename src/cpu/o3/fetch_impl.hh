@@ -1149,7 +1149,7 @@ DefaultFetch<Impl>::tick()
     numInst = 0;
 
    for (int tid = 0; tid < numThreads; tid++) {
-   	decoder[tid]->depTracker->simplifyGraph();
+   	// decoder[tid]->depTracker->simplifyGraph();
 	if ((((int) cpu->numCycles.value()) % 128) == 0) {
 	    decoder[tid]->tickAllHotnessCounters();
 	}
@@ -1364,11 +1364,11 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                 if (instruction->staticInst->isMacroop()) {
                     assert(!instruction->staticInst->isMacroop());
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
-                        decoder[tid]->depTracker->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
+                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
                         // decoder[tid]->depTracker->measureChain(thisPC.instAddr(), uop);
                     }
                 } else {
-                    decoder[tid]->depTracker->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
+                    decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
                     // decoder[tid]->depTracker->measureChain(thisPC.instAddr(), 0);
                 }
             }
@@ -1380,13 +1380,13 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                     assert(!instruction->staticInst->isMacroop());
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
                         if (decoder[tid]->isSuperOptimizationPresent) {
-                            decoder[tid]->depTracker->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
+                            decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
                             // decoder[tid]->depTracker->simplifyGraph();
                         }
                     }
                 } else {
                     if (decoder[tid]->isSuperOptimizationPresent) {
-                        decoder[tid]->depTracker->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
+                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
                         // decoder[tid]->depTracker->simplifyGraph();
                     }
                 }
