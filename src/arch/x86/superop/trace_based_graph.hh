@@ -58,7 +58,7 @@ class TraceBasedGraph : public SimObject
 	FullCacheIdx simplifyIdx = FullCacheIdx();
 
 	void incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC, bool &predict_taken);
-	bool isTakenBranch(FullUopAddr addr);
+	bool isTakenBranch(FullUopAddr addr, FullCacheIdx specIdx);
 
 	uint64_t registerValue[256] = {0};
 	bool registerValid[256] = {0};
@@ -97,22 +97,6 @@ class TraceBasedGraph : public SimObject
 	// bool propagateWrip(int idx, int way, int uop);
 	// bool propagateAcrossControlDependency(unsigned branchIndex, FullUopAddr propagatingTo);
 
-	Stats::Scalar numChainsMeasured;
-	Stats::Scalar totalDependentInsts;
-	Stats::Scalar reducableInstCount;
-	Stats::Scalar totalOpsInCache;
-	Stats::Scalar totalReducable;
-	Stats::Formula averageDependentInsts;
-	Stats::Formula averageNumberReducable;
-	Stats::Scalar branchesOnChains;
-	Stats::Scalar confidentBranchesOnChains;
-	Stats::Formula percentChainBranchesConfident;
-	Stats::Scalar totalCyclesInUopCache;
-	Stats::Scalar evictionsFromUopCache;
-	Stats::Scalar totalCyclesInSpecCache;
-	Stats::Scalar evictionsFromSpecCache;
-	Stats::Formula averageCyclesInUopCache;
-	Stats::Formula averageCyclesInSpecCache;
 	void regStats();
 
 }; // class TraceBasedGraph

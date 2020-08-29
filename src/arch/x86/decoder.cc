@@ -81,6 +81,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
 	    speculativePrevWayArray[idx][way] = 10;
     	    speculativeNextWayArray[idx][way] = 10;
     	    specHotnessArray[idx][way] = BigSatCounter(4);
+	    speculativeTraceIDArray[idx][way] = 0;
 	    for (int uop = 0; uop < 6; uop++) {
 		uopAddrArray[idx][way][uop] = FullUopAddr();
 	    	speculativeAddrArray[idx][way][uop] = FullUopAddr();
@@ -1018,7 +1019,8 @@ Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, in
           speculativeValidArray[idx][way] = false;
           speculativeCountArray[idx][way] = 0;
           specHotnessArray[idx][way] = BigSatCounter(4);
-          speculativePrevWayArray[idx][way] = 10;
+          speculativeTraceIDArray[idx][way] = 0;
+	  speculativePrevWayArray[idx][way] = 10;
           speculativeNextWayArray[idx][way] = 10;
         }
       }
@@ -1071,6 +1073,7 @@ Decoder::updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, in
             speculativeValidArray[idx][w] = false;
             speculativeCountArray[idx][w] = 0;
             specHotnessArray[idx][w] = BigSatCounter(4);
+	    speculativeTraceIDArray[idx][w] = 0;
             speculativePrevWayArray[idx][w] = 10;
             speculativeNextWayArray[idx][w] = 10;
           }
@@ -1116,7 +1119,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
 	int numFullWays = 0;
 
 	for (int way = 0; way < 8 && numFullWays < 3; way++) {
-		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag && speculativeTraceIDArray[idx][way] == traceID) {
 			int waySize = speculativeCountArray[idx][way];
 			if (waySize == 6) {
 				continue;
@@ -1125,10 +1128,10 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
 			speculativeCache[idx][way][waySize] = inst;
 			speculativeAddrArray[idx][way][waySize] = FullUopAddr(addr, uop);
 			updateLRUBitsSpeculative(idx, way);
-      DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d.\n", addr, tag, idx, way, uop);
-      if (speculativeCountArray[idx][way] == 6) {
-        numFullWays++;
-      }
+      		DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d.\n", addr, tag, idx, way, uop);
+      		if (speculativeCountArray[idx][way] == 6) {
+        		numFullWays++;
+      		}
 			return FullCacheIdx(idx, way, waySize);
 		}
 	}
@@ -1143,7 +1146,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
 		if (!speculativeValidArray[idx][way]) {
 			if (numFullWays > 0) {
 				for (int w = 0; w < 8; w++) {
-					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeNextWayArray[idx][w] == 10) {
+					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeTraceIDArray[idx][way] == traceID && speculativeNextWayArray[idx][w] == 10) {
 						speculativeNextWayArray[idx][w] = way;
 						speculativePrevWayArray[idx][way] = w;
 					}
@@ -1152,6 +1155,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
 			speculativeCountArray[idx][way] = 1;
 			speculativeValidArray[idx][way] = true;
 			speculativeTagArray[idx][way] = tag;
+			speculativeTraceIDArray[idx][way] = traceID;
 			speculativeCache[idx][way][0] = inst;
 			speculativeAddrArray[idx][way][0] = FullUopAddr(addr, uop);
 			updateLRUBitsSpeculative(idx, way);
@@ -1165,7 +1169,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
 		if (speculativeLRUArray[idx][way] == 0) {
       DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%#x way:%#x.\n Affected PCs:\n", tag, idx, way);
 			for (int w = 0; w < 8; w++) {
-				if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == speculativeTagArray[idx][way]) {
+				if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == speculativeTagArray[idx][way] && speculativeTraceIDArray[idx][way] == traceID) {
 					for (int u = 0; u < speculativeCountArray[idx][w]; u++) {
 						// depTracker->invalidateTraceInst(idx, w, u);
 					}
@@ -1183,7 +1187,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
 			}
 			if (numFullWays > 0) {
 				for (int w = 0; w < 8; w++) {
-					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeNextWayArray[idx][w] == 10) {
+					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeTraceIDArray[idx][way] == traceID && speculativeNextWayArray[idx][w] == 10) {
 						speculativeNextWayArray[idx][w] = way;
 						speculativePrevWayArray[idx][way] = w;
 					}
@@ -1192,6 +1196,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
 			speculativeCountArray[idx][way] = 1;
 			speculativeValidArray[idx][way] = true;
 			speculativeTagArray[idx][way] = tag;
+			speculativeTraceIDArray[idx][way] = traceID;
 			speculativeCache[idx][way][0] = inst;
 			speculativeAddrArray[idx][way][0] = FullUopAddr(addr, uop);
 			updateLRUBitsSpeculative(idx, way);	
@@ -1210,7 +1215,7 @@ Decoder::addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsign
 	int numFullWays = 0;
 
 	for (int way = 0; way < 8 && numFullWays < 3; way++) {
-		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag && speculativeTraceIDArray[idx][way] == traceID) {
 			int waySize = speculativeCountArray[idx][way];
 			if (waySize == 6) {
 				continue;
@@ -1238,6 +1243,7 @@ Decoder::addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsign
       speculativeCountArray[idx][way] = 1;
       speculativeValidArray[idx][way] = true;
       speculativeTagArray[idx][way] = tag;
+	  speculativeTraceIDArray[idx][way] = traceID;
       speculativeCache[idx][way][0] = inst;
       speculativeAddrArray[idx][way][0] = FullUopAddr(addr, uop);
       updateLRUBitsSpeculative(idx, way);
@@ -1256,7 +1262,7 @@ Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsig
 	int numFullWays = 0;
 
 	for (int way = 0; way < 8 && numFullWays < 3; way++) {
-		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag && speculativeTraceIDArray[idx][way] == traceID) {
 			int waySize = speculativeCountArray[idx][way];
 			if (waySize == 6) {
 				continue;
@@ -1278,7 +1284,7 @@ Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsig
 		if (!speculativeValidArray[idx][way]) {
 			if (numFullWays > 0) {
 				for (int w = 0; w < 8; w++) {
-					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeNextWayArray[idx][w] == 10) {
+					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeTraceIDArray[idx][way] == traceID && speculativeNextWayArray[idx][w] == 10) {
 						speculativeNextWayArray[idx][w] = way;
 						speculativePrevWayArray[idx][way] = w;
 					}
@@ -1286,6 +1292,7 @@ Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsig
 			}
 			speculativeValidArray[idx][way] = true;
 			speculativeTagArray[idx][way] = tag;
+			speculativeTraceIDArray[idx][way] = traceID;
 			updateLRUBitsSpeculative(idx, way);
       DPRINTF(Decoder, "Skipping microop update in the speculative cache: %#x tag:%#x idx:%#x way:%#x.\n", addr, tag, idx, way);
 			return FullCacheIdx(idx, way, 0);
@@ -1297,7 +1304,7 @@ Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsig
 		if (speculativeLRUArray[idx][way] == 0) {
       DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%#x way:%#x.\n Affected PCs:\n", tag, idx, way);
 			for (int w = 0; w < 8; w++) {
-				if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == speculativeTagArray[idx][way]) {
+				if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == speculativeTagArray[idx][way] && speculativeTraceIDArray[idx][w] == speculativeTraceIDArray[idx][way]) {
 					for (int u = 0; u < speculativeCountArray[idx][w]; u++) {
 						// depTracker->invalidateTraceInst(idx, w, u);
 					}
@@ -1307,7 +1314,7 @@ Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsig
 			}
 			if (numFullWays > 0) {
 				for (int w = 0; w < 8; w++) {
-					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeNextWayArray[idx][w] == 10) {
+					if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == tag && speculativeTraceIDArray[idx][way] == traceID && speculativeNextWayArray[idx][w] == 10) {
 						speculativeNextWayArray[idx][w] = way;
 						speculativePrevWayArray[idx][way] = w;
 					}
@@ -1315,6 +1322,7 @@ Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsig
 			}
 			speculativeValidArray[idx][way] = true;
 			speculativeTagArray[idx][way] = tag;
+			speculativeTraceIDArray[idx][way] = traceID;
 			updateLRUBitsSpeculative(idx, way);
       DPRINTF(Decoder, "Skipping microop update in the speculative cache: %#x tag:%#x idx:%#x way:%#x.\n", addr, tag, idx, way);
 			return FullCacheIdx(idx, way, 0);
@@ -1417,7 +1425,7 @@ Decoder::fetchUopFromSpeculativeCache(Addr addr, PCState &nextPC)
     return NULL;
 }
 
-bool
+unsigned
 Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 /* 
  * Need a new solution for new implementation
@@ -1447,7 +1455,7 @@ Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 	// if not found
 
 */
-	return false;
+	return 0;
 }
 
 /*
@@ -1492,8 +1500,8 @@ Decoder::doSquash(const StaticInstPtr si, X86ISA::PCState pc) {
 
 
 bool
-Decoder::isSourceOfPrediction(Addr addr, unsigned uop) {
-	return traceConstructor->isPredictionSource(addr, uop);
+Decoder::isSourceOfPrediction(Addr addr, unsigned uop, unsigned traceID) {
+	return traceConstructor->isPredictionSource(addr, uop, traceID);
 }
 
 void
@@ -1665,11 +1673,7 @@ Decoder::addSourceToCacheLine(unsigned predID, int idx, uint64_t tag) {
 // sends back the microop from the active trace
 // In case of a folded branch, nextPC and predict_taken should be set by the function
 StaticInstPtr 
-Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken) {
-
-/*
- * Need to re-do for new implementation
- 
+Decoder::getSuperOptimizedMicroop(unsigned traceID, const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken) {
   if (!thisPC.valid) {
     nextPC = thisPC;
     DPRINTF(Decoder, "Provided an invalid PC to getSuperOptimizedMicroop\n");
@@ -1678,7 +1682,20 @@ Decoder::getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState 
 
 	int idx = (thisPC.instAddr() >> 5) & 0x1f;
 	uint64_t tag = (thisPC.instAddr() >> 10);
-
+	for (int way = 0; way < 8; way++) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag && speculativeTraceIDArray[idx][way] == traceID) {
+			for (int uop = 0; uop < speculativeCountArray[idx][way]; uop++) {
+				if (speculativeAddrArray[idx][way][uop].pcAddr == thisPC.instAddr() && speculativeAddrArray[idx][way][uop].uopAddr == thisPC.microPC()) {
+					assert(speculativeCache[idx][way][uop]);
+					traceConstructor->incrementPC(FullCacheIdx(idx, way, uop), nextPC, predict_taken);
+					return speculativeCache[idx][way][uop];
+				}
+			}
+		}
+	}
+/*
+ * From old implementation with dependency graph
+ 
 	DPRINTF(Decoder, "getSuperOptimizedMicroop called at:%s\n", thisPC);
 	for (int way = 0; way < 8; way++) {
 		if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {

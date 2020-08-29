@@ -22,75 +22,7 @@ TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), using
 
 void TraceBasedGraph::regStats()
 {
-	numChainsMeasured
-		.name("system.switch_cpus.decode.superop.dependencyTracker.numChainsMeasured")
-		.desc("Number of dependency chains measured")
-		;
-	totalDependentInsts
-		.name("system.switch_cpus.decode.superop.dependencyTracker.totalDependentInsts")
-		.desc("Total count of instructions in dependency chains")
-		;
-	reducableInstCount
-		.name("system.switch_cpus.decode.superop.dependencyTracker.reducableInstCount")
-		.desc("Number of instructions with all values ready")
-		;
-	averageDependentInsts
-		.name("system.switch_cpus.decode.superop.dependencyTracker.averageDependentInsts")
-		.desc("Average number of instructions per dependency chain")
-		;
-	averageDependentInsts = totalDependentInsts / numChainsMeasured;
-	averageNumberReducable
-		.name("system.switch_cpus.decode.superop.dependencyTracker.averageNumberReducable")
-		.desc("Average number of instructions per chain with all values ready")
-		;
-	averageNumberReducable = reducableInstCount / numChainsMeasured;
-	totalReducable
-		.name("system.switch_cpus.decode.superop.dependencyTracker.totalReducable")
-		.desc("Count of reducable instructions with no repeats")
-		;
-	totalOpsInCache
-		.name("system.switch_cpus.decode.superop.dependencyTracker.totalOpsInCache")
-		.desc("Count of instructions loaded into the cache")
-		;
-	branchesOnChains
-		.name("system.switch_cpus.decode.superop.dependencyTracker.branchesOnChains")
-		.desc("Count of branches found while measuring chains")
-		;
-	confidentBranchesOnChains
-		.name("system.switch_cpus.decode.superop.dependencyTracker.confidentBranchesOnChains")
-		.desc("Count of confident branches found while measuring chains")
-		;
-	percentChainBranchesConfident
-		.name("system.switch_cpus.decode.superop.dependencyTracker.percentChainBranchesConfident")
-		.desc("Percent of branches found while measuring chains which were confident")
-		.precision(6);
-	percentChainBranchesConfident = (confidentBranchesOnChains / branchesOnChains)*100;
-	totalCyclesInUopCache
-		.name("system.switch_cpus.decode.superop.dependencyTracker.totalCyclesInUopCache")
-		.desc("Total number of cycles any instruction spends in the uop cache")
-		;
-	evictionsFromUopCache
-		.name("system.switch_cpus.decode.superop.dependencyTracker.evictionsFromUopCache")
-		.desc("Total evictions from the uop cache")
-		;
-	totalCyclesInSpecCache
-		.name("system.switch_cpus.decode.superop.dependencyTracker.totalCyclesInSpecCache")
-		.desc("Total number of cycles any instruction spends in the speculative cache")
-		;
-	evictionsFromSpecCache
-		.name("system.switch_cpus.decode.superop.dependencyTracker.evictionsFromSpecCache")
-		.desc("Total evictions from the speculative cache")
-		;
-	averageCyclesInUopCache
-		.name("system.switch_cpus.decode.superop.dependencyTracker.averageCyclesInUopCache")
-		.desc("Average number of cycles an instruction spends in the uop cache")
-		.precision(6);
-	averageCyclesInSpecCache
-		.name("system.switch_cpus.decode.superop.dependencyTracker.averageCyclesInSpecCache")
-		.desc("Average number of cycles an instruction spends in the speculative cache")
-		.precision(6);
-	averageCyclesInUopCache = totalCyclesInUopCache / evictionsFromUopCache;
-	averageCyclesInSpecCache = totalCyclesInSpecCache / evictionsFromSpecCache;
+
 }
 
 void TraceBasedGraph::invalidateBranch(Addr addr) {
@@ -103,7 +35,7 @@ void TraceBasedGraph::invalidateBranch(Addr addr) {
 
 void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
 {
-	// Add predictin source for this inst if not hear already
+	// Add predictin source for this inst if not here already
 	for (int i=0; i<4096; i++) {
 		if (predictionSource[i] == FullUopAddr(addr, uopAddr)) {
 			predictionSourceValid[i] = true;
@@ -114,6 +46,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
 		if (predictionSourceValid[i] == false) {
 			predictionSource[i] = FullUopAddr(addr, uopAddr);
 			predictionSourceValid[i] = true;
+			return;
 		}
 	}
 	panic("Ran out of space in predictionSource array\n");
@@ -1208,7 +1141,7 @@ void TraceBasedGraph::registerRemovalOfTraceInst(int idx, int way, int uop) {
 */
 
 FullCacheIdx TraceBasedGraph::getNextCacheIdx(FullCacheIdx start) {
-	if (start.uop < 5) {
+	if (start.uop < decoder->speculativeCountArray[start.idx][start.way] - 1) {
 		return FullCacheIdx(start.idx, start.way, start.uop + 1);
 	}
 	if (decoder->speculativeNextWayArray[start.idx][start.way] == 10) {
@@ -1235,13 +1168,17 @@ void TraceBasedGraph::incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC,
 	// Step 3: If inst at specIdx is a branch, use control flow table to set taken
 	// Step 4: If didn't have a next index, or if the StaticInstPtr at the next index is null, this is the end of a trace
 	FullCacheIdx nextIdx = getNextCacheIdx(specIdx);
-	int idx = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 5) & 0x1f;
-	uint64_t tag = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 10);
+//	int idx = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 5) & 0x1f;
+//	uint64_t tag = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 10);
   	bool endOfTrace = true;
 
 	DPRINTF(ConstProp, "Transitioning from specCache[%i][%i][%i] to specCache[%i][%i][%i]\n", specIdx.idx, specIdx.way, specIdx.uop, nextIdx.idx, nextIdx.way, nextIdx.uop);
 	DPRINTF(ConstProp, "That is, from addr %#x.%#x to addr %#x.%#x\n", decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop].pcAddr, decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop].uopAddr, decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr, decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr);
 
+	// Replacing commented-out section with this
+	if (nextIdx.valid) { endOfTrace = false; }
+
+/*
   	if (nextIdx.valid) {
     		for (int way = 0; way < 8; way++) {
       			if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
@@ -1257,6 +1194,10 @@ void TraceBasedGraph::incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC,
       			}
     		}
   	}
+*/
+
+	assert(endOfTrace || decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]);
+
 
 	if (!endOfTrace && decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]) {
 		nextPC._pc = decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr;
@@ -1272,17 +1213,22 @@ void TraceBasedGraph::incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC,
     		} else {
         		nextPC._nupc = decoder->speculativeCache[nextIdx.idx][nextIdx.way][nextIdx.uop]->macroOp->getNumMicroops();
     		}
-		predict_taken = isTakenBranch(decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop]);
+		predict_taken = isTakenBranch(decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop], specIdx);
 	} else {
 		nextPC.valid = false;
 	}
 }
 
-bool TraceBasedGraph::isTakenBranch(FullUopAddr addr) {
+bool TraceBasedGraph::isTakenBranch(FullUopAddr addr, FullCacheIdx specIdx) {
+	TheISA::PCState target;
+	// assuming tid=0, and using spec cache entry at the StaticInstPtr
+	return branchPred->iPred.lookup(addr.pcAddr, branchPred->getGHR(0, decoder->speculativeCache[specIdx.idx][specIdx.way][specIdx.uop]->branch_hist), target, 0);
+/*
 	for (int i=0; i<4096; i++) {
 		if (branchesValid[i] && branches[i].branchAddr == addr && branches[i].confident) {
 			return branches[i].taken;
 		}
 	}
 	return false;
+*/
 }
