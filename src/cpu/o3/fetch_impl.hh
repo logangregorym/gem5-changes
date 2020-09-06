@@ -886,8 +886,8 @@ DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
     DPRINTF(Fetch, "[tid:%i]: Squashing, setting PC to: %s.\n",
             tid, newPC);
 
-    if (squashDuoToLVP)
-        std::cout << "Squashing due to LVP missprediction setting PC to: " <<  newPC << "\n";
+    // if (squashDuoToLVP)
+    //     std::cout << "Squashing due to LVP missprediction setting PC to: " <<  newPC << "\n";
 
 
     pc[tid] = newPC;
@@ -1442,6 +1442,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     return instruction;
 }
 
+/*
 template<class Impl>
 bool
 DefaultFetch<Impl>::isProfitable(Addr addr, unsigned uop) {
@@ -1459,6 +1460,7 @@ DefaultFetch<Impl>::isProfitable(Addr addr, unsigned uop) {
 	if (delay > maxDelay.value()) { maxDelay = delay; }
     return (hotness > 7 && (length > 15 || confidence > 15 || delay > 50));
 }
+*/
 
 template<class Impl>
 void
@@ -1731,7 +1733,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         bool predict_taken = false;
                         // fetch next microop and also update the nextPC, so we can decide whether there is
                         // TODO: fetchBufferPC[tid] ?
-			            DPRINTF(Fetch, "Asking SPEC for microop at %s and to update %s (%d)\n", thisPC, nextPC, nextPC.valid);
+                        DPRINTF(Fetch, "Asking SPEC for microop at %s and to update %s (%d)\n", thisPC, nextPC, nextPC.valid);
 
                         staticInst = decoder[tid]->getSuperOptimizedMicroop(thisPC, nextPC, predict_taken);
 
@@ -1833,8 +1835,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                 DPRINTF(Fetch, "Speculative instruction has propagated constant %#x at operand %#x\n", staticInst->sourcePredictions[j], j);
                         }
 
-            	        ppFetch->notify(instruction);
-            	        numInst++;
+                        ppFetch->notify(instruction);
+                        numInst++;
 
 
                         if (!instruction->isControl()) {
@@ -1850,13 +1852,17 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             // here we use the default lookupAndUpdate mechanism to update the nextPC
                             // here I assume that this branch is at the end of a trace, therefore the next time we call getSuperoptimizedMicroop
                             // we should always get StaticInst::nullStaticInstPtr.
-                            
+                           
+                            bool bpred_predict_taken = false; 
+                            TheISA::PCState bpred_nextPC = thisPC;
+                            DPRINTF(Fetch, "Branch detected at the end of trace with PC = %s\n", thisPC);
+
+                            bpred_predict_taken = branchPred->predict(instruction->staticInst, instruction->seqNum,
+                                    bpred_nextPC, tid);
                             if (!nextPC.valid)
                             {
-                                DPRINTF(Fetch, "Branch detected at the end of trace with PC = %s\n", thisPC);
-
-                                predict_taken = branchPred->predict(instruction->staticInst, instruction->seqNum,
-                                        nextPC, tid);
+                                predict_taken = bpred_predict_taken;
+                                nextPC = bpred_nextPC;
                             }
                             
                             if (thisPC.branching()) {

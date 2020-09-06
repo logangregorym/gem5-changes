@@ -1,8 +1,7 @@
-#ifndef __ARCH_X86_SUPEROP_ARRAY_DEPENDENCY_TRACKER_HH__
-#define __ARCH_X86_SUPEROP_ARRAY_DEPENDENCY_TRACKER_HH__
+#ifndef __ARCH_X86_SUPEROP_TRACE_BASED_GRAPH_HH__
+#define __ARCH_X86_SUPEROP_TRACE_BASED_GRAPH_HH__
 
 #include <vector>
-
 #include "arch/x86/decoder.hh"
 #include "arch/x86/decoder_structs.hh"
 #include "arch/x86/regs/misc.hh"
@@ -16,7 +15,7 @@
 #include "cpu/pred/bpred_unit.hh"
 #include "cpu/pred/ltage.hh"
 #include "debug/SuperOp.hh"
-#include "params/ArrayDependencyTracker.hh"
+#include "params/TraceBasedGraph.hh"
 #include "sim/sim_object.hh"
 #include <set>
 
@@ -24,11 +23,11 @@ using namespace std;
 
 class ISA;
 
-class ArrayDependencyTracker : public SimObject
+class TraceBasedGraph : public SimObject
 {
   public:
 	// Constructor
-	ArrayDependencyTracker(ArrayDependencyTrackerParams *p);
+	TraceBasedGraph(TraceBasedGraphParams *p);
 
 	X86ISA::Decoder* decoder;
 
@@ -64,62 +63,8 @@ class ArrayDependencyTracker : public SimObject
 
 	void registerRemovalOfTraceInst(int i1, int i2, int i3);
 
-/*
-	struct FullUopAddr {
-		Addr pcAddr;
-		unsigned uopAddr;
-
-		FullUopAddr(Addr p, unsigned u) {
-			pcAddr = p;
-			uopAddr = u;
-		}
-
-		FullUopAddr() {
-			pcAddr = 0;
-			uopAddr = 0;
-		}
-
-		bool operator==(const FullUopAddr& rhs) {
-			return (pcAddr == rhs.pcAddr) && (uopAddr == rhs.uopAddr);
-		}
-
-		bool operator!=(const FullUopAddr& rhs) {
-			return (pcAddr != rhs.pcAddr) || (uopAddr != rhs.uopAddr);
-		}
-	};
-
-	struct FullCacheIdx {
-		int idx;
-		int way;
-		int uop;
-		bool valid;
-
-		FullCacheIdx(int i, int w, int u) {
-			idx = i;
-			way = w;
-			uop = u;
-			valid = true;
-		}
-
-		FullCacheIdx() {
-			idx = 0;
-			way = 0;
-			uop = 0;
-			valid = false;
-		}
-
-		bool operator==(const FullCacheIdx& rhs) {
-			return (idx == rhs.idx) && (way == rhs.way) && (uop == rhs.uop);
-		}
-
-		bool operator!=(const FullCacheIdx& rhs) {
-			return (idx != rhs.idx) || (way != rhs.way) || (uop != rhs.uop);
-		}
-	};
-*/
-
-	FullCacheIdx getNextCacheIdx(FullCacheIdx idx);
-	FullCacheIdx getPrevCacheIdx(FullCacheIdx idx);
+	FullCacheIdx getNextCacheIdx(FullCacheIdx);
+	FullCacheIdx getPrevCacheIdx(FullCacheIdx);
 
 	FullCacheIdx simplifyIdx = FullCacheIdx();
 
@@ -303,16 +248,12 @@ class ArrayDependencyTracker : public SimObject
 	bool connectionsValidSpec[4096] = {0}; // Must be kept identical to connectionCount
 	ControlFlowPath branches[4096];
 	bool branchesValid[4096] = {0};
-	unsigned maxRecursiveDepth = 8;
 	FullUopAddr predictionSource[4096];
 	bool predictionSourceValid[4096] = {0};
 	unsigned predictionConfidence[4096] = {0};
 	unsigned predictionResolutionLatency[4096] = {0};
 
 	// Exploration and stats
-	void measureChain(Addr addr, unsigned uopAddr);
-	void measureChain(FullUopAddr addr, unsigned recursionLevel); // , vector<FullUopAddr>& checked);
-	bool isReducable(Addr addr, unsigned uopAddr);
 	void describeEntry(int idx, int way, int uop);
 	void describeFullGraph();
 
@@ -358,6 +299,6 @@ class ArrayDependencyTracker : public SimObject
 	Stats::Formula averageCyclesInSpecCache;
 	void regStats();
 
-}; // class ArrayDependencyTracker
+}; // class TraceBasedGraph
 
-#endif // __ARCH_X86_SUPEROP_ARRAY_DEPENDENCY_TRACKER_HH__
+#endif // __ARCH_X86_TRACE_BASED_GRAPH_HH__

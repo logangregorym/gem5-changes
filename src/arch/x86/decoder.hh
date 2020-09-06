@@ -37,9 +37,10 @@
 
 #include "cpu/base.hh"
 #include "cpu/thread_context.hh"
-
+#include "arch/x86/decoder_structs.hh"
 #include "arch/x86/regs/misc.hh"
 #include "arch/x86/superop/array_dependency_tracker.hh"
+#include "arch/x86/superop/trace_based_graph.hh"
 #include "arch/x86/types.hh"
 #include "base/bitfield.hh"
 #include "base/logging.hh"
@@ -111,7 +112,7 @@ class Decoder
     uint8_t defAddr;
     uint8_t stack;
 
-public:
+  public:
     bool isUopCachePresent;
     bool isMicroFusionPresent;
     bool isUopCacheActive;
@@ -119,6 +120,8 @@ public:
     ExtMachInst uopCache[32][8][6]; // 48, 8, 6
     Addr uopAddrArray[32][8][6];
     uint64_t uopTagArray[32][8];
+	int uopPrevWayArray[32][8];
+	int uopNextWayArray[32][8];
     bool uopValidArray[32][8];
     int uopCountArray[32][8];
     int uopLRUArray[32][8];
@@ -129,7 +132,7 @@ public:
     bool isSpeculativeCachePresent;
     bool speculativeCacheActive;
     StaticInstPtr speculativeCache[32][8][6];
-    ArrayDependencyTracker::FullUopAddr speculativeAddrArray[32][8][6];
+    FullUopAddr speculativeAddrArray[32][8][6];
     uint64_t speculativeTagArray[32][8];
     int speculativePrevWayArray[32][8];
     int speculativeNextWayArray[32][8];
@@ -299,61 +302,7 @@ protected:
     // static InstCacheMap instCacheMap;
 
   public:
-    Decoder(ISA* isa = nullptr, DerivO3CPUParams* params = nullptr) : basePC(0), origPC(0), offset(0), cpu(NULL),
-        outOfBytes(true), instDone(false),
-        state(ResetState)
-    {
-        emi.reset();
-        mode = LongMode;
-        submode = SixtyFourBitMode;
-        emi.mode.mode = mode;
-        emi.mode.submode = submode;
-        altOp = 0;
-        defOp = 0;
-        altAddr = 0;
-        defAddr = 0;
-        stack = 0;
-        instBytes = &dummy;
-        decodePages = NULL;
-        // instMap = NULL;
-        isUopCachePresent = false;
-        isMicroFusionPresent = false;
-        isSpeculativeCachePresent = false;
-        speculativeCacheActive = false;
-        redirectDueToLVPSquashing = false;
-        for (int idx=0; idx<32; idx++) {
-          for (int way=0; way<8; way++) {
-            uopValidArray[idx][way] = false;
-            uopCountArray[idx][way] = 0;
-            uopLRUArray[idx][way] = way;
-	    	uopHotnessArray[idx][way] = BigSatCounter(4);
-	    
-        	// Parallel cache for optimized micro-ops
-        	speculativeValidArray[idx][way] = false;
-        	speculativeCountArray[idx][way] = 0;
-        	speculativeLRUArray[idx][way] = way;
-	    	speculativeTagArray[idx][way] = 0;
-	    	speculativePrevWayArray[idx][way] = 10;
-	    	speculativeNextWayArray[idx][way] = 10;
-	    	specHotnessArray[idx][way] = BigSatCounter(4);
-	    	for (int uop = 0; uop < 6; uop++) {
-	    		speculativeAddrArray[idx][way][uop] = ArrayDependencyTracker::FullUopAddr();
-				speculativeTraceSources[idx][way][uop] = 0;
-  	      	}
-          }
-        }
-        if (params != nullptr){
-            if (params->depTracker != nullptr){
-                depTracker = params->depTracker;
-                depTracker->decoder = this;
-                depTracker->branchPred = params->branchPred;
-            }
-            else {
-                // CPUO3 without depTracker?!
-                assert(0);
-            }
-        }
-    }
+    Decoder(ISA* isa = nullptr, DerivO3CPUParams* params = nullptr);
 
     void setM5Reg(HandyM5Reg m5Reg)
     {
@@ -495,11 +444,11 @@ protected:
 	// Interface for superoptimization, interacts with cache differently in gem5
 	// In hardware wouldn't need a different interface, as both are streaming caches
 
-	ArrayDependencyTracker::FullCacheIdx addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop);
+	FullCacheIdx addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop);
 
-	ArrayDependencyTracker::FullCacheIdx updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop);
+	FullCacheIdx updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop);
 
-	ArrayDependencyTracker::FullCacheIdx addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop);
+	FullCacheIdx addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop);
 
 
     
@@ -521,7 +470,8 @@ protected:
 
 	void invalidateSpecCacheLine(int idx, int way);
 
-	unsigned getSpecTraceLength(Addr addr);
+//	unsigned getSpecTraceLength(Addr addr);
+	unsigned getSpecTraceLength(FullCacheIdx specIdx);
 
 	unsigned getHotnessOfTrace(Addr addr);
 
@@ -533,7 +483,8 @@ protected:
     // tells fetch stage that if a speculative trace is availble for this PC
 	bool isTraceAvailable(const X86ISA::PCState thisPC);
 
-	bool isProfitable(Addr addr, unsigned uop);
+//	bool isProfitable(Addr addr, unsigned uop);
+	bool isProfitable(FullCacheIdx specIdx, FullCacheIdx uopIdx);
 
     StaticInstPtr getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
 
@@ -553,7 +504,8 @@ protected:
 		}
 	};
 
-	TraceMetaData getTraceMetaData(Addr addr);
+//	TraceMetaData getTraceMetaData(Addr addr);
+	TraceMetaData getTraceMetaData(FullCacheIdx specIdx, FullCacheIdx uopIdx);
 
 	void addSourceToCacheLine(unsigned predID, int idx, uint64_t tag);
 };
