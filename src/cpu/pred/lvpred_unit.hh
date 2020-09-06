@@ -65,6 +65,8 @@ class LVPredUnit : public SimObject
      */
     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle) = 0;
 
+    virtual uint64_t getValuePredicted(Addr addr) { panic("getValuePredicted not implemented for this type of value predictor\n"); }
+
     /**
      * Called when a value is returned from memory.
      * cyclesElapsed = memoryAccessStartCycle - memoryAccessEndCycle

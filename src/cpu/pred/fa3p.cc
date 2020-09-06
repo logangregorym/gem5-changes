@@ -42,7 +42,7 @@ void FA3P::setUpTables(const Params *params)
 unsigned FA3P::getConfidence(Addr addr) {
     for (int i=0; i < tableEntries; i++) {
         if (threadPredictors[0].LVT[i].tag == addr) {
-            return threadPredictors[0].LVT[i].confidence.read();
+            return threadPredictors[0].LVT[i].confidence.read() - firstConst;
         }
     }
     return 0;
@@ -116,6 +116,51 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
     DPRINTF(LVP, "Status for address %x is %i\n", loadAddr, status - firstConst);
     ++predictionsMade;
     return LVPredUnit::lvpReturnValues(value, status - firstConst);
+}
+
+uint64_t FA3P::getValuePredicted(Addr loadAddr) 
+{
+    predictor &threadPred = threadPredictors[0]; // Assuming single-threaded for now
+
+    LVTEntry *addressInfo = NULL;
+    bool foundAddress = false;
+    for (int i=0; i < tableEntries; i++) {
+        if (threadPred.LVT[i].tag == loadAddr) {
+            addressInfo = &threadPred.LVT[i];
+            foundAddress = true;
+        }
+        else if (threadPred.LVT[i].tag == 0) {
+            threadPred.LVT[i].tag = loadAddr;
+            addressInfo = &threadPred.LVT[i];
+            foundAddress = true;
+        }
+    }
+
+    if (!foundAddress) {
+        panic("Asked for predicted value, but none exists\n");
+    }
+
+    uint8_t choice = threadPred.choice[addressInfo->history.read()];
+    DPRINTF(LVP, "Choice %i selected for address %x based on history %x\n", choice, loadAddr, addressInfo->history.read());
+    uint64_t value;
+    int8_t status;
+    if (choice == 1) {
+        value = addressInfo->val1.value;
+        status = addressInfo->confidence.read();
+    } else if (choice == 2) {
+        value = addressInfo->val2.value;
+        status = addressInfo->confidence.read();
+    } else if (choice == 3) {
+        value = addressInfo->val3.value;
+        status = addressInfo->confidence.read();
+    } else {
+        value = 0;
+        status = -1;
+    }
+    DPRINTF(LVP, "Value for address %x is %llx\n", loadAddr, value);
+    DPRINTF(LVP, "Status for address %x is %i\n", loadAddr, status - firstConst);
+    ++predictionsMade;
+    return value;
 }
 
 bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)

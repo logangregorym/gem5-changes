@@ -1149,7 +1149,7 @@ DefaultFetch<Impl>::tick()
     numInst = 0;
 
    for (int tid = 0; tid < numThreads; tid++) {
-   	decoder[tid]->depTracker->simplifyGraph();
+   	// decoder[tid]->depTracker->simplifyGraph();
 	if ((((int) cpu->numCycles.value()) % 128) == 0) {
 	    decoder[tid]->tickAllHotnessCounters();
 	}
@@ -1364,11 +1364,11 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                 if (instruction->staticInst->isMacroop()) {
                     assert(!instruction->staticInst->isMacroop());
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
-                        decoder[tid]->depTracker->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
+                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
                         // decoder[tid]->depTracker->measureChain(thisPC.instAddr(), uop);
                     }
                 } else {
-                    decoder[tid]->depTracker->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
+                    decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
                     // decoder[tid]->depTracker->measureChain(thisPC.instAddr(), 0);
                 }
             }
@@ -1380,13 +1380,13 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                     assert(!instruction->staticInst->isMacroop());
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
                         if (decoder[tid]->isSuperOptimizationPresent) {
-                            decoder[tid]->depTracker->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
+                            decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
                             // decoder[tid]->depTracker->simplifyGraph();
                         }
                     }
                 } else {
                     if (decoder[tid]->isSuperOptimizationPresent) {
-                        decoder[tid]->depTracker->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
+                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
                         // decoder[tid]->depTracker->simplifyGraph();
                     }
                 }
@@ -1498,6 +1498,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     bool inUopCache = false;
     bool useUopCache = false;
     bool inSpeculativeCache = false;
+    if (!decoder[tid]->isSpeculativeCacheActive()) {
+    	currentTraceID = decoder[tid]->isTraceAvailable(thisPC);
+    }
 
     // If returning from the delay of a cache miss, then update the status
     // to running, otherwise do the cache access.  Possibly move this up
@@ -1524,7 +1527,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             decoder[tid]->setUopCacheActive(false);
             //fetchBufferValid[tid] = false;
         }
-        else if (isSuperOptimizationPresent && decoder[tid]->isTraceAvailable(thisPC) && !decoder[tid]->redirectDueToLVPSquashing) 
+        else if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
         {
         
             DPRINTF(Fetch, "Setting speculative cache active at Pc %s.\n", thisPC);
@@ -1735,7 +1738,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         // TODO: fetchBufferPC[tid] ?
                         DPRINTF(Fetch, "Asking SPEC for microop at %s and to update %s (%d)\n", thisPC, nextPC, nextPC.valid);
 
-                        staticInst = decoder[tid]->getSuperOptimizedMicroop(thisPC, nextPC, predict_taken);
+                        staticInst = decoder[tid]->getSuperOptimizedMicroop(currentTraceID, thisPC, nextPC, predict_taken);
 
                         if (staticInst == StaticInst::nullStaticInstPtr) {
                             DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and a nullStaticInstPtr\n", nextPC, nextPC.valid);
@@ -2042,8 +2045,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 // whenever we need to fetch a new macroop check whether we can start fetching from speculative cahce
                 if (newMacro)
                 {
-                    
-                    if (isSuperOptimizationPresent && decoder[tid]->isTraceAvailable(thisPC) && !decoder[tid]->redirectDueToLVPSquashing) 
+                    currentTraceID = decoder[tid]->isTraceAvailable(thisPC);
+                    if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
                     {
         
                         DPRINTF(Fetch, "Swithching from Uop$/Decoder to Speculative Cache active at Pc %s as profitability analysis unit requested.\n", thisPC);

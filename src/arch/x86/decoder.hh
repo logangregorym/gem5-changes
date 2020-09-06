@@ -118,7 +118,7 @@ class Decoder
     bool isUopCacheActive;
     bool isSuperOptimizationPresent;
     ExtMachInst uopCache[32][8][6]; // 48, 8, 6
-    Addr uopAddrArray[32][8][6];
+    FullUopAddr uopAddrArray[32][8][6];
     uint64_t uopTagArray[32][8];
 	int uopPrevWayArray[32][8];
 	int uopNextWayArray[32][8];
@@ -140,6 +140,9 @@ class Decoder
     int speculativeCountArray[32][8];
     int speculativeLRUArray[32][8];
 	BigSatCounter specHotnessArray[32][8];
+	unsigned speculativeTraceIDArray[32][8];
+
+	// Can I remove this? If pred ids are associated with trace ids, not cache lines, now?
 	unsigned speculativeTraceSources[32][8][6]; // pred IDs of predictions used in trace
 
 	void tickAllHotnessCounters() {
@@ -392,7 +395,8 @@ protected:
   public:
 
     // Dependency Tracking Unit for Speculative Superoptimization
-    ArrayDependencyTracker* depTracker;
+    // ArrayDependencyTracker* depTracker;
+    TraceBasedGraph* traceConstructor;
 
     StaticInstPtr decodeInst(ExtMachInst mach_inst);
 
@@ -444,11 +448,11 @@ protected:
 	// Interface for superoptimization, interacts with cache differently in gem5
 	// In hardware wouldn't need a different interface, as both are streaming caches
 
-	FullCacheIdx addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop);
+	FullCacheIdx addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, unsigned traceID);
 
-	FullCacheIdx updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop);
+	FullCacheIdx updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsigned traceID);
 
-	FullCacheIdx addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop);
+	FullCacheIdx addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop, unsigned traceID);
 
 
     
@@ -462,7 +466,7 @@ protected:
     bool doSquash(const StaticInstPtr si, X86ISA::PCState pc);
 
 
-	bool isSourceOfPrediction(Addr addr, unsigned uop);
+	bool isSourceOfPrediction(Addr addr, unsigned uop, unsigned traceID);
 
 	StaticInstPtr getSuperoptimizedInst(Addr addr, unsigned uop);
 
@@ -481,12 +485,12 @@ protected:
 
 	// Interface for fetch!
     // tells fetch stage that if a speculative trace is availble for this PC
-	bool isTraceAvailable(const X86ISA::PCState thisPC);
+	unsigned isTraceAvailable(const X86ISA::PCState thisPC);
 
 //	bool isProfitable(Addr addr, unsigned uop);
 	bool isProfitable(FullCacheIdx specIdx, FullCacheIdx uopIdx);
 
-    StaticInstPtr getSuperOptimizedMicroop(const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
+    StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
 
     void regStats();
 

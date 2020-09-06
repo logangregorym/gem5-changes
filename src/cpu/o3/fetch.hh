@@ -417,6 +417,9 @@ class DefaultFetch
     /** Pointer to the Load Value Prediction Unit. */
     LVPredUnit *loadPred;
 
+    // For Trace-Based Implementation, need to track trace ID across cycles
+    unsigned currentTraceID = 0;
+
   private:
     /** Constant buffer lists load inst addresses that predict correctly. */
     // vector<Addr> constantLoads;

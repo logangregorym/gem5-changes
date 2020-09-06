@@ -17,7 +17,7 @@
 #include "debug/SuperOp.hh"
 #include "params/TraceBasedGraph.hh"
 #include "sim/sim_object.hh"
-#include <set>
+#include <queue>
 
 using namespace std;
 
@@ -33,229 +33,45 @@ class TraceBasedGraph : public SimObject
 
 	bool usingControlTracking = false;
 
-	unsigned connectionCount = 8192;
-
-	// void removeFromGraph(Addr addr, unsigned uopAddr, unsigned cycledRemoved);
-
-	void removeAtIndex(int i1, int i2, int i3);
-
 	void predictValue(Addr addr, unsigned uopAddr, int64_t value);
 
-	bool simplifyGraph();
+	void updateSpecTrace(int i1, int i2, int i3, unsigned traceID);
 
-	void updateSpecTrace(int i1, int i2, int i3);
+	// void moveTraceInstOneForward(int i1, int i2, int i3);
 
-	void moveTraceInstOneForward(int i1, int i2, int i3);
+	// void invalidateTraceInst(int i1, int i2, int i3);
 
-	void invalidateTraceInst(int i1, int i2, int i3);
+	void invalidateBranch(Addr addr);
 
-	void invalidateConnection(unsigned connectionIndex);
-
-	void invalidateBranch(unsigned branchIndex);
-
-	void markLastUse(unsigned regIdx);
-
-	bool isPredictionSource(Addr addr, unsigned uop);
+	bool isPredictionSource(Addr addr, unsigned uop, unsigned traceID);
 
 	void flushMisprediction(Addr addr, unsigned uop);
 
-	void flushMisprediction(unsigned predId);
+	// void flushMisprediction(unsigned predId);
 
-	void registerRemovalOfTraceInst(int i1, int i2, int i3);
+	// void registerRemovalOfTraceInst(int i1, int i2, int i3);
 
 	FullCacheIdx getNextCacheIdx(FullCacheIdx);
 	FullCacheIdx getPrevCacheIdx(FullCacheIdx);
 
+	bool generateNextTraceInst();
 	FullCacheIdx simplifyIdx = FullCacheIdx();
 
 	void incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC, bool &predict_taken);
-	bool isTakenBranch(FullUopAddr addr);
+	bool isTakenBranch(FullUopAddr addr, FullCacheIdx specIdx);
 
-	void addToGraph(StaticInstPtr uop, Addr addr, unsigned uopAddr, unsigned cycleAdded, ThreadID tid, FullCacheIdx idx);
+	uint64_t registerValue[256] = {0};
+	bool registerValid[256] = {0};
 
-	unsigned registerRenameMapSpec[256] = {0};
-	FullCacheIdx registerProducerMapSpec[256];
-	FullCacheIdx mostRecentConsumer[256];
-	bool consumedInWindow[256] = {0};
-	bool registerValidMapSpec[256] = {0};
-	unsigned nextRegNameSpec = 1;
-
-	struct InformationFlowPath {
-		FullCacheIdx producer = FullCacheIdx();
-		FullCacheIdx consumer = FullCacheIdx();
-		unsigned archRegIdx;
-		unsigned renamedRegIdx;
-		int64_t value;
-		bool valid;
-		bool lastUse;
-		unsigned directControlDependency = 0;
-		unsigned indirectControlDependency = 0;
-		unsigned dataDependencies[8] = {0};
-
-		InformationFlowPath() {
-			producer = FullCacheIdx();
-			consumer = FullCacheIdx();
-			archRegIdx = 0;
-			renamedRegIdx = 0;
-			value = 0;
-			valid = false;
-			lastUse = false;
-			directControlDependency = 0;
-			indirectControlDependency = 0;
-		}
-
-		InformationFlowPath(FullCacheIdx p, FullCacheIdx c, unsigned a, unsigned r) {
-			producer = p;
-			consumer = c;
-			archRegIdx = a;
-			renamedRegIdx = r;
-			value = 0;
-			valid = false;
-			lastUse = false;
-			directControlDependency = 0;
-			indirectControlDependency = 0;
-		}
-
-		InformationFlowPath(FullCacheIdx p, FullCacheIdx c, unsigned a, unsigned r, uint64_t v, bool b, bool d) {
-			producer = p;
-			consumer = c;
-			archRegIdx = a;
-			renamedRegIdx = r;
-			value = v;
-			valid = b;
-			lastUse = false;
-			directControlDependency = 0;
-			indirectControlDependency = 0;
-		}
-
-		void predict(uint64_t v, unsigned predID) {
-			value = v;
-			valid = true;
-			bool found = false;
-			for (int i = 0; i < 8; i++) {
-				if (!found && (dataDependencies[i] == 0)) {
-					dataDependencies[i] = predID;
-					found = true;
-				}
-			}
-		}
-
-		void addDependency(unsigned id) {
-			bool found = false;
-			for (int i=0; i<8; i++) {
-				if (dataDependencies[i] == id) {
-					return; // already added!
-				}
-			}
-			for (int i = 0; i<8; i++) {
-				if (!found && (dataDependencies[i] == 0)) {
-					dataDependencies[i] = id;
-					found = true;
-				}
-			}
-		}
-
-		bool hasDependency(unsigned id) {
-			for (int i=0; i<8; i++) {
-				if (dataDependencies[i] == id) {
-					return true;
-				}
-			}
-			return false;
-		}
-
-		void removeDependency(unsigned id) {
-			for (int i=0; i<8; i++) {
-				if (dataDependencies[i] == id) {
-					dataDependencies[i] = 0;
-				}
-			}
-		}
-	};
-
-	struct ControlFlowPath {
-		FullUopAddr branchAddr = FullUopAddr(0,0);
-		FullUopAddr nextPc = FullUopAddr(0,0);
-		bool taken;
-		bool targetValid = false;
-		FullUopAddr propagatingTo = FullUopAddr(0,0);
-		unsigned registerRenameMap[256];
-		FullCacheIdx registerProducerMap[256];
-		bool registerValidMap[256];
-		bool confident = false;
-
-		ControlFlowPath() {
-			branchAddr = FullUopAddr(0,0);
-			nextPc = FullUopAddr(0,0);
-			for (int i=0; i<256; i++) {
-				registerRenameMap[i] = 0;
-				registerProducerMap[i] = FullCacheIdx();
-				registerValidMap[i] = false;
-			}
-		}
-
-		ControlFlowPath(FullUopAddr bf, FullUopAddr bt) {
-			branchAddr = bf;
-			nextPc = bt;
-			for (int i=0; i<256; i++) {
-				registerRenameMap[i] = 0;
-				registerProducerMap[i] = FullCacheIdx();
-				registerValidMap[i] = false;
-			}
-		}
-	};
-
-	struct DependGraphEntry {
-		FullUopAddr thisInst = FullUopAddr(0, 0);
-		unsigned producers[256] = {0};
-		unsigned consumers[256] = {0};
-		bool seen = false;
-		unsigned cycleAdded = 0;
-		bool predicted = false;
-		int64_t value = 0;
-		bool deadCode = false;
-		FullCacheIdx specIdx = FullCacheIdx();
-
-		DependGraphEntry() {
-			thisInst = FullUopAddr(0,0);
-			for (int i=0; i<256; i++) {
-				producers[i] = 0;
-				consumers[i] = 0;
-			}
-			cycleAdded = 0;
-			seen = false;
-			value = 0;
-			predicted = false;
-		}
-
-		DependGraphEntry(FullUopAddr a) {
-			thisInst = a;
-			for (int i=0; i<256; i++) {
-				producers[i] = 0;
-				consumers[i] = 0;
-			}
-			cycleAdded = 0;
-			seen = false;
-			value = 0;
-			predicted = false;
-		}
-	};
-
-	DependGraphEntry* speculativeDependencyGraph[32][8][6];
-	FullUopAddr microopAddrArray[32][8][6];
-
-	InformationFlowPath connections[4096]; // Must be kept identical to connectionCount
-	bool connectionsValidSpec[4096] = {0}; // Must be kept identical to connectionCount
-	ControlFlowPath branches[4096];
-	bool branchesValid[4096] = {0};
 	FullUopAddr predictionSource[4096];
 	bool predictionSourceValid[4096] = {0};
-	unsigned predictionConfidence[4096] = {0};
-	unsigned predictionResolutionLatency[4096] = {0};
+	bool sourceIsBranch[4096] = {0};
 
-	// Exploration and stats
-	void describeEntry(int idx, int way, int uop);
-	void describeFullGraph();
+	queue<unsigned> traceQueue;
+	unsigned currentTrace = 0;
+	FullCacheIdx traceHead[4096]; // tweak this number?
+	bool traceComplete[4096] = {0};
+	unsigned traceSources[4096][4] = {{0}}; // prediction sources to use
 
 	BPredUnit* branchPred;
 
@@ -278,25 +94,9 @@ class TraceBasedGraph : public SimObject
 	bool propagateSrlI(int idx, int way, int uop);
 	bool propagateSExtI(int idx, int way, int uop);
 	bool propagateZExtI(int idx, int way, int uop);
-	bool propagateWrip(int idx, int way, int uop);
-	bool propagateAcrossControlDependency(unsigned branchIndex, FullUopAddr propagatingTo);
+	// bool propagateWrip(int idx, int way, int uop);
+	// bool propagateAcrossControlDependency(unsigned branchIndex, FullUopAddr propagatingTo);
 
-	Stats::Scalar numChainsMeasured;
-	Stats::Scalar totalDependentInsts;
-	Stats::Scalar reducableInstCount;
-	Stats::Scalar totalOpsInCache;
-	Stats::Scalar totalReducable;
-	Stats::Formula averageDependentInsts;
-	Stats::Formula averageNumberReducable;
-	Stats::Scalar branchesOnChains;
-	Stats::Scalar confidentBranchesOnChains;
-	Stats::Formula percentChainBranchesConfident;
-	Stats::Scalar totalCyclesInUopCache;
-	Stats::Scalar evictionsFromUopCache;
-	Stats::Scalar totalCyclesInSpecCache;
-	Stats::Scalar evictionsFromSpecCache;
-	Stats::Formula averageCyclesInUopCache;
-	Stats::Formula averageCyclesInSpecCache;
 	void regStats();
 
 }; // class TraceBasedGraph
