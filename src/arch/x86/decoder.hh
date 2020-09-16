@@ -490,6 +490,8 @@ protected:
 //	bool isProfitable(Addr addr, unsigned uop);
 	bool isProfitable(FullCacheIdx specIdx, FullCacheIdx uopIdx);
 
+	unsigned profitabilityScore(FullCacheIdx specIdx);
+
     StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
 
     void regStats();
@@ -497,6 +499,10 @@ protected:
     void dumpMicroopCache();
 
 	struct TraceMetaData {
+		/*
+		 * "hotness" used as hotness in dependgraph implementation
+		 * "hotness" used as trace ID in tracegeneration implementation
+		 */ 
 		unsigned hotness;
 		unsigned minConfidence;
 		unsigned maxLatency;
@@ -510,6 +516,7 @@ protected:
 
 //	TraceMetaData getTraceMetaData(Addr addr);
 	TraceMetaData getTraceMetaData(FullCacheIdx specIdx, FullCacheIdx uopIdx);
+	TraceMetaData getTraceMetaData(FullCacheIdx specIdx);
 
 	void addSourceToCacheLine(unsigned predID, int idx, uint64_t tag);
 };

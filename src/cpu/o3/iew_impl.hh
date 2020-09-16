@@ -1382,7 +1382,7 @@ DefaultIEW<Impl>::executeInsts()
                         ThreadID tid = inst->threadNumber;
                         DPRINTF(LVP, "makePrediction called by inst [sn:%i]\n", inst->seqNum);
                         LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(inst->pcState(), tid, cpu->numCycles.value());
-                        if (ret.confidence >= 0) { cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), true); }
+                        // if (ret.confidence >= 0) { cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), true); }
                         DPRINTF(LVP, "fetch predicted (%i) %x with confidence %i, iew predicted %x with confidence %i\n", inst->predictedLoad, inst->predictedValue, inst->confidence, ret.predictedValue, ret.confidence);
 
                         if (inst->predictedLoad) {
@@ -1536,7 +1536,7 @@ DefaultIEW<Impl>::executeInsts()
                     }
                     if (inst->lvMispred) {
                     	DPRINTF(LVP, "OH NO! processPacketRecieved returned false :(\n");
-                    	cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
+                    	// cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
                     	loadPred->lastMisprediction = inst->memoryAccessEndCycle;
                     	// Moved from commit
                     	cpu->commit.squashWokenDependents(inst);

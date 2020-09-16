@@ -35,27 +35,78 @@ void TraceBasedGraph::invalidateBranch(Addr addr) {
 
 void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
 {
-	// Add predictin source for this inst if not here already
-	for (int i=0; i<4096; i++) {
+	// Add prediction source for this inst if not here already
+	// TODO: new trace
+
+	unsigned source = 0;
+
+	for (int i=1; i<4096 && !source; i++) {
 		if (predictionSource[i] == FullUopAddr(addr, uopAddr)) {
 			predictionSourceValid[i] = true;
-			return;
+			source = i;
 		}
 	}
-	for (int i=0; i<4096; i++) {
+	for (int i=1; i<4096 && !source; i++) {
 		if (predictionSourceValid[i] == false) {
 			predictionSource[i] = FullUopAddr(addr, uopAddr);
 			predictionSourceValid[i] = true;
+			source = i;
+		}
+	}
+	if (!source) {
+		panic("Ran out of space in predictionSource array\n");
+	}
+
+	// Check for existing trace for this pred ID
+	for (int i=1; i<4096; i++) {
+		if (traceSources[i][0] == source && traceSources[i][1] == 0 && traceSources[i][2] == 0 && traceSources[i][3] == 0) {
 			return;
 		}
 	}
-	panic("Ran out of space in predictionSource array\n");
+	unsigned newTrace = 0;
+	for (int i=1; i<4096 && !newTrace; i++) {
+		if (!traceHead[i].valid) {
+			newTrace = i;
+		}
+	}
+	if (!newTrace) {
+		panic("Ran out of space in list of traces\n");
+	}
+
+	// If found just return
+	// If not found, push if hot; need uop addr
+	int idx = (addr >> 5) & 0x1f;
+    	uint64_t tag = (addr >> 10);
+    	for (int way = 0; way < 8; way++) {
+      		if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
+        		for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
+          			if (decoder->uopAddrArray[idx][way][uop].pcAddr == addr && decoder->uopAddrArray[idx][way][uop].uopAddr == uopAddr) {
+            				if (decoder->uopHotnessArray[idx][way].read() < 3) { return; }
+					// Time to add the trace
+					traceHead[newTrace] = FullCacheIdx(idx, way, uop);
+					traceComplete[newTrace] = false;
+					traceSources[newTrace][0] = source;
+					traceSources[newTrace][1] = 0;
+					traceSources[newTrace][2] = 0;
+					traceSources[newTrace][3] = 0;
+					traceQueue.push(newTrace);
+					return;
+          			}
+        		}
+      		}
+    	}
+	
 }
 
 bool TraceBasedGraph::generateNextTraceInst() {
+	// std::cout << "Generating..." << std::endl;
 	if (!simplifyIdx.valid) { 
 		// Pop a new trace from the queue, start at top
-		assert(!currentTrace);
+		if (currentTrace) {
+			std::cout << "currentTrace is " << currentTrace << " and simplifyIdx is " << simplifyIdx.idx << "." << simplifyIdx.way << "." << simplifyIdx.uop << std::endl;
+		}
+		if (traceQueue.empty()) { return false; }
+		std::cout << "Popping a trace id to optimize" << std::endl;
 		currentTrace = traceQueue.front();
 		traceQueue.pop();
 		simplifyIdx = traceHead[currentTrace];

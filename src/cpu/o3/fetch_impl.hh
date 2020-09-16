@@ -1149,7 +1149,7 @@ DefaultFetch<Impl>::tick()
     numInst = 0;
 
    for (int tid = 0; tid < numThreads; tid++) {
-   	// decoder[tid]->depTracker->simplifyGraph();
+   	decoder[tid]->traceConstructor->generateNextTraceInst(); // was depTracker->simplifyGraph
 	if ((((int) cpu->numCycles.value()) % 128) == 0) {
 	    decoder[tid]->tickAllHotnessCounters();
 	}
@@ -1356,24 +1356,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                 instruction->predictedValue = ret.predictedValue;
                 instruction->confidence = ret.confidence;
                 instruction->predictedLoad = true;
-            }
-
-            // FOR THEORETICAL BOUNDS
-            
-            if (instruction->confidence >= 0) {
-                if (instruction->staticInst->isMacroop()) {
-                    assert(!instruction->staticInst->isMacroop());
-                    for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
-                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
-                        // decoder[tid]->depTracker->measureChain(thisPC.instAddr(), uop);
-                    }
-                } else {
-                    decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
-                    // decoder[tid]->depTracker->measureChain(thisPC.instAddr(), 0);
-                }
-            }
-            // decoder[tid]->depTracker->simplifyGraph();
-            
+            } 
 
             if (instruction->confidence >= 0) {
                 if (instruction->isMacroop()) {
@@ -1390,9 +1373,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                         // decoder[tid]->depTracker->simplifyGraph();
                     }
                 }
-                updateConstantBuffer(thisPC.instAddr(), true);
-            } else {
-                updateConstantBuffer(thisPC.instAddr(), false);
+                // updateConstantBuffer(thisPC.instAddr(), true);
             }
         }
     }
@@ -1732,7 +1713,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                 //*****CHANGE START**********
                 if (isSuperOptimizationPresent && inSpeculativeCache) {
-                        
+                        std::cout << "Trying to get super-optimized microop" << std::endl;
                         bool predict_taken = false;
                         // fetch next microop and also update the nextPC, so we can decide whether there is
                         // TODO: fetchBufferPC[tid] ?
@@ -2413,28 +2394,6 @@ DefaultFetch<Impl>::profileStall(ThreadID tid) {
     } else {
         DPRINTF(Fetch, "[tid:%i]: Unexpected fetch stall reason (Status: %i).\n",
              tid, fetchStatus[tid]);
-    }
-}
-
-template<class Impl>
-void
-DefaultFetch<Impl>::updateConstantBuffer(Addr addr, bool valid) {
-    for (int i = 0; i < 256; i++) {
-        // first pass, scan for address match
-        if (constantLoadAddrs[i] == addr) {
-            constantLoadValidBits[i] = valid;
-            return;
-        }
-    }
-    // if match not found, add
-    if (valid) {
-        for (int i = 0; i < 256; i++) {
-            if (!constantLoadValidBits[i]) {
-                constantLoadAddrs[i] = addr;
-                constantLoadValidBits[i] = true;
-                return;
-            }
-        }
     }
 }
 

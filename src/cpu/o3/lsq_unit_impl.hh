@@ -1169,7 +1169,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                 }
                 if (inst->lvMispred) {
                     DPRINTF(LVP, "OH NO! processPacketRecieved returned false :(\n");
-                    cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
+                    // cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
                     iewStage->loadPred->lastMisprediction = inst->memoryAccessEndCycle;
                     // Moved from commit
                     cpu->commit.squashWokenDependents(inst);

@@ -378,11 +378,6 @@ class DefaultFetch
     /** The decoder. */
     TheISA::Decoder *decoder[Impl::MaxThreads];
 
-    void updateConstantBuffer(Addr addr, bool valid);
-
-//    void dumpMicroopCache();
-    void dumpConstantBuffer();
-
   private:
     DynInstPtr buildInst(ThreadID tid, StaticInstPtr staticInst,
                          StaticInstPtr curMacroop, TheISA::PCState thisPC,
@@ -421,15 +416,6 @@ class DefaultFetch
     unsigned currentTraceID = 0;
 
   private:
-    /** Constant buffer lists load inst addresses that predict correctly. */
-    // vector<Addr> constantLoads;
-
-    /** Array implementation of constant buffer. */
-    Addr constantLoadAddrs[256] = {0};
-    bool constantLoadValidBits[256] = {0};
-
-    // unsigned constantBufferSize;
-
     bool usingTrace = false;
 
     unsigned dumpFrequency;

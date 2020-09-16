@@ -40,6 +40,7 @@
 #include "debug/SuperOp.hh"
 
 #include <iostream>
+#include <algorithm>
 
 namespace X86ISA
 {
@@ -1427,6 +1428,40 @@ Decoder::fetchUopFromSpeculativeCache(Addr addr, PCState &nextPC)
 
 unsigned
 Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
+	// Consider multiple candidate trances
+	if (thisPC.microPC() != 0) {
+		return 0; // Must be head of trace
+	}
+
+	int idx = (thisPC.instAddr() >> 5) & 0x1f;
+	uint64_t tag = (thisPC.instAddr() >> 10);
+	for (int way = 0; way < 8; way++) {
+		if (uopValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+			if (uopHotnessArray[idx][way].read() < 3) {
+				return 0;
+			}
+		}
+	}
+	unsigned maxScore = 0;
+	unsigned maxTraceID = 0;
+	for (int way = 0; way < 8; way++) {
+		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+			// std::cout << "Found a trace to check" << std::endl;
+			FullCacheIdx specIdx = FullCacheIdx(idx, way, 0);
+			TraceMetaData info = getTraceMetaData(specIdx);
+			unsigned length = getSpecTraceLength(specIdx);
+			if (info.minConfidence < 5) { return 0;}
+			unsigned score = std::min(std::min(info.minConfidence, info.maxLatency), length);
+			if (info.minConfidence < 5) { score = 0; }
+			if (score > maxScore) {
+				maxScore = score; // Select this trace
+				maxTraceID = info.hotness; // Re-using this field
+			}
+		}
+	}
+	if (maxTraceID != 0) { std::cout << "Returning max ID: " << maxTraceID << std::endl; }
+
+	return maxTraceID;
 /* 
  * Need a new solution for new implementation
 
@@ -1455,7 +1490,6 @@ Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 	// if not found
 
 */
-	return 0;
 }
 
 /*
@@ -1482,6 +1516,16 @@ Decoder::isProfitable(FullCacheIdx specIdx, FullCacheIdx uopIdx) {
 	return hotness > 3 && (length > 5 || confidence > 5 || delay > 5);
 }
 
+unsigned
+Decoder::profitabilityScore(FullCacheIdx specIdx) {
+	TraceMetaData info = getTraceMetaData(specIdx);
+	unsigned length = getSpecTraceLength(specIdx);
+	unsigned confidence = info.minConfidence;
+	unsigned delay = info.maxLatency;
+	if (confidence < 5) { return 0;}
+	return std::max(std::max(confidence, delay), length);
+}
+
 bool
 Decoder::doSquash(const StaticInstPtr si, X86ISA::PCState pc) {
        
@@ -1495,9 +1539,6 @@ Decoder::doSquash(const StaticInstPtr si, X86ISA::PCState pc) {
     //   return false;
     assert(0);
 }
-
-
-
 
 bool
 Decoder::isSourceOfPrediction(Addr addr, unsigned uop, unsigned traceID) {
@@ -1611,6 +1652,15 @@ Decoder::getTraceMetaData(FullCacheIdx specIdx, FullCacheIdx uopIdx) {
 		way = speculativePrevWayArray[specIdx.idx][way];
 	}
 	return TraceMetaData(uopHotnessArray[uopIdx.idx][uopIdx.way].read(), minConfidence(specIdx.idx, way), maxLatency(specIdx.idx, way));
+}
+
+Decoder::TraceMetaData
+Decoder::getTraceMetaData(FullCacheIdx specIdx) {
+	int way = specIdx.way;
+	if (speculativePrevWayArray[specIdx.idx][way] != 10) {
+		return TraceMetaData(0,0,0);
+	}
+	return TraceMetaData(speculativeTraceIDArray[specIdx.idx][way], minConfidence(specIdx.idx, way), maxLatency(specIdx.idx, way));
 }
 
 unsigned
