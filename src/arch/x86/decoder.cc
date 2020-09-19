@@ -1429,15 +1429,12 @@ Decoder::fetchUopFromSpeculativeCache(Addr addr, PCState &nextPC)
 unsigned
 Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 	// Consider multiple candidate trances
-	if (thisPC.microPC() != 0) {
-		return 0; // Must be head of trace
-	}
-
 	int idx = (thisPC.instAddr() >> 5) & 0x1f;
 	uint64_t tag = (thisPC.instAddr() >> 10);
 	for (int way = 0; way < 8; way++) {
 		if (uopValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
 			if (uopHotnessArray[idx][way].read() < 3) {
+				// std::cout << "Not hot enough to issue" << std::endl;
 				return 0;
 			}
 		}
@@ -1446,10 +1443,11 @@ Decoder::isTraceAvailable(const X86ISA::PCState thisPC) {
 	unsigned maxTraceID = 0;
 	for (int way = 0; way < 8; way++) {
 		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
-			// std::cout << "Found a trace to check" << std::endl;
+			std::cout << "Found a trace to check" << std::endl;
 			FullCacheIdx specIdx = FullCacheIdx(idx, way, 0);
 			TraceMetaData info = getTraceMetaData(specIdx);
 			unsigned length = getSpecTraceLength(specIdx);
+			std::cout << "minConfidence " << info.minConfidence << ", maxLatency " << info.maxLatency << ", length " << length << std::endl;
 			if (info.minConfidence < 5) { return 0;}
 			unsigned score = std::min(std::min(info.minConfidence, info.maxLatency), length);
 			if (info.minConfidence < 5) { score = 0; }
@@ -1658,6 +1656,7 @@ Decoder::TraceMetaData
 Decoder::getTraceMetaData(FullCacheIdx specIdx) {
 	int way = specIdx.way;
 	if (speculativePrevWayArray[specIdx.idx][way] != 10) {
+		// std::cout << "Isn't the first inst in the spec trace" << std::endl;
 		return TraceMetaData(0,0,0);
 	}
 	return TraceMetaData(speculativeTraceIDArray[specIdx.idx][way], minConfidence(specIdx.idx, way), maxLatency(specIdx.idx, way));
@@ -1666,24 +1665,16 @@ Decoder::getTraceMetaData(FullCacheIdx specIdx) {
 unsigned
 Decoder::minConfidence(unsigned idx, unsigned way) {
 	unsigned minConf = 50;
-	for (int source = 0; source < 6; source++) {
-		if (speculativeTraceSources[idx][way][source] != 0 && traceConstructor->predictionSourceValid[speculativeTraceSources[idx][way][source]]) {
-//			printf("Found a source!\n");
-			// unsigned sourceConf = depTracker->predictionConfidence[speculativeTraceSources[idx][way][source]];
-			// FullO3CPU* cpu2 = (FullO3CPU*) cpu;
-			unsigned sourceConf = cpu->getLVP()->getConfidence(traceConstructor->predictionSource[speculativeTraceSources[idx][way][source]].pcAddr);
-	//		printf("Has confidence %i\n", sourceConf);
+	unsigned traceId = speculativeTraceIDArray[idx][way];
+	for (int source = 0; source < 4; source++) {
+		// std::cout << "Checking source " << traceConstructor->traceSources[traceId][source] << std::endl;
+		if (traceConstructor->traceSources[traceId][source] != 0) {
+			// unsigned sourceConf = cpu->getLVP()->getConfidence(traceConstructor->predictionSource[speculativeTraceSources[idx][way][source]].pcAddr);
+			unsigned sourceConf = cpu->getLVP()->getConfidence(traceConstructor->predictionSource[traceConstructor->traceSources[traceId][source]].pcAddr);
 			if (sourceConf < minConf) { minConf = sourceConf; }
 		}
 	}
-	if (minConf == 50) { 
-	//	printf("No source found for spec [%i][%i]\n", idx, way);
-	//	for (int u=0; u<speculativeCountArray[idx][way]; u++) {
-	//		if (speculativeCache[idx][way][u]) {
-	//			string instPrint = speculativeCache[idx][way][u]->disassemble(speculativeAddrArray[idx][way][u].pcAddr);
-	//			printf("%s\n", instPrint.c_str());
-	//		}
-	//	} 
+	if (minConf == 50) {
 		return 0; 
 	}
 	return minConf;
@@ -1692,11 +1683,10 @@ Decoder::minConfidence(unsigned idx, unsigned way) {
 unsigned
 Decoder::maxLatency(unsigned idx, unsigned way) {
 	unsigned maxLat = 0;
-	for (int source = 0; source < 6; source++) {
-		if (speculativeTraceSources[idx][way][source] != 0 && traceConstructor->predictionSourceValid[speculativeTraceSources[idx][way][source]]) {
-			// unsigned sourceLat = depTracker->predictionResolutionLatency[speculativeTraceSources[idx][way][source]];
-			//FullO3CPU* cpu2 = (FullO3CPU*) cpu;
-			unsigned sourceLat = cpu->getLVP()->getDelay(traceConstructor->predictionSource[speculativeTraceSources[idx][way][source]].pcAddr);
+	unsigned traceId = speculativeTraceIDArray[idx][way];
+	for (int source = 0; source < 4; source++) {
+		if (traceConstructor->traceSources[traceId][source] != 0) {
+			unsigned sourceLat = cpu->getLVP()->getDelay(traceConstructor->predictionSource[traceConstructor->traceSources[traceId][source]].pcAddr);
 			if (sourceLat > maxLat) { maxLat = sourceLat; }
 		}
 	}
