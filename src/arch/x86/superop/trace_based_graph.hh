@@ -100,6 +100,9 @@ class TraceBasedGraph : public SimObject
 
 	void regStats();
 
+	Stats::Scalar tracesPoppedFromQueue;
+	Stats::Scalar tracesWithInvalidHead;
+
 }; // class TraceBasedGraph
 
 #endif // __ARCH_X86_TRACE_BASED_GRAPH_HH__

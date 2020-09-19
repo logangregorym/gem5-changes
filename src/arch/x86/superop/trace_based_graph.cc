@@ -22,7 +22,14 @@ TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), using
 
 void TraceBasedGraph::regStats()
 {
-
+	tracesPoppedFromQueue
+		.name("system.switch_cpus.decode.superop.traceConstructor.tracesPoppedFromQueue")
+		.desc("# of traces popped from the trace queue to generate")
+		;
+	tracesWithInvalidHead
+		.name("system.switch_cpus.decode.superop.traceConstructor.tracesWithInvalidHead")
+		.desc("# of traces whose first inst wasn't found in the uop cache")
+		;
 }
 
 void TraceBasedGraph::invalidateBranch(Addr addr) {
@@ -84,7 +91,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
           			if (decoder->uopAddrArray[idx][way][uop].pcAddr == addr && decoder->uopAddrArray[idx][way][uop].uopAddr == uopAddr) {
             				if (decoder->uopHotnessArray[idx][way].read() < 3) { return; }
 					// Time to add the trace
-					std::cout << "Recieved prediction for idx " << idx << "." << way << "." << uop << ": " << value << std::endl;
+					// std::cout << "Recieved prediction for idx " << idx << "." << way << "." << uop << ": " << value << std::endl;
 					traceHead[newTrace] = FullCacheIdx(idx, way, uop);
 					traceComplete[newTrace] = false;
 					traceSources[newTrace][0] = source;
@@ -105,14 +112,15 @@ bool TraceBasedGraph::generateNextTraceInst() {
 	if (!simplifyIdx.valid) { 
 		// Pop a new trace from the queue, start at top
 		if (currentTrace) {
-			std::cout << "Done! currentTrace is " << currentTrace << " and simplifyIdx is " << simplifyIdx.idx << "." << simplifyIdx.way << "." << simplifyIdx.uop << std::endl;
+			// std::cout << "Done! currentTrace is " << currentTrace << " and simplifyIdx is " << simplifyIdx.idx << "." << simplifyIdx.way << "." << simplifyIdx.uop << std::endl;
 		}
 		if (traceQueue.empty()) { return false; }
-		std::cout << "Popping a trace id to optimize" << std::endl;
+		// std::cout << "Popping a trace id to optimize" << std::endl;
+		tracesPoppedFromQueue++;
 		currentTrace = traceQueue.front();
 		traceQueue.pop();
 		simplifyIdx = traceHead[currentTrace];
-		std::cout << "Updated currentTrace to " << currentTrace << " and simplifyIdx to " << simplifyIdx.idx << "." << simplifyIdx.way << "." << simplifyIdx.uop << std::endl;
+		// std::cout << "Updated currentTrace to " << currentTrace << " and simplifyIdx to " << simplifyIdx.idx << "." << simplifyIdx.way << "." << simplifyIdx.uop << std::endl;
 		// Invalidate leftover predictions
 		for (int i=0; i<256; i++) {
 			registerValid[i] = false;
@@ -125,8 +133,11 @@ bool TraceBasedGraph::generateNextTraceInst() {
 	int i2 = simplifyIdx.way;
 	int i3 = simplifyIdx.uop;
 	if ((!decoder->uopValidArray[i1][i2]) || (i3 >= decoder->uopCountArray[i1][i2])) {
-		std::cout << "Can't find " << i1 << "." << i2 << "." << i3 << " along trace " << currentTrace << " starting at " << traceHead[currentTrace].idx << "." << traceHead[currentTrace].way << "." << traceHead[currentTrace].uop << std::endl;
-		panic("Trying to simplify inst which does not exist\n");
+		tracesWithInvalidHead++;
+		// Mark idx as invalid so a new trace id is popped
+		simplifyIdx.valid = false;
+		// std::cout << "Can't find " << i1 << "." << i2 << "." << i3 << " along trace " << currentTrace << " starting at " << traceHead[currentTrace].idx << "." << traceHead[currentTrace].way << "." << traceHead[currentTrace].uop << std::endl;
+		// panic("Trying to simplify inst which does not exist\n");
 	}
 
 	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[i1][i2][i3]);
