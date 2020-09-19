@@ -111,13 +111,14 @@ bool TraceBasedGraph::generateNextTraceInst() {
 	// std::cout << "Generating..." << std::endl;
 	if (!simplifyIdx.valid) { 
 		// Pop a new trace from the queue, start at top
-		if (currentTrace) {
-			// std::cout << "Done! currentTrace is " << currentTrace << " and simplifyIdx is " << simplifyIdx.idx << "." << simplifyIdx.way << "." << simplifyIdx.uop << std::endl;
-		}
 		if (traceQueue.empty()) { return false; }
+		if (currentTrace) {
+			std::cout << "Done optimizing trace" << currentTrace << " with length " << currentTraceLength << std::endl;
+		}
 		// std::cout << "Popping a trace id to optimize" << std::endl;
 		tracesPoppedFromQueue++;
 		currentTrace = traceQueue.front();
+		currentTraceLength = 0;
 		traceQueue.pop();
 		simplifyIdx = traceHead[currentTrace];
 		// std::cout << "Updated currentTrace to " << currentTrace << " and simplifyIdx to " << simplifyIdx.idx << "." << simplifyIdx.way << "." << simplifyIdx.uop << std::endl;
@@ -125,7 +126,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 		for (int i=0; i<256; i++) {
 			registerValid[i] = false;
 		}
-	} else { assert(currentTrace); }
+	} else { assert(currentTrace); currentTraceLength++; }
 
 	if (!simplifyIdx.valid) { return false; } // no traces in queue to pop
 
@@ -148,6 +149,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 	}
 	
 	// Any inst in a trace may be a prediction source
+	bool isSource = false;
 	for (int i=0; i<4; i++) {
 		if (predictionSourceValid[traceSources[currentTrace][i]]) {
 			if (predictionSource[traceSources[currentTrace][i]] == decoder->uopAddrArray[simplifyIdx.idx][simplifyIdx.way][simplifyIdx.uop]) {
@@ -162,85 +164,88 @@ bool TraceBasedGraph::generateNextTraceInst() {
 					registerValid[destReg.flatIndex()] = true;
 				}
 				updateSpecTrace(i1, i2, i3, currentTrace);
-				return true;
+				isSource = true;
 			}
 		}
 	}
 	
 	// On a trace, but not a source
-	string type = decodedMicroOp->getName();
-	if (type == "mov") {
-		DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateMov(i1, i2, i3);
-	} else if (type == "wrip" || type == "wripi") {
-		DPRINTF(ConstProp, "Found a WRIP/WRIPI branch at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		// propagateWrip(i1, i2, i3);
-	} else if (decodedMicroOp->isControl()) {
-		// printf("Control instruction of type %s\n", type);
-	} else if (type == "movi") {
-		DPRINTF(ConstProp, "Found a MOVI at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateMovI(i1, i2, i3);
-	} else if (type == "and") {
-		DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateAnd(i1, i2, i3);
-	} else if (type == "add") {
-		DPRINTF(ConstProp, "Found an ADD at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateAdd(i1, i2, i3);
-	} else if (type == "sub") {
-		DPRINTF(ConstProp, "Found a SUB at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateSub(i1, i2, i3);
-	} else if (type == "xor") {
-		DPRINTF(ConstProp, "Found an XOR at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateXor(i1, i2, i3);
-	} else if (type == "or") {
-		DPRINTF(ConstProp, "Found an OR at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateOr(i1, i2, i3);
-	} else if (type == "subi") {
-		DPRINTF(ConstProp, "Found a SUBI at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateSubI(i1, i2, i3);
-	} else if (type == "addi") {
-		DPRINTF(ConstProp, "Found an ADDI at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateAddI(i1, i2, i3);
-	} else if (type == "slli") {
-		DPRINTF(ConstProp, "Found a SLLI at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateSllI(i1, i2, i3);
-	} else if (type == "srli") {
-		DPRINTF(ConstProp, "Found a SRLI at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateSrlI(i1, i2, i3);
-	} else if (type == "lea") {
-		DPRINTF(ConstProp, "Type is LEA");
-		// Requires multiple ALU operations to propagate, not using
-	} else if (type == "sexti") {
-		// Implementation has multiple ALU operations, but this is not required by the nature of the operation
-		DPRINTF(ConstProp, "Found a SEXTI at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateSExtI(i1, i2, i3);
-	} else if (type == "zexti") {
-		// Implementation has multiple ALU operations, but this is not required by the nature of the operation
-		DPRINTF(ConstProp, "Found a ZEXTI at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateZExtI(i1, i2, i3);
-	} else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
-		DPRINTF(ConstProp, "Type is MUL1S, MUL1U, MULEL, or MULEH\n");
-		// TODO: two dest regs with different values? maybe too complex arithmetic?
-	} else if (type == "limm") {
-		DPRINTF(ConstProp, "Found a LIMM at [%i][%i][%i], compacting...\n", i1, i2, i3);
-		propagateLimm(i1, i2, i3);
-	} else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
-		DPRINTF(ConstProp, "Type  is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
-		// TODO: add control registers to graph?
-	} else if (type == "rdtsc" || type == "rdval") {
-		DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
-		// TODO: determine whether direct register file access needs to be handled differently?
-	} else if (type == "panic" || type == "NOP" || type == "CPUID") {
-		DPRINTF(ConstProp, "Type is PANIC, NOP, or CPUID\n");
-		// TODO: possibly remove, what is purpose?
-	} else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp" || "rdip") {
-		DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, CALL_FAR_MP, or RDIP\n");
-		// TODO: cannot remove
-	} else {
-		DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
-	}
+	if (!isSource) {
+		string type = decodedMicroOp->getName();
+		if (type == "mov") {
+			DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateMov(i1, i2, i3);
+		} else if (type == "wrip" || type == "wripi") {
+			DPRINTF(ConstProp, "Found a WRIP/WRIPI branch at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			// propagateWrip(i1, i2, i3);
+		} else if (decodedMicroOp->isControl()) {
+			// printf("Control instruction of type %s\n", type);
+			// TODO: check for stopping condition or predicted target
+		} else if (type == "movi") {
+			DPRINTF(ConstProp, "Found a MOVI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateMovI(i1, i2, i3);
+		} else if (type == "and") {
+			DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateAnd(i1, i2, i3);
+		} else if (type == "add") {
+			DPRINTF(ConstProp, "Found an ADD at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateAdd(i1, i2, i3);
+		} else if (type == "sub") {
+			DPRINTF(ConstProp, "Found a SUB at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateSub(i1, i2, i3);
+		} else if (type == "xor") {
+			DPRINTF(ConstProp, "Found an XOR at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateXor(i1, i2, i3);
+		} else if (type == "or") {
+			DPRINTF(ConstProp, "Found an OR at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateOr(i1, i2, i3);
+		} else if (type == "subi") {
+			DPRINTF(ConstProp, "Found a SUBI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateSubI(i1, i2, i3);
+		} else if (type == "addi") {
+			DPRINTF(ConstProp, "Found an ADDI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateAddI(i1, i2, i3);
+		} else if (type == "slli") {
+			DPRINTF(ConstProp, "Found a SLLI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateSllI(i1, i2, i3);
+		} else if (type == "srli") {
+			DPRINTF(ConstProp, "Found a SRLI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateSrlI(i1, i2, i3);
+		} else if (type == "lea") {
+			DPRINTF(ConstProp, "Type is LEA");
+			// Requires multiple ALU operations to propagate, not using
+		} else if (type == "sexti") {
+			// Implementation has multiple ALU operations, but this is not required by the nature of the operation
+			DPRINTF(ConstProp, "Found a SEXTI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateSExtI(i1, i2, i3);
+		} else if (type == "zexti") {
+			// Implementation has multiple ALU operations, but this is not required by the nature of the operation
+			DPRINTF(ConstProp, "Found a ZEXTI at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateZExtI(i1, i2, i3);
+		} else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
+			DPRINTF(ConstProp, "Type is MUL1S, MUL1U, MULEL, or MULEH\n");
+			// TODO: two dest regs with different values? maybe too complex arithmetic?
+		} else if (type == "limm") {
+			DPRINTF(ConstProp, "Found a LIMM at [%i][%i][%i], compacting...\n", i1, i2, i3);
+			propagateLimm(i1, i2, i3);
+		} else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
+			DPRINTF(ConstProp, "Type  is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
+			// TODO: add control registers to graph?
+		} else if (type == "rdtsc" || type == "rdval") {
+			DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
+			// TODO: determine whether direct register file access needs to be handled differently?
+		} else if (type == "panic" || type == "NOP" || type == "CPUID") {
+			DPRINTF(ConstProp, "Type is PANIC, NOP, or CPUID\n");
+			// TODO: possibly remove, what is purpose?
+		} else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp" || "rdip") {
+			DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, CALL_FAR_MP, or RDIP\n");
+			// TODO: cannot remove
+		} else {
+			DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
+		}
 
-	updateSpecTrace(i1, i2, i3, currentTrace);
+		updateSpecTrace(i1, i2, i3, currentTrace);
+	}
 
 	// Update index
 	simplifyIdx.uop++;

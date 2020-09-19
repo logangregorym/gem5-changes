@@ -1481,6 +1481,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     bool inSpeculativeCache = false;
     if (!decoder[tid]->isSpeculativeCacheActive()) {
     	currentTraceID = decoder[tid]->isTraceAvailable(thisPC);
+	if (currentTraceID != 0) {
+		std::cout << "Using trace " << currentTraceID << std::endl;
+	}
     }
 
     // If returning from the delay of a cache miss, then update the status

@@ -70,6 +70,7 @@ class TraceBasedGraph : public SimObject
 
 	queue<unsigned> traceQueue;
 	unsigned currentTrace = 0;
+	unsigned currentTraceLength = 0;
 	FullCacheIdx traceHead[4096]; // tweak this number?
 	bool traceComplete[4096] = {0};
 	unsigned traceSources[4096][4] = {{0}}; // prediction sources to use
