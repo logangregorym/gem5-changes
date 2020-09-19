@@ -64,6 +64,7 @@ class TraceBasedGraph : public SimObject
 	bool registerValid[256] = {0};
 
 	FullUopAddr predictionSource[4096];
+	uint64_t predictedValue[4096] = {0};
 	bool predictionSourceValid[4096] = {0};
 	bool sourceIsBranch[4096] = {0};
 
