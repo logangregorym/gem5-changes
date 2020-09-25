@@ -1611,11 +1611,10 @@ FullO3CPU<Impl>::removeFrontInst(DynInstPtr &inst)
             "[sn:%lli]\n",
             inst->threadNumber, inst->pcState(), inst->seqNum);
 
-    if (inst->staticInst->isLastMicroop() && !inst->isSquashed() &&
-        !fetch.decoder[inst->threadNumber]->isHitInSpeculativeCache(inst->pcState().instAddr(), inst->pcState().microPC())) {
-	assert(inst->isMacroop() || inst->macroop);
-	assert(inst->macroop);
-	inst->macroop->deleteMicroOps();
+    if (inst->staticInst->isLastMicroop() && !inst->isSquashed() && !inst->isStreamedFromSpeculativeCache()) {
+      assert(inst->isMacroop() || inst->macroop);
+      assert(inst->macroop);
+      inst->macroop->deleteMicroOps();
     }
 
     removeInstsThisCycle = true;
@@ -1712,7 +1711,7 @@ FullO3CPU<Impl>::squashInstIt(const ListIt &instIt, ThreadID tid)
         // Mark it as squashed.
         (*instIt)->setSquashed();
         if ((*instIt)->staticInst->isLastMicroop() &&
-            !fetch.decoder[(*instIt)->threadNumber]->isHitInSpeculativeCache((*instIt)->pcState().instAddr(), (*instIt)->pcState().microPC())) {
+            !(*instIt)->isStreamedFromSpeculativeCache()) {
             bool containsMicroBranch = false;
             for (int i = 0; i < (*instIt)->macroop->getNumMicroops(); i++) {
                 DPRINTF(O3CPU, "Micro-op %i: %s\n", i, (*instIt)->macroop->fetchMicroop(i)->disassemble((*instIt)->pcState().instAddr()));

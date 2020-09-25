@@ -39,7 +39,6 @@
 #include "cpu/thread_context.hh"
 #include "arch/x86/decoder_structs.hh"
 #include "arch/x86/regs/misc.hh"
-#include "arch/x86/superop/array_dependency_tracker.hh"
 #include "arch/x86/superop/trace_based_graph.hh"
 #include "arch/x86/types.hh"
 #include "base/bitfield.hh"
@@ -120,8 +119,8 @@ class Decoder
     ExtMachInst uopCache[32][8][6]; // 48, 8, 6
     FullUopAddr uopAddrArray[32][8][6];
     uint64_t uopTagArray[32][8];
-	int uopPrevWayArray[32][8];
-	int uopNextWayArray[32][8];
+    int uopPrevWayArray[32][8];
+    int uopNextWayArray[32][8];
     bool uopValidArray[32][8];
     int uopCountArray[32][8];
     int uopLRUArray[32][8];
@@ -169,8 +168,8 @@ protected:
     Stats::Scalar macroTo3MicroEncoding;
     Stats::Scalar macroTo4MicroEncoding;
     Stats::Scalar macroToROMMicroEncoding;
-	Stats::Scalar hotnessLessThanSeven;
-	Stats::Scalar hotnessGreaterThanSeven;
+    Stats::Scalar hotnessLessThanSeven;
+    Stats::Scalar hotnessGreaterThanSeven;
 
 
     uint8_t getNextByte()
@@ -428,9 +427,6 @@ protected:
     }
 
     // Parallel cache for optimized micro-ops
-    bool isHitInSpeculativeCache(Addr addr, unsigned uop);
-    StaticInstPtr fetchUopFromSpeculativeCache(Addr addr, X86ISA::PCState &nextPC);
-    bool updateUopInSpeculativeCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded);
     void updateLRUBitsSpeculative(int idx, int way);
 
     //*****CHANGE START**********
@@ -448,25 +444,16 @@ protected:
 	// Interface for superoptimization, interacts with cache differently in gem5
 	// In hardware wouldn't need a different interface, as both are streaming caches
 
-	FullCacheIdx addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, unsigned traceID);
+	bool addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, unsigned traceID);
 
-	FullCacheIdx updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsigned traceID);
+	bool updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsigned traceID);
 
-	FullCacheIdx addToSpeculativeCacheIffTagExists(StaticInstPtr inst, Addr addr, unsigned uop, unsigned traceID);
+  bool isSpeculativeCacheActive()
+  {
+      return speculativeCacheActive;
+  }
 
-
-    
-    
-
-    bool isSpeculativeCacheActive()
-    {
-        return speculativeCacheActive;
-    }
-
-    bool doSquash(const StaticInstPtr si, X86ISA::PCState pc);
-
-
-	bool isSourceOfPrediction(Addr addr, unsigned uop, unsigned traceID);
+  bool doSquash(const StaticInstPtr si, X86ISA::PCState pc);
 
 	StaticInstPtr getSuperoptimizedInst(Addr addr, unsigned uop);
 
@@ -485,7 +472,7 @@ protected:
 
 	// Interface for fetch!
     // tells fetch stage that if a speculative trace is availble for this PC
-	unsigned isTraceAvailable(const X86ISA::PCState thisPC);
+	unsigned isTraceAvailable(Addr addr);
 
 //	bool isProfitable(Addr addr, unsigned uop);
 	bool isProfitable(FullCacheIdx specIdx, FullCacheIdx uopIdx);
@@ -517,8 +504,6 @@ protected:
 //	TraceMetaData getTraceMetaData(Addr addr);
 	TraceMetaData getTraceMetaData(FullCacheIdx specIdx, FullCacheIdx uopIdx);
 	TraceMetaData getTraceMetaData(FullCacheIdx specIdx);
-
-	void addSourceToCacheLine(unsigned predID, int idx, uint64_t tag);
 };
 
 } // namespace X86ISA

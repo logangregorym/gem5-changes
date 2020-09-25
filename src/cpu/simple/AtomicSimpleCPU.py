@@ -42,7 +42,7 @@ from m5.params import *
 from BaseSimpleCPU import BaseSimpleCPU
 from SimPoint import SimPoint
 from LoadValuePredictor import *
-from ArrayDependencyTracker import *
+from TraceBasedGraph import *
 
 class AtomicSimpleCPU(BaseSimpleCPU):
     """Simple CPU model executing a configurable number of

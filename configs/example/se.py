@@ -214,8 +214,6 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.loadPred.predictStage = options.predictStage
     CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
     CPUClass.usingTrace = options.usingTrace
-    CPUClass.depTracker.usingControlTracking = options.usingControlTracking
-    CPUClass.depTracker.connectionCount = options.connectionCount
 
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads

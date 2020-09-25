@@ -30,8 +30,6 @@
 
 Import('*')
 
-SimObject('ArrayDependencyTracker.py')
 SimObject('TraceBasedGraph.py')
 
-Source('array_dependency_tracker.cc')
 Source('trace_based_graph.cc')

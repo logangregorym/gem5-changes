@@ -23,6 +23,78 @@ using namespace std;
 
 class ISA;
 
+// tracks instructions with confident value predictions
+struct PredictionSource
+{
+  FullUopAddr addr;
+  bool valid;
+  bool isBranch;
+  uint64_t value;
+
+  PredictionSource() {valid = false; isBranch = false;}
+};
+
+// Speculative Trace
+struct SpecTrace
+{
+  // Trace ID
+  unsigned id;
+
+  // (idx, way, uop) of head of the trace
+  FullCacheIdx head;
+
+  // (idx, way, uop) of the instruction being optimized
+  FullCacheIdx addr;
+
+  // address of the instruction being optimized
+  FullUopAddr instAddr;
+
+  // instruction being optimized
+  StaticInstPtr inst;
+
+  enum State {
+    Invalid,
+    
+    QueuedForFirstTimeOptimization,
+    QueuedForReoptimization,
+
+    // first time optimization
+    OptimizationInProcess,
+
+    // re-optimization (e.g., due to a new pred source)
+    ReoptimizationInProcess,
+
+    Complete
+  };
+
+  // Trace Satte
+  State state;
+
+  // Prediction Sources (at most 4)
+  PredictionSource source[4];
+
+  // Trace Length
+  unsigned length;
+
+  // Shrunk length
+  unsigned shrunkLength;
+
+  // ID of the trace being re-optimized in case this is a re-optimization
+  unsigned reoptId;
+
+  // Counter to assign trace IDs
+  static unsigned traceIDCounter;
+
+  SpecTrace() {
+    state = Invalid;
+    length = 0;
+    shrunkLength = 0;
+    head = FullCacheIdx();
+    addr = FullCacheIdx();
+    inst = NULL;
+  }
+};
+
 class TraceBasedGraph : public SimObject
 {
   public:
@@ -35,7 +107,7 @@ class TraceBasedGraph : public SimObject
 
 	void predictValue(Addr addr, unsigned uopAddr, int64_t value);
 
-	void updateSpecTrace(int i1, int i2, int i3, unsigned traceID);
+	bool updateSpecTrace(SpecTrace &trace);
 
 	// void moveTraceInstOneForward(int i1, int i2, int i3);
 
@@ -43,7 +115,7 @@ class TraceBasedGraph : public SimObject
 
 	void invalidateBranch(Addr addr);
 
-	bool isPredictionSource(Addr addr, unsigned uop, unsigned traceID);
+	bool isPredictionSource(SpecTrace trace, FullUopAddr addr);
 
 	void flushMisprediction(Addr addr, unsigned uop);
 
@@ -55,7 +127,6 @@ class TraceBasedGraph : public SimObject
 	FullCacheIdx getPrevCacheIdx(FullCacheIdx);
 
 	bool generateNextTraceInst();
-	FullCacheIdx simplifyIdx = FullCacheIdx();
 
 	void incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC, bool &predict_taken);
 	bool isTakenBranch(FullUopAddr addr, FullCacheIdx specIdx);
@@ -63,41 +134,44 @@ class TraceBasedGraph : public SimObject
 	uint64_t registerValue[256] = {0};
 	bool registerValid[256] = {0};
 
-	FullUopAddr predictionSource[4096];
-	uint64_t predictedValue[4096] = {0};
-	bool predictionSourceValid[4096] = {0};
-	bool sourceIsBranch[4096] = {0};
+  // Trace ID to map
+  map<unsigned, SpecTrace> traceMap;
 
-	queue<unsigned> traceQueue;
-	unsigned currentTrace = 0;
-	unsigned currentTraceLength = 0;
-	FullCacheIdx traceHead[4096]; // tweak this number?
-	bool traceComplete[4096] = {0};
-	unsigned traceSources[4096][4] = {{0}}; // prediction sources to use
+  // Outstanding trace requests
+	queue<SpecTrace> traceQueue;
+
+  // Current trace being optimized
+  SpecTrace currentTrace;
 
 	BPredUnit* branchPred;
 
 	// Propagation Functions
-	bool propagateLastUse(int idx, int way, int uop);
-	bool propagateMov(int idx, int way, int uop);
-	bool propagateMovI(int idx, int way, int uop);
-	bool propagateLimm(int idx, int way, int uop);
-	bool propagateAnd(int idx, int way, int uop);
-	bool propagateAndI(int idx, int way, int uop);
-	bool propagateAdd(int idx, int way, int uop);
-	bool propagateAddI(int idx, int way, int uop);
-	bool propagateSub(int idx, int way, int uop);
-	bool propagateSubI(int idx, int way, int uop);
-	bool propagateOr(int idx, int way, int uop);
-	bool propagateOrI(int idx, int way, int uop);
-	bool propagateXor(int idx, int way, int uop);
-	bool propagateXorI(int idx, int way, int uop);
-	bool propagateSllI(int idx, int way, int uop);
-	bool propagateSrlI(int idx, int way, int uop);
-	bool propagateSExtI(int idx, int way, int uop);
-	bool propagateZExtI(int idx, int way, int uop);
-	// bool propagateWrip(int idx, int way, int uop);
+	bool propagateLastUse(StaticInstPtr inst);
+	bool propagateMov(StaticInstPtr inst);
+	bool propagateMovI(StaticInstPtr inst);
+	bool propagateLimm(StaticInstPtr inst);
+	bool propagateAnd(StaticInstPtr inst);
+	bool propagateAndI(StaticInstPtr inst);
+	bool propagateAdd(StaticInstPtr inst);
+	bool propagateAddI(StaticInstPtr inst);
+	bool propagateSub(StaticInstPtr inst);
+	bool propagateSubI(StaticInstPtr inst);
+	bool propagateOr(StaticInstPtr inst);
+	bool propagateOrI(StaticInstPtr inst);
+	bool propagateXor(StaticInstPtr inst);
+	bool propagateXorI(StaticInstPtr inst);
+	bool propagateSllI(StaticInstPtr inst);
+	bool propagateSrlI(StaticInstPtr inst);
+	bool propagateSExtI(StaticInstPtr inst);
+	bool propagateZExtI(StaticInstPtr inst);
+	// bool propagateWrip(StaticInstPtr inst);
 	// bool propagateAcrossControlDependency(unsigned branchIndex, FullUopAddr propagatingTo);
+	
+  // dump trace for debugging
+  void dumpTrace(SpecTrace trace);
+
+  // advance to next micro-op.
+  void advanceTrace(SpecTrace &trace);
 
 	void regStats();
 

@@ -1149,10 +1149,10 @@ DefaultFetch<Impl>::tick()
     numInst = 0;
 
    for (int tid = 0; tid < numThreads; tid++) {
-   	decoder[tid]->traceConstructor->generateNextTraceInst(); // was depTracker->simplifyGraph
-	if ((((int) cpu->numCycles.value()) % 128) == 0) {
-	    decoder[tid]->tickAllHotnessCounters();
-	}
+      decoder[tid]->traceConstructor->generateNextTraceInst(); // was depTracker->simplifyGraph
+      if ((((int) cpu->numCycles.value()) % 128) == 0) {
+          decoder[tid]->tickAllHotnessCounters();
+      }
    }
 }
 
@@ -1345,7 +1345,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
         if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
             DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);
             instruction->cycleFetched = cpu->numCycles.value();
-	    LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+            LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
             DPRINTF(LVP, "fetch predicted %x with confidence %i\n", ret.predictedValue, ret.confidence);
             if ((cpu->numCycles.value() - loadPred->lastMisprediction < loadPred->resetDelay) && loadPred->dynamicThreshold) {
                 DPRINTF(LVP, "Misprediction occured %i cycles ago, setting confidence to -1\n", cpu->numCycles.value() - loadPred->lastMisprediction);
@@ -1479,12 +1479,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     bool inUopCache = false;
     bool useUopCache = false;
     bool inSpeculativeCache = false;
-    if (!decoder[tid]->isSpeculativeCacheActive()) {
-    	currentTraceID = decoder[tid]->isTraceAvailable(thisPC);
-	if (currentTraceID != 0) {
-		std::cout << "Using trace " << currentTraceID << std::endl;
-	}
-    }
 
     // If returning from the delay of a cache miss, then update the status
     // to running, otherwise do the cache access.  Possibly move this up
@@ -1500,6 +1494,12 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
         //*****CHANGE START**********
         // check the speculative cache even before the microop cache
+        if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive()) {
+            currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr());
+            if (currentTraceID != 0) {
+                DPRINTF(Fetch, "Using trace %i\n", currentTraceID);
+            }
+        }
         if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive() )
         {
             DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s.\n", thisPC);
@@ -2029,7 +2029,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 // whenever we need to fetch a new macroop check whether we can start fetching from speculative cahce
                 if (newMacro)
                 {
-                    currentTraceID = decoder[tid]->isTraceAvailable(thisPC);
+                    if (isSuperOptimizationPresent) {
+                        currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr());
+                    }
                     if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
                     {
         
