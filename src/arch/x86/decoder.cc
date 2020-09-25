@@ -70,6 +70,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
             uopPrevWayArray[idx][way] = 10;
             uopNextWayArray[idx][way] = 10;
             uopValidArray[idx][way] = false;
+            uopFullArray[idx][way] = false;
             uopCountArray[idx][way] = 0;
             uopLRUArray[idx][way] = way;
             uopHotnessArray[idx][way] = BigSatCounter(4);
@@ -798,13 +799,13 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     int numFullWays = 0;
     int lastWay = -1;
     for (int way = 0; way < 8 && numFullWays < 3; way++) {
-      if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+      if (!uopFullArray[idx][way] && uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
         /* Check if this way can accommodate the uops that correspond
            to this instruction. */
         int waySize = uopCountArray[idx][way];
         if ((waySize + numUops) > 6) {
           lastWay = way;
-          uopCountArray[idx][way] = 6;
+          uopFullArray[idx][way] = true;
           numFullWays++;
           continue;
         }
@@ -815,7 +816,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
           DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uopAddr + uop - waySize);
           emi.instSize = size;
           uopCache[idx][way][uop] = emi;
-          DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
+          DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d count:%d.\n", addr, tag, idx, way, uop, emi.instSize, uopCountArray[idx][way]);
         }
         updateLRUBits(idx, way);
         uopCacheUpdates += numUops;
@@ -857,6 +858,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         }
         uopCountArray[idx][way] = numUops;
         uopValidArray[idx][way] = true;
+        uopFullArray[idx][way] = false;
         uopTagArray[idx][way] = tag;
         DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, way, tag);
         for (int uop = 0; uop < numUops; uop++) {
@@ -898,6 +900,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         }
         uopCountArray[idx][way] = numUops;
         uopValidArray[idx][way] = true;
+        uopFullArray[idx][way] = false;
         uopTagArray[idx][way] = tag;
         DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, way, tag);
         for (int uop = 0; uop < numUops; uop++) {
@@ -939,7 +942,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
         speculativeCache[idx][way][waySize] = inst;
         speculativeAddrArray[idx][way][waySize] = FullUopAddr(addr, uop);
         updateLRUBitsSpeculative(idx, way);
-        DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d.\n", addr, tag, idx, way, uop);
+        DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d nextway:%d.\n", addr, tag, idx, way, waySize, speculativeNextWayArray[idx][way]);
         if (speculativeCountArray[idx][way] == 6) {
           numFullWays++;
         }
@@ -960,14 +963,14 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
           speculativeNextWayArray[idx][lastWay] = way;
           speculativePrevWayArray[idx][way] = lastWay;
         }
-        speculativeCountArray[idx][way] = 1;
+        int u = speculativeCountArray[idx][way]++;
         speculativeValidArray[idx][way] = true;
         speculativeTagArray[idx][way] = tag;
         speculativeTraceIDArray[idx][way] = traceID;
-        speculativeCache[idx][way][0] = inst;
-        speculativeAddrArray[idx][way][0] = FullUopAddr(addr, uop);
+        speculativeCache[idx][way][u] = inst;
+        speculativeAddrArray[idx][way][u] = FullUopAddr(addr, uop);
         updateLRUBitsSpeculative(idx, way);
-        DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:0.\n", addr, tag, idx, way);
+        DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%#x nextWay:%d.\n", addr, tag, idx, way, u, speculativeNextWayArray[idx][way]);
         return true;
       }
     }
@@ -1003,14 +1006,14 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
         speculativeNextWayArray[idx][lastWay] = evictWay;
         speculativePrevWayArray[idx][evictWay] = lastWay;
       }
-      speculativeCountArray[idx][evictWay] = 1;
+      int u = speculativeCountArray[idx][evictWay]++;
       speculativeValidArray[idx][evictWay] = true;
       speculativeTagArray[idx][evictWay] = tag;
       speculativeTraceIDArray[idx][evictWay] = traceID;
-      speculativeCache[idx][evictWay][0] = inst;
-      speculativeAddrArray[idx][evictWay][0] = FullUopAddr(addr, uop);
+      speculativeCache[idx][evictWay][u] = inst;
+      speculativeAddrArray[idx][evictWay][u] = FullUopAddr(addr, uop);
       updateLRUBitsSpeculative(idx, evictWay);	
-      DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:0.\n", addr, tag, idx, evictWay);
+      DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%#x.\n", addr, tag, idx, evictWay, u);
       return true;
     }
     DPRINTF(ConstProp, "Optimized trace could not be loaded into speculative cache because eviction failed\n");
@@ -1314,21 +1317,42 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, const X86ISA::PCState thisPC
     return StaticInst::nullStaticInstPtr;
   }
 
-	int idx = (thisPC.instAddr() >> 5) & 0x1f;
-	uint64_t tag = (thisPC.instAddr() >> 10);
-	for (int way = 0; way < 8; way++) {
-		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag && speculativeTraceIDArray[idx][way] == traceID) {
-			for (int uop = 0; uop < speculativeCountArray[idx][way]; uop++) {
-				if (speculativeAddrArray[idx][way][uop].pcAddr == thisPC.instAddr() && speculativeAddrArray[idx][way][uop].uopAddr == thisPC.microPC()) {
-					assert(speculativeCache[idx][way][uop]);
-					traceConstructor->incrementPC(FullCacheIdx(idx, way, uop), nextPC, predict_taken);
-					return speculativeCache[idx][way][uop];
-				}
-			}
-		}
-	}
+  if (traceConstructor->streamTrace.id != traceID) {
+      traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
+      DPRINTF(Decoder, "The following trace ought to be triggered:\n");
+      traceConstructor->dumpTrace(traceConstructor->streamTrace);
+  } else if (!traceConstructor->streamTrace.addr.valid) {
+    return StaticInst::nullStaticInstPtr;
+  }
 
-	return StaticInst::nullStaticInstPtr;
+  int idx = traceConstructor->streamTrace.addr.idx;
+  int way = traceConstructor->streamTrace.addr.way;
+  int uop = traceConstructor->streamTrace.addr.uop;
+  StaticInstPtr curInst = speculativeCache[idx][way][uop];
+  FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
+  predict_taken = traceConstructor->isTakenBranch(instAddr, traceConstructor->streamTrace.addr);
+
+  traceConstructor->advanceTrace(traceConstructor->streamTrace);
+  if (traceConstructor->streamTrace.addr.valid) {
+    int idx = traceConstructor->streamTrace.addr.idx;
+    int way = traceConstructor->streamTrace.addr.way;
+    int uop = traceConstructor->streamTrace.addr.uop;
+    StaticInstPtr nextInst = speculativeCache[idx][way][uop];
+    FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
+    nextPC._pc = instAddr.pcAddr;
+    nextPC._upc = instAddr.uopAddr;
+    nextPC._npc = nextPC._pc + nextInst->macroOp->getMacroopSize();
+    if (nextPC._upc < nextInst->macroOp->getNumMicroops() - 1) {
+        nextPC._nupc = (nextPC._upc + 1 ) % nextInst->macroOp->getNumMicroops();
+    } else {
+        nextPC._nupc = nextInst->macroOp->getNumMicroops();
+    }
+    nextPC.valid = true;
+  } else {
+    nextPC.valid = false;
+  }
+
+	return curInst;
 }
 
 StaticInstPtr

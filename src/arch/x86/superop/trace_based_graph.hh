@@ -143,6 +143,9 @@ class TraceBasedGraph : public SimObject
   // Current trace being optimized
   SpecTrace currentTrace;
 
+  // Current trace being streamed
+  SpecTrace streamTrace;
+
 	BPredUnit* branchPred;
 
 	// Propagation Functions

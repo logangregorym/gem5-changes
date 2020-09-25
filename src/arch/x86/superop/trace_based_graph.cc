@@ -37,17 +37,21 @@ void TraceBasedGraph::regStats()
 void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
 {
   /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
-  unsigned traceId = decoder->isTraceAvailable(addr);
+  unsigned traceId = 0; 
 	int idx = (addr >> 5) & 0x1f;
-
-  if (traceId) {
+  for (int way=0; way<8; way++) {
+    traceId = decoder->speculativeTraceIDArray[idx][way];
     SpecTrace trace = traceMap[traceId];
     for (int i=0; i<4; i++) {
       /* Do we already consider this as a prediction source? */
-      if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uopAddr)) {
+      if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uopAddr) && trace.source[i].value == value) {
         return;
       }
     }
+  }
+
+  if (traceId) {
+    SpecTrace trace = traceMap[traceId];
     for (int i=0; i<4; i++) {
       /* Have we exhausted all prediction sources? If not, we can further compact this trace.  */
       if (!trace.source[i].valid) {
@@ -133,27 +137,25 @@ void TraceBasedGraph::invalidateBranch(Addr addr) {
 
 void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
 	trace.addr.uop++;
+  trace.addr.valid = false;
   // select cache to advance from
   if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
-    if (trace.addr.uop >= (decoder->uopCountArray[trace.addr.idx][trace.addr.way]-1)) {
+    if (trace.addr.uop < decoder->uopCountArray[trace.addr.idx][trace.addr.way]) {
+      trace.addr.valid = true;
+    } else if (decoder->uopNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
       trace.addr.uop = 0;
-      if (decoder->uopNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
-        trace.addr.way = decoder->uopNextWayArray[trace.addr.idx][trace.addr.way];
-      }
-    } else {
-      return;
+      trace.addr.way = decoder->uopNextWayArray[trace.addr.idx][trace.addr.way];
+      trace.addr.valid = true;
     }
   } else {
-    if (trace.addr.uop >= (decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]-1)) {
+    if (trace.addr.uop < decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]) {
+      trace.addr.valid = true;
+    } else if (decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
       trace.addr.uop = 0;
-      if (decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
-        trace.addr.way = decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way];
-      }
-    } else {
-      return;
+      trace.addr.way = decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way];
+      trace.addr.valid = true;
     }
   }
-  trace.addr.valid = false;
 }
 
 void TraceBasedGraph::dumpTrace(SpecTrace trace) {
@@ -176,14 +178,14 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
       decodedMicroOp = decodedMacroOp->fetchMicroop(uopAddr);
       decodedMicroOp->macroOp = decodedMacroOp;
     }
-    DPRINTF(SuperOp, "%p:%i -- %s\n", pcAddr, uopAddr, decodedMicroOp->disassemble(pcAddr));  
+    DPRINTF(SuperOp, "%p:%i -- uop[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));  
 
     if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
   } else {
     Addr pcAddr = decoder->speculativeAddrArray[idx][way][uop].pcAddr;
     Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
     StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
-    DPRINTF(SuperOp, "%p:%i -- %s\n", pcAddr, uopAddr, decodedMicroOp->disassemble(pcAddr));  
+    DPRINTF(SuperOp, "%p:%i -- spec[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));  
   }
 
   advanceTrace(trace);
@@ -193,7 +195,7 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
 bool TraceBasedGraph::generateNextTraceInst() {
 	if (!currentTrace.addr.valid) { 
 		// Pop a new trace from the queue, start at top
-    DPRINTF(SuperOp, "Done optimizing trace %i with length %i\n", currentTrace.id, currentTrace.length);
+    DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
     for (int way=0; way<8; way++) {
       int idx = currentTrace.head.idx;
       int uop = currentTrace.head.uop;
@@ -202,6 +204,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         currentTrace.state = SpecTrace::Complete;
         traceMap[currentTrace.id] = currentTrace;
         dumpTrace(currentTrace);
+        break;
       }
     }
 
@@ -229,7 +232,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
   } else { 
     assert(currentTrace.state == SpecTrace::OptimizationInProcess || currentTrace.state == SpecTrace::ReoptimizationInProcess);
     currentTrace.inst = NULL;
-    currentTrace.length++;
   }
 
 	if (!currentTrace.addr.valid) { return false; } // no traces in queue to pop
@@ -287,6 +289,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
   } else {
     // Propagate predicted values
 		string type = currentTrace.inst->getName();
+    DPRINTF(ConstProp, "Processing instruction: %p:%i -- %s\n", currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, type);
 		if (type == "mov") {
 			DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
 			propagateMov(currentTrace.inst);
@@ -373,6 +376,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
 bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
 	// IMPORTANT NOTE: This is written assuming the trace will be traversed in order, and so the register map will be accurate for the current point in the trace
+  trace.length++;
 
   bool updateSuccessful = false;
 
