@@ -1114,7 +1114,7 @@ Decoder::isTraceAvailable(Addr addr) {
 			}
 		}
 	}
-	if (maxTraceID != 0) { DPRINTF(Decoder, "Returning max ID: %i\n", maxTraceID ); }
+	// if (maxTraceID != 0) { std::cout << "Found trace with ID" << maxTraceID << std::endl; DPRINTF(Decoder, "Returning max ID: %i\n", maxTraceID ); }
 
 	return maxTraceID;
 }
