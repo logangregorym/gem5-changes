@@ -812,7 +812,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         unsigned uopAddr = 0;
         for (int uop = waySize; uop < (waySize + numUops); uop++) {
           uopAddrArray[idx][way][uop] = FullUopAddr(addr, uopAddr + uop - waySize);
-          DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uopAddr);
+          DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uopAddr + uop - waySize);
           emi.instSize = size;
           uopCache[idx][way][uop] = emi;
           DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -934,6 +934,8 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
           continue;
         }
         speculativeCountArray[idx][way]++;
+        speculativeValidArray[idx][way] = true;
+        speculativeTraceIDArray[idx][way] = traceID;
         speculativeCache[idx][way][waySize] = inst;
         speculativeAddrArray[idx][way][waySize] = FullUopAddr(addr, uop);
         updateLRUBitsSpeculative(idx, way);
