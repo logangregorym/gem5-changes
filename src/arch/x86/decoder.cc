@@ -811,8 +811,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         uopCountArray[idx][way] += numUops;
         unsigned uopAddr = 0;
         for (int uop = waySize; uop < (waySize + numUops); uop++) {
-          //assert(uopAddr == uop - waySize);
-          uopAddrArray[idx][way][uop] = FullUopAddr(addr, uopAddr);
+          uopAddrArray[idx][way][uop] = FullUopAddr(addr, uopAddr + uop - waySize);
           DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uopAddr);
           emi.instSize = size;
           uopCache[idx][way][uop] = emi;

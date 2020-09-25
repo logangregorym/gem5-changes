@@ -131,7 +131,7 @@ void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
 	trace.addr.uop++;
   // select cache to advance from
   if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
-    if (trace.addr.uop >= decoder->uopCountArray[trace.addr.idx][trace.addr.way]) {
+    if (trace.addr.uop >= (decoder->uopCountArray[trace.addr.idx][trace.addr.way]-1)) {
       trace.addr.uop = 0;
       if (decoder->uopNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
         trace.addr.way = decoder->uopNextWayArray[trace.addr.idx][trace.addr.way];
@@ -140,7 +140,7 @@ void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
       return;
     }
   } else {
-    if (trace.addr.uop >= decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]) {
+    if (trace.addr.uop >= (decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]-1)) {
       trace.addr.uop = 0;
       if (decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
         trace.addr.way = decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way];
@@ -165,19 +165,21 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
   // select cache to dump from
   if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
     Addr pcAddr = decoder->uopAddrArray[idx][way][uop].pcAddr;
+    Addr uopAddr = decoder->uopAddrArray[idx][way][uop].uopAddr;
     StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
     StaticInstPtr decodedMicroOp = decodedMacroOp;
     if (decodedMacroOp->isMacroop()) {
-      decodedMicroOp = decodedMacroOp->fetchMicroop(uop);
+      decodedMicroOp = decodedMacroOp->fetchMicroop(uopAddr);
       decodedMicroOp->macroOp = decodedMacroOp;
     }
-    DPRINTF(SuperOp, "%p:%i -- %s\n", pcAddr, uop, decodedMicroOp->disassemble(pcAddr));  
+    DPRINTF(SuperOp, "%p:%i -- %s\n", pcAddr, uopAddr, decodedMicroOp->disassemble(pcAddr));  
 
     if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
   } else {
     Addr pcAddr = decoder->speculativeAddrArray[idx][way][uop].pcAddr;
+    Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
     StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
-    DPRINTF(SuperOp, "%p:%i -- %s\n", pcAddr, uop, decodedMicroOp->disassemble(pcAddr));  
+    DPRINTF(SuperOp, "%p:%i -- %s\n", pcAddr, uopAddr, decodedMicroOp->disassemble(pcAddr));  
   }
 
   advanceTrace(trace);
