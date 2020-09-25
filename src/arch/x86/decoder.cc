@@ -1098,12 +1098,11 @@ unsigned
 Decoder::isTraceAvailable(Addr addr) {
 	// Consider multiple candidate traces
 	int idx = (addr >> 5) & 0x1f;
-	uint64_t tag = (addr >> 10);
 
 	unsigned maxScore = 0;
 	unsigned maxTraceID = 0;
 	for (int way = 0; way < 8; way++) {
-		if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
+		if (speculativeValidArray[idx][way] && speculativeAddrArray[idx][way][0].pcAddr == addr) {
 			DPRINTF(Decoder, "Found a trace to check\n");
 			FullCacheIdx specIdx = FullCacheIdx(idx, way, 0);
 			TraceMetaData info = getTraceMetaData(specIdx);

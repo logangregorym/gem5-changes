@@ -1716,7 +1716,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                 //*****CHANGE START**********
                 if (isSuperOptimizationPresent && inSpeculativeCache) {
-                        std::cout << "Trying to get super-optimized microop" << std::endl;
+                        //std::cout << "Trying to get super-optimized microop" << std::endl;
                         bool predict_taken = false;
                         // fetch next microop and also update the nextPC, so we can decide whether there is
                         // TODO: fetchBufferPC[tid] ?

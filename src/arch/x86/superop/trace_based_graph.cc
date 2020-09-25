@@ -272,8 +272,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
   }
 	
   bool updateSuccessful = false;
+  bool foundNOP = false;
 
 	// Any inst in a trace may be a prediction source
+  DPRINTF(ConstProp, "Processing instruction: %p:%i -- %s\n", currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
   if (isPredictionSource(currentTrace, currentTrace.instAddr)) {
     // Step 1: Get predicted value from LVP
     // Step 2: Determine dest register(s)
@@ -289,7 +291,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
   } else {
     // Propagate predicted values
 		string type = currentTrace.inst->getName();
-    DPRINTF(ConstProp, "Processing instruction: %p:%i -- %s\n", currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, type);
 		if (type == "mov") {
 			DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
 			propagateMov(currentTrace.inst);
@@ -352,8 +353,11 @@ bool TraceBasedGraph::generateNextTraceInst() {
 		} else if (type == "rdtsc" || type == "rdval") {
 			DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
 			// TODO: determine whether direct register file access needs to be handled differently?
-		} else if (type == "panic" || type == "NOP" || type == "CPUID") {
-			DPRINTF(ConstProp, "Type is PANIC, NOP, or CPUID\n");
+		} else if (type == "NOP") {
+			DPRINTF(ConstProp, "Found a NOP at [%i][%i][%i], compacting...\n", idx, way, uop);
+      foundNOP = true;
+		} else if (type == "panic" || type == "CPUID") {
+			DPRINTF(ConstProp, "Type is PANIC or CPUID\n");
 			// TODO: possibly remove, what is purpose?
 		} else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp" || "rdip") {
 			DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, CALL_FAR_MP, or RDIP\n");
@@ -362,11 +366,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
 			DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
 		}
 
-		updateSuccessful = updateSpecTrace(currentTrace);
+    if (!foundNOP) {
+      updateSuccessful = updateSpecTrace(currentTrace);
+    }
 	}
 
 	// Simulate a stall if update to speculative cache wasn't successful
-	if (updateSuccessful) {
+	if (updateSuccessful || foundNOP) {
     advanceTrace(currentTrace);
   }
   //if (decodedMacroOp && decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
