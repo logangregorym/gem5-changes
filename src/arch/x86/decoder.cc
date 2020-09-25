@@ -1316,11 +1316,12 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, const X86ISA::PCState thisPC
     return StaticInst::nullStaticInstPtr;
   }
 
-  if (traceConstructor->streamTrace.id != traceID) {
+  if (traceConstructor->streamTrace.id != traceID || !traceConstructor->streamTrace.addr.valid) {
       traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
       DPRINTF(Decoder, "The following trace ought to be triggered:\n");
       traceConstructor->dumpTrace(traceConstructor->streamTrace);
-  } else if (!traceConstructor->streamTrace.addr.valid) {
+  }
+  if (!traceConstructor->streamTrace.addr.valid) {
     return StaticInst::nullStaticInstPtr;
   }
 
@@ -1329,7 +1330,7 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, const X86ISA::PCState thisPC
   int uop = traceConstructor->streamTrace.addr.uop;
   StaticInstPtr curInst = speculativeCache[idx][way][uop];
   FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
-  predict_taken = traceConstructor->isTakenBranch(instAddr, traceConstructor->streamTrace.addr);
+  predict_taken = curInst->isControl() ? traceConstructor->isTakenBranch(instAddr, traceConstructor->streamTrace.addr) : false;
 
   traceConstructor->advanceTrace(traceConstructor->streamTrace);
   if (traceConstructor->streamTrace.addr.valid) {
@@ -1348,6 +1349,8 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, const X86ISA::PCState thisPC
     }
     nextPC.valid = true;
   } else {
+    nextPC._pc = nextPC._npc;
+    nextPC._upc = nextPC._nupc;
     nextPC.valid = false;
   }
 
