@@ -86,7 +86,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
           for (int uop=0; uop<6; uop++) {
             if (decoder->speculativeValidArray[idx][way] && decoder->speculativeAddrArray[idx][way][uop].pcAddr == addr &&
                 decoder->speculativeAddrArray[idx][way][uop].uopAddr == uopAddr && decoder->speculativeTraceIDArray[idx][way] == traceId) {
-              newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uopAddr);
+              newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
               traceMap[newTrace.id] = newTrace;
               traceQueue.push(newTrace);
               DPRINTF(SuperOp, "Queueing up new trace %i to reoptimize trace %i at spec[%i][%i][%i]\n", newTrace.id, newTrace.reoptId, idx, way, uopAddr);
@@ -106,10 +106,11 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
           newTrace.source[0].addr = FullUopAddr(addr, uopAddr);
           newTrace.source[0].value = value;
           newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
-          newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uopAddr);
+          newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
           traceMap[newTrace.id] = newTrace;
           traceQueue.push(newTrace);
-          DPRINTF(SuperOp, "Queueing up new trace %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, idx, way, uopAddr);
+          DPRINTF(SuperOp, "Queueing up new trace %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, idx, way, uop);
+          DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
           return;
         }
       }
@@ -211,9 +212,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
     DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
     for (int way=0; way<8; way++) {
       int idx = currentTrace.head.idx;
-      int uop = currentTrace.head.uop;
       if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
-        currentTrace.addr = FullCacheIdx(idx, way, uop);
+        currentTrace.addr = FullCacheIdx(idx, way, 0);
         currentTrace.state = SpecTrace::Complete;
         traceMap[currentTrace.id] = currentTrace;
         dumpTrace(currentTrace);
@@ -419,6 +419,11 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
 	} else {
 		updateSuccessful = decoder->addUopToSpeculativeCache(trace.inst, trace.instAddr.pcAddr, trace.instAddr.uopAddr, trace.id);
     trace.shrunkLength++;
+
+    // No predicted value propagation required for conditional moves or returns
+    if (trace.inst->isCC() || trace.inst->isReturn()) {
+      return updateSuccessful;
+    }
 
 		// Step 3b: Mark all predicted values on the StaticInst
 		for (int i=0; i<trace.inst->numSrcRegs(); i++) {
@@ -642,6 +647,11 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
 	if (inst->numSrcRegs() > 0) {
 		return false;
 	}
+
+  // Conditional moves
+  if (inst->isCC()) {
+    return true;
+  }
 
 	uint64_t forwardVal = inst->getImmediate();
   unsigned destRegId = inst->destRegIdx(0).flatIndex();

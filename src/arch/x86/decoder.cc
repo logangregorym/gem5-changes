@@ -941,6 +941,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
         speculativeTraceIDArray[idx][way] = traceID;
         speculativeCache[idx][way][waySize] = inst;
         speculativeAddrArray[idx][way][waySize] = FullUopAddr(addr, uop);
+        DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, waySize, addr, uop);
         updateLRUBitsSpeculative(idx, way);
         DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%d nextway:%d.\n", addr, tag, idx, way, waySize, speculativeNextWayArray[idx][way]);
         if (speculativeCountArray[idx][way] == 6) {
@@ -1012,6 +1013,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
       speculativeTraceIDArray[idx][evictWay] = traceID;
       speculativeCache[idx][evictWay][u] = inst;
       speculativeAddrArray[idx][evictWay][u] = FullUopAddr(addr, uop);
+      DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, evictWay, u, addr, uop);
       updateLRUBitsSpeculative(idx, evictWay);	
       DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%#x.\n", addr, tag, idx, evictWay, u);
       return true;
@@ -1317,25 +1319,24 @@ Decoder::maxLatency(unsigned idx, unsigned way) {
 // sends back the microop from the active trace
 // In case of a folded branch, nextPC and predict_taken should be set by the function
 StaticInstPtr 
-Decoder::getSuperOptimizedMicroop(unsigned traceID, const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken) {
-  if (!thisPC.valid) {
+Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken) {
+/*  if (!thisPC.valid) {
     nextPC = thisPC;
     DPRINTF(Decoder, "Provided an invalid PC to getSuperOptimizedMicroop\n");
     return StaticInst::nullStaticInstPtr;
   }
-
+*/
   int idx = traceConstructor->traceMap[traceID].addr.idx;
   int way = traceConstructor->traceMap[traceID].addr.way;
   int uop = traceConstructor->traceMap[traceID].addr.uop;
 
-  if ((traceConstructor->streamTrace.id != traceID || !traceConstructor->streamTrace.addr.valid) &&
-       thisPC.instAddr() == speculativeAddrArray[idx][way][uop].pcAddr && 
-       thisPC.microPC() == speculativeAddrArray[idx][way][uop].uopAddr) {
+  if ((traceConstructor->streamTrace.id != traceID || !traceConstructor->streamTrace.addr.valid) && thisPC._pc == speculativeAddrArray[idx][way][uop].pcAddr) { 
       traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
       DPRINTF(Decoder, "The following trace ought to be triggered:\n");
       traceConstructor->dumpTrace(traceConstructor->streamTrace);
   }
   if (!traceConstructor->streamTrace.addr.valid) {
+    traceConstructor->streamTrace.id = 0;
     return StaticInst::nullStaticInstPtr;
   }
 
@@ -1345,6 +1346,8 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, const X86ISA::PCState thisPC
   StaticInstPtr curInst = speculativeCache[idx][way][uop];
   FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
   predict_taken = curInst->isControl() ? traceConstructor->isTakenBranch(instAddr, traceConstructor->streamTrace.addr) : false;
+  thisPC._npc = thisPC._pc + curInst->macroOp->getMacroopSize();
+  thisPC._nupc = 0;
 
   traceConstructor->advanceTrace(traceConstructor->streamTrace);
   if (traceConstructor->streamTrace.addr.valid) {
@@ -1356,11 +1359,7 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, const X86ISA::PCState thisPC
     nextPC._pc = instAddr.pcAddr;
     nextPC._upc = instAddr.uopAddr;
     nextPC._npc = nextPC._pc + nextInst->macroOp->getMacroopSize();
-    if (nextPC._upc < nextInst->macroOp->getNumMicroops() - 1) {
-        nextPC._nupc = (nextPC._upc + 1 ) % nextInst->macroOp->getNumMicroops();
-    } else {
-        nextPC._nupc = nextInst->macroOp->getNumMicroops();
-    }
+    nextPC._nupc = 0;
     nextPC.valid = true;
   } else {
     /* Assuming a trace always ends at the last micro-op of a macro-op. */
