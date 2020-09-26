@@ -454,7 +454,7 @@ protected:
       return speculativeCacheActive;
   }
 
-  bool doSquash(const StaticInstPtr si, X86ISA::PCState pc);
+  void doSquash();
 
 	StaticInstPtr getSuperoptimizedInst(Addr addr, unsigned uop);
 

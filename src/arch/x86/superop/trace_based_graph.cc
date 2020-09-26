@@ -37,6 +37,19 @@ void TraceBasedGraph::regStats()
 void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
 {
   /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
+  for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
+    SpecTrace trace = it->second;
+    if (trace.state == SpecTrace::Invalid) {
+      continue;
+    } 
+    for (int i=0; i<4; i++) {
+      /* Do we already consider this as a prediction source? */
+      if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uopAddr) && trace.source[i].value == value) {
+        return;
+      }
+    }
+  }
+
   unsigned traceId = 0; 
 	int idx = (addr >> 5) & 0x1f;
   for (int way=0; way<8; way++) {
@@ -410,8 +423,10 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
 		// Step 3b: Mark all predicted values on the StaticInst
 		for (int i=0; i<trace.inst->numSrcRegs(); i++) {
 			unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
+      DPRINTF(ConstProp, "Examining register %i\n", srcIdx);
 			if (registerValid[srcIdx]) {
-				trace.inst->sourcePredictions[i] = registerValue[i];
+        DPRINTF(ConstProp, "Propagated constant %#x in reg %i at %#x:%#x\n", registerValue[srcIdx], srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+				trace.inst->sourcePredictions[i] = registerValue[srcIdx];
 				trace.inst->sourcesPredicted[i] = true;
 			}
 		}

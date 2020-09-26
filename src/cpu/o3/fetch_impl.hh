@@ -668,9 +668,7 @@ DefaultFetch<Impl>::lookupAndUpdateNextPC(
     bool predict_taken;
 
     if (!inst->isControl()) {
-	//DPRINTF(OptStream, "PC before advancePC(): %x.%i\t\t\t", nextPC.instAddr(), nextPC.microPC());
         TheISA::advancePC(nextPC, inst->staticInst);
-	//DPRINTF(OptStream, "PC after advancePC(): %x.%i\n", nextPC.instAddr(), nextPC.microPC());
         inst->setPredTarg(nextPC);
         inst->setPredTaken(false);
         return false;
@@ -897,6 +895,7 @@ DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
     else
         macroop[tid] = NULL;
     decoder[tid]->reset();
+    decoder[tid]->doSquash();
 
     // Clear the icache miss if it's outstanding.
     if (fetchStatus[tid] == IcacheWaitResponse) {
@@ -1198,6 +1197,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             {
 
                 // LVP missprediction, therefore, deactivate speculative cache and fetch from uop/decoder
+                DPRINTF(Fetch, "LVP misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
                 decoder[tid]->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = true;
             }
@@ -1205,13 +1205,15 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             else if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
             {
                 // again deactivate speculative cache
+                DPRINTF(Fetch, "branch misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
                 decoder[tid]->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = true;
             }
             // not a folded branch or LVP missprediction
             else 
             {
-                
+                DPRINTF(Fetch, "branch misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
+                decoder[tid]->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = false;
                 
             }
@@ -1223,11 +1225,12 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             if (fromCommit->commitInfo[tid].squashDueToLVP)
             {
                 // activate speculative cache so we can fetch from it again
+                DPRINTF(Fetch, "memory order violation\n");
                 decoder[tid]->setSpeculativeCacheActive(true);
                 
             }
             else {
-                ;
+                DPRINTF(Fetch, "something else\n");
             }
 
             decoder[tid]->redirectDueToLVPSquashing = false;
@@ -1944,7 +1947,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 			            staticInst->macroOp = curMacroop;
                     } else {
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
-			            staticInst->macroOp = curMacroop;
+                      staticInst->macroOp = curMacroop;
                         staticInst->fetched_from = 1;
                         if (ENABLE_DEBUG)
                             std::cout << "Decoder || UopCache: " <<  " PCState: " <<  thisPC << 
@@ -1952,7 +1955,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	/* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
-			                prevStaticInst->macroOp = curMacroop;
+                          prevStaticInst->macroOp = curMacroop;
                     	    if ((staticInst->isInteger() || staticInst->isNop() ||
                     	            staticInst->isControl() || staticInst->isMicroBranch()) &&
                     	            prevStaticInst->isLoad() && !prevStaticInst->isRipRel()) {
@@ -1991,6 +1994,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                 // If we're branching after this instruction, quit fetching
                 // from the same block.
+                DPRINTF(Fetch, "PC.pc():%#x PC.npc():%#x PC.size():%#x\n", thisPC.pc(), thisPC.npc(), thisPC.size());
+                DPRINTF(Fetch, "PC.upc():%#x PC.nupc():%#x\n", thisPC.upc(), thisPC.nupc());
+                DPRINTF(Fetch, "PC.branching():%d\n", thisPC.branching());
                 predictedBranch |= thisPC.branching();
                 predictedBranch |=
                     lookupAndUpdateNextPC(instruction, nextPC);
