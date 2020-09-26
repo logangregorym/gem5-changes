@@ -37,6 +37,19 @@ void TraceBasedGraph::regStats()
 void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
 {
   /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
+  for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
+    SpecTrace trace = it->second;
+    if (trace.state == SpecTrace::Invalid) {
+      continue;
+    } 
+    for (int i=0; i<4; i++) {
+      /* Do we already consider this as a prediction source? */
+      if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uopAddr) && trace.source[i].value == value) {
+        return;
+      }
+    }
+  }
+
   unsigned traceId = 0; 
 	int idx = (addr >> 5) & 0x1f;
   for (int way=0; way<8; way++) {
@@ -73,7 +86,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
           for (int uop=0; uop<6; uop++) {
             if (decoder->speculativeValidArray[idx][way] && decoder->speculativeAddrArray[idx][way][uop].pcAddr == addr &&
                 decoder->speculativeAddrArray[idx][way][uop].uopAddr == uopAddr && decoder->speculativeTraceIDArray[idx][way] == traceId) {
-              newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uopAddr);
+              newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
               traceMap[newTrace.id] = newTrace;
               traceQueue.push(newTrace);
               DPRINTF(SuperOp, "Queueing up new trace %i to reoptimize trace %i at spec[%i][%i][%i]\n", newTrace.id, newTrace.reoptId, idx, way, uopAddr);
@@ -93,10 +106,11 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
           newTrace.source[0].addr = FullUopAddr(addr, uopAddr);
           newTrace.source[0].value = value;
           newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
-          newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uopAddr);
+          newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
           traceMap[newTrace.id] = newTrace;
           traceQueue.push(newTrace);
-          DPRINTF(SuperOp, "Queueing up new trace %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, idx, way, uopAddr);
+          DPRINTF(SuperOp, "Queueing up new trace %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, idx, way, uop);
+          DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
           return;
         }
       }
@@ -198,9 +212,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
     DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
     for (int way=0; way<8; way++) {
       int idx = currentTrace.head.idx;
-      int uop = currentTrace.head.uop;
       if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
-        currentTrace.addr = FullCacheIdx(idx, way, uop);
+        currentTrace.addr = FullCacheIdx(idx, way, 0);
         currentTrace.state = SpecTrace::Complete;
         traceMap[currentTrace.id] = currentTrace;
         dumpTrace(currentTrace);
@@ -272,8 +285,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
   }
 	
   bool updateSuccessful = false;
+  bool foundNOP = false;
 
 	// Any inst in a trace may be a prediction source
+  DPRINTF(ConstProp, "Processing instruction: %p:%i -- %s\n", currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
   if (isPredictionSource(currentTrace, currentTrace.instAddr)) {
     // Step 1: Get predicted value from LVP
     // Step 2: Determine dest register(s)
@@ -289,7 +304,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
   } else {
     // Propagate predicted values
 		string type = currentTrace.inst->getName();
-    DPRINTF(ConstProp, "Processing instruction: %p:%i -- %s\n", currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, type);
 		if (type == "mov") {
 			DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
 			propagateMov(currentTrace.inst);
@@ -352,8 +366,11 @@ bool TraceBasedGraph::generateNextTraceInst() {
 		} else if (type == "rdtsc" || type == "rdval") {
 			DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
 			// TODO: determine whether direct register file access needs to be handled differently?
-		} else if (type == "panic" || type == "NOP" || type == "CPUID") {
-			DPRINTF(ConstProp, "Type is PANIC, NOP, or CPUID\n");
+		} else if (type == "NOP") {
+			DPRINTF(ConstProp, "Found a NOP at [%i][%i][%i], compacting...\n", idx, way, uop);
+      foundNOP = true;
+		} else if (type == "panic" || type == "CPUID") {
+			DPRINTF(ConstProp, "Type is PANIC or CPUID\n");
 			// TODO: possibly remove, what is purpose?
 		} else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp" || "rdip") {
 			DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, CALL_FAR_MP, or RDIP\n");
@@ -362,11 +379,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
 			DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
 		}
 
-		updateSuccessful = updateSpecTrace(currentTrace);
+    if (!foundNOP) {
+      updateSuccessful = updateSpecTrace(currentTrace);
+    }
 	}
 
 	// Simulate a stall if update to speculative cache wasn't successful
-	if (updateSuccessful) {
+	if (updateSuccessful || foundNOP) {
     advanceTrace(currentTrace);
   }
   //if (decodedMacroOp && decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
@@ -401,11 +420,18 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
 		updateSuccessful = decoder->addUopToSpeculativeCache(trace.inst, trace.instAddr.pcAddr, trace.instAddr.uopAddr, trace.id);
     trace.shrunkLength++;
 
+    // No predicted value propagation required for conditional moves or returns
+    if (trace.inst->isCC() || trace.inst->isReturn()) {
+      return updateSuccessful;
+    }
+
 		// Step 3b: Mark all predicted values on the StaticInst
 		for (int i=0; i<trace.inst->numSrcRegs(); i++) {
 			unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
+      DPRINTF(ConstProp, "Examining register %i\n", srcIdx);
 			if (registerValid[srcIdx]) {
-				trace.inst->sourcePredictions[i] = registerValue[i];
+        DPRINTF(ConstProp, "Propagated constant %#x in reg %i at %#x:%#x\n", registerValue[srcIdx], srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+				trace.inst->sourcePredictions[i] = registerValue[srcIdx];
 				trace.inst->sourcesPredicted[i] = true;
 			}
 		}
@@ -621,6 +647,11 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
 	if (inst->numSrcRegs() > 0) {
 		return false;
 	}
+
+  // Conditional moves
+  if (inst->isCC()) {
+    return true;
+  }
 
 	uint64_t forwardVal = inst->getImmediate();
   unsigned destRegId = inst->destRegIdx(0).flatIndex();

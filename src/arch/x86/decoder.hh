@@ -454,7 +454,7 @@ protected:
       return speculativeCacheActive;
   }
 
-  bool doSquash(const StaticInstPtr si, X86ISA::PCState pc);
+  void doSquash();
 
 	StaticInstPtr getSuperoptimizedInst(Addr addr, unsigned uop);
 
@@ -480,7 +480,7 @@ protected:
 
 	unsigned profitabilityScore(FullCacheIdx specIdx);
 
-    StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, const X86ISA::PCState thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
+    StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
 
     void regStats();
 
