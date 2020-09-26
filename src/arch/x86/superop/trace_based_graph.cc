@@ -418,14 +418,9 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
 		DPRINTF(ConstProp, "Dead code at %#x:%#x\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
 	} else {
 		updateSuccessful = decoder->addUopToSpeculativeCache(trace.inst, trace.instAddr.pcAddr, trace.instAddr.uopAddr, trace.id);
-    trace.shrunkLength++;
+    	trace.shrunkLength++;
 
-    // No predicted value propagation required for conditional moves or returns
-    if (trace.inst->isCC() || trace.inst->isReturn()) {
-      return updateSuccessful;
-    }
-
-		// Step 3b: Mark all predicted values on the StaticInst
+  		// Step 3b: Mark all predicted values on the StaticInst
 		for (int i=0; i<trace.inst->numSrcRegs(); i++) {
 			unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
       DPRINTF(ConstProp, "Examining register %i\n", srcIdx);
@@ -435,6 +430,14 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
 				trace.inst->sourcesPredicted[i] = true;
 			}
 		}
+
+		// No predicted value propagation required for conditional moves or returns
+		// not sure if that's true; jump inst may recieve propagated value?
+    	if (trace.inst->isCC() || trace.inst->isReturn()) {
+    	  return updateSuccessful;
+    	}
+
+
 	}
   return updateSuccessful;
 }

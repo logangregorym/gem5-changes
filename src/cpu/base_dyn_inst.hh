@@ -946,7 +946,9 @@ BaseDynInst<Impl>::initiateMemRead(Addr addr, unsigned size,
             if (cpu->checker) {
                 reqToVerify = std::make_shared<Request>(*req);
             }
+		// std::cout << "Before cpu read fault is " << fault << std::endl;
             fault = cpu->read(req, sreqLow, sreqHigh, lqIdx);
+		// std::cout << "After cpu read fault is " << fault << std::endl;
         } else {
             // Commit will have to clean up whatever happened.  Set this
             // instruction as executed.

@@ -632,9 +632,14 @@ LSQUnit<Impl>::executeLoad(DynInstPtr &inst)
         // commit.
         if (!inst->readPredicate())
             inst->forwardOldRegs();
+		std::cout << "Load Fault " << load_fault->name() << std::endl;
+		// panic("Load Fault!!");
         DPRINTF(LSQUnit, "Load [sn:%lli] not executed from %s\n",
                 inst->seqNum,
                 (load_fault != NoFault ? "fault" : "predication"));
+		//if (load_fault == 0x5611c38) { 
+		//	std::cout << "Found it!" << std::endl;
+		//}
         if (!(inst->hasRequest() && inst->strictlyOrdered()) ||
             inst->isAtCommit()) {
             inst->setExecuted();

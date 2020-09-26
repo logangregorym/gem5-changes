@@ -1368,6 +1368,10 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
     nextPC.valid = false;
   }
 
+	//std::cout << "Returning Spec Inst: " << curInst->disassemble(thisPC.instAddr()) << endl;
+	//for (int i=0; i < curInst->numSrcRegs(); i++) {
+	//	std::cout << "Register " << i << " predicted " << curInst->sourcePredictions[i] << " (" << curInst->sourcesPredicted[i] << ")" << std::endl;
+	//}
 	return curInst;
 }
 
