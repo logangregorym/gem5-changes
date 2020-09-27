@@ -309,7 +309,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     currentTrace.inst->setEndOfTrace();
                     if (!currentTrace.inst->isControl()) { // control instructions already propagate live outs
                         for (int i=0; i<16; i++) { // 16 int registers
-                            if (regCtx[i].valid && regCtx[i].live) {
+                            if (regCtx[i].valid) {
                                 currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
                                 currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
                                 currentTrace.inst->addDestReg(RegId(IntRegClass, i));
@@ -323,7 +323,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     dumpTrace(currentTrace);
                     DPRINTF(SuperOp, "Live Outs:\n");
                     for (int i=0; i<16; i++) {
-                        if (regCtx[i].valid && regCtx[i].live)
+                        if (regCtx[i].valid)
                             DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
                     }
                     for (int i=0; i<4; i++) {
@@ -358,8 +358,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
         } else if (currentTrace.state == SpecTrace::QueuedForReoptimization) {
             currentTrace.state = SpecTrace::ReoptimizationInProcess;
         }
-        
-        regCtx = currentTrace.regCtx;
     } else { 
         assert(currentTrace.state == SpecTrace::OptimizationInProcess || currentTrace.state == SpecTrace::ReoptimizationInProcess);
         currentTrace.inst = NULL;
@@ -515,7 +513,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     // Propagate live outs at the end of each control instruction
     if (currentTrace.inst->isControl()) {
         for (int i=0; i<16; i++) { // 16 int registers
-            if (regCtx[i].valid && regCtx[i].live) {
+            if (regCtx[i].valid) {
                 currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
                 currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
                 currentTrace.inst->addDestReg(RegId(IntRegClass, i));
@@ -560,7 +558,6 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
         // update live outs
         for (int i=0; i<trace.inst->numDestRegs(); i++) {
             RegId destReg = trace.inst->destRegIdx(i);
-            regCtx[destReg.flatIndex()].live = false;
             regCtx[destReg.flatIndex()].valid = false;
         }
 
@@ -619,7 +616,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -637,7 +634,7 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -669,7 +666,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -700,7 +697,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -731,7 +728,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -762,7 +759,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -793,7 +790,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -819,7 +816,7 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -849,7 +846,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -879,7 +876,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -909,7 +906,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -939,7 +936,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -969,7 +966,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -999,7 +996,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -1029,7 +1026,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -1061,7 +1058,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;
@@ -1091,7 +1088,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
             regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
+            regCtx[destReg.flatIndex()].valid = true;
         }
     }
     return true;

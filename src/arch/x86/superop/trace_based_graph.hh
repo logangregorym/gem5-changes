@@ -40,9 +40,8 @@ struct PredictionSource
 struct RegisterContext {
     int64_t value;
     bool valid;
-    bool live;
 
-    RegisterContext() {value = 0; valid = false; live = false;}
+    RegisterContext() {value = 0; valid = false;}
 };
 
 // Speculative Trace
@@ -96,9 +95,6 @@ struct SpecTrace
     // ID of the trace being re-optimized in case this is a re-optimization
     unsigned reoptId;
 
-    // Register context block -- part of the trace only for simulation purposes
-    RegisterContext regCtx[38]; // 38 integer registers including implicit ones
-
     // Counter to assign trace IDs
     static unsigned traceIDCounter;
 
@@ -144,8 +140,8 @@ class TraceBasedGraph : public SimObject
     // Current trace being streamed
     SpecTrace streamTrace;
 
-    // Pointer to the register context block of the trace being optimized
-    RegisterContext *regCtx;
+    // Register context block of the trace being optimized
+    RegisterContext regCtx[38]; // 38 integer registers including implicit ones
 
     BPredUnit* branchPred;
 
