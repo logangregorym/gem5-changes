@@ -561,6 +561,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
         for (int i=0; i<trace.inst->numDestRegs(); i++) {
             RegId destReg = trace.inst->destRegIdx(i);
             regCtx[destReg.flatIndex()].live = false;
+            regCtx[destReg.flatIndex()].valid = false;
         }
 
         // No predicted value propagation required for conditional moves or returns
