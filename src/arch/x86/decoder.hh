@@ -462,29 +462,19 @@ protected:
 
 	void invalidateSpecCacheLine(int idx, int way);
 
-//	unsigned getSpecTraceLength(Addr addr);
-	unsigned getSpecTraceLength(FullCacheIdx specIdx);
-
 	unsigned getHotnessOfTrace(Addr addr);
 
-	unsigned minConfidence(unsigned idx, unsigned way);
+	unsigned minConfidence(unsigned traceId);
 
-	unsigned maxLatency(unsigned idx, unsigned way);
+	unsigned maxLatency(unsigned traceId);
 
 	// Interface for fetch!
     // tells fetch stage that if a speculative trace is availble for this PC
 	unsigned isTraceAvailable(Addr addr);
 
-//	bool isProfitable(Addr addr, unsigned uop);
-	bool isProfitable(FullCacheIdx specIdx, FullCacheIdx uopIdx);
+  StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
 
-	unsigned profitabilityScore(FullCacheIdx specIdx);
-
-    StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
-
-    void regStats();
-
-    void dumpMicroopCache();
+  void regStats();
 
 	struct TraceMetaData {
 		/*
