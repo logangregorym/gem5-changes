@@ -1133,7 +1133,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                 inst->memoryAccessEndCycle = cpu->numCycles.value();
                 DPRINTF(LVP, "Sending a load response to LVP from [sn:%i]\n", inst->seqNum);
                 ThreadID tid = inst->threadNumber;
-                DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->confidence);
+                DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence);
                 for (int i=0; i<inst->numDestRegs(); i++) {
                     PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                     uint64_t value;
@@ -1142,31 +1142,31 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                       case IntRegClass:
                         value = cpu->readIntReg(dest_reg);
                         DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
-                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                         break;
                       case FloatRegClass:
                         value = cpu->readFloatRegBits(dest_reg);
                         DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readFloatReg(dest_reg));
-                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                         break;
                       case VecRegClass:
                         // Should be okay to ignore, because if predicted, assertion in inst_queue would have failed
                         // value = cpu->readVecReg(dest_reg);
-                        if (inst->confidence >= 0) { inst->lvMispred = true; }
+                        if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
                         break;
                       case VecElemClass:
                         value = cpu->readVecElem(dest_reg);
                         DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readVecElem(dest_reg));
-                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                         break;
                       case CCRegClass:
                         value = cpu->readCCReg(dest_reg);
                         DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readCCReg(dest_reg));
-                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                         break;
                       case MiscRegClass:
                         // Should also be okay to ignore, won't be predicted
-                        if (inst->confidence >= 0) { inst->lvMispred = true; }
+                        if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
                         break;
                       default:
                         panic("Unknown register class: %d", (int)dest_reg->classValue());

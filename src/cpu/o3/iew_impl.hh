@@ -565,6 +565,7 @@ DefaultIEW<Impl>::squashDueToBranch(DynInstPtr &inst, ThreadID tid)
         toCommit->squash[tid] = true;
         toCommit->squashedSeqNum[tid] = inst->seqNum;
         toCommit->branchTaken[tid] = inst->pcState().branching();
+        toCommit->oldpc[tid] = inst->pcState();
 
         TheISA::PCState pc = inst->pcState();
         TheISA::advancePC(pc, inst->staticInst);
@@ -590,24 +591,25 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
 
     // If already squashing, LVP takes precedence
     // Using < instead of <= would give branch precedence
-    if ((!toCommit->squash[tid] || firstDependent->seqNum <= toCommit->squashedSeqNum[tid])) {
+    if ((!toCommit->squash[tid] || inst->seqNum <= toCommit->squashedSeqNum[tid])) {
         toCommit->squash[tid] = true;
-        toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
-        //toCommit->squashedSeqNum[tid] = inst->seqNum;
-        toCommit->pc[tid] = firstDependent->pcState();
+        //toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
+        toCommit->squashedSeqNum[tid] = inst->seqNum;
+        toCommit->pc[tid] = inst->pcState();
+        toCommit->oldpc[tid] = inst->pcState();
         toCommit->mispredictInst[tid] = inst; // not a branch misprediction
         toCommit->includeSquashInst[tid] = true;
 
         toCommit->squashDueToLVP[tid] = true;
 
         wroteToTimeBuffer = true;
-        instsSquashedByLVP[tid] += (cpu->globalSeqNum - firstDependent->seqNum);
-    } else if (toCommit->squash[tid] && firstDependent->seqNum > toCommit->squashedSeqNum[tid]) {
+        instsSquashedByLVP[tid] += (cpu->globalSeqNum - inst->seqNum);
+    } else if (toCommit->squash[tid] && inst->seqNum > toCommit->squashedSeqNum[tid]) {
         DPRINTF(LVP, "Already squashing from [sn:%i], so skipping\n", toCommit->squashedSeqNum[tid]);
     }
 
     // New stats
-    bool isInUop = cpu->fetch.decoder[tid]->isHitInUopCache(firstDependent->pcState().instAddr());
+    bool isInUop = cpu->fetch.decoder[tid]->isHitInUopCache(inst->pcState().instAddr());
     // bool isInSpec = cpu->fetch.decoder[tid]->isHitInSpeculativeCache(inst->pcState().instAddr());
     // if (isInUop && isInSpec) {
     squashedLoadsPresentInBothCaches[tid]++;
@@ -637,6 +639,7 @@ DefaultIEW<Impl>::squashDueToMemOrder(DynInstPtr &inst, ThreadID tid)
 
         toCommit->squashedSeqNum[tid] = inst->seqNum;
         toCommit->pc[tid] = inst->pcState();
+        toCommit->oldpc[tid] = inst->pcState();
         toCommit->mispredictInst[tid] = NULL;
         
         // in this way we can find out whether mem order violation was in the trace or not
@@ -1374,6 +1377,7 @@ DefaultIEW<Impl>::executeInsts()
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
                 inst->memoryAccessStartCycle = cpu->numCycles.value();
+#if 0
                 if (loadPred->predictStage == 2 || loadPred->predictStage == 3) {
                     if (!inst->isSquashed()) {
                         // Check the Load Prediction Unit
@@ -1381,17 +1385,17 @@ DefaultIEW<Impl>::executeInsts()
                         DPRINTF(LVP, "makePrediction called by inst [sn:%i]\n", inst->seqNum);
                         LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(inst->pcState(), tid, cpu->numCycles.value());
                         // if (ret.confidence >= 0) { cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), true); }
-                        DPRINTF(LVP, "fetch predicted (%i) %x with confidence %i, iew predicted %x with confidence %i\n", inst->predictedLoad, inst->predictedValue, inst->confidence, ret.predictedValue, ret.confidence);
+                        DPRINTF(LVP, "fetch predicted (%i) %x with confidence %i, iew predicted %x with confidence %i\n", inst->staticInst->predictedLoad, inst->staticInst->predictedValue, inst->staticInst->confidence, ret.predictedValue, ret.confidence);
 
-                        if (inst->predictedLoad) {
+                        if (inst->staticInst->predictedLoad) {
                             // Got a prediction in the fetch stage
-                            if (inst->confidence < 0 && ret.confidence >= 0) {
+                            if (inst->staticInst->confidence < 0 && ret.confidence >= 0) {
                                 ++confidenceThresholdPassed[tid];
                             }
-                            if (inst->predictedValue != ret.predictedValue && inst->confidence >= 0) {
+                            if (inst->staticInst->predictedValue != ret.predictedValue && inst->staticInst->confidence >= 0) {
                                 ++predictionChanged[tid];
                             }
-                            if (inst->confidence >= 0 && (ret.confidence < 0 || ret.predictedValue != inst->predictedValue)) {
+                            if (inst->staticInst->confidence >= 0 && (ret.confidence < 0 || ret.predictedValue != inst->staticInst->predictedValue)) {
                                 ++predictionInvalidated[tid];
                             }
                         }
@@ -1399,15 +1403,15 @@ DefaultIEW<Impl>::executeInsts()
                         // assert(!loadPred->dynamicThreshold);
                         if ((inst->memoryAccessStartCycle - loadPred->lastMisprediction < loadPred->resetDelay) && loadPred->dynamicThreshold) {
                             DPRINTF(LVP, "Misprediction occured %i cycles ago, setting confidence to 0\n", inst->memoryAccessStartCycle - loadPred->lastMisprediction);
-                            inst->predictedValue = ret.predictedValue;
-                            inst->confidence = -1;
-                            inst->predictedLoad = true;
+                            inst->staticInst->predictedValue = ret.predictedValue;
+                            inst->staticInst->confidence = -1;
+                            inst->staticInst->predictedLoad = true;
                         } else {
-                            inst->predictedValue = ret.predictedValue;
-                            inst->confidence = ret.confidence;
-                            inst->predictedLoad = true;
+                            inst->staticInst->predictedValue = ret.predictedValue;
+                            inst->staticInst->confidence = ret.confidence;
+                            inst->staticInst->predictedLoad = true;
                         }
-                        DPRINTF(LVP, "LVP returned confidence %d, inst->confidence set to %d\n", ret.confidence, inst->confidence);
+                        DPRINTF(LVP, "LVP returned confidence %d, inst->staticInst->confidence set to %d\n", ret.confidence, inst->staticInst->confidence);
                         // if prediction is good, wake dependencies
                         // TEMPORARY DEBUGGING
                         // for (int i = 0; i < inst->numDestRegs(); i++) {
@@ -1418,7 +1422,7 @@ DefaultIEW<Impl>::executeInsts()
                                 // DPRINTF(ExecResult, "REMOVE THIS PRINT: cpu value is %x, inst value is %x\n", value, inst->readIntRegOperand(inst->staticInst.get(), i));
                             // }
                         // }
-                        if (inst->confidence >= 0) {
+                        if (inst->staticInst->confidence >= 0) {
                             if (!inst->isSquashed() && inst->getFault() == NoFault) {
                                 DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
                                 forwardPredictionToDependents(inst);
@@ -1426,7 +1430,7 @@ DefaultIEW<Impl>::executeInsts()
                         }
                     }
                 }
-
+#endif
                 // Loads will mark themselves as executed, and their writeback
                 // event adds the instruction to the queue to commit
                 fault = ldstQueue.executeLoad(inst);
@@ -1493,7 +1497,7 @@ DefaultIEW<Impl>::executeInsts()
                     inst->memoryAccessEndCycle = cpu->numCycles.value();
                     DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
                     ThreadID tid = inst->threadNumber;
-                    DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->confidence);
+                    DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence);
                     for (int i=0; i<inst->numDestRegs(); i++) {
                     	PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                     	uint64_t value;
@@ -1502,31 +1506,31 @@ DefaultIEW<Impl>::executeInsts()
                           case IntRegClass:
                             value = cpu->readIntReg(dest_reg);
                             DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
-                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                             break;
                           case FloatRegClass:
                             value = cpu->readFloatRegBits(dest_reg);
                             DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readFloatReg(dest_reg));
-                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                             break;
                       	  case VecRegClass:
                             // Should be okay to ignore, because if predicted, assertion in inst_queue would have failed
                             // value = cpu->readVecReg(dest_reg);
-                            if (inst->confidence >= 0) { inst->lvMispred = true; }
+                            if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
                             break;
                       	  case VecElemClass:
                             value = cpu->readVecElem(dest_reg);
                             DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readVecElem(dest_reg));
-                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                             break;
                       	  case CCRegClass:
                             value = cpu->readCCReg(dest_reg);
                             DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readCCReg(dest_reg));
-                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->predictedValue, inst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                             break;
                       	  case MiscRegClass:
                             // Should also be okay to ignore, won't be predicted
-                            if (inst->confidence >= 0) { inst->lvMispred = true; }
+                            if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
                             break;
                      	  default:
                             panic("Unknown register class: %d", (int)dest_reg->classValue());
@@ -1685,6 +1689,16 @@ DefaultIEW<Impl>::writebackInsts()
         // are first sent to commit.  Instead commit must tell the LSQ
         // when it's ready to execute the strictly ordered load.
         if (!inst->isSquashed() && inst->isExecuted() && inst->getFault() == NoFault) {
+
+            // First dump all live outs if this instruction is at the end of a speculatively issued trace
+            if (inst->staticInst->isEndOfTrace()) {
+                for (int i = 0; i < inst->numDestRegs(); i++) {
+                    if (inst->staticInst->liveOutPredicted[i]) {
+                        inst->setIntRegOperand(inst->staticInst.get(), i, inst->staticInst->liveOut[i]);
+                    }
+                }
+            }
+
             int dependents = instQueue.wakeDependents(inst);
 
             for (int i = 0; i < inst->numDestRegs(); i++) {
@@ -1874,7 +1888,10 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
         !toCommit->squash[tid] ||
         toCommit->squashedSeqNum[tid] > inst->seqNum) {
 
-        if (inst->mispredicted()) {
+        TheISA::PCState tempPC = inst->pcState();
+        TheISA::advancePC(tempPC, inst->staticInst);
+        DPRINTF(IEW, "mismatch? target PC=%s, predicted PC=%s\n", tempPC, inst->readPredTarg());
+        if ((!inst->isStreamedFromSpeculativeCache() || (inst->isControl() && inst->isLastMicroop())) && inst->mispredicted()) {
             fetchRedirect[tid] = true;
 
             DPRINTF(IEW, "Execute: Branch mispredict detected.\n");

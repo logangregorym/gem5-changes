@@ -115,7 +115,7 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
     DPRINTF(LVP, "Value for address %x is %llx\n", loadAddr, value);
     DPRINTF(LVP, "Status for address %x is %i\n", loadAddr, status - firstConst);
     ++predictionsMade;
-    return LVPredUnit::lvpReturnValues(value, status - firstConst);
+    return LVPredUnit::lvpReturnValues(value, status - firstConst, getDelay(loadAddr));
 }
 
 uint64_t FA3P::getValuePredicted(Addr loadAddr) 

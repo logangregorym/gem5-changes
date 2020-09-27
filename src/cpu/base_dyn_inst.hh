@@ -233,7 +233,6 @@ class BaseDynInst : public ExecContext, public RefCounted
     /** Store queue index. */
     int16_t sqIdx;
 
-    bool isStreamedFromSpecCache;
     /////////////////////// TLB Miss //////////////////////
     /**
      * Saved memory requests (needed when the DTB address translation is
@@ -509,8 +508,8 @@ class BaseDynInst : public ExecContext, public RefCounted
     //
     //  Instruction types.  Forward checks to StaticInst object.
     //
-    bool isStreamedFromSpeculativeCache() const {return isStreamedFromSpecCache;}
-    void setStreamedFromSpeculativeCache(bool state)      {isStreamedFromSpecCache = state;}
+    bool isStreamedFromSpeculativeCache() const {return staticInst->isStreamedFromSpeculativeCache();}
+    void setStreamedFromSpeculativeCache(bool state)      {staticInst->setStreamedFromSpeculativeCache(state);}
     bool isNop()          const { return staticInst->isNop(); }
     bool isMemRef()       const { return staticInst->isMemRef(); }
     bool isLoad()         const { return staticInst->isLoad(); }
@@ -898,14 +897,11 @@ class BaseDynInst : public ExecContext, public RefCounted
     { return cpu->getCpuAddrMonitor(threadNumber); }
   public:
     // Used by LVP
-    uint64_t predictedValue;
-    int8_t confidence = -1; // could be using BigSC
     unsigned cycleFetched;
     unsigned memoryAccessStartCycle;
     unsigned memoryAccessEndCycle;
     bool lvMispred = false;
     bool potentialLoopEnd = false;
-    bool predictedLoad = false;
     bool reducableAtFetch = false;
 };
 

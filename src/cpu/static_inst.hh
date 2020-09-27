@@ -112,6 +112,9 @@ class StaticInst : public RefCounted, public StaticInstFlags
     int8_t _numVecElemDestRegs;
     /** @} */
 
+    bool endOfTrace;
+    bool isStreamedFromSpecCache;
+
   public:
 
     /// @name Register information.
@@ -199,6 +202,11 @@ class StaticInst : public RefCounted, public StaticInstFlags
 
     bool isRipRel() { return _srcRegIdx[1] == RegId(IntRegClass, 23); }
 
+    bool isEndOfTrace() { return endOfTrace; }
+    void setEndOfTrace() { endOfTrace = true; }
+    bool isStreamedFromSpeculativeCache() const {return isStreamedFromSpecCache;}
+    void setStreamedFromSpeculativeCache(bool state)      {isStreamedFromSpecCache = state;}
+
     /// Operation class.  Used to select appropriate function unit in issue.
     OpClass opClass()     const { return _opClass; }
 
@@ -210,6 +218,9 @@ class StaticInst : public RefCounted, public StaticInstFlags
     /// Return logical index (architectural reg num) of i'th source reg.
     /// Only the entries from 0 through numSrcRegs()-1 are valid.
     const RegId& srcRegIdx(int i)  const { return _srcRegIdx[i]; }
+
+    /// add destRegIdx (live outs from superoptimization)
+    void addDestReg(RegId reg) { _destRegIdx[_numDestRegs++] = reg; }
 
     /// Pointer to a statically allocated "null" instruction object.
     static StaticInstPtr nullStaticInstPtr;
@@ -260,14 +271,14 @@ class StaticInst : public RefCounted, public StaticInstFlags
           _numFPDestRegs(0), _numIntDestRegs(0), _numCCDestRegs(0),
           _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
-    { }
+    { endOfTrace = false; isStreamedFromSpecCache = false;}
 
     StaticInst(const char *_mnemonic, ExtMachInst _machInst, OpClass __opClass)
 	: _opClass(__opClass), _numSrcRegs(0), _numDestRegs(0),
 	  _numFPDestRegs(0), _numIntDestRegs(0), _numCCDestRegs(0),
 	  _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
-    { }
+    { endOfTrace = false; isStreamedFromSpecCache = false;}
 
   public:
     virtual ~StaticInst();
@@ -369,9 +380,15 @@ class StaticInst : public RefCounted, public StaticInstFlags
     virtual uint8_t getDataSize();
     const char * instMnem;
 
+    uint64_t predictedValue;
+    int8_t confidence = -1; // could be using BigSC
+    bool predictedLoad = false;
+
     // Annotate predicted inputs here
     int64_t sourcePredictions[128] = {0};
     bool sourcesPredicted[128] = {0};
+    int64_t liveOut[128] = {0};
+    bool liveOutPredicted[128] = {0};
 };
 
 #endif // __CPU_STATIC_INST_HH__

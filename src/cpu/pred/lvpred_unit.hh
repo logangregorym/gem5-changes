@@ -37,26 +37,30 @@ class LVPredUnit : public SimObject
     virtual unsigned getDelay(Addr addr) { return 0; }
 
     struct lvpReturnValues {
-        lvpReturnValues(uint64_t v, int8_t status, uint8_t predSource) {
+        lvpReturnValues(int64_t v, int8_t status, uint8_t predSource) {
             this->predictedValue = v;
             this->confidence = status;
+            this->latency = 0;
             this->predSource = predSource;
         }
 
-        lvpReturnValues(uint64_t v, int8_t status) {
+        lvpReturnValues(int64_t v, int8_t status) {
             this->predictedValue = v;
             this->confidence = status;
+            this->latency = 0;
             this->predSource = 0;
         }
 
         lvpReturnValues() {
             this->predictedValue = 0;
             this->confidence = 0;
+            this->latency = 0;
             this->predSource = 0;
         }
 
-        uint64_t predictedValue;
+        int64_t predictedValue;
         int8_t confidence;
+        unsigned latency;
         uint8_t predSource;
     };
 

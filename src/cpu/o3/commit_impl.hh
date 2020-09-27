@@ -936,6 +936,7 @@ DefaultCommit<Impl>::commit()
             }
 
             toIEW->commitInfo[tid].pc = fromIEW->pc[tid];
+            toIEW->commitInfo[tid].oldpc = fromIEW->oldpc[tid];
         }
 
         if (commitStatus[tid] == ROBSquashing) {
@@ -1444,7 +1445,7 @@ DefaultCommit<Impl>::updateComInstStats(DynInstPtr &inst)
 
         if (inst->isLoad()) {
             statComLoads[tid]++;
-            if (inst->confidence >= 0) { ++lvpPredsCommitted; }
+            if (inst->staticInst->confidence >= 0) { ++lvpPredsCommitted; }
         }
     }
 

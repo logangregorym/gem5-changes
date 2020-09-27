@@ -35,7 +35,7 @@ void TraceBasedGraph::regStats()
         ;
 }
 
-void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
+void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, unsigned confidence, unsigned latency)
 {
     /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
     for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
@@ -45,13 +45,15 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
         } 
         for (int i=0; i<4; i++) {
             /* Do we already consider this as a prediction source? */
-            if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uopAddr) && trace.source[i].value == value) {
+            if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uopAddr) &&
+                trace.source[i].value == value && trace.source[i].confidence >= 5) {
                 return;
             }
         }
     }
 
     unsigned traceId = 0; 
+    bool lowConfidence = false;
     int idx = (addr >> 5) & 0x1f;
     for (int way=0; way<8; way++) {
         traceId = decoder->speculativeTraceIDArray[idx][way];
@@ -59,12 +61,17 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
         for (int i=0; i<4; i++) {
             /* Do we already consider this as a prediction source? */
             if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uopAddr) && trace.source[i].value == value) {
-                return;
+                if (trace.source[i].confidence < 5) {
+                    lowConfidence = true;
+                } else {
+                    return;
+                }
             }
         }
     }
 
-    if (traceId) {
+    // if an already optimized trace has low confidence, it is time to phase it out
+    if (traceId && !lowConfidence) {
         SpecTrace trace = traceMap[traceId];
         for (int i=0; i<4; i++) {
             /* Have we exhausted all prediction sources? If not, we can further compact this trace.    */
@@ -79,6 +86,8 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
                 newTrace.source[i].valid = true;
                 newTrace.source[i].addr = FullUopAddr(addr, uopAddr);
                 newTrace.source[i].value = value;
+                newTrace.source[i].confidence = confidence;
+                newTrace.source[i].latency = latency;
                 newTrace.state = SpecTrace::QueuedForReoptimization;
                 newTrace.reoptId = traceId;
 
@@ -105,13 +114,15 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
                     newTrace.source[0].valid = true;
                     newTrace.source[0].addr = FullUopAddr(addr, uopAddr);
                     newTrace.source[0].value = value;
+                    newTrace.source[0].confidence = confidence;
+                    newTrace.source[0].latency = latency;
                     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
                     newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
 
                     // before adding it to the queue, check if profitable -- we prefer long hot traces
                     unsigned hotness = decoder->uopHotnessArray[idx][way].read();
                     unsigned length = computeLength(newTrace);
-                    if (hotness > 7 && length > 2) { // TODO: revisit: pretty low bar
+                    if (hotness < 7 || length < 4) { // TODO: revisit: pretty low bar
                         DPRINTF(SuperOp, "Rejecting trace request to optimize trace at uop[%i][%i][%i]\n", idx, way, uop);
                         DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
                         DPRINTF(SuperOp, "hotness:%i length=%i\n", hotness, length);
@@ -123,6 +134,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
                     traceQueue.push(newTrace);
                     DPRINTF(SuperOp, "Queueing up new trace request %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, idx, way, uop);
                     DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
+                    DPRINTF(SuperOp, "hotness:%i length=%i\n", hotness, length);
                     return;
                 }
             }
@@ -130,56 +142,109 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value)
     }
 }
 
-bool TraceBasedGraph::isPredictionSource(SpecTrace trace, FullUopAddr addr) {
+bool TraceBasedGraph::isPredictionSource(SpecTrace trace, FullUopAddr addr, int64_t &value, unsigned &confidence, unsigned &latency) {
     for (int i=0; i<4; i++) {
         if (trace.source[i].valid && trace.source[i].addr == addr) {
+            value = trace.source[i].value;
+            confidence = trace.source[i].confidence;
+            latency = trace.source[i].latency;
             return true;
         }
     }
     return false;
 }
 
-void TraceBasedGraph::flushMisprediction(Addr addr, unsigned uop) {
-    for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
-        SpecTrace trace = it->second;
-        for (int i=0; i<4; i++) {
-            if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uop)) {
-                trace.source[i].valid = false;
-            }
-        }
-    }
-}
+bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
+    // don't do this for re-optimizations
+    if (trace.state != SpecTrace::QueuedForFirstTimeOptimization && trace.state != SpecTrace::OptimizationInProcess)
+        return false;
 
-void TraceBasedGraph::invalidateBranch(Addr addr) {
-    for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
-        SpecTrace trace = it->second;
-        for (int i=0; i<4; i++) {
-            if (trace.source[i].valid && trace.source[i].isBranch && trace.source[i].addr.pcAddr == addr) {
-                trace.source[i].valid = false;
+    StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop]);
+    StaticInstPtr decodedMicroOp = decodedMacroOp;
+    if (decodedMacroOp->isMacroop()) {
+        Addr uopAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].uopAddr;
+        decodedMicroOp = decodedMacroOp->fetchMicroop(uopAddr);
+        decodedMicroOp->macroOp = decodedMacroOp;
+    }
+
+    // not a control transfer -- advance normally
+    if (!decodedMicroOp->isControl()) {
+        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+        return false;
+    }
+
+    // end the trace if a return or a branch without a confident prediction is encountered
+    Addr pcAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].pcAddr;
+    if (decodedMicroOp->isReturn() || !branchPred->getConfidenceForSSO(pcAddr)) {
+        trace.addr.valid = false;
+        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+        return true;
+    }
+
+    // if it is a direct call or a jump, fold the branch (provided it is predicted taken)
+    Addr target = pcAddr + decodedMacroOp->machInst.instSize;
+    if (std::string(decodedMicroOp->instMnem) == "CALL_NEAR_I" || std::string(decodedMicroOp->instMnem) == "JMP_I" || decodedMicroOp->isCondCtrl()) {
+        target += decodedMacroOp->machInst.immediate;
+    } 
+
+    // not a taken branch -- advance normally
+    void *bp_history = NULL;
+    if (!(std::string(decodedMicroOp->instMnem) == "CALL_NEAR_I" || std::string(decodedMicroOp->instMnem) == "JMP_I") &&
+        !branchPred->lookup(0, pcAddr, bp_history)) { // assuming tid = 0
+        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+        return false;
+    }
+
+    // indirect branch -- lookup indirect predictor
+    if (decodedMacroOp->machInst.opcode.op == 0xFF) {
+        TheISA::PCState targetPC;
+        branchPred->iPred.lookup(pcAddr, branchPred->getGHR(0, bp_history), targetPC, 0); // assuming tid = 0
+        target = targetPC.instAddr();
+    }
+
+    // pivot to jump target if it is found in the uop cache
+    int idx = (target >> 5) & 0x1f;
+    uint64_t tag = (target >> 10);
+    for (int way = 0; way < 8; way++) {
+        if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
+            for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
+                if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
+                        decoder->uopAddrArray[idx][way][uop].uopAddr == 0) {
+                    trace.addr.idx = idx;
+                    trace.addr.way = way;
+                    trace.addr.uop = uop;
+                    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+                    return true;
+                }
             }
         }
     }
+
+    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+    return false;
 }
 
 void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
-    trace.addr.uop++;
-    trace.addr.valid = false;
-    // select cache to advance from
-    if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
-        if (trace.addr.uop < decoder->uopCountArray[trace.addr.idx][trace.addr.way]) {
-            trace.addr.valid = true;
-        } else if (decoder->uopNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
-            trace.addr.uop = 0;
-            trace.addr.way = decoder->uopNextWayArray[trace.addr.idx][trace.addr.way];
-            trace.addr.valid = true;
-        }
-    } else {
-        if (trace.addr.uop < decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]) {
-            trace.addr.valid = true;
-        } else if (decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
-            trace.addr.uop = 0;
-            trace.addr.way = decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way];
-            trace.addr.valid = true;
+    if (!usingControlTracking || !advanceIfControlTransfer(trace)) {
+        trace.addr.uop++;
+        trace.addr.valid = false;
+        // select cache to advance from
+        if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
+            if (trace.addr.uop < decoder->uopCountArray[trace.addr.idx][trace.addr.way]) {
+                trace.addr.valid = true;
+            } else if (decoder->uopNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
+                trace.addr.uop = 0;
+                trace.addr.way = decoder->uopNextWayArray[trace.addr.idx][trace.addr.way];
+                trace.addr.valid = true;
+            }
+        } else {
+            if (trace.addr.uop < decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]) {
+                trace.addr.valid = true;
+            } else if (decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
+                trace.addr.uop = 0;
+                trace.addr.way = decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way];
+                trace.addr.valid = true;
+            }
         }
     }
 }
@@ -230,19 +295,52 @@ unsigned TraceBasedGraph::computeLength(SpecTrace trace) {
 
 bool TraceBasedGraph::generateNextTraceInst() {
     if (!currentTrace.addr.valid) { 
-        // Pop a new trace from the queue, start at top
-        DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
-        for (int way=0; way<8; way++) {
-            int idx = currentTrace.head.idx;
-            if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
-                currentTrace.addr = FullCacheIdx(idx, way, 0);
-                currentTrace.state = SpecTrace::Complete;
-                traceMap[currentTrace.id] = currentTrace;
-                dumpTrace(currentTrace);
-                break;
+        // Finalize old trace
+        if (currentTrace.state != SpecTrace::Complete) {
+            DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
+            DPRINTF(SuperOp, "Before optimization: \n");
+            currentTrace.addr = currentTrace.head;
+            dumpTrace(currentTrace);
+            DPRINTF(SuperOp, "After optimization: \n");
+            for (int way=0; way<8; way++) {
+                int idx = currentTrace.head.idx;
+                if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
+                    // mark end of trace and propagate live outs
+                    currentTrace.inst->setEndOfTrace();
+                    if (!currentTrace.inst->isControl()) { // control instructions already propagate live outs
+                        for (int i=0; i<16; i++) { // 16 int registers
+                            if (regCtx[i].valid && regCtx[i].live) {
+                                currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
+                                currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
+                                currentTrace.inst->addDestReg(RegId(IntRegClass, i));
+                                DPRINTF(SuperOp, "dest[%i]=%#x\n", currentTrace.inst->numDestRegs()-1, regCtx[i].value);
+                            }
+                        }
+                    }
+                    currentTrace.addr = FullCacheIdx(idx, way, 0);
+                    currentTrace.state = SpecTrace::Complete;
+                    traceMap[currentTrace.id] = currentTrace;
+                    dumpTrace(currentTrace);
+                    DPRINTF(SuperOp, "Live Outs:\n");
+                    for (int i=0; i<16; i++) {
+                        if (regCtx[i].valid && regCtx[i].live)
+                            DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
+                    }
+                    for (int i=0; i<4; i++) {
+                        DPRINTF(SuperOp, "Prediction Source %i\n", i);
+                        if (currentTrace.source[i].valid) {
+                            DPRINTF(SuperOp, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i\n",
+                                        currentTrace.source[i].addr.pcAddr,  currentTrace.source[i].addr.uopAddr,
+                                        currentTrace.source[i].value, currentTrace.source[i].confidence,
+                                        currentTrace.source[i].latency);
+                        }
+                    }
+                    break;
+                }
             }
         }
 
+        // Pop a new trace from the queue, start at top
         if (traceQueue.empty()) {
             currentTrace.addr.valid = false;
             return false; 
@@ -260,10 +358,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
         } else if (currentTrace.state == SpecTrace::QueuedForReoptimization) {
             currentTrace.state = SpecTrace::ReoptimizationInProcess;
         }
-        // Invalidate leftover predictions
-        for (int i=0; i<256; i++) {
-            registerValid[i] = false;
-        }
+        
+        regCtx = currentTrace.regCtx;
     } else { 
         assert(currentTrace.state == SpecTrace::OptimizationInProcess || currentTrace.state == SpecTrace::ReoptimizationInProcess);
         currentTrace.inst = NULL;
@@ -305,23 +401,26 @@ bool TraceBasedGraph::generateNextTraceInst() {
         }
         currentTrace.instAddr == decoder->speculativeAddrArray[idx][way][uop];
     }
-    
+
     bool updateSuccessful = false;
     bool foundNOP = false;
 
     // Any inst in a trace may be a prediction source
     DPRINTF(ConstProp, "Processing instruction: %p:%i -- %s\n", currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
-    if (isPredictionSource(currentTrace, currentTrace.instAddr)) {
+    int64_t value;
+    unsigned confidence;
+    unsigned latency;
+    if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) {
         // Step 1: Get predicted value from LVP
         // Step 2: Determine dest register(s)
         // Step 3: Annotate dest register entries with that value
         // Step 4: Add inst to speculative trace
-        uint64_t predictedValue = decoder->cpu->getLVP()->getValuePredicted(decoder->uopAddrArray[idx][way][uop].pcAddr);
         for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
             RegId destReg = currentTrace.inst->destRegIdx(i);
             if (destReg.classValue() == IntRegClass) {
-                registerValue[destReg.flatIndex()] = predictedValue;
-                registerValid[destReg.flatIndex()] = true;
+                regCtx[destReg.flatIndex()].value = currentTrace.inst->predictedValue = value;
+                regCtx[destReg.flatIndex()].valid = currentTrace.inst->predictedLoad = true;
+                currentTrace.inst->confidence = confidence;
             }
         }
         updateSuccessful = updateSpecTrace(currentTrace);
@@ -412,7 +511,18 @@ bool TraceBasedGraph::generateNextTraceInst() {
     if (updateSuccessful || foundNOP) {
         advanceTrace(currentTrace);
     }
-    //if (decodedMacroOp && decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+
+    // Propagate live outs at the end of each control instruction
+    if (currentTrace.inst->isControl()) {
+        for (int i=0; i<16; i++) { // 16 int registers
+            if (regCtx[i].valid && regCtx[i].live) {
+                currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
+                currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
+                currentTrace.inst->addDestReg(RegId(IntRegClass, i));
+                DPRINTF(SuperOp, "dest[%i]=%#x\n", currentTrace.inst->numDestRegs()-1, regCtx[i].value);
+            }
+        }
+    }
 
     return true;
 }
@@ -427,20 +537,17 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
     bool allSrcsReady = true;
     for (int i=0; i<trace.inst->numSrcRegs(); i++) {
         RegId srcReg = trace.inst->srcRegIdx(i);
-        allSrcsReady = allSrcsReady && registerValid[srcReg.flatIndex()];
+        allSrcsReady = allSrcsReady && regCtx[srcReg.flatIndex()].valid;
     }
 
     string type = trace.inst->getName();
     bool isDeadCode = allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "slri" || type == "slli" || type == "sexti" || type == "zexti");
 
-    // No predicted value propagation required for conditional moves or returns
-    // not sure if that's true; jump inst may recieve propagated value? -- let's only do this for cmovs and ret
-    if ((trace.inst->isCC() && type == "movi") || trace.inst->isReturn()) {
-        return updateSuccessful;
-    }
-
-    // Prevent an inst registering as dead if it is a prediction source
-    isDeadCode &= !isPredictionSource(trace, trace.instAddr);
+    // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC
+    int64_t value;
+    unsigned confidence;
+    unsigned latency;
+    isDeadCode &= (!isPredictionSource(trace, trace.instAddr, value, confidence, latency) && !(trace.inst->isCC() || trace.inst->isReturn()));
 
     // Inst will never already be in this trace, single pass
     if (isDeadCode) {
@@ -450,13 +557,25 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
         updateSuccessful = decoder->addUopToSpeculativeCache(trace.inst, trace.instAddr.pcAddr, trace.instAddr.uopAddr, trace.id);
         trace.shrunkLength++;
 
-            // Step 3b: Mark all predicted values on the StaticInst
+        // update live outs
+        for (int i=0; i<trace.inst->numDestRegs(); i++) {
+            RegId destReg = trace.inst->destRegIdx(i);
+            regCtx[destReg.flatIndex()].live = false;
+        }
+
+        // No predicted value propagation required for conditional moves or returns
+        // not sure if that's true; jump inst may recieve propagated value? -- let's only do this for cmovs and ret
+        if ((trace.inst->isCC() && type == "movi") || trace.inst->isReturn()) {
+            return updateSuccessful;
+        }
+
+        // Step 3b: Mark all predicted values on the StaticInst
         for (int i=0; i<trace.inst->numSrcRegs(); i++) {
             unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
             DPRINTF(ConstProp, "Examining register %i\n", srcIdx);
-            if (registerValid[srcIdx]) {
-                DPRINTF(ConstProp, "Propagated constant %#x in reg %i at %#x:%#x\n", registerValue[srcIdx], srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
-                trace.inst->sourcePredictions[i] = registerValue[srcIdx];
+            if (regCtx[srcIdx].valid) {
+                DPRINTF(ConstProp, "Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+                trace.inst->sourcePredictions[i] = regCtx[srcIdx].value;
                 trace.inst->sourcesPredicted[i] = true;
             }
         }
@@ -475,11 +594,11 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
     unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
     uint8_t size = inst->getDataSize();
-    if ((!registerValid[destRegId]) || (size < 8 && !registerValid[srcRegId])) {
+    if ((!regCtx[destRegId].valid) || (size < 8 && !regCtx[srcRegId].valid)) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
-    uint64_t srcVal = registerValue[srcRegId];
+    uint64_t destVal = regCtx[destRegId].value;
+    uint64_t srcVal = regCtx[srcRegId].value;
 
     // construct the value
     uint64_t forwardVal;
@@ -498,8 +617,8 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -516,8 +635,8 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -533,12 +652,12 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
     unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
-    if ((!registerValid[srcRegId]) || (!registerValid[destRegId])) {
+    if ((!regCtx[srcRegId].valid) || (!regCtx[destRegId].valid)) {
         return false;
     }
 
-    uint64_t destVal = registerValue[destRegId];
-    uint64_t srcVal = registerValue[srcRegId];
+    uint64_t destVal = regCtx[destRegId].value;
+    uint64_t srcVal = regCtx[srcRegId].value;
 
     // value construction is easy for this one
     uint64_t forwardVal = destVal + srcVal;
@@ -548,8 +667,8 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -565,11 +684,11 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
     unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
-    if ((!registerValid[srcRegId]) || (!registerValid[destRegId])) {
+    if ((!regCtx[srcRegId].valid) || (!regCtx[destRegId].valid)) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
-    uint64_t srcVal = registerValue[srcRegId];
+    uint64_t destVal = regCtx[destRegId].value;
+    uint64_t srcVal = regCtx[srcRegId].value;
 
     // value construction is easy for this one
     uint64_t forwardVal = destVal - srcVal;
@@ -579,8 +698,8 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -596,11 +715,11 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
     unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
-    if ((!registerValid[srcRegId]) || (!registerValid[destRegId])) {
+    if ((!regCtx[srcRegId].valid) || (!regCtx[destRegId].valid)) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
-    uint64_t srcVal = registerValue[srcRegId];
+    uint64_t destVal = regCtx[destRegId].value;
+    uint64_t srcVal = regCtx[srcRegId].value;
 
     // value construction is easy for this one
     uint64_t forwardVal = destVal & srcVal;
@@ -610,8 +729,8 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -627,11 +746,11 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
     unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
-    if ((!registerValid[srcRegId]) || (!registerValid[destRegId])) {
+    if ((!regCtx[srcRegId].valid) || (!regCtx[destRegId].valid)) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
-    uint64_t srcVal = registerValue[srcRegId];
+    uint64_t destVal = regCtx[destRegId].value;
+    uint64_t srcVal = regCtx[srcRegId].value;
 
     // value construction is easy for this one
     uint64_t forwardVal = destVal | srcVal;
@@ -641,8 +760,8 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -658,11 +777,11 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
     unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
-    if ((!registerValid[srcRegId]) || (!registerValid[destRegId])) {
+    if ((!regCtx[srcRegId].valid) || (!regCtx[destRegId].valid)) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
-    uint64_t srcVal = registerValue[srcRegId];
+    uint64_t destVal = regCtx[destRegId].value;
+    uint64_t srcVal = regCtx[srcRegId].value;
 
     // value construction is easy for this one
     uint64_t forwardVal = destVal ^ srcVal;
@@ -672,8 +791,8 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -698,8 +817,8 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -714,10 +833,10 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     }
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!registerValid[destRegId]) {
+    if (!regCtx[destRegId].valid) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
+    uint64_t destVal = regCtx[destRegId].value;
     uint64_t srcVal = inst->getImmediate();
 
     // value construction is easy for this one
@@ -728,8 +847,8 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -744,10 +863,10 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     }
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!registerValid[destRegId]) {
+    if (!regCtx[destRegId].valid) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
+    uint64_t destVal = regCtx[destRegId].value;
     uint64_t srcVal = inst->getImmediate();
 
     // value construction is easy for this one
@@ -758,8 +877,8 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -774,10 +893,10 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     }
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!registerValid[destRegId]) {
+    if (!regCtx[destRegId].valid) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
+    uint64_t destVal = regCtx[destRegId].value;
     uint64_t srcVal = inst->getImmediate();
 
     // value construction is easy for this one
@@ -788,8 +907,8 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -804,10 +923,10 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     }
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!registerValid[destRegId]) {
+    if (!regCtx[destRegId].valid) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
+    uint64_t destVal = regCtx[destRegId].value;
     uint64_t srcVal = inst->getImmediate();
 
     // value construction is easy for this one
@@ -818,8 +937,8 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -834,10 +953,10 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     }
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!registerValid[destRegId]) {
+    if (!regCtx[destRegId].valid) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
+    uint64_t destVal = regCtx[destRegId].value;
     uint64_t srcVal = inst->getImmediate();
 
     // value construction is easy for this one
@@ -848,8 +967,8 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -864,10 +983,10 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     }
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!registerValid[destRegId]) {
+    if (!regCtx[destRegId].valid) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
+    uint64_t destVal = regCtx[destRegId].value;
     uint64_t srcVal = inst->getImmediate();
 
     // value construction is easy for this one
@@ -878,8 +997,8 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -894,10 +1013,10 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     }
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!registerValid[destRegId]) {
+    if (!regCtx[destRegId].valid) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
+    uint64_t destVal = regCtx[destRegId].value;
     uint64_t srcVal = inst->getImmediate();
 
     // value construction is easy for this one
@@ -908,8 +1027,8 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -924,10 +1043,10 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     }
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!registerValid[destRegId]) {
+    if (!regCtx[destRegId].valid) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
+    uint64_t destVal = regCtx[destRegId].value;
     uint64_t srcVal = inst->getImmediate();
 
     // value construction taken from isa file
@@ -940,8 +1059,8 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;
@@ -956,10 +1075,10 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     }
 
     unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!registerValid[destRegId]) {
+    if (!regCtx[destRegId].valid) {
         return false;
     }
-    uint64_t destVal = registerValue[destRegId];
+    uint64_t destVal = regCtx[destRegId].value;
     uint64_t srcVal = inst->getImmediate();
 
     // value construction taken from isa file
@@ -970,8 +1089,8 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            registerValue[destReg.flatIndex()] = forwardVal;
-            registerValid[destReg.flatIndex()] = true;
+            regCtx[destReg.flatIndex()].value = forwardVal;
+            regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].live = true;
         }
     }
     return true;

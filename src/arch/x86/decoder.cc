@@ -1002,6 +1002,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
                 }
             }
         }
+        traceConstructor->traceMap.erase(speculativeTraceIDArray[idx][evictWay]);
         if (lastWay != -1) {
             /* Multi-way region. */
             speculativeNextWayArray[idx][lastWay] = evictWay;
@@ -1124,7 +1125,7 @@ Decoder::isTraceAvailable(Addr addr) {
 
             // taking product because we want the highest confidence, latency, and shrinkage
             // we don't include hotness here as that is considered while generating a trace
-            unsigned score = confidence * latency * shrinkage;
+            unsigned score = confidence * shrinkage;// * latency;
             if (score > maxScore) {
                 maxScore = score; // Select this trace
                 maxTraceID = trace.id; 
@@ -1141,9 +1142,24 @@ Decoder::isTraceAvailable(Addr addr) {
 }
 
 void
-Decoder::doSquash() {
+Decoder::doSquash(Addr addr) {
     traceConstructor->streamTrace.addr.valid = false;
     traceConstructor->streamTrace.id = 0;
+
+    int idx = (addr >> 5) & 0x1f;
+    for (int way = 0; way < 8; way++) {
+        if (speculativeValidArray[idx][way] && speculativeAddrArray[idx][way][0].pcAddr == addr && speculativePrevWayArray[idx][way] == 10) {
+            SpecTrace trace = traceConstructor->traceMap[speculativeTraceIDArray[idx][way]];
+            for (int i=0; i<4; i++) {
+                if (trace.source[i].valid && trace.source[i].addr.pcAddr == addr) {
+                    trace.source[i].confidence--;
+                    return;
+                }
+            }
+            // we might have gotten squashed at the middle of the trace
+            trace.source[0].confidence--;
+        }
+    }
 }
 
 void
@@ -1185,7 +1201,7 @@ Decoder::minConfidence(unsigned traceId) {
     unsigned minConf = 50;
     for (int i = 0; i < 4; i++) {
         if (traceConstructor->traceMap[traceId].source[i].valid) {
-            unsigned sourceConf = cpu->getLVP()->getConfidence(traceConstructor->traceMap[traceId].source[i].addr.pcAddr);
+            unsigned sourceConf = traceConstructor->traceMap[traceId].source[i].confidence;
             if (sourceConf < minConf) { minConf = sourceConf; }
         }
     }
@@ -1200,7 +1216,7 @@ Decoder::maxLatency(unsigned traceId) {
     unsigned maxLat = 0;
     for (int i = 0; i < 4; i++) {
         if (traceConstructor->traceMap[traceId].source[i].valid) {
-            unsigned sourceLat = cpu->getLVP()->getDelay(traceConstructor->traceMap[traceId].source[i].addr.pcAddr);
+            unsigned sourceLat = traceConstructor->traceMap[traceId].source[i].latency;
             if (sourceLat > maxLat) { maxLat = sourceLat; }
         }
     }
@@ -1232,7 +1248,7 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
     FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
     predict_taken = curInst->isControl() ? traceConstructor->isTakenBranch(instAddr, traceConstructor->streamTrace.addr) : false;
     thisPC._npc = thisPC._pc + curInst->macroOp->getMacroopSize();
-    thisPC._nupc = 0;
+    thisPC._nupc = thisPC._upc + 1;
 
     traceConstructor->advanceTrace(traceConstructor->streamTrace);
     if (traceConstructor->streamTrace.addr.valid) {
@@ -1244,12 +1260,14 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
         nextPC._pc = instAddr.pcAddr;
         nextPC._upc = instAddr.uopAddr;
         nextPC._npc = nextPC._pc + nextInst->macroOp->getMacroopSize();
-        nextPC._nupc = 0;
+        nextPC._nupc = nextPC._upc + 1;
         nextPC.valid = true;
     } else {
         /* Assuming a trace always ends at the last micro-op of a macro-op. */
         nextPC._pc += curInst->macroOp->getMacroopSize();
+        nextPC._npc = nextPC._pc + 1;
         nextPC._upc = 0;
+        nextPC._nupc = 1;
         nextPC.valid = false;
     }
 
@@ -1259,7 +1277,7 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
 StaticInstPtr
 Decoder::decode(PCState &nextPC, unsigned cycleAdded, ThreadID tid)
 {
-    if (isUopCachePresent && isUopCacheActive && isHitInUopCache(nextPC.instAddr())) {
+    if (isUopCachePresent && isUopCacheActive() && isHitInUopCache(nextPC.instAddr())) {
       DPRINTF(Decoder, "Fetching microop from the microop cache: %s.\n", nextPC);
       return fetchUopFromUopCache(nextPC.instAddr(), nextPC);
     }

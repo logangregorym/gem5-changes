@@ -171,7 +171,7 @@ DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
         decoder[tid]->setUopCachePresent(isUopCachePresent);
         decoder[tid]->setSpeculativeCachePresent(isSuperOptimizationPresent);
         decoder[tid]->setSuperOptimizationPresent(isSuperOptimizationPresent);
-	decoder[tid]->setCPU(cpu, tid);
+        decoder[tid]->setCPU(cpu, tid);
         // Create space to buffer the cache line data,
         // which may not hold the entire cache line.
         fetchBuffer[tid] = new uint8_t[fetchBufferSize];
@@ -887,12 +887,14 @@ DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
 
     pc[tid] = newPC;
     fetchOffset[tid] = 0;
-    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr() && !squashDueToLVP)
+    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr() &&
+        !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive())
         macroop[tid] = squashInst->macroop;
     else
         macroop[tid] = NULL;
     decoder[tid]->reset();
-    decoder[tid]->doSquash();
+
+    decoder[tid]->doSquash(fromCommit->commitInfo[tid].oldpc.instAddr());
 
     // Clear the icache miss if it's outstanding.
     if (fetchStatus[tid] == IcacheWaitResponse) {
@@ -1351,7 +1353,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
             }
         }
     }
-    if (valuePredictable) {
+    if (valuePredictable && !staticInst->isStreamedFromSpeculativeCache()) { // don't check against new prediction is the instruction is part of a spec trace
         if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
             DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);
             instruction->cycleFetched = cpu->numCycles.value();
@@ -1359,26 +1361,26 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
             DPRINTF(LVP, "fetch predicted %x with confidence %i\n", ret.predictedValue, ret.confidence);
             if ((cpu->numCycles.value() - loadPred->lastMisprediction < loadPred->resetDelay) && loadPred->dynamicThreshold) {
                 DPRINTF(LVP, "Misprediction occured %i cycles ago, setting confidence to -1\n", cpu->numCycles.value() - loadPred->lastMisprediction);
-                instruction->predictedValue = ret.predictedValue;
-                instruction->confidence = -1;
-                instruction->predictedLoad = false;
+                staticInst->predictedValue = ret.predictedValue;
+                staticInst->confidence = -1;
+                staticInst->predictedLoad = false;
             } else {
-                instruction->predictedValue = ret.predictedValue;
-                instruction->confidence = ret.confidence;
-                instruction->predictedLoad = true;
+                staticInst->predictedValue = ret.predictedValue;
+                staticInst->confidence = ret.confidence;
+                staticInst->predictedLoad = true;
             } 
 
-            if (instruction->confidence >= 0) {
+            if (staticInst->confidence >= 5) {
                 if (instruction->isMacroop()) {
                     assert(!instruction->staticInst->isMacroop());
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
                         if (decoder[tid]->isSuperOptimizationPresent) {
-                            decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
+                            decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), uop, ret.predictedValue, ret.confidence, ret.latency);
                         }
                     }
                 } else {
                     if (decoder[tid]->isSuperOptimizationPresent) {
-                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
+                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), 0, ret.predictedValue, ret.confidence, ret.latency);
                     }
                 }
             }
@@ -1816,10 +1818,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         //assert(staticInst->macroOp != StaticInst::nullStaticInstPtr);
 
                         assert(staticInst->macroOp);
+                        staticInst->setStreamedFromSpeculativeCache(true);
                         DynInstPtr instruction = buildInst(tid, staticInst, staticInst->macroOp,
                                                             thisPC, nextPC, true);
 
-                        instruction->setStreamedFromSpeculativeCache(true);
 
                         DPRINTF(Fetch, "Speculative instruction created: [sn:%lli]:%s thisPC = %s nextPC = %s\n", 
                                     instruction->seqNum, instruction->pcState(), thisPC, nextPC);

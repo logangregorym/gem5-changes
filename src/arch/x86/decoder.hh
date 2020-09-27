@@ -114,7 +114,7 @@ class Decoder
   public:
     bool isUopCachePresent;
     bool isMicroFusionPresent;
-    bool isUopCacheActive;
+    bool uopCacheActive;
     bool isSuperOptimizationPresent;
     ExtMachInst uopCache[32][8][6]; // 48, 8, 6
     FullUopAddr uopAddrArray[32][8][6];
@@ -411,7 +411,7 @@ protected:
     void updateLRUBits(int idx, int way);
     void setUopCacheActive(bool active)
     {
-        isUopCacheActive = active;
+        uopCacheActive = active;
         if (!active) { instDone = false; state = ResetState; }
     }
     void setUopCachePresent(bool present)
@@ -449,12 +449,16 @@ protected:
 
 	bool updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsigned traceID);
 
-  bool isSpeculativeCacheActive()
-  {
+    bool isSpeculativeCacheActive()
+    {
       return speculativeCacheActive;
-  }
+    }
 
-  void doSquash();
+    bool isUopCacheActive()
+    {
+      return uopCacheActive;
+    }
+    void doSquash(Addr addr);
 
 	StaticInstPtr getSuperoptimizedInst(Addr addr, unsigned uop);
 
@@ -472,9 +476,9 @@ protected:
     // tells fetch stage that if a speculative trace is availble for this PC
 	unsigned isTraceAvailable(Addr addr);
 
-  StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
+    StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
 
-  void regStats();
+    void regStats();
 
 	struct TraceMetaData {
 		/*

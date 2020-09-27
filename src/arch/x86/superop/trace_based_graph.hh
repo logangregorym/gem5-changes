@@ -29,9 +29,20 @@ struct PredictionSource
     FullUopAddr addr;
     bool valid;
     bool isBranch;
-    uint64_t value;
+    int64_t value;
+    unsigned confidence;
+    unsigned latency;
 
     PredictionSource() {valid = false; isBranch = false;}
+};
+
+// Register context block for liveness analysis
+struct RegisterContext {
+    int64_t value;
+    bool valid;
+    bool live;
+
+    RegisterContext() {value = 0; valid = false; live = false;}
 };
 
 // Speculative Trace
@@ -51,6 +62,9 @@ struct SpecTrace
 
     // instruction being optimized
     StaticInstPtr inst;
+
+    // address of the last instruction in the trace
+    FullUopAddr end;
 
     enum State {
         Invalid,
@@ -82,6 +96,9 @@ struct SpecTrace
     // ID of the trace being re-optimized in case this is a re-optimization
     unsigned reoptId;
 
+    // Register context block -- part of the trace only for simulation purposes
+    RegisterContext regCtx[38]; // 38 integer registers including implicit ones
+
     // Counter to assign trace IDs
     static unsigned traceIDCounter;
 
@@ -105,22 +122,15 @@ class TraceBasedGraph : public SimObject
 
     bool usingControlTracking = false;
 
-    void predictValue(Addr addr, unsigned uopAddr, int64_t value);
+    void predictValue(Addr addr, unsigned uopAddr, int64_t value, unsigned confidence, unsigned latency);
 
     bool updateSpecTrace(SpecTrace &trace);
 
-    void invalidateBranch(Addr addr);
-
-    bool isPredictionSource(SpecTrace trace, FullUopAddr addr);
-
-    void flushMisprediction(Addr addr, unsigned uop);
+    bool isPredictionSource(SpecTrace trace, FullUopAddr addr, int64_t &value, unsigned &confidence, unsigned &latency);
 
     bool generateNextTraceInst();
 
     bool isTakenBranch(FullUopAddr addr, FullCacheIdx specIdx);
-
-    uint64_t registerValue[256] = {0};
-    bool registerValid[256] = {0};
 
     // Trace ID to map
     map<unsigned, SpecTrace> traceMap;
@@ -133,6 +143,9 @@ class TraceBasedGraph : public SimObject
 
     // Current trace being streamed
     SpecTrace streamTrace;
+
+    // Pointer to the register context block of the trace being optimized
+    RegisterContext *regCtx;
 
     BPredUnit* branchPred;
 
@@ -160,6 +173,7 @@ class TraceBasedGraph : public SimObject
     void dumpTrace(SpecTrace trace);
 
     // advance to next micro-op.
+    bool advanceIfControlTransfer(SpecTrace &trace);
     void advanceTrace(SpecTrace &trace);
     unsigned computeLength(SpecTrace trace);
 

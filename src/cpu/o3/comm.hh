@@ -193,6 +193,7 @@ struct DefaultIEWDefaultCommit {
     Addr mispredPC[Impl::MaxThreads];
     InstSeqNum squashedSeqNum[Impl::MaxThreads];
     TheISA::PCState pc[Impl::MaxThreads];
+    TheISA::PCState oldpc[Impl::MaxThreads];
 
     bool squash[Impl::MaxThreads];
     bool branchMispredict[Impl::MaxThreads];
@@ -270,6 +271,7 @@ struct TimeBufStruct {
         /// instruction for a branch mispredict, but the same instruction for
         /// order violation and the like
         TheISA::PCState pc; // *F
+        TheISA::PCState oldpc; // *F
 
         /// Provide fetch the instruction that mispredicted, if this
         /// pointer is not-null a misprediction occured
