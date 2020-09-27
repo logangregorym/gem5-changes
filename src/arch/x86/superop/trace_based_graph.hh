@@ -26,160 +26,147 @@ class ISA;
 // tracks instructions with confident value predictions
 struct PredictionSource
 {
-  FullUopAddr addr;
-  bool valid;
-  bool isBranch;
-  uint64_t value;
+    FullUopAddr addr;
+    bool valid;
+    bool isBranch;
+    uint64_t value;
 
-  PredictionSource() {valid = false; isBranch = false;}
+    PredictionSource() {valid = false; isBranch = false;}
 };
 
 // Speculative Trace
 struct SpecTrace
 {
-  // Trace ID
-  unsigned id;
+    // Trace ID
+    unsigned id;
 
-  // (idx, way, uop) of head of the trace
-  FullCacheIdx head;
+    // (idx, way, uop) of head of the trace
+    FullCacheIdx head;
 
-  // (idx, way, uop) of the instruction being optimized
-  FullCacheIdx addr;
+    // (idx, way, uop) of the instruction being optimized
+    FullCacheIdx addr;
 
-  // address of the instruction being optimized
-  FullUopAddr instAddr;
+    // address of the instruction being optimized
+    FullUopAddr instAddr;
 
-  // instruction being optimized
-  StaticInstPtr inst;
+    // instruction being optimized
+    StaticInstPtr inst;
 
-  enum State {
-    Invalid,
-    
-    QueuedForFirstTimeOptimization,
-    QueuedForReoptimization,
+    enum State {
+        Invalid,
+        
+        QueuedForFirstTimeOptimization,
+        QueuedForReoptimization,
 
-    // first time optimization
-    OptimizationInProcess,
+        // first time optimization
+        OptimizationInProcess,
 
-    // re-optimization (e.g., due to a new pred source)
-    ReoptimizationInProcess,
+        // re-optimization (e.g., due to a new pred source)
+        ReoptimizationInProcess,
 
-    Complete
-  };
+        Complete
+    };
 
-  // Trace Satte
-  State state;
+    // Trace Satte
+    State state;
 
-  // Prediction Sources (at most 4)
-  PredictionSource source[4];
+    // Prediction Sources (at most 4)
+    PredictionSource source[4];
 
-  // Trace Length
-  unsigned length;
+    // Trace Length
+    unsigned length;
 
-  // Shrunk length
-  unsigned shrunkLength;
+    // Shrunk length
+    unsigned shrunkLength;
 
-  // ID of the trace being re-optimized in case this is a re-optimization
-  unsigned reoptId;
+    // ID of the trace being re-optimized in case this is a re-optimization
+    unsigned reoptId;
 
-  // Counter to assign trace IDs
-  static unsigned traceIDCounter;
+    // Counter to assign trace IDs
+    static unsigned traceIDCounter;
 
-  SpecTrace() {
-    state = Invalid;
-    length = 0;
-    shrunkLength = 0;
-    head = FullCacheIdx();
-    addr = FullCacheIdx();
-    inst = NULL;
-  }
+    SpecTrace() {
+        state = Invalid;
+        length = 0;
+        shrunkLength = 0;
+        head = FullCacheIdx();
+        addr = FullCacheIdx();
+        inst = NULL;
+    }
 };
 
 class TraceBasedGraph : public SimObject
 {
-  public:
-	// Constructor
-	TraceBasedGraph(TraceBasedGraphParams *p);
+    public:
+    // Constructor
+    TraceBasedGraph(TraceBasedGraphParams *p);
 
-	X86ISA::Decoder* decoder;
+    X86ISA::Decoder* decoder;
 
-	bool usingControlTracking = false;
+    bool usingControlTracking = false;
 
-	void predictValue(Addr addr, unsigned uopAddr, int64_t value);
+    void predictValue(Addr addr, unsigned uopAddr, int64_t value);
 
-	bool updateSpecTrace(SpecTrace &trace);
+    bool updateSpecTrace(SpecTrace &trace);
 
-	// void moveTraceInstOneForward(int i1, int i2, int i3);
+    void invalidateBranch(Addr addr);
 
-	// void invalidateTraceInst(int i1, int i2, int i3);
+    bool isPredictionSource(SpecTrace trace, FullUopAddr addr);
 
-	void invalidateBranch(Addr addr);
+    void flushMisprediction(Addr addr, unsigned uop);
 
-	bool isPredictionSource(SpecTrace trace, FullUopAddr addr);
+    bool generateNextTraceInst();
 
-	void flushMisprediction(Addr addr, unsigned uop);
+    bool isTakenBranch(FullUopAddr addr, FullCacheIdx specIdx);
 
-	// void flushMisprediction(unsigned predId);
+    uint64_t registerValue[256] = {0};
+    bool registerValid[256] = {0};
 
-	// void registerRemovalOfTraceInst(int i1, int i2, int i3);
+    // Trace ID to map
+    map<unsigned, SpecTrace> traceMap;
 
-	FullCacheIdx getNextCacheIdx(FullCacheIdx);
-	FullCacheIdx getPrevCacheIdx(FullCacheIdx);
+    // Outstanding trace requests
+    queue<SpecTrace> traceQueue;
 
-	bool generateNextTraceInst();
+    // Current trace being optimized
+    SpecTrace currentTrace;
 
-	void incrementPC(FullCacheIdx specIdx, X86ISA::PCState &nextPC, bool &predict_taken);
-	bool isTakenBranch(FullUopAddr addr, FullCacheIdx specIdx);
+    // Current trace being streamed
+    SpecTrace streamTrace;
 
-	uint64_t registerValue[256] = {0};
-	bool registerValid[256] = {0};
+    BPredUnit* branchPred;
 
-  // Trace ID to map
-  map<unsigned, SpecTrace> traceMap;
+    // Propagation Functions
+    bool propagateLastUse(StaticInstPtr inst);
+    bool propagateMov(StaticInstPtr inst);
+    bool propagateMovI(StaticInstPtr inst);
+    bool propagateLimm(StaticInstPtr inst);
+    bool propagateAnd(StaticInstPtr inst);
+    bool propagateAndI(StaticInstPtr inst);
+    bool propagateAdd(StaticInstPtr inst);
+    bool propagateAddI(StaticInstPtr inst);
+    bool propagateSub(StaticInstPtr inst);
+    bool propagateSubI(StaticInstPtr inst);
+    bool propagateOr(StaticInstPtr inst);
+    bool propagateOrI(StaticInstPtr inst);
+    bool propagateXor(StaticInstPtr inst);
+    bool propagateXorI(StaticInstPtr inst);
+    bool propagateSllI(StaticInstPtr inst);
+    bool propagateSrlI(StaticInstPtr inst);
+    bool propagateSExtI(StaticInstPtr inst);
+    bool propagateZExtI(StaticInstPtr inst);
+    
+    // dump trace for debugging
+    void dumpTrace(SpecTrace trace);
 
-  // Outstanding trace requests
-	queue<SpecTrace> traceQueue;
+    // advance to next micro-op.
+    void advanceTrace(SpecTrace &trace);
+    unsigned computeLength(SpecTrace trace);
 
-  // Current trace being optimized
-  SpecTrace currentTrace;
+    void regStats();
 
-  // Current trace being streamed
-  SpecTrace streamTrace;
-
-	BPredUnit* branchPred;
-
-	// Propagation Functions
-	bool propagateLastUse(StaticInstPtr inst);
-	bool propagateMov(StaticInstPtr inst);
-	bool propagateMovI(StaticInstPtr inst);
-	bool propagateLimm(StaticInstPtr inst);
-	bool propagateAnd(StaticInstPtr inst);
-	bool propagateAndI(StaticInstPtr inst);
-	bool propagateAdd(StaticInstPtr inst);
-	bool propagateAddI(StaticInstPtr inst);
-	bool propagateSub(StaticInstPtr inst);
-	bool propagateSubI(StaticInstPtr inst);
-	bool propagateOr(StaticInstPtr inst);
-	bool propagateOrI(StaticInstPtr inst);
-	bool propagateXor(StaticInstPtr inst);
-	bool propagateXorI(StaticInstPtr inst);
-	bool propagateSllI(StaticInstPtr inst);
-	bool propagateSrlI(StaticInstPtr inst);
-	bool propagateSExtI(StaticInstPtr inst);
-	bool propagateZExtI(StaticInstPtr inst);
-	// bool propagateWrip(StaticInstPtr inst);
-	// bool propagateAcrossControlDependency(unsigned branchIndex, FullUopAddr propagatingTo);
-	
-  // dump trace for debugging
-  void dumpTrace(SpecTrace trace);
-
-  // advance to next micro-op.
-  void advanceTrace(SpecTrace &trace);
-
-	void regStats();
-
-	Stats::Scalar tracesPoppedFromQueue;
-	Stats::Scalar tracesWithInvalidHead;
+    Stats::Scalar tracesPoppedFromQueue;
+    Stats::Scalar tracesWithInvalidHead;
 
 }; // class TraceBasedGraph
 

@@ -1104,7 +1104,7 @@ Decoder::isTraceAvailable(Addr addr) {
     unsigned maxScore = 0;
     unsigned maxTraceID = 0;
     for (int way = 0; way < 8; way++) {
-        if (speculativeValidArray[idx][way] && speculativeAddrArray[idx][way][0].pcAddr == addr) {
+        if (speculativeValidArray[idx][way] && speculativeAddrArray[idx][way][0].pcAddr == addr && speculativePrevWayArray[idx][way] == 10) {
             SpecTrace trace = traceConstructor->traceMap[speculativeTraceIDArray[idx][way]];
             DPRINTF(Decoder, "Checking Trace %i\n", trace.id);
 
@@ -1122,8 +1122,9 @@ Decoder::isTraceAvailable(Addr addr) {
                 continue;
             }
 
-            // taking product because we want the highest confidence, latency, and dhrinkage
-            unsigned score = confidence*latency*shrinkage;
+            // taking product because we want the highest confidence, latency, and shrinkage
+            // we don't include hotness here as that is considered while generating a trace
+            unsigned score = confidence * latency * shrinkage;
             if (score > maxScore) {
                 maxScore = score; // Select this trace
                 maxTraceID = trace.id; 
@@ -1131,7 +1132,11 @@ Decoder::isTraceAvailable(Addr addr) {
         }
     }
 
-    DPRINTF(Decoder, "Returning Trace %i\n", maxTraceID);
+    if (maxTraceID) {
+        DPRINTF(Decoder, "isTraceAvailable returning trace %i\n", maxTraceID);
+    } else {
+        DPRINTF(Decoder, "isTraceAvailable: no traces found\n");
+    }
     return maxTraceID;
 }
 
@@ -1173,24 +1178,6 @@ Decoder::invalidateSpecCacheLine(int idx, int way) {
         invalidateSpecCacheLine(idx, speculativeNextWayArray[idx][way]);
         speculativeNextWayArray[idx][way] = 10;
     }
-}
-
-unsigned
-Decoder::getHotnessOfTrace(Addr addr) {
-    int idx = (addr >> 5) & 0x1f;
-    uint64_t tag = (addr >> 10);
-    unsigned spec = 0;
-    unsigned uop = 0;
-    for (int way = 0; way < 8; way++) {
-        if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
-            spec = specHotnessArray[idx][way].read();
-        }
-        if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
-            uop = uopHotnessArray[idx][way].read();
-        }
-    }
-    if (spec > uop) { return spec; }
-    return uop;
 }
 
 unsigned

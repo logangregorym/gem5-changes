@@ -879,18 +879,15 @@ DefaultFetch<Impl>::finishTranslation(const Fault &fault,
 template <class Impl>
 inline void
 DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
-                             const DynInstPtr squashInst, bool squashDuoToLVP, ThreadID tid)
+                             const DynInstPtr squashInst, bool squashDueToLVP, ThreadID tid)
 {
     DPRINTF(Fetch, "[tid:%i]: Squashing, setting PC to: %s.\n",
             tid, newPC);
 
-    // if (squashDuoToLVP)
-    //     std::cout << "Squashing due to LVP missprediction setting PC to: " <<  newPC << "\n";
-
 
     pc[tid] = newPC;
     fetchOffset[tid] = 0;
-    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr())
+    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr() && !squashDueToLVP)
         macroop[tid] = squashInst->macroop;
     else
         macroop[tid] = NULL;
@@ -1344,7 +1341,17 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
 
     // Make load value prediction if necessary
     // string opcode = instruction->getName();
-    if (instruction && ((instruction->isLoad()) || (instruction->isInteger() && loadPred->predictingArithmetic))) { // isFloating()? isVector()? isCC()?
+    bool valuePredictable = instruction->isLoad();
+    if (instruction->isInteger() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
+        for (int i = 0; i < instruction->numDestRegs(); i++) {
+            RegId destReg = instruction->destRegIdx(i);
+            if (destReg.classValue() == IntRegClass) {
+                valuePredictable = true;
+                break;
+            }
+        }
+    }
+    if (valuePredictable) {
         if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
             DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);
             instruction->cycleFetched = cpu->numCycles.value();
@@ -1367,16 +1374,13 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
                         if (decoder[tid]->isSuperOptimizationPresent) {
                             decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), uop, ret.predictedValue);
-                            // decoder[tid]->depTracker->simplifyGraph();
                         }
                     }
                 } else {
                     if (decoder[tid]->isSuperOptimizationPresent) {
                         decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), 0, ret.predictedValue);
-                        // decoder[tid]->depTracker->simplifyGraph();
                     }
                 }
-                // updateConstantBuffer(thisPC.instAddr(), true);
             }
         }
     }
@@ -1503,7 +1507,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 DPRINTF(Fetch, "Using trace %i\n", currentTraceID);
             }
         }
-        if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive() )
+        if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive())
         {
             DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s.\n", thisPC);
             // Speculative Cache is already enabled, continue fetchinf from it
@@ -1941,12 +1945,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             	// thinks we are...
                 if ( (curMacroop || inRom)) {
                     if (inRom) {
-                    	staticInst = cpu->microcodeRom.fetchMicroop(
-                            thisPC.microPC(), curMacroop);
+                    	staticInst = cpu->microcodeRom.fetchMicroop(thisPC.microPC(), curMacroop);
 			            staticInst->macroOp = curMacroop;
                     } else {
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
-                      staticInst->macroOp = curMacroop;
+                        staticInst->macroOp = curMacroop;
                         staticInst->fetched_from = 1;
                         if (ENABLE_DEBUG)
                             std::cout << "Decoder || UopCache: " <<  " PCState: " <<  thisPC << 
@@ -1954,7 +1957,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	/* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
-                          prevStaticInst->macroOp = curMacroop;
+                            prevStaticInst->macroOp = curMacroop;
                     	    if ((staticInst->isInteger() || staticInst->isNop() ||
                     	            staticInst->isControl() || staticInst->isMicroBranch()) &&
                     	            prevStaticInst->isLoad() && !prevStaticInst->isRipRel()) {

@@ -590,29 +590,27 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
 
     // If already squashing, LVP takes precedence
     // Using < instead of <= would give branch precedence
-    if ((!toCommit->squash[tid] ||
-            inst->seqNum <= toCommit->squashedSeqNum[tid])
-            ) {
+    if ((!toCommit->squash[tid] || firstDependent->seqNum <= toCommit->squashedSeqNum[tid])) {
         toCommit->squash[tid] = true;
-        //toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
-        toCommit->squashedSeqNum[tid] = inst->seqNum;
-        toCommit->pc[tid] = inst->pcState();
+        toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
+        //toCommit->squashedSeqNum[tid] = inst->seqNum;
+        toCommit->pc[tid] = firstDependent->pcState();
         toCommit->mispredictInst[tid] = inst; // not a branch misprediction
         toCommit->includeSquashInst[tid] = true;
 
         toCommit->squashDueToLVP[tid] = true;
 
         wroteToTimeBuffer = true;
-        instsSquashedByLVP[tid] += (cpu->globalSeqNum - inst->seqNum);
-    } else if (toCommit->squash[tid] && inst->seqNum > toCommit->squashedSeqNum[tid]) {
+        instsSquashedByLVP[tid] += (cpu->globalSeqNum - firstDependent->seqNum);
+    } else if (toCommit->squash[tid] && firstDependent->seqNum > toCommit->squashedSeqNum[tid]) {
         DPRINTF(LVP, "Already squashing from [sn:%i], so skipping\n", toCommit->squashedSeqNum[tid]);
     }
 
     // New stats
-    bool isInUop = cpu->fetch.decoder[tid]->isHitInUopCache(inst->pcState().instAddr());
+    bool isInUop = cpu->fetch.decoder[tid]->isHitInUopCache(firstDependent->pcState().instAddr());
     // bool isInSpec = cpu->fetch.decoder[tid]->isHitInSpeculativeCache(inst->pcState().instAddr());
     // if (isInUop && isInSpec) {
-        squashedLoadsPresentInBothCaches[tid]++;
+    squashedLoadsPresentInBothCaches[tid]++;
     if (isInUop) {
         squashedLoadsOnlyInUopCache[tid]++;
     } else {
