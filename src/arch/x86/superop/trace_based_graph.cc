@@ -409,6 +409,12 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
 	string type = trace.inst->getName();
 	bool isDeadCode = allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "slri" || type == "slli" || type == "sexti" || type == "zexti");
 
+  // No predicted value propagation required for conditional moves or returns
+  // not sure if that's true; jump inst may recieve propagated value? -- let's only do this for cmovs and ret
+  if ((trace.inst->isCC() && type == "movi") || trace.inst->isReturn()) {
+    return updateSuccessful;
+  }
+
 	// Prevent an inst registering as dead if it is a prediction source
 	isDeadCode &= !isPredictionSource(trace, trace.instAddr);
 
@@ -430,14 +436,6 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
 				trace.inst->sourcesPredicted[i] = true;
 			}
 		}
-
-		// No predicted value propagation required for conditional moves or returns
-		// not sure if that's true; jump inst may recieve propagated value?
-    	if (trace.inst->isCC() || trace.inst->isReturn()) {
-    	  return updateSuccessful;
-    	}
-
-
 	}
   return updateSuccessful;
 }

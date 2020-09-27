@@ -632,7 +632,7 @@ LSQUnit<Impl>::executeLoad(DynInstPtr &inst)
         // commit.
         if (!inst->readPredicate())
             inst->forwardOldRegs();
-		std::cout << "Load Fault " << load_fault->name() << std::endl;
+		//std::cout << "Load Fault " << load_fault->name() << std::endl;
 		// panic("Load Fault!!");
         DPRINTF(LSQUnit, "Load [sn:%lli] not executed from %s\n",
                 inst->seqNum,
