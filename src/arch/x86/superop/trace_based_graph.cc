@@ -17,6 +17,7 @@ using namespace std;
 unsigned SpecTrace::traceIDCounter = 1;
 
 TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking) {
+    DPRINTF(SuperOp, "Control tracking: %i\n", usingControlTracking);
 }
 
 TraceBasedGraph* TraceBasedGraphParams::create() {
@@ -653,7 +654,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
 }
 
 bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
-    if (inst->numSrcRegs() > 0) {
+    if (inst->numSrcRegs() > 1) { // sometimes limm has an implicit source (the same as dest) to preserve dependencies
         return false;
     }
 

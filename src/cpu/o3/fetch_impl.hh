@@ -887,8 +887,7 @@ DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
 
     pc[tid] = newPC;
     fetchOffset[tid] = 0;
-    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr() &&
-        !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive())
+    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr()) //&& !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive())
         macroop[tid] = squashInst->macroop;
     else
         macroop[tid] = NULL;
