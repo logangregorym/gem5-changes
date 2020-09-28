@@ -502,7 +502,7 @@ class BaseDynInst : public ExecContext, public RefCounted
     {
         TheISA::PCState tempPC = pc;
         TheISA::advancePC(tempPC, staticInst);
-        return !(tempPC.instAddr() == predPC.instAddr());
+        return (isMicroBranch() ? !(tempPC == predPC) : !(tempPC.instAddr() == predPC.instAddr()));
     }
 
     //

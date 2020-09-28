@@ -1015,6 +1015,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
                 speculativePrevWayArray[idx][w] = 10;
                 speculativeNextWayArray[idx][w] = 10;
                 StaticInstPtr macroOp = speculativeCache[idx][w][0]->macroOp;
+                speculativeCache[idx][w][0]->macroOp = NULL;
                 if (macroOp) {
                     macroOp->deleteMicroOps();
                     macroOp = NULL;

@@ -314,7 +314,7 @@ unsigned TraceBasedGraph::computeLength(SpecTrace trace) {
 bool TraceBasedGraph::generateNextTraceInst() {
     if (!currentTrace.addr.valid) { 
         // Finalize old trace
-        if (currentTrace.state != SpecTrace::Complete) {
+        if (currentTrace.state != SpecTrace::Complete && currentTrace.state != SpecTrace::Evicted) {
             DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
             DPRINTF(SuperOp, "Before optimization: \n");
             currentTrace.addr = currentTrace.head;
@@ -375,6 +375,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 !(currentTrace.state == SpecTrace::QueuedForReoptimization && decoder->speculativeValidArray[idx][way])) {
                 DPRINTF(SuperOp, "Trace %i at (%i,%i,%i) evicted before we could process it.\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
                 currentTrace.addr.valid = false;
+                currentTrace.state = SpecTrace::Evicted;
             }
         } while (!currentTrace.addr.valid);
 

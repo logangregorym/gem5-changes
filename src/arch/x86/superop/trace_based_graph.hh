@@ -77,6 +77,9 @@ struct SpecTrace
         // re-optimization (e.g., due to a new pred source)
         ReoptimizationInProcess,
 
+        // evicted before we could process it
+        Evicted,
+
         Complete
     };
 
