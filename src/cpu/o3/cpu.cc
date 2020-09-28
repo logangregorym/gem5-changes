@@ -1710,7 +1710,7 @@ FullO3CPU<Impl>::squashInstIt(const ListIt &instIt, ThreadID tid)
 
         // Mark it as squashed.
         (*instIt)->setSquashed();
-        if ((*instIt)->staticInst->isLastMicroop() &&
+        if ((*instIt)->staticInst->isFirstMicroop() && // assuming we always go in reverse order
             !(*instIt)->isStreamedFromSpeculativeCache()) {
             bool containsMicroBranch = false;
             for (int i = 0; i < (*instIt)->macroop->getNumMicroops(); i++) {

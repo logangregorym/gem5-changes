@@ -831,7 +831,7 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "movi");
     
-    if (inst->numSrcRegs() > 0) {
+    if (inst->numSrcRegs() > 1) {
         return false;
     }
 
@@ -1123,10 +1123,4 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
         }
     }
     return true;
-}
-
-bool TraceBasedGraph::isTakenBranch(FullUopAddr addr, FullCacheIdx specIdx) {
-    // assuming tid=0, and using spec cache entry at the StaticInstPtr
-    TheISA::PCState target;
-    return branchPred->iPred.lookup(addr.pcAddr, branchPred->getGHR(0, decoder->speculativeCache[specIdx.idx][specIdx.way][specIdx.uop]->branch_hist), target, 0);
 }

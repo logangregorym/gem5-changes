@@ -879,6 +879,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     unsigned lruWay = 8;
     unsigned evictWay = 8;
     for (int way = 0; way < 8; way++) {
+        // check if we are processing the trace for first time optimization -- read from way in progress
         if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
             (traceConstructor->currentTrace.head.way == way || 
              traceConstructor->currentTrace.head.way == uopNextWayArray[idx][way] ||
@@ -994,7 +995,18 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
     unsigned lruWay = 8;
     unsigned evictWay = 8;
     for (int way = 0; way < 8; way++) {
-        if (traceConstructor->currentTrace.state == SpecTrace::ReoptimizationInProcess && traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][way]) {
+        // check if we are processing the trace for first time optimization -- write to way in progress
+        if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+            (traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][way] ||
+             traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
+             traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]]) {
+            continue;
+        }
+        // check if we are processing the trace for re-optimization -- read from way in progress
+        if (traceConstructor->currentTrace.state == SpecTrace::ReoptimizationInProcess &&
+            (traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][way] ||
+             traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
+             traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]]) {
             continue;
         }
         if (speculativeLRUArray[idx][way] < lruWay) {
@@ -1006,7 +1018,9 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
         DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%#x way:%#x.\n Affected PCs:\n", tag, idx, evictWay);
         /* Invalidate all prior content. */
         for (int w = 0; w < 8; w++) {
-            if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == speculativeTagArray[idx][evictWay] && speculativeTraceIDArray[idx][w] == speculativeTraceIDArray[idx][evictWay]) {
+            if (speculativeValidArray[idx][w] &&
+                speculativeTagArray[idx][w] == speculativeTagArray[idx][evictWay] &&
+                speculativeTraceIDArray[idx][w] == speculativeTraceIDArray[idx][evictWay]) {
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) {
                     DPRINTF(Decoder, "spec[%i][%i][%i] -- %#x:%i\n", idx, w, uop, speculativeAddrArray[idx][w][uop].pcAddr, speculativeAddrArray[idx][w][uop].uopAddr);
                 }
@@ -1145,7 +1159,7 @@ Decoder::isTraceAvailable(Addr addr) {
 
             // taking product because we want the highest confidence, latency, and shrinkage
             // we don't include hotness here as that is considered while generating a trace
-            unsigned score = confidence * shrinkage;// * latency;
+            unsigned score = confidence * shrinkage * (latency + 1);
             if (score > maxScore) {
                 maxScore = score; // Select this trace
                 maxTraceID = trace.id; 
@@ -1264,9 +1278,11 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
     idx = traceConstructor->streamTrace.addr.idx;
     way = traceConstructor->streamTrace.addr.way;
     uop = traceConstructor->streamTrace.addr.uop;
+
+    void *bp_history;
     StaticInstPtr curInst = speculativeCache[idx][way][uop];
     FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
-    predict_taken = curInst->isControl() ? traceConstructor->isTakenBranch(instAddr, traceConstructor->streamTrace.addr) : false;
+    predict_taken = curInst->isControl() ? traceConstructor->branchPred->lookup(0, instAddr.pcAddr, bp_history) : false;
     thisPC._npc = thisPC._pc + curInst->macroOp->getMacroopSize();
     thisPC._nupc = thisPC._upc + 1;
 

@@ -129,8 +129,6 @@ class TraceBasedGraph : public SimObject
 
     bool generateNextTraceInst();
 
-    bool isTakenBranch(FullUopAddr addr, FullCacheIdx specIdx);
-
     // Trace ID to map
     map<unsigned, SpecTrace> traceMap;
 
