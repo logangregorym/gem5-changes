@@ -371,7 +371,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
             int idx = currentTrace.addr.idx;
             int way = currentTrace.addr.way;
-            if (!(currentTrace.state == SpecTrace::QueuedForFirstTimeOptimization && decoder->uopValidArray[idx][way]) ||
+            if (!(currentTrace.state == SpecTrace::QueuedForFirstTimeOptimization && decoder->uopValidArray[idx][way]) &&
                 !(currentTrace.state == SpecTrace::QueuedForReoptimization && decoder->speculativeValidArray[idx][way])) {
                 DPRINTF(SuperOp, "Trace %i at (%i,%i,%i) evicted before we could process it.\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
                 currentTrace.addr.valid = false;
@@ -428,6 +428,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         }
         currentTrace.instAddr == decoder->speculativeAddrArray[idx][way][uop];
     }
+    decodedMacroOp = NULL;
 
     bool updateSuccessful = false;
     bool foundNOP = false;
