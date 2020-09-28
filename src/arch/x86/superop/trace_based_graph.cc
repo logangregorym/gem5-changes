@@ -321,40 +321,38 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.addr = currentTrace.head;
             dumpTrace(currentTrace);
             DPRINTF(SuperOp, "After optimization: \n");
-            for (int way=0; way<8; way++) {
-                int idx = currentTrace.head.idx;
-                if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
-                    // mark end of trace and propagate live outs
-                    currentTrace.inst->setEndOfTrace();
-                    if (!currentTrace.inst->isControl()) { // control instructions already propagate live outs
-                        for (int i=0; i<16; i++) { // 16 int registers
-                            if (regCtx[i].valid) {
-                                currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
-                                currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
-                                currentTrace.inst->addDestReg(RegId(IntRegClass, i));
-                                DPRINTF(SuperOp, "dest[%i]=%#x\n", currentTrace.inst->numDestRegs()-1, regCtx[i].value);
-                            }
+            int idx = currentTrace.head.idx;
+            int way = currentTrace.optimizedHead.way;
+            if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
+                // mark end of trace and propagate live outs
+                currentTrace.inst->setEndOfTrace();
+                if (!currentTrace.inst->isControl()) { // control instructions already propagate live outs
+                    for (int i=0; i<16; i++) { // 16 int registers
+                        if (regCtx[i].valid) {
+                            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
+                            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
+                            currentTrace.inst->addDestReg(RegId(IntRegClass, i));
+                            DPRINTF(SuperOp, "dest[%i]=%#x\n", currentTrace.inst->numDestRegs()-1, regCtx[i].value);
                         }
                     }
-                    currentTrace.addr = FullCacheIdx(idx, way, 0);
-                    currentTrace.state = SpecTrace::Complete;
-                    traceMap[currentTrace.id] = currentTrace;
-                    dumpTrace(currentTrace);
-                    DPRINTF(SuperOp, "Live Outs:\n");
-                    for (int i=0; i<16; i++) {
-                        if (regCtx[i].valid)
-                            DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
+                }
+                currentTrace.addr = currentTrace.optimizedHead;
+                currentTrace.state = SpecTrace::Complete;
+                traceMap[currentTrace.id] = currentTrace;
+                dumpTrace(currentTrace);
+                DPRINTF(SuperOp, "Live Outs:\n");
+                for (int i=0; i<16; i++) {
+                    if (regCtx[i].valid)
+                        DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
+                }
+                for (int i=0; i<4; i++) {
+                    DPRINTF(SuperOp, "Prediction Source %i\n", i);
+                    if (currentTrace.source[i].valid) {
+                        DPRINTF(SuperOp, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i\n",
+                                    currentTrace.source[i].addr.pcAddr,  currentTrace.source[i].addr.uopAddr,
+                                    currentTrace.source[i].value, currentTrace.source[i].confidence,
+                                    currentTrace.source[i].latency);
                     }
-                    for (int i=0; i<4; i++) {
-                        DPRINTF(SuperOp, "Prediction Source %i\n", i);
-                        if (currentTrace.source[i].valid) {
-                            DPRINTF(SuperOp, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i\n",
-                                        currentTrace.source[i].addr.pcAddr,  currentTrace.source[i].addr.uopAddr,
-                                        currentTrace.source[i].value, currentTrace.source[i].confidence,
-                                        currentTrace.source[i].latency);
-                        }
-                    }
-                    break;
                 }
             }
         }
@@ -435,7 +433,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     bool foundNOP = false;
 
     // Any inst in a trace may be a prediction source
-    DPRINTF(ConstProp, "Processing instruction: %p:%i -- %s\n", currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
+    DPRINTF(ConstProp, "Trace %i: Processing instruction: %p:%i -- %s\n", currentTrace.id, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
     int64_t value;
     unsigned confidence;
     unsigned latency;
@@ -453,6 +451,20 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
         }
         updateSuccessful = updateSpecTrace(currentTrace);
+
+        // Update head of the optimized trace
+        if (currentTrace.head == currentTrace.addr && updateSuccessful) {
+            currentTrace.optimizedHead.idx = currentTrace.head.idx; 
+            currentTrace.optimizedHead.uop = 0;
+            for (int way=0; way<8; way++) {
+                int idx = currentTrace.head.idx;
+                if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
+                    currentTrace.optimizedHead.way = way;
+                    currentTrace.optimizedHead.valid = true;
+                    break;
+                }
+            }
+        }
     } else {
         // Propagate predicted values
         string type = currentTrace.inst->getName();

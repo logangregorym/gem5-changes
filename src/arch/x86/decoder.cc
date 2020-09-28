@@ -999,14 +999,20 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
         if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
             (traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][way] ||
              traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
-             traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]]) {
+             traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) {
             continue;
         }
         // check if we are processing the trace for re-optimization -- read from way in progress
         if (traceConstructor->currentTrace.state == SpecTrace::ReoptimizationInProcess &&
             (traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][way] ||
              traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
-             traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]]) {
+             traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) {
+            continue;
+        }
+        // check if we are streaming the trace -- read from way in progress
+        if (traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][way] ||
+            traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
+            traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]]) {
             continue;
         }
         if (speculativeLRUArray[idx][way] < lruWay) {
@@ -1022,12 +1028,13 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
                 speculativeTagArray[idx][w] == speculativeTagArray[idx][evictWay] &&
                 speculativeTraceIDArray[idx][w] == speculativeTraceIDArray[idx][evictWay]) {
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) {
-                    DPRINTF(Decoder, "spec[%i][%i][%i] -- %#x:%i\n", idx, w, uop, speculativeAddrArray[idx][w][uop].pcAddr, speculativeAddrArray[idx][w][uop].uopAddr);
+                    DPRINTF(Decoder, "Trace %i: spec[%i][%i][%i] -- %#x:%i\n", speculativeTraceIDArray[idx][w], idx, w, uop, speculativeAddrArray[idx][w][uop].pcAddr, speculativeAddrArray[idx][w][uop].uopAddr);
                 }
                 speculativeValidArray[idx][w] = false;
                 speculativeCountArray[idx][w] = 0;
                 speculativePrevWayArray[idx][w] = 10;
                 speculativeNextWayArray[idx][w] = 10;
+                //speculativeTraceIDArray[idx][w] = 0;
                 StaticInstPtr macroOp = speculativeCache[idx][w][0]->macroOp;
                 speculativeCache[idx][w][0]->macroOp = NULL;
                 if (macroOp) {

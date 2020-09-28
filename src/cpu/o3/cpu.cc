@@ -1612,9 +1612,9 @@ FullO3CPU<Impl>::removeFrontInst(DynInstPtr &inst)
             inst->threadNumber, inst->pcState(), inst->seqNum);
 
     if (inst->staticInst->isLastMicroop() && !inst->isSquashed() && !inst->isStreamedFromSpeculativeCache()) {
-      assert(inst->isMacroop() || inst->macroop);
-      assert(inst->macroop);
-      inst->macroop->deleteMicroOps();
+      assert(inst->staticInst->macroOp);
+      inst->staticInst->macroOp->deleteMicroOps();
+      inst->staticInst->macroOp = NULL;
     }
 
     removeInstsThisCycle = true;
@@ -1721,7 +1721,9 @@ FullO3CPU<Impl>::squashInstIt(const ListIt &instIt, ThreadID tid)
                 }
             }
             if (!containsMicroBranch) {
-                (*instIt)->macroop->deleteMicroOps();
+                assert((*instIt)->staticInst->macroOp);
+                (*instIt)->staticInst->macroOp->deleteMicroOps();
+                (*instIt)->staticInst->macroOp = NULL;
             }
         }
 

@@ -53,6 +53,9 @@ struct SpecTrace
     // (idx, way, uop) of head of the trace
     FullCacheIdx head;
 
+    // (idx, way, uop) of head of the optimized trace
+    FullCacheIdx optimizedHead;
+
     // (idx, way, uop) of the instruction being optimized
     FullCacheIdx addr;
 
