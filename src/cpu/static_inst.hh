@@ -385,10 +385,10 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool predictedLoad = false;
 
     // Annotate predicted inputs here
-    int64_t sourcePredictions[128] = {0};
-    bool sourcesPredicted[128] = {0};
-    int64_t liveOut[128] = {0};
-    bool liveOutPredicted[128] = {0};
+    int64_t sourcePredictions[38] = {0};
+    bool sourcesPredicted[38] = {0};
+    int64_t liveOut[38] = {0};
+    bool liveOutPredicted[38] = {0};
 };
 
 #endif // __CPU_STATIC_INST_HH__

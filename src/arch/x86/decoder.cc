@@ -855,6 +855,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 /* Multi-way region. */
                 uopNextWayArray[idx][lastWay] = way;
                 uopPrevWayArray[idx][way] = lastWay;
+                DPRINTF(ConstProp, "way %i --> way %i\n", lastWay, way);
             }
             uopCountArray[idx][way] = numUops;
             uopValidArray[idx][way] = true;
@@ -875,45 +876,58 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     }
 
     /* There aren't any unused ways. Evict the LRU way. */
+    unsigned lruWay = 8;
+    unsigned evictWay = 8;
     for (int way = 0; way < 8; way++) {
-        if (uopLRUArray[idx][way] == 0) {
-            /* Invalidate all prior content. */
-            DPRINTF(Decoder, "Evicting microop in the microop cache: tag:%#x idx:%#x way:%#x.\n Affected PCs:\n", tag, idx, way);
-            for (int w = 0; w < 8; w++) {
-                if (uopValidArray[idx][w] && uopTagArray[idx][w] == uopTagArray[idx][way]) {
-                    for (int uop = 0; uop < uopCountArray[idx][w]; uop++) {
-                        //DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][w][uop]);
-                        uopConflictMisses++;
-                    }
-                    uopValidArray[idx][w] = false;
-                    uopCountArray[idx][w] = 0;
-                    uopHotnessArray[idx][w] = BigSatCounter(4);
-                    uopPrevWayArray[idx][w] = 10;
-                    uopNextWayArray[idx][w] = 10;
-                    uopCacheWayInvalidations++;
-                }
-            }
-            if (lastWay != -1) {
-                /* Multi-way region. */
-                uopNextWayArray[idx][lastWay] = way;
-                uopPrevWayArray[idx][way] = lastWay;
-            }
-            uopCountArray[idx][way] = numUops;
-            uopValidArray[idx][way] = true;
-            uopFullArray[idx][way] = false;
-            uopTagArray[idx][way] = tag;
-            DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, way, tag);
-            for (int uop = 0; uop < numUops; uop++) {
-                uopAddrArray[idx][way][uop] = FullUopAddr(addr, uop);
-                DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uop);
-                emi.instSize = size;
-                uopCache[idx][way][uop] = emi;
-                DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
-            }
-            updateLRUBits(idx, way);
-            uopCacheUpdates += numUops;
-            return true;
+        if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+            (traceConstructor->currentTrace.head.way == way || 
+             traceConstructor->currentTrace.head.way == uopNextWayArray[idx][way] ||
+             traceConstructor->currentTrace.head.way == uopPrevWayArray[idx][way])) {
+            continue;
         }
+        if (uopLRUArray[idx][way] < lruWay) {
+            lruWay = uopLRUArray[idx][way];
+            evictWay = way;
+        }
+    }
+    if (evictWay != 8) {
+        /* Invalidate all prior content. */
+        DPRINTF(Decoder, "Evicting microop in the microop cache: tag:%#x idx:%#x way:%#x.\n Affected PCs:\n", tag, idx, evictWay);
+        for (int w = 0; w < 8; w++) {
+            if (uopValidArray[idx][w] && uopTagArray[idx][w] == uopTagArray[idx][evictWay]) {
+                for (int uop = 0; uop < uopCountArray[idx][w]; uop++) {
+                    DPRINTF(Decoder, "uop[%i][%i][%i] -- %#x:%i\n", idx, w, uop, uopAddrArray[idx][w][uop].pcAddr, uopAddrArray[idx][w][uop].uopAddr);
+                    uopConflictMisses++;
+                }
+                uopValidArray[idx][w] = false;
+                uopCountArray[idx][w] = 0;
+                uopHotnessArray[idx][w] = BigSatCounter(4);
+                uopPrevWayArray[idx][w] = 10;
+                uopNextWayArray[idx][w] = 10;
+                uopCacheWayInvalidations++;
+            }
+        }
+        if (lastWay != -1) {
+            /* Multi-way region. */
+            uopNextWayArray[idx][lastWay] = evictWay;
+            uopPrevWayArray[idx][evictWay] = lastWay;
+            DPRINTF(ConstProp, "way %i --> way %i\n", lastWay, evictWay);
+        }
+        uopCountArray[idx][evictWay] = numUops;
+        uopValidArray[idx][evictWay] = true;
+        uopFullArray[idx][evictWay] = false;
+        uopTagArray[idx][evictWay] = tag;
+        DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, evictWay, tag);
+        for (int uop = 0; uop < numUops; uop++) {
+            uopAddrArray[idx][evictWay][uop] = FullUopAddr(addr, uop);
+            DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, evictWay, uop, addr, uop);
+            emi.instSize = size;
+            uopCache[idx][evictWay][uop] = emi;
+            DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, evictWay, uop, emi.instSize);
+        }
+        updateLRUBits(idx, evictWay);
+        uopCacheUpdates += numUops;
+        return true;
     }
 
     DPRINTF(Decoder, "Eviction failed: Could not update microop in the microop cache :%#x tag:%#x.\n", addr, tag);
@@ -993,12 +1007,17 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
         /* Invalidate all prior content. */
         for (int w = 0; w < 8; w++) {
             if (speculativeValidArray[idx][w] && speculativeTagArray[idx][w] == speculativeTagArray[idx][evictWay] && speculativeTraceIDArray[idx][w] == speculativeTraceIDArray[idx][evictWay]) {
+                for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) {
+                    DPRINTF(Decoder, "spec[%i][%i][%i] -- %#x:%i\n", idx, w, uop, speculativeAddrArray[idx][w][uop].pcAddr, speculativeAddrArray[idx][w][uop].uopAddr);
+                }
                 speculativeValidArray[idx][w] = false;
                 speculativeCountArray[idx][w] = 0;
                 speculativePrevWayArray[idx][w] = 10;
                 speculativeNextWayArray[idx][w] = 10;
-                if (speculativeCache[idx][w][0]->macroOp) {
-                    speculativeCache[idx][w][0]->macroOp->deleteMicroOps();
+                StaticInstPtr macroOp = speculativeCache[idx][w][0]->macroOp;
+                if (macroOp) {
+                    macroOp->deleteMicroOps();
+                    macroOp = NULL;
                 }
             }
         }

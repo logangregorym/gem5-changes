@@ -169,7 +169,10 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
 
     // not a control transfer -- advance normally
     if (!decodedMicroOp->isControl()) {
-        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+        if (decodedMacroOp->isMacroop()) { 
+			decodedMacroOp->deleteMicroOps();
+			decodedMacroOp = NULL;
+		}
         return false;
     }
 
@@ -177,7 +180,10 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     Addr pcAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].pcAddr;
     if (decodedMicroOp->isReturn() || !branchPred->getConfidenceForSSO(pcAddr)) {
         trace.addr.valid = false;
-        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+        if (decodedMacroOp->isMacroop()) { 
+			decodedMacroOp->deleteMicroOps();
+			decodedMacroOp = NULL;
+		}
         return true;
     }
 
@@ -191,7 +197,10 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     void *bp_history = NULL;
     if (!(std::string(decodedMicroOp->instMnem) == "CALL_NEAR_I" || std::string(decodedMicroOp->instMnem) == "JMP_I") &&
         !branchPred->lookup(0, pcAddr, bp_history)) { // assuming tid = 0
-        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+        if (decodedMacroOp->isMacroop()) { 
+			decodedMacroOp->deleteMicroOps();
+			decodedMacroOp = NULL;
+		}
         return false;
     }
 
@@ -213,14 +222,20 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
                     trace.addr.idx = idx;
                     trace.addr.way = way;
                     trace.addr.uop = uop;
-                    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+                    if (decodedMacroOp->isMacroop()) { 
+                        decodedMacroOp->deleteMicroOps();
+                        decodedMacroOp = NULL;
+                    }
                     return true;
                 }
             }
         }
     }
 
-    if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+    if (decodedMacroOp->isMacroop()) { 
+        decodedMacroOp->deleteMicroOps();
+        decodedMacroOp = NULL;
+    }
     return false;
 }
 
@@ -271,7 +286,10 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
         }
         DPRINTF(SuperOp, "%p:%i -- uop[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));    
 
-        if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
+        if (decodedMacroOp->isMacroop()) { 
+			decodedMacroOp->deleteMicroOps();
+			decodedMacroOp = NULL;
+		}
     } else {
         Addr pcAddr = decoder->speculativeAddrArray[idx][way][uop].pcAddr;
         Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
@@ -341,14 +359,24 @@ bool TraceBasedGraph::generateNextTraceInst() {
         }
 
         // Pop a new trace from the queue, start at top
-        if (traceQueue.empty()) {
-            currentTrace.addr.valid = false;
-            return false; 
-        }
+        do {
+            if (traceQueue.empty()) {
+                currentTrace.addr.valid = false;
+                return false; 
+            }
 
-        currentTrace = traceQueue.front();
-        traceQueue.pop();
-        tracesPoppedFromQueue++;
+            currentTrace = traceQueue.front();
+            traceQueue.pop();
+            tracesPoppedFromQueue++;
+
+            int idx = currentTrace.addr.idx;
+            int way = currentTrace.addr.way;
+            if (!(currentTrace.state == SpecTrace::QueuedForFirstTimeOptimization && decoder->uopValidArray[idx][way]) ||
+                !(currentTrace.state == SpecTrace::QueuedForReoptimization && decoder->speculativeValidArray[idx][way])) {
+                DPRINTF(SuperOp, "Trace %i at (%i,%i,%i) evicted before we could process it.\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
+                currentTrace.addr.valid = false;
+            }
+        } while (!currentTrace.addr.valid);
 
         DPRINTF(SuperOp, "Optimizing trace %i at (%i,%i,%i)\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
         dumpTrace(currentTrace);

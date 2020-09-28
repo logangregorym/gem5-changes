@@ -221,6 +221,33 @@ CPUClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounte
 CPUClass.branchPred.branchConfidenceThreshold = options.branchConfidenceThreshold
 CPUClass.branchPred.doStoragelessBranchConf = options.doStoragelessBranchConf
 
+if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
+    FutureClass.enable_microop_cache = options.enable_microop_cache
+    FutureClass.enable_micro_fusion = options.enable_micro_fusion
+    FutureClass.enable_superoptimization = options.enable_superoptimization
+    FutureClass.loadPred.lvpredType = options.lvpredType
+    FutureClass.loadPred.tableEntries = options.tableEntries
+    FutureClass.loadPred.constantThreshold = options.constantThreshold
+    FutureClass.loadPred.dynamicThreshold = options.dynamicThreshold
+    FutureClass.loadPred.satCounterBits = options.satCounterBits
+    FutureClass.loadPred.initialPredictionQuality = options.initialPredictionQuality
+    FutureClass.loadPred.resetDelay = options.resetDelay
+    FutureClass.loadPred.historyLength = options.historyLength
+    FutureClass.loadPred.historyEntryBits = options.historyEntryBits
+    FutureClass.loadPred.decrementBy = options.decrementBy
+    FutureClass.loadPred.resetTo = options.resetTo
+    FutureClass.loadPred.missThreshold = options.missThreshold
+    FutureClass.loadPred.hitThreshold = options.hitThreshold
+    FutureClass.loadPred.predictingArithmetic = options.predictingArithmetic
+    FutureClass.loadPred.predictStage = options.predictStage
+    FutureClass.maxDependencyRecursion = options.maxDependencyRecursion
+    FutureClass.usingTrace = options.usingTrace
+    FutureClass.numThreads = numThreads
+    FutureClass.branchPred.numThreads = numThreads
+    FutureClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize
+    FutureClass.branchPred.branchConfidenceThreshold = options.branchConfidenceThreshold
+    FutureClass.branchPred.doStoragelessBranchConf = options.doStoragelessBranchConf
+
 # Check -- do not allow SMT with multiple CPUs
 if options.smt and options.num_cpus > 1:
     fatal("You cannot use SMT with multiple CPUs!")
