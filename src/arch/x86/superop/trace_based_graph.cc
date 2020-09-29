@@ -195,22 +195,26 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     } 
 
     // not a taken branch -- advance normally
-    void *bp_history = NULL;
-    if (!(std::string(decodedMicroOp->instMnem) == "CALL_NEAR_I" || std::string(decodedMicroOp->instMnem) == "JMP_I") &&
-        !branchPred->lookup(0, pcAddr, bp_history)) { // assuming tid = 0
+    void *bpHistory = NULL;
+    bool predTaken = branchPred->lookup(0, pcAddr, bpHistory);
+    if (!(std::string(decodedMicroOp->instMnem) == "CALL_NEAR_I" || std::string(decodedMicroOp->instMnem) == "JMP_I") && !predTaken) {
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
 			decodedMacroOp = NULL;
 		}
+        branchPred->squash(0, bpHistory); // assuming tid = 0 
         return false;
     }
 
     // indirect branch -- lookup indirect predictor
     if (decodedMacroOp->machInst.opcode.op == 0xFF) {
         TheISA::PCState targetPC;
-        branchPred->iPred.lookup(pcAddr, branchPred->getGHR(0, bp_history), targetPC, 0); // assuming tid = 0
+        branchPred->iPred.lookup(pcAddr, branchPred->getGHR(0, bpHistory), targetPC, 0); // assuming tid = 0
         target = targetPC.instAddr();
     }
+
+    // delete history to prevent memory leak
+    branchPred->squash(0, bpHistory);
 
     // pivot to jump target if it is found in the uop cache
     int idx = (target >> 5) & 0x1f;
@@ -332,7 +336,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
                             currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
                             currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
                             currentTrace.inst->addDestReg(RegId(IntRegClass, i));
-                            DPRINTF(SuperOp, "dest[%i]=%#x\n", currentTrace.inst->numDestRegs()-1, regCtx[i].value);
                         }
                     }
                 }
@@ -385,6 +388,11 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.state = SpecTrace::OptimizationInProcess;
         } else if (currentTrace.state == SpecTrace::QueuedForReoptimization) {
             currentTrace.state = SpecTrace::ReoptimizationInProcess;
+        }
+
+        /* Clear Reg Context Block. */
+        for (int i=0; i<38; i++) {
+            regCtx[i].valid = false;
         }
     } else { 
         assert(currentTrace.state == SpecTrace::OptimizationInProcess || currentTrace.state == SpecTrace::ReoptimizationInProcess);
@@ -560,9 +568,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
                 currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
                 currentTrace.inst->addDestReg(RegId(IntRegClass, i));
-                DPRINTF(SuperOp, "dest[%i]=%#x\n", currentTrace.inst->numDestRegs()-1, regCtx[i].value);
             }
         }
+    }
+    DPRINTF(SuperOp, "Live Outs:\n");
+    for (int i=0; i<16; i++) {
+        if (regCtx[i].valid)
+            DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
     }
 
     return true;
@@ -586,7 +598,8 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
     int64_t value;
     unsigned confidence;
     unsigned latency;
-    isDeadCode &= (!isPredictionSource(trace, trace.instAddr, value, confidence, latency) && !(trace.inst->isCC() || trace.inst->isReturn()));
+    bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency);
+    isDeadCode &= (!isPredSource && !(trace.inst->isCC() || trace.inst->isReturn()));
 
     // Inst will never already be in this trace, single pass
     if (isDeadCode) {
@@ -598,22 +611,24 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
     bool updateSuccessful = decoder->addUopToSpeculativeCache(trace.inst, trace.instAddr.pcAddr, trace.instAddr.uopAddr, trace.id);
     trace.shrunkLength++;
 
-    // Step 3b: Mark all predicted values on the StaticInst
-    for (int i=0; i<trace.inst->numSrcRegs(); i++) {
-        unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
-        DPRINTF(ConstProp, "Examining register %i\n", srcIdx);
-        if (regCtx[srcIdx].valid) {
-            DPRINTF(ConstProp, "Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
-            trace.inst->sourcePredictions[i] = regCtx[srcIdx].value;
-            trace.inst->sourcesPredicted[i] = true;
+    // Step 3b: Mark all predicted values on the StaticInst -- don't do this for prediction sources
+    if (!isPredSource) {
+        for (int i=0; i<trace.inst->numSrcRegs(); i++) {
+            unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
+            DPRINTF(ConstProp, "Examining register %i\n", srcIdx);
+            if (regCtx[srcIdx].valid && trace.inst->srcRegIdx(i).classValue() == IntRegClass) {
+                DPRINTF(ConstProp, "Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+                trace.inst->sourcePredictions[i] = regCtx[srcIdx].value;
+                trace.inst->sourcesPredicted[i] = true;
+            }
         }
-    }
 
-    // update live outs
-    for (int i=0; i<trace.inst->numDestRegs(); i++) {
-        RegId destReg = trace.inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].valid = false;
+        // update live outs
+        for (int i=0; i<trace.inst->numDestRegs(); i++) {
+            RegId destReg = trace.inst->destRegIdx(i);
+            if (destReg.classValue() == IntRegClass) {
+                regCtx[destReg.flatIndex()].valid = false;
+            }
         }
     }
 

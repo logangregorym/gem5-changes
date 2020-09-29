@@ -1278,10 +1278,16 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
     way = traceConstructor->streamTrace.addr.way;
     uop = traceConstructor->streamTrace.addr.uop;
 
-    void *bp_history;
+    void *bpHistory;
     StaticInstPtr curInst = speculativeCache[idx][way][uop];
     FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
-    predict_taken = curInst->isControl() ? traceConstructor->branchPred->lookup(0, instAddr.pcAddr, bp_history) : false;
+    predict_taken = false;
+
+    if (curInst->isControl()) {
+        predict_taken = traceConstructor->branchPred->lookup(0, instAddr.pcAddr, bpHistory);
+        traceConstructor->branchPred->squash(0, bpHistory);
+    }
+
     thisPC._npc = thisPC._pc + curInst->macroOp->getMacroopSize();
     thisPC._nupc = thisPC._upc + 1;
 

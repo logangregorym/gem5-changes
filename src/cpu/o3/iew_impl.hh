@@ -1367,6 +1367,14 @@ DefaultIEW<Impl>::executeInsts()
 
         Fault fault = NoFault;
 
+        // First dump all live outs if this instruction is at the end of a speculatively issued trace
+        for (int i = 0; i < inst->numDestRegs(); i++) {
+            if (inst->staticInst->liveOutPredicted[i]) {
+                DPRINTF(IEW, "Setting Register Operand %i to live out value %#x\n", i, inst->staticInst->liveOut[i]);
+                inst->setIntRegOperand(inst->staticInst.get(), i, inst->staticInst->liveOut[i]);
+                scoreboard->setReg(inst->renamedDestRegIdx(i));
+            }
+        }
         // Execute instruction.
         // Note that if the instruction faults, it will be handled
         // at the commit stage.
@@ -1690,18 +1698,10 @@ DefaultIEW<Impl>::writebackInsts()
         // when it's ready to execute the strictly ordered load.
         if (!inst->isSquashed() && inst->isExecuted() && inst->getFault() == NoFault) {
 
-            // First dump all live outs if this instruction is at the end of a speculatively issued trace
-            if (inst->staticInst->isEndOfTrace()) {
-                for (int i = 0; i < inst->numDestRegs(); i++) {
-                    if (inst->staticInst->liveOutPredicted[i]) {
-                        inst->setIntRegOperand(inst->staticInst.get(), i, inst->staticInst->liveOut[i]);
-                    }
-                }
-            }
-
             int dependents = instQueue.wakeDependents(inst);
 
             for (int i = 0; i < inst->numDestRegs(); i++) {
+                if (inst->staticInst->liveOutPredicted[i]) continue;
                 //mark as Ready
                 DPRINTF(IEW,"Setting Destination Register %i (%s)\n",
                         inst->renamedDestRegIdx(i)->index(),

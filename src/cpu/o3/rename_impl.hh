@@ -537,6 +537,8 @@ DefaultRename<Impl>::renameInsts(ThreadID tid)
     if (free_iq_entries < min_free_entries) {
         min_free_entries = free_iq_entries;
         source = IQ;
+    } else if (renameMap[tid]->numFreeIntEntries() < min_free_entries) {
+        min_free_entries = renameMap[tid]->numFreeIntEntries();
     }
 
     // Check if there's any space left.
@@ -544,10 +546,12 @@ DefaultRename<Impl>::renameInsts(ThreadID tid)
         DPRINTF(Rename, "[tid:%u]: Blocking due to no free ROB/IQ/ "
                 "entries.\n"
                 "ROB has %i free entries.\n"
-                "IQ has %i free entries.\n",
+                "IQ has %i free entries.\n"
+                "INT RegFile has %i free entries.\n",
                 tid,
                 free_rob_entries,
-                free_iq_entries);
+                free_iq_entries,
+                renameMap[tid]->numFreeIntEntries());
 
         blockThisCycle = true;
 

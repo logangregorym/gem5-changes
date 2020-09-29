@@ -1828,6 +1828,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             if (staticInst->sourcesPredicted[j])
                                 DPRINTF(Fetch, "Speculative instruction has propagated constant %#x at operand %#x\n", staticInst->sourcePredictions[j], j);
                         }
+                        for (int i = 0; i < staticInst->numDestRegs(); i++) {
+                            if (staticInst->liveOutPredicted[i]) {
+                                DPRINTF(Fetch, "Operand %i has a live out value %#x\n", i, staticInst->liveOut[i]);
+                            }
+                        }
 
                         ppFetch->notify(instruction);
                         numInst++;
