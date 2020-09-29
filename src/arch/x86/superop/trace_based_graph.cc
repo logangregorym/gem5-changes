@@ -250,12 +250,29 @@ void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
         trace.addr.valid = false;
         // select cache to advance from
         if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
-            if (trace.addr.uop < decoder->uopCountArray[trace.addr.idx][trace.addr.way]) {
+            FullUopAddr prevAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop-1];
+            FullUopAddr nextAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop];
+            
+            if (prevAddr.pcAddr == nextAddr.pcAddr) {
                 trace.addr.valid = true;
-            } else if (decoder->uopNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
-                trace.addr.uop = 0;
-                trace.addr.way = decoder->uopNextWayArray[trace.addr.idx][trace.addr.way];
-                trace.addr.valid = true;
+            } else {
+                nextAddr.pcAddr = prevAddr.pcAddr + decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop-1].instSize;
+                if (trace.addr.idx != ((nextAddr.pcAddr >> 5) & 0x1f)) { // we have exhausted all ways
+                    return;
+                }
+                uint64_t tag = (nextAddr.pcAddr >> 10);
+                for (int way = 0; way < 8; way++) {
+                    if (decoder->uopValidArray[trace.addr.idx][way] && decoder->uopTagArray[trace.addr.idx][way] == tag) {
+                        for (int uop = 0; uop < decoder->uopCountArray[trace.addr.idx][way]; uop++) {
+                            if (decoder->uopAddrArray[trace.addr.idx][way][uop].pcAddr == nextAddr.pcAddr) {
+                                trace.addr.way = way;
+                                trace.addr.uop = uop;
+                                trace.addr.valid = true;
+                                return;
+                            }
+                        }
+                    }
+                }
             }
         } else {
             if (trace.addr.uop < decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]) {
