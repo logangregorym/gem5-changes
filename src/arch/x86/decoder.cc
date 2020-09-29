@@ -798,7 +798,19 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     uint64_t tag = (addr >> 10);
     int numFullWays = 0;
     int lastWay = -1;
-    for (int way = 0; way < 8 && numFullWays < 3; way++) {
+
+    int baseAddr = 0;
+    int baseWay = 0;
+    int waysVisited = 0;
+    for (int way = 0; way < 8; way++) {
+        if ((uopValidArray[idx][way] && uopTagArray[idx][way] == tag) &&
+             (!baseAddr || uopAddrArray[idx][way][0].pcAddr <= baseAddr)) {
+            baseAddr = uopAddrArray[idx][way][0].pcAddr;
+            baseWay = way;
+        }
+    }
+    /* Trace traversal is circular, rather than linear. */
+    for (int way = baseWay; waysVisited < 8 && numFullWays < 3; way = (way + 1) % 8) {
         if (!uopFullArray[idx][way] && uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
             /* Check if this way can accommodate the uops that correspond
                  to this instruction. */
@@ -822,6 +834,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             uopCacheUpdates += numUops;
             return true;
         }
+        waysVisited++;
     }
 
     if (numFullWays == 3) {
@@ -942,7 +955,13 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
     int numFullWays = 0;
     int lastWay = -1;
 
-    for (int way = 0; way < 8 && numFullWays < 3; way++) {
+    int baseWay = 0;
+    int waysVisited = 0;
+    if (traceConstructor->traceMap[traceID].optimizedHead.valid) {
+        baseWay = traceConstructor->traceMap[traceID].optimizedHead.way;
+    }
+    /* Circular rather than linear traversal. */
+    for (int way = baseWay; waysVisited < 8 && numFullWays < 3; way = (way + 1) % 8) {
         if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag && speculativeTraceIDArray[idx][way] == traceID) {
             /* Check if this way can accommodate the uops that correspond
                  to this instruction. */
@@ -964,6 +983,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
             }
             return true;
         }
+        waysVisited++;
     }
 
     if (numFullWays == 3) {
@@ -987,6 +1007,7 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
             speculativeAddrArray[idx][way][u] = FullUopAddr(addr, uop);
             updateLRUBitsSpeculative(idx, way);
             DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%#x nextWay:%d.\n", addr, tag, idx, way, u, speculativeNextWayArray[idx][way]);
+            DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, u, addr, uop);
             return true;
         }
     }
@@ -1062,34 +1083,6 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
     }
     DPRINTF(ConstProp, "Optimized trace could not be loaded into speculative cache because eviction failed\n");
     return false;
-}
-
-bool
-Decoder::updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsigned traceID) {
-    int idx = (addr >> 5) & 0x1f;
-    uint64_t tag = (addr >> 10);
-    int numFullWays = 0;
-
-    for (int way = 0; way < 8 && numFullWays < 3; way++) {
-        if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag && speculativeTraceIDArray[idx][way] == traceID) {
-            int waySize = speculativeCountArray[idx][way];
-            if (waySize == 6) {
-                continue;
-            }
-            // No need to add a new way, there's space in this one
-            updateLRUBits(idx, way);
-            DPRINTF(Decoder, "Skipping microop update in the speculative cache: %#x tag:%#x idx:%#x way:%#x.\n", addr, tag, idx, way);
-            return true;
-        }
-    }
-
-    if (numFullWays == 3) {
-        // Replace this section
-        panic("Already 3 full ways so couldn't add optimized inst");
-    }
-
-    // nothing to add -- so don't reserve a new way yet.
-    return true;
 }
 
 bool
@@ -1302,8 +1295,12 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
         FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
         nextPC._pc = instAddr.pcAddr;
         nextPC._upc = instAddr.uopAddr;
-        nextPC._npc = nextPC._pc + nextInst->macroOp->getMacroopSize();
-        nextPC._nupc = nextPC._upc + 1;
+
+        /* Leverage advanceTrace's control tracking feature to set these. */
+        SpecTrace trace = traceConstructor->streamTrace;
+        traceConstructor->advanceTrace(trace);
+        nextPC._npc = speculativeAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].pcAddr;
+        nextPC._nupc = speculativeAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].uopAddr;
         nextPC.valid = true;
     } else {
         /* Assuming a trace always ends at the last micro-op of a macro-op. */

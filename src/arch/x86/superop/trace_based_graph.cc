@@ -592,8 +592,9 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
 
     // Inst will never already be in this trace, single pass
     if (isDeadCode) {
-        updateSuccessful = decoder->updateTagInSpeculativeCacheWithoutAdding(trace.instAddr.pcAddr, trace.instAddr.uopAddr, trace.id);
         DPRINTF(ConstProp, "Dead code at %#x:%#x\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+        DPRINTF(Decoder, "Skipping microop update in the speculative cache\n");
+        return true;
     } else {
         updateSuccessful = decoder->addUopToSpeculativeCache(trace.inst, trace.instAddr.pcAddr, trace.instAddr.uopAddr, trace.id);
         trace.shrunkLength++;

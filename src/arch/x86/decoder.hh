@@ -447,8 +447,6 @@ protected:
 
 	bool addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, unsigned traceID);
 
-	bool updateTagInSpeculativeCacheWithoutAdding(Addr addr, unsigned uop, unsigned traceID);
-
     bool isSpeculativeCacheActive()
     {
       return speculativeCacheActive;
