@@ -197,7 +197,7 @@ class BaseDynInst : public ExecContext, public RefCounted
     TheISA::PCState predPC;
 
     /** The Macroop if one exists */
-    const StaticInstPtr macroop;
+    StaticInstPtr macroop;
 
     /** How many source registers are ready. */
     uint8_t readyRegs;

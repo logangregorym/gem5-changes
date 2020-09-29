@@ -1981,7 +1981,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     DPRINTF(Fetch, "\n");
                     newMacro |= staticInst->isLastMicroop();
             	}
-
                 DynInstPtr instruction =
                         buildInst(tid, staticInst, curMacroop,
                                 thisPC, nextPC, true);

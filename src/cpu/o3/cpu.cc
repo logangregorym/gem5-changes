@@ -187,6 +187,9 @@ FullO3CPU<Impl>::FullO3CPU(DerivO3CPUParams *params)
       system(params->system),
       lastRunningCycle(curCycle())
 {
+    commitMacroOp = NULL;
+    squashMacroOp = NULL;
+
     if (!params->switched_out) {
         _status = Running;
     } else {
@@ -1611,10 +1614,12 @@ FullO3CPU<Impl>::removeFrontInst(DynInstPtr &inst)
             "[sn:%lli]\n",
             inst->threadNumber, inst->pcState(), inst->seqNum);
 
-    if (inst->staticInst->isLastMicroop() && !inst->isSquashed() && !inst->isStreamedFromSpeculativeCache()) {
-      assert(inst->staticInst->macroOp);
-      inst->staticInst->macroOp->deleteMicroOps();
-      inst->staticInst->macroOp = NULL;
+    inst->macroop = NULL;
+    if (inst->staticInst->macroOp && inst->staticInst->macroOp != commitMacroOp && !inst->isSquashed() && !inst->isStreamedFromSpeculativeCache()) {
+        if (commitMacroOp) {
+            commitMacroOp->deleteMicroOps();
+        }
+        commitMacroOp = inst->staticInst->macroOp;
     }
 
     removeInstsThisCycle = true;
@@ -1710,20 +1715,23 @@ FullO3CPU<Impl>::squashInstIt(const ListIt &instIt, ThreadID tid)
 
         // Mark it as squashed.
         (*instIt)->setSquashed();
-        if ((*instIt)->staticInst->isFirstMicroop() && // assuming we always go in reverse order
+        (*instIt)->macroop = NULL;
+        if ((*instIt)->staticInst->macroOp && // assuming we always go in reverse order
+            (*instIt)->staticInst->macroOp != squashMacroOp &&
             !(*instIt)->isStreamedFromSpeculativeCache()) {
             bool containsMicroBranch = false;
-            for (int i = 0; i < (*instIt)->macroop->getNumMicroops(); i++) {
-                DPRINTF(O3CPU, "Micro-op %i: %s\n", i, (*instIt)->macroop->fetchMicroop(i)->disassemble((*instIt)->pcState().instAddr()));
-                if ((*instIt)->macroop->fetchMicroop(i)->isMicroBranch()) {
+            for (int i = 0; i < (*instIt)->staticInst->macroOp->getNumMicroops(); i++) {
+                DPRINTF(O3CPU, "Micro-op %i: %s\n", i, (*instIt)->staticInst->macroOp->fetchMicroop(i)->disassemble((*instIt)->pcState().instAddr()));
+                if ((*instIt)->staticInst->macroOp->fetchMicroop(i)->isMicroBranch()) {
                     DPRINTF(O3CPU, "-- contains a micro-branch\n");
                     containsMicroBranch = true;
                 }
             }
             if (!containsMicroBranch) {
-                assert((*instIt)->staticInst->macroOp);
-                (*instIt)->staticInst->macroOp->deleteMicroOps();
-                (*instIt)->staticInst->macroOp = NULL;
+                if (squashMacroOp) {
+                    squashMacroOp->deleteMicroOps();
+                }
+                squashMacroOp = (*instIt)->staticInst->macroOp;
             }
         }
 

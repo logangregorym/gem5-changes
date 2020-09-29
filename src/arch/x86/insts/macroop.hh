@@ -114,6 +114,9 @@ class MacroopBase : public X86StaticInst
 
     void deleteMicroOps() {
         if (numMicroops > 0) {
+            for (int i = 0; i < numMicroops; i++) {
+                microops[i]->macroOp = NULL;
+            }
             delete[] microops;
             microops = NULL;
             numMicroops = 0;

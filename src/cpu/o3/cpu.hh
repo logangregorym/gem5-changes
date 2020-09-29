@@ -806,6 +806,10 @@ class FullO3CPU : public BaseO3CPU
     //number of misc
     Stats::Scalar miscRegfileReads;
     Stats::Scalar miscRegfileWrites;
+
+    // cleanup memory
+    StaticInstPtr commitMacroOp;
+    StaticInstPtr squashMacroOp;
 };
 
 #endif // __CPU_O3_CPU_HH__

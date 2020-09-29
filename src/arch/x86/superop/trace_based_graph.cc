@@ -572,8 +572,6 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
     // IMPORTANT NOTE: This is written assuming the trace will be traversed in order, and so the register map will be accurate for the current point in the trace
     trace.length++;
 
-    bool updateSuccessful = false;
-
     // Rather than checking dests, check sources; if all sources, then all dests in trace
     bool allSrcsReady = true;
     for (int i=0; i<trace.inst->numSrcRegs(); i++) {
@@ -595,33 +593,30 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
         DPRINTF(ConstProp, "Dead code at %#x:%#x\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
         DPRINTF(Decoder, "Skipping microop update in the speculative cache\n");
         return true;
-    } else {
-        updateSuccessful = decoder->addUopToSpeculativeCache(trace.inst, trace.instAddr.pcAddr, trace.instAddr.uopAddr, trace.id);
-        trace.shrunkLength++;
+    }
 
-        // update live outs
-        for (int i=0; i<trace.inst->numDestRegs(); i++) {
-            RegId destReg = trace.inst->destRegIdx(i);
-            regCtx[destReg.flatIndex()].valid = false;
-        }
+    bool updateSuccessful = decoder->addUopToSpeculativeCache(trace.inst, trace.instAddr.pcAddr, trace.instAddr.uopAddr, trace.id);
+    trace.shrunkLength++;
 
-        // No predicted value propagation required for conditional moves or returns
-        // not sure if that's true; jump inst may recieve propagated value? -- let's only do this for cmovs and ret
-        if ((trace.inst->isCC() && type == "movi") || trace.inst->isReturn()) {
-            return updateSuccessful;
-        }
-
-        // Step 3b: Mark all predicted values on the StaticInst
-        for (int i=0; i<trace.inst->numSrcRegs(); i++) {
-            unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
-            DPRINTF(ConstProp, "Examining register %i\n", srcIdx);
-            if (regCtx[srcIdx].valid) {
-                DPRINTF(ConstProp, "Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
-                trace.inst->sourcePredictions[i] = regCtx[srcIdx].value;
-                trace.inst->sourcesPredicted[i] = true;
-            }
+    // Step 3b: Mark all predicted values on the StaticInst
+    for (int i=0; i<trace.inst->numSrcRegs(); i++) {
+        unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
+        DPRINTF(ConstProp, "Examining register %i\n", srcIdx);
+        if (regCtx[srcIdx].valid) {
+            DPRINTF(ConstProp, "Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+            trace.inst->sourcePredictions[i] = regCtx[srcIdx].value;
+            trace.inst->sourcesPredicted[i] = true;
         }
     }
+
+    // update live outs
+    for (int i=0; i<trace.inst->numDestRegs(); i++) {
+        RegId destReg = trace.inst->destRegIdx(i);
+        if (destReg.classValue() == IntRegClass) {
+            regCtx[destReg.flatIndex()].valid = false;
+        }
+    }
+
     return updateSuccessful;
 }
 
