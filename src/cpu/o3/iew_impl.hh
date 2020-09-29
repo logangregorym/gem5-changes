@@ -1549,7 +1549,7 @@ DefaultIEW<Impl>::executeInsts()
                     	// cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
                     	loadPred->lastMisprediction = inst->memoryAccessEndCycle;
                     	// Moved from commit
-                    	cpu->commit.squashWokenDependents(inst);
+                    	squashDueToLoad(inst, inst, tid);
                     }
             	}
             }

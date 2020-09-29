@@ -314,9 +314,6 @@ class DefaultCommit
     ThreadID oldestReady();
 
   public:
-    /** Rewind from load misprediction */
-    void squashWokenDependents(DynInstPtr &inst);
-
     /** Reads the PC of a specific thread. */
     TheISA::PCState pcState(ThreadID tid) { return pc[tid]; }
 

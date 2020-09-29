@@ -1177,7 +1177,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                     // cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
                     iewStage->loadPred->lastMisprediction = inst->memoryAccessEndCycle;
                     // Moved from commit
-                    cpu->commit.squashWokenDependents(inst);
+                    iewStage->squashDueToLoad(inst, inst, tid);
                 }
             }
 
