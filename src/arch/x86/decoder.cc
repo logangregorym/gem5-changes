@@ -1269,10 +1269,10 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
         DPRINTF(Decoder, "Trace %i ought to be triggered:\n", traceConstructor->streamTrace.id);
         traceConstructor->dumpTrace(traceConstructor->streamTrace);
     }
-    if (!traceConstructor->streamTrace.addr.valid) {
-        traceConstructor->streamTrace.id = 0;
-        return StaticInst::nullStaticInstPtr;
-    }
+    // if (!traceConstructor->streamTrace.addr.valid) {
+    //     traceConstructor->streamTrace.id = 0;
+    //     return StaticInst::nullStaticInstPtr;
+    // }
 
     idx = traceConstructor->streamTrace.addr.idx;
     way = traceConstructor->streamTrace.addr.way;
@@ -1314,6 +1314,8 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
         nextPC._upc = 0;
         nextPC._nupc = 1;
         nextPC.valid = false;
+        curInst->setEndOfTrace();
+        traceConstructor->streamTrace.id = 0;
     }
 
     return curInst;
