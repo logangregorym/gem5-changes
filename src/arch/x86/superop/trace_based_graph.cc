@@ -414,7 +414,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
         }
     } else { 
         assert(currentTrace.state == SpecTrace::OptimizationInProcess || currentTrace.state == SpecTrace::ReoptimizationInProcess);
-        currentTrace.inst = NULL;
     }
 
     if (!currentTrace.addr.valid) { return false; } // no traces in queue to pop
@@ -433,10 +432,20 @@ bool TraceBasedGraph::generateNextTraceInst() {
             return false;
         }
         decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        currentTrace.inst = decodedMacroOp;
+        if (decodedMacroOp->getName() == "NOP") {
+            advanceTrace(currentTrace);
+            return true;
+        }
         if (decodedMacroOp->isMacroop()) {
-            currentTrace.inst = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+            StaticInstPtr inst = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
+            if (inst->getName() == "NOP") {
+                advanceTrace(currentTrace);
+                return true;
+            }
+            currentTrace.inst = inst;
             currentTrace.inst->macroOp = decodedMacroOp;
+        } else {
+            currentTrace.inst = decodedMacroOp;
         }
         currentTrace.instAddr = decoder->uopAddrArray[idx][way][uop];
     } else if (state == SpecTrace::ReoptimizationInProcess) {
@@ -456,7 +465,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
     decodedMacroOp = NULL;
 
     bool updateSuccessful = false;
-    bool foundNOP = false;
 
     // Any inst in a trace may be a prediction source
     DPRINTF(ConstProp, "Trace %i: Processing instruction: %p:%i -- %s\n", currentTrace.id, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
@@ -556,9 +564,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
         } else if (type == "rdtsc" || type == "rdval") {
             DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
             // TODO: determine whether direct register file access needs to be handled differently?
-        } else if (type == "NOP") {
-            DPRINTF(ConstProp, "Found a NOP at [%i][%i][%i], compacting...\n", idx, way, uop);
-            foundNOP = true;
         } else if (type == "panic" || type == "CPUID") {
             DPRINTF(ConstProp, "Type is PANIC or CPUID\n");
             // TODO: possibly remove, what is purpose?
@@ -569,13 +574,11 @@ bool TraceBasedGraph::generateNextTraceInst() {
             DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
         }
 
-        if (!foundNOP) {
-            updateSuccessful = updateSpecTrace(currentTrace);
-        }
+        updateSuccessful = updateSpecTrace(currentTrace);
     }
 
     // Simulate a stall if update to speculative cache wasn't successful
-    if (updateSuccessful || foundNOP) {
+    if (updateSuccessful) {
         advanceTrace(currentTrace);
     }
 
