@@ -1507,12 +1507,12 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive()) {
             currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr());
             if (currentTraceID != 0) {
-                DPRINTF(Fetch, "Using trace %i\n", currentTraceID);
+                DPRINTF(Fetch, "Activaring Spec$. currentTraceID is %i\n", currentTraceID);
             }
         }
         if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive())
         {
-            DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s.\n", thisPC);
+            DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
             // Speculative Cache is already enabled, continue fetchinf from it
             inSpeculativeCache = true;
             //Disable Uop Cache
@@ -1524,7 +1524,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         else if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
         {
         
-            DPRINTF(Fetch, "Setting speculative cache active at Pc %s.\n", thisPC);
+            DPRINTF(Fetch, "Setting speculative cache active at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
             //Enable Speculative Cache
             inSpeculativeCache = true;
             decoder[tid]->setSpeculativeCacheActive(true);
@@ -1729,15 +1729,15 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         bool predict_taken = false;
                         // fetch next microop and also update the nextPC, so we can decide whether there is
                         // TODO: fetchBufferPC[tid] ?
-                        DPRINTF(Fetch, "Asking SPEC for microop at %s and to update %s (%d)\n", thisPC, nextPC, nextPC.valid);
+                        DPRINTF(Fetch, "Asking SPEC for microop at %s and to update %s (%d). currentTraceID is %d\n", thisPC, nextPC, nextPC.valid, currentTraceID);
 
                         staticInst = decoder[tid]->getSuperOptimizedMicroop(currentTraceID, thisPC, nextPC, predict_taken);
                         assert(staticInst);
                         
                         if (staticInst->isEndOfTrace()) {
-                            DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and the last microop of the trace!\n", nextPC, nextPC.valid);
+                            DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and the last microop of the trace! currentTraceID is %d\n", nextPC, nextPC.valid, currentTraceID);
                         } else {
-                            DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and a valid next inst!\n", nextPC, nextPC.valid);
+                            DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and a valid next inst! currentTraceID is %d\n", nextPC, nextPC.valid, currentTraceID);
                         }
 
                         
@@ -1754,8 +1754,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                                             thisPC, nextPC, true);
 
 
-                        DPRINTF(Fetch, "Speculative instruction created: [sn:%lli]:%s thisPC = %s nextPC = %s\n", 
-                                    instruction->seqNum, instruction->pcState(), thisPC, nextPC);
+                        DPRINTF(Fetch, "Speculative instruction created: [sn:%lli]:%s thisPC = %s nextPC = %s. currentTraceID is %d \n", 
+                                    instruction->seqNum, instruction->pcState(), thisPC, nextPC, currentTraceID);
                         for (int j=0; j<staticInst->numSrcRegs(); j++) {
                             if (staticInst->sourcesPredicted[j])
                                 DPRINTF(Fetch, "Speculative instruction has propagated constant %#x at operand %#x\n", staticInst->sourcePredictions[j], j);
@@ -1974,9 +1974,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
                         staticInst->macroOp = curMacroop;
                         staticInst->fetched_from = 1;
-                        if (ENABLE_DEBUG)
-                            std::cout << "Decoder || UopCache: " <<  " PCState: " <<  thisPC << 
-                            " " << staticInst->disassemble(thisPC.pc()) << std::endl << std::flush;
+                        // if (ENABLE_DEBUG)
+                        //     std::cout << "Decoder || UopCache: " <<  " PCState: " <<  thisPC << 
+                        //     " " << staticInst->disassemble(thisPC.pc()) << std::endl << std::flush;
                     	/* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
@@ -2065,7 +2065,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
                     {
         
-                        DPRINTF(Fetch, "Swithching from Uop$/Decoder to Speculative Cache active at Pc %s as profitability analysis unit requested.\n", thisPC);
+                        DPRINTF(Fetch, "Swithching from Uop$/Decoder to Speculative Cache active at Pc %s as profitability analysis unit requested. currentTraceID = %d\n", thisPC, currentTraceID);
                         inSpeculativeCache = true;
                         decoder[tid]->setSpeculativeCacheActive(true);
                         // this will cause outer loop to exit and therefore a switch with one cycle penalty

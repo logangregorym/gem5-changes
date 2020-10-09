@@ -346,6 +346,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             int way = currentTrace.optimizedHead.way;
             if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
                 // mark end of trace and propagate live outs
+                DPRINTF(SuperOp, "End of Trace at %s!\n", currentTrace.inst->getName());
                 currentTrace.inst->setEndOfTrace();
                 if (!currentTrace.inst->isControl()) { // control instructions already propagate live outs
                     for (int i=0; i<16; i++) { // 16 int registers
