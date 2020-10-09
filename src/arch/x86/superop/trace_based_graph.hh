@@ -40,8 +40,9 @@ struct PredictionSource
 struct RegisterContext {
     int64_t value;
     bool valid;
+    bool source;
 
-    RegisterContext() {value = 0; valid = false;}
+    RegisterContext() {value = 0; valid = false; source = false;}
 };
 
 // Speculative Trace

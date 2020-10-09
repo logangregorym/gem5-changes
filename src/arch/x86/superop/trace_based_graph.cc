@@ -350,7 +350,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.inst->setEndOfTrace();
                 if (!currentTrace.inst->isControl()) { // control instructions already propagate live outs
                     for (int i=0; i<16; i++) { // 16 int registers
-                        if (regCtx[i].valid) {
+                        if (regCtx[i].valid && !regCtx[i].source) {
                             currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
                             currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
                             currentTrace.inst->addDestReg(RegId(IntRegClass, i));
@@ -363,7 +363,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 dumpTrace(currentTrace);
                 DPRINTF(SuperOp, "Live Outs:\n");
                 for (int i=0; i<16; i++) {
-                    if (regCtx[i].valid)
+                    if (regCtx[i].valid && !regCtx[i].source)
                         DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
                 }
                 for (int i=0; i<4; i++) {
@@ -433,12 +433,14 @@ bool TraceBasedGraph::generateNextTraceInst() {
         }
         decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
         if (decodedMacroOp->getName() == "NOP") {
+            currentTrace.length++;
             advanceTrace(currentTrace);
             return true;
         }
         if (decodedMacroOp->isMacroop()) {
             StaticInstPtr inst = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
             if (inst->getName() == "NOP") {
+                currentTrace.length++;
                 advanceTrace(currentTrace);
                 return true;
             }
@@ -480,7 +482,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             RegId destReg = currentTrace.inst->destRegIdx(i);
             if (destReg.classValue() == IntRegClass) {
                 regCtx[destReg.flatIndex()].value = currentTrace.inst->predictedValue = value;
-                regCtx[destReg.flatIndex()].valid = currentTrace.inst->predictedLoad = true;
+                regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].source = currentTrace.inst->predictedLoad = true;
                 currentTrace.inst->confidence = confidence;
             }
         }
@@ -585,7 +587,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     // Propagate live outs at the end of each control instruction
     if (currentTrace.inst->isControl()) {
         for (int i=0; i<16; i++) { // 16 int registers
-            if (regCtx[i].valid) {
+            if (regCtx[i].valid && !regCtx[i].source) {
                 currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
                 currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
                 currentTrace.inst->addDestReg(RegId(IntRegClass, i));
@@ -594,7 +596,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     }
     DPRINTF(SuperOp, "Live Outs:\n");
     for (int i=0; i<16; i++) {
-        if (regCtx[i].valid)
+        if (regCtx[i].valid && !regCtx[i].source)
             DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
     }
 
