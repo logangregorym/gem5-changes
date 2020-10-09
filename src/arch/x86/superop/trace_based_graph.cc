@@ -473,7 +473,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
     int64_t value;
     unsigned confidence;
     unsigned latency;
-    if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) {
+    string type = currentTrace.inst->getName();
+    if (type != "limm" && type != "movi" && isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) {
         // Step 1: Get predicted value from LVP
         // Step 2: Determine dest register(s)
         // Step 3: Annotate dest register entries with that value
@@ -487,23 +488,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
         }
         updateSuccessful = updateSpecTrace(currentTrace);
-
-        // Update head of the optimized trace
-        if (currentTrace.head == currentTrace.addr && updateSuccessful) {
-            currentTrace.optimizedHead.idx = currentTrace.head.idx; 
-            currentTrace.optimizedHead.uop = 0;
-            for (int way=0; way<8; way++) {
-                int idx = currentTrace.head.idx;
-                if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
-                    currentTrace.optimizedHead.way = way;
-                    currentTrace.optimizedHead.valid = true;
-                    break;
-                }
-            }
-        }
     } else {
         // Propagate predicted values
-        string type = currentTrace.inst->getName();
         if (type == "mov") {
             DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagateMov(currentTrace.inst);
@@ -621,7 +607,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
     int64_t value;
     unsigned confidence;
     unsigned latency;
-    bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency);
+    bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) && type != "limm" && type != "movi";
     isDeadCode &= (!isPredSource && !(trace.inst->isCC() || trace.inst->isReturn()));
 
     // Inst will never already be in this trace, single pass
@@ -651,6 +637,20 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
             RegId destReg = trace.inst->destRegIdx(i);
             if (destReg.classValue() == IntRegClass) {
                 regCtx[destReg.flatIndex()].valid = false;
+            }
+        }
+    }
+
+    // Update head of the optimized trace
+    if (!trace.optimizedHead.valid) {
+        trace.optimizedHead.idx = trace.head.idx; 
+        trace.optimizedHead.uop = 0;
+        for (int way=0; way<8; way++) {
+            int idx = trace.head.idx;
+            if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == trace.id) {
+                trace.optimizedHead.way = way;
+                trace.optimizedHead.valid = true;
+                break;
             }
         }
     }
