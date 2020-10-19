@@ -1205,7 +1205,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             else if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
             {
                 // again deactivate speculative cache
-                DPRINTF(Fetch, "branch misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
+                DPRINTF(Fetch, "folded branch misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
                 decoder[tid]->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = true;
             }
@@ -1226,13 +1226,15 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             {
                 // activate speculative cache so we can fetch from it again
                 DPRINTF(Fetch, "memory order violation\n");
-                decoder[tid]->setSpeculativeCacheActive(true);
+                //decoder[tid]->setSpeculativeCacheActive(true);
                 
             }
             else {
                 DPRINTF(Fetch, "something else\n");
             }
-
+            
+            // This squash is not due to LVP missprediction, therefore always deactivate the spec$ and the fetch will handle re-activation
+            decoder[tid]->setSpeculativeCacheActive(false);
             decoder[tid]->redirectDueToLVPSquashing = false;
 
         }

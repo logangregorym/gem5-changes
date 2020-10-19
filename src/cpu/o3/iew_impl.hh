@@ -571,6 +571,7 @@ DefaultIEW<Impl>::squashDueToBranch(DynInstPtr &inst, ThreadID tid)
         TheISA::advancePC(pc, inst->staticInst);
 
         toCommit->pc[tid] = pc;
+        assert(inst);
         toCommit->mispredictInst[tid] = inst;
         toCommit->includeSquashInst[tid] = false;
 
@@ -597,6 +598,7 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
         toCommit->squashedSeqNum[tid] = inst->seqNum;
         toCommit->pc[tid] = inst->pcState();
         toCommit->oldpc[tid] = inst->pcState();
+        assert(inst);
         toCommit->mispredictInst[tid] = inst; // not a branch misprediction
         toCommit->includeSquashInst[tid] = true;
 
@@ -706,7 +708,7 @@ DefaultIEW<Impl>::forwardPredictionToDependents(DynInstPtr &inst)
     instQueue.forwardPredictionToDependents(inst);
     for (int i = 0; i < inst->numDestRegs(); i++) {
         scoreboard->setReg(inst->renamedDestRegIdx(i));
-        DPRINTF(LVP, "Updated scoreboard for register %i.\n", inst->renamedDestRegIdx(i));
+        DPRINTF(LVP, "LVP: Updated scoreboard for register %i.\n", inst->renamedDestRegIdx(i));
     }
 }
 
@@ -1513,12 +1515,12 @@ DefaultIEW<Impl>::executeInsts()
 			    // Note: changed memoryAccessStartCycle to cycleFetched in all these
                           case IntRegClass:
                             value = cpu->readIntReg(dest_reg);
-                            DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
+                            DPRINTF(LVP, "IntRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
                             inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                             break;
                           case FloatRegClass:
                             value = cpu->readFloatRegBits(dest_reg);
-                            DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readFloatReg(dest_reg));
+                            DPRINTF(LVP, "FloatRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readFloatReg(dest_reg));
                             inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                             break;
                       	  case VecRegClass:
@@ -1528,12 +1530,12 @@ DefaultIEW<Impl>::executeInsts()
                             break;
                       	  case VecElemClass:
                             value = cpu->readVecElem(dest_reg);
-                            DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readVecElem(dest_reg));
+                            DPRINTF(LVP, "VecElemClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readVecElem(dest_reg));
                             inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                             break;
                       	  case CCRegClass:
                             value = cpu->readCCReg(dest_reg);
-                            DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readCCReg(dest_reg));
+                            DPRINTF(LVP, "CCRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readCCReg(dest_reg));
                             inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                             break;
                       	  case MiscRegClass:
@@ -1542,7 +1544,7 @@ DefaultIEW<Impl>::executeInsts()
                             break;
                      	  default:
                             panic("Unknown register class: %d", (int)dest_reg->classValue());
-                   	}
+                   	    }
                     }
                     if (inst->lvMispred) {
                     	DPRINTF(LVP, "OH NO! processPacketRecieved returned false :(\n");

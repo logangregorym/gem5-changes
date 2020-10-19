@@ -29,7 +29,7 @@ struct PredictionSource
     FullUopAddr addr;
     bool valid;
     bool isBranch;
-    int64_t value;
+    uint64_t value;
     unsigned confidence;
     unsigned latency;
 
@@ -38,7 +38,7 @@ struct PredictionSource
 
 // Register context block for liveness analysis
 struct RegisterContext {
-    int64_t value;
+    uint64_t value;
     bool valid;
     bool source;
 
@@ -129,7 +129,7 @@ class TraceBasedGraph : public SimObject
 
     bool updateSpecTrace(SpecTrace &trace);
 
-    bool isPredictionSource(SpecTrace trace, FullUopAddr addr, int64_t &value, unsigned &confidence, unsigned &latency);
+    bool isPredictionSource(SpecTrace trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency);
 
     bool generateNextTraceInst();
 

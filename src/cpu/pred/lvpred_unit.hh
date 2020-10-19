@@ -58,7 +58,7 @@ class LVPredUnit : public SimObject
             this->predSource = 0;
         }
 
-        int64_t predictedValue;
+        uint64_t predictedValue;
         int8_t confidence;
         unsigned latency;
         uint8_t predSource;

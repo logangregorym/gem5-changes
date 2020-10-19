@@ -127,7 +127,7 @@ namespace X86ISA
 
         std::string generateDisassembly(Addr pc,
             const SymbolTable *symtab) const;
-    };
+        };
 }
 
 #endif //__ARCH_X86_INSTS_MICROREGOP_HH__
