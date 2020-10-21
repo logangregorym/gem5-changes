@@ -412,6 +412,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         /* Clear Reg Context Block. */
         for (int i=0; i<38; i++) {
             regCtx[i].valid = false;
+            regCtx[i].source = false;
         }
     } else { 
         assert(currentTrace.state == SpecTrace::OptimizationInProcess || currentTrace.state == SpecTrace::ReoptimizationInProcess);
@@ -724,8 +725,11 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
 
             uint64_t destVal;
             // if the last value of regCtx is not valid, then we need to get the valid value from ExecContext
+            // TODO: This is not completely true, if the dest reg is not valid, it means we need ti make sure 
+            // that depending on the size we are not overwriitng bitfilds
             if (!regCtx[destReg.flatIndex()].valid)
             {
+                
                 destVal = 0;
             }
             else 
@@ -1185,29 +1189,44 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
 bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "zexti");
-    
     if (inst->numSrcRegs() > 1) {
+        assert(0);
+    }
+
+    assert(inst->srcRegIdx(0).isIntReg());
+    unsigned srcRegId = inst->srcRegIdx(0).flatIndex();
+    if (!regCtx[srcRegId].valid) {
         return false;
     }
 
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!regCtx[destRegId].valid) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = inst->getImmediate();
+    uint64_t DestReg = 0;
+    uint64_t SrcReg1 = regCtx[srcRegId].value;
+    uint64_t imm8 = inst->getImmediate();
 
-    // value construction taken from isa file
-    uint64_t forwardVal = bits(destVal, srcVal, 0);
+    uint8_t dataSize = inst->getDataSize();
 
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        DestReg = bits(psrc1, imm8, 0) & mask(dataSize * 8);
     }
+    else {
+        // still don't know what this microop is
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "ConstProp Forwarding ZExtI value %lx through register %i\n", DestReg, destReg.flatIndex());
+    
+    regCtx[destReg.flatIndex()].value = DestReg;
+    regCtx[destReg.flatIndex()].valid = true;
+
     return true;
 }

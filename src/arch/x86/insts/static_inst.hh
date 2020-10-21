@@ -141,7 +141,7 @@ namespace X86ISA
             }
             return reg;
         }
-
+        public:
         inline uint64_t pick(uint64_t from, int idx, int size) const
         {
             X86IntReg reg = from;
@@ -162,7 +162,7 @@ namespace X86ISA
                 panic("Tried to pick with unrecognized size %d.\n", size);
             }
         }
-
+        protected:
         inline int64_t signedPick(uint64_t from, int idx, int size) const
         {
             X86IntReg reg = from;

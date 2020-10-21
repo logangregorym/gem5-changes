@@ -282,6 +282,7 @@ class BaseO3DynInst : public BaseDynInst<Impl>
     {
         if (si->sourcesPredicted[idx]) {
             DPRINTF(IEW, "SuperOptimizer: readFloatRegOperand: Returning Predicted Value: %i:%#x\n", idx, si->sourcePredictions[idx]);
+            panic("FloatReg not supported yet!");
             return si->sourcePredictions[idx];
         }
         return this->cpu->readFloatReg(this->_srcRegIdx[idx]);
@@ -291,6 +292,7 @@ class BaseO3DynInst : public BaseDynInst<Impl>
     {
         if (si->sourcesPredicted[idx]) {
             DPRINTF(IEW, "SuperOptimizer: readFloatRegOperandBits: Returning Predicted Value: %i:%#x\n", idx, si->sourcePredictions[idx]);
+            panic("FloatReg not supported yet!");
             return si->sourcePredictions[idx];
         }
         return this->cpu->readFloatRegBits(this->_srcRegIdx[idx]);
