@@ -472,8 +472,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
     // Any inst in a trace may be a prediction source
     DPRINTF(ConstProp, "Trace %i: Processing instruction: %p:%i -- %s\n", currentTrace.id, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
-    uint64_t value;
-    unsigned confidence;
+    uint64_t value = 0;
+    unsigned confidence = 0;
     unsigned latency;
     string type = currentTrace.inst->getName();
     if (type != "limm" && type != "movi" && isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) {
