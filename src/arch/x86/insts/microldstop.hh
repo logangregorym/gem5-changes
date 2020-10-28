@@ -54,7 +54,7 @@ namespace X86ISA
      */
     class MemOp : public X86MicroopBase
     {
-      protected:
+      public:
         const uint8_t scale;
         const RegIndex index;
         const RegIndex base;
@@ -100,7 +100,7 @@ namespace X86ISA
      */
     class LdStOp : public MemOp
     {
-      protected:
+      public:
         const RegIndex data;
 
         //Constructor
@@ -132,7 +132,7 @@ namespace X86ISA
      */
     class LdStSplitOp : public MemOp
     {
-      protected:
+      public:
         const RegIndex dataLow;
         const RegIndex dataHi;
 

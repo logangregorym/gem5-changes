@@ -1169,10 +1169,10 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
         DPRINTF(IQ, "Popping dependGraph of register %i\n", dest_reg);
         DynInstPtr dep_inst = dependGraph.pop(dest_reg->flatIndex());
         uint8_t dataSize = inst->staticInst->getDataSize();
-        DPRINTF(SuperOp, "Forwarding data of size: %i\n", dataSize);
+        DPRINTF(SuperOp, "SuperOp: Forwarding data of size: %i\n", dataSize);
         switch (dest_reg->classValue()) {
           case IntRegClass:
-            DPRINTF(LVP, "Setting int register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
+            DPRINTF(LVP, "LVP: Setting int register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
             if (inst->staticInst->liveOutPredicted[i]) {
                 inst->setIntRegOperand(inst->staticInst.get(), i, inst->staticInst->liveOut[i]);
             } else {
@@ -1180,7 +1180,7 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
             }
             break;
           case FloatRegClass:
-            DPRINTF(LVP, "Setting float register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
+            DPRINTF(LVP, "LVP: Setting float register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
             inst->setFloatRegOperandBits(inst->staticInst.get(), i, inst->staticInst->predictedValue);
           case VecRegClass:
             // panic("Using a lvp prediction for a vector register container");
@@ -1188,11 +1188,11 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
             // inst->setVecRegOperand(inst->staticInst.get(), i, inst->staticInst->predictedValue);
             break;
           case VecElemClass:
-            DPRINTF(LVP, "Setting vector element  %i to %x\n", dest_reg, inst->staticInst->predictedValue);
+            DPRINTF(LVP, "LVP: Setting vector element  %i to %x\n", dest_reg, inst->staticInst->predictedValue);
             inst->setVecElemOperand(inst->staticInst.get(), i, inst->staticInst->predictedValue);
             break;
           case CCRegClass:
-            DPRINTF(LVP, "Setting cc register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
+            DPRINTF(LVP, "LVP: Setting cc register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
             inst->setCCRegOperand(inst->staticInst.get(), i, inst->staticInst->predictedValue);
             break;
           case MiscRegClass:
@@ -1224,7 +1224,7 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
         regScoreboard[dest_reg->flatIndex()] = true;
 
     }
-    DPRINTF(LVP, "%d dependents woken\n", dependentCount);
+    DPRINTF(LVP, "LVP: %d dependents woken\n", dependentCount);
     // memDepUnit[inst->threadNumber].wakeDependentsSpeculative(inst);
 }
 

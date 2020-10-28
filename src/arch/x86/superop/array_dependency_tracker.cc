@@ -897,6 +897,7 @@ bool ArrayDependencyTracker::simplifyGraph() {
             for (int j=0; j<decodedMicroOp->numSrcRegs(); j++) {
               unsigned srcIdx = decodedMicroOp->srcRegIdx(j).flatIndex();
               if (srcIdx == path.archRegIdx) {
+				DPRINTF(ConstProp, "ConstProp: Setting decodedMicroOp sourcePrediction to %#x\n", path.value);
                 decodedMicroOp->sourcePredictions[j] = path.value;
                 decodedMicroOp->sourcesPredicted[j] = true;
               }
@@ -2495,6 +2496,7 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 						for (int j=0; j<optimizedInst->numSrcRegs(); j++) {
 							unsigned srcIdx = optimizedInst->srcRegIdx(j).flatIndex();
 							if (srcIdx == dataIn.archRegIdx) {
+								DPRINTF(ConstProp, "ConstProp: Setting optimizedInst sourcePrediction to %#x\n", dataIn.value);
 								optimizedInst->sourcePredictions[j] = dataIn.value;
 								optimizedInst->sourcesPredicted[j] = true;
 							}
@@ -2528,6 +2530,7 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 						for (int j=0; j<decodedMicroOp->numSrcRegs(); j++) {
 							unsigned srcIdx = decodedMicroOp->srcRegIdx(j).flatIndex();
 							if (srcIdx == dataIn.archRegIdx) {
+								DPRINTF(ConstProp, "ConstProp: Setting decodedMicroOp sourcePrediction to %#x\n", dataIn.value);
 								decodedMicroOp->sourcePredictions[j] = dataIn.value;
 								decodedMicroOp->sourcesPredicted[j] = true;
 							}

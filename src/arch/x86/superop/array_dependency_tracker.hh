@@ -140,7 +140,7 @@ class ArrayDependencyTracker : public SimObject
 		FullCacheIdx consumer = FullCacheIdx();
 		unsigned archRegIdx;
 		unsigned renamedRegIdx;
-		int64_t value;
+		uint64_t value;
 		bool valid;
 		bool lastUse;
 		unsigned directControlDependency = 0;

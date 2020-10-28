@@ -56,7 +56,7 @@ def template MicroLimmOpExecute {{
 def template MicroLimmOpDeclare {{
     class %(class_name)s : public X86ISA::X86MicroopBase
     {
-      protected:
+      public:
         const RegIndex dest;
         const uint64_t imm;
         const uint8_t dataSize;
@@ -67,6 +67,7 @@ def template MicroLimmOpDeclare {{
 
       public:
         uint64_t getImmediate();
+
 
         %(class_name)s(ExtMachInst _machInst,
                 const char * instMnem,
@@ -97,6 +98,8 @@ def template MicroLimmOpImmediate {{
         return imm;
     }
 }};
+
+
 
 def template MicroLimmOpConstructor {{
     %(class_name)s::%(class_name)s(

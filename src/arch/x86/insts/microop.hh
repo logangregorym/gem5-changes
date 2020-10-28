@@ -128,6 +128,8 @@ namespace X86ISA
                 panic("getImmediate() should only be called by a RegOpImm, called by X86MicroopBase");
         }
 
+
+
         void
         advancePC(PCState &pcState) const
         {

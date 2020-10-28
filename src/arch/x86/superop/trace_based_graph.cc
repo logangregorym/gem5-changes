@@ -1,5 +1,6 @@
 #include "arch/isa_traits.hh"
 #include "arch/x86/types.hh"
+#include "arch/x86/generated/decoder.hh"
 #include "arch/x86/insts/microop.hh"
 #include "arch/x86/insts/microregop.hh"
 #include "arch/x86/regs/misc.hh"
@@ -143,7 +144,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
     }
 }
 
-bool TraceBasedGraph::isPredictionSource(SpecTrace trace, FullUopAddr addr, int64_t &value, unsigned &confidence, unsigned &latency) {
+bool TraceBasedGraph::isPredictionSource(SpecTrace trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency) {
     for (int i=0; i<4; i++) {
         if (trace.source[i].valid && trace.source[i].addr == addr) {
             value = trace.source[i].value;
@@ -411,6 +412,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         /* Clear Reg Context Block. */
         for (int i=0; i<38; i++) {
             regCtx[i].valid = false;
+            regCtx[i].source = false;
         }
     } else { 
         assert(currentTrace.state == SpecTrace::OptimizationInProcess || currentTrace.state == SpecTrace::ReoptimizationInProcess);
@@ -470,7 +472,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
     // Any inst in a trace may be a prediction source
     DPRINTF(ConstProp, "Trace %i: Processing instruction: %p:%i -- %s\n", currentTrace.id, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
-    int64_t value;
+    uint64_t value;
     unsigned confidence;
     unsigned latency;
     string type = currentTrace.inst->getName();
@@ -604,7 +606,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
     bool isDeadCode = allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "slri" || type == "slli" || type == "sexti" || type == "zexti");
 
     // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC
-    int64_t value;
+    uint64_t value;
     unsigned confidence;
     unsigned latency;
     bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) && type != "limm" && type != "movi";
@@ -624,9 +626,10 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
     if (!isPredSource) {
         for (int i=0; i<trace.inst->numSrcRegs(); i++) {
             unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
-            DPRINTF(ConstProp, "Examining register %i\n", srcIdx);
+            DPRINTF(ConstProp, "ConstProp: Examining register %i\n", srcIdx);
             if (regCtx[srcIdx].valid && trace.inst->srcRegIdx(i).classValue() == IntRegClass) {
-                DPRINTF(ConstProp, "Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+                DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+                DPRINTF(ConstProp, "ConstProp: Setting trace.inst sourcePrediction to %#x\n", regCtx[srcIdx].value);
                 trace.inst->sourcePredictions[i] = regCtx[srcIdx].value;
                 trace.inst->sourcesPredicted[i] = true;
             }
@@ -704,12 +707,54 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
         return false;
     }
 
-    uint64_t forwardVal = inst->getImmediate();
+    // for 8B LimmBig, Limm, and Lfpimm Only (Memory layput is the same for these classes)
+    X86ISAInst::Limm * inst_regop = (X86ISAInst::Limm * )inst.get(); 
+
+    uint64_t imm = inst->getImmediate();
+    const uint8_t size = inst_regop->dataSize;
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+
     unsigned destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+
+
+
+    
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
+
+            uint64_t destVal;
+            // if the last value of regCtx is not valid, then we need to get the valid value from ExecContext
+            // TODO: This is not completely true, if the dest reg is not valid, it means we need ti make sure 
+            // that depending on the size we are not overwriitng bitfilds
+            if (!regCtx[destReg.flatIndex()].valid)
+            {
+                
+                destVal = 0;
+            }
+            else 
+            {
+                destVal = regCtx[destReg.flatIndex()].value;
+            }
+            // construct the value
+            uint64_t forwardVal;
+            
+            if (size == 8) {
+                forwardVal = imm;
+            } else if (size == 4) {
+                forwardVal = (destVal & 0xffffffff00000000) | (imm & 0xffffffff); // mask 4 bytes
+            } else if (size == 2) {
+                forwardVal = (destVal & 0xffffffffffff0000) | (imm & 0xffff); // mask 2 bytes
+            } else if (size == 1) {
+                forwardVal = (destVal & 0xffffffffffffff00) | (imm & 0xff); // mask 1 byte
+            } 
+            else 
+            {
+                assert(0);
+            }
+
+            DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
+
             regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
@@ -1144,29 +1189,44 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
 bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "zexti");
-    
     if (inst->numSrcRegs() > 1) {
+        assert(0);
+    }
+
+    assert(inst->srcRegIdx(0).isIntReg());
+    unsigned srcRegId = inst->srcRegIdx(0).flatIndex();
+    if (!regCtx[srcRegId].valid) {
         return false;
     }
 
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!regCtx[destRegId].valid) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = inst->getImmediate();
+    uint64_t DestReg = 0;
+    uint64_t SrcReg1 = regCtx[srcRegId].value;
+    uint64_t imm8 = inst->getImmediate();
 
-    // value construction taken from isa file
-    uint64_t forwardVal = bits(destVal, srcVal, 0);
+    uint8_t dataSize = inst->getDataSize();
 
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        DestReg = bits(psrc1, imm8, 0) & mask(dataSize * 8);
     }
+    else {
+        // still don't know what this microop is
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "ConstProp Forwarding ZExtI value %lx through register %i\n", DestReg, destReg.flatIndex());
+    
+    regCtx[destReg.flatIndex()].value = DestReg;
+    regCtx[destReg.flatIndex()].valid = true;
+
     return true;
 }

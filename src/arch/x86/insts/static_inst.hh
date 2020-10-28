@@ -110,6 +110,7 @@ namespace X86ISA
                 uint64_t disp, uint8_t addressSize, bool rip) const;
 
         virtual uint64_t getImmediate() { panic("getImmediate() should only be called by a RegOpImm, called by X86StaticInst"); }
+        
 
         inline uint64_t merge(uint64_t into, uint64_t val, int size) const
         {
@@ -140,7 +141,7 @@ namespace X86ISA
             }
             return reg;
         }
-
+        public:
         inline uint64_t pick(uint64_t from, int idx, int size) const
         {
             X86IntReg reg = from;
@@ -161,7 +162,7 @@ namespace X86ISA
                 panic("Tried to pick with unrecognized size %d.\n", size);
             }
         }
-
+        protected:
         inline int64_t signedPick(uint64_t from, int idx, int size) const
         {
             X86IntReg reg = from;

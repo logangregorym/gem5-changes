@@ -291,11 +291,14 @@ class PhysRegFile
     {
         assert(phys_reg->isIntPhysReg());
 
-        DPRINTF(IEW, "RegFile: Setting int register %i to %#x\n",
-                phys_reg->index(), val);
+        DPRINTF(IEW, "RegFile: Setting int register %i to %#x. PrevValue: %#x\n",
+                phys_reg->index(), val, intRegFile[phys_reg->index()]);
 
         if (!phys_reg->isZeroReg())
             intRegFile[phys_reg->index()] = val;
+        
+        DPRINTF(IEW, "RegFile: int register %i newVal %#x\n",
+                phys_reg->index(), intRegFile[phys_reg->index()]);
     }
 
     /** Sets a double precision floating point register to the given value. */
