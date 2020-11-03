@@ -53,6 +53,9 @@
         "string_view": "cpp",
         "*.inc": "cpp",
         "variant": "cpp",
-        "forward_list": "cpp"
+        "forward_list": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "valarray": "cpp"
     }
 }

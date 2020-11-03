@@ -1504,6 +1504,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         // Align the fetch PC so its at the start of a fetch buffer segment.
         Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
 
+        
+
         //*****CHANGE START**********
         // check the speculative cache even before the microop cache
         if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive()) {
@@ -1709,6 +1711,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 // current block.
                 break;
             }
+            
 
             MachInst inst = TheISA::gtoh(cacheInsts[blkOffset]);
             decoder[tid]->moreBytes(thisPC, fetchAddr, inst);
@@ -1875,6 +1878,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             // if we have passed the border between two fetch buffer we need to issue an I-cache request
                             // here just break, at the end of fetch() function it will handel this automaticly  
                             // if the next instruction is a branch, this will handel that automaticly too. 
+
                             fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
                             Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
                             // fortunatly fetchBufferPC[tid] is updated somewhere else
@@ -1884,6 +1888,14 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                                 "fetch buffer is not valid anymore!. Fetch continues to stream from %s\n", tid, thisPC);
                                 
                                 fetchBufferValid[tid] = false;
+
+                                
+                                blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
+
+                                DPRINTF(Fetch, "fetchBuffer is not valid with PC: %#x fetchAddr: %#x fetchBufferPC: %#x blkoffset: %d fetchBuffer: 0x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x\n", thisPC.instAddr() ,fetchAddr, fetchBufferPC[tid], blkOffset,
+                                    fetchBuffer[tid][0],fetchBuffer[tid][1],fetchBuffer[tid][2],fetchBuffer[tid][3],fetchBuffer[tid][4],fetchBuffer[tid][5],fetchBuffer[tid][6],fetchBuffer[tid][7],
+                                    fetchBuffer[tid][8],fetchBuffer[tid][9],fetchBuffer[tid][10],fetchBuffer[tid][11],fetchBuffer[tid][12],fetchBuffer[tid][13],fetchBuffer[tid][14],fetchBuffer[tid][15]            
+                                );
                                 // when we break, we need to make sure that decoder[tid]->instReady() always return false;
                                 // otherwise we will go into a loop!
                                 // if this assert gets activated we need to reset instReady manualy in decoder.  
@@ -1900,11 +1912,15 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             fetchBufferValid[tid] = true;
 
                             
+                            
                             fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
                             blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
                            
 
-                            
+                            DPRINTF(Fetch, "fetchBuffer is valid with PC: %#x fetchAddr: %#x fetchBufferPC: %#x blkoffset: %d fetchBuffer: 0x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x\n", thisPC.instAddr() ,fetchAddr, fetchBufferPC[tid], blkOffset,
+                                fetchBuffer[tid][0],fetchBuffer[tid][1],fetchBuffer[tid][2],fetchBuffer[tid][3],fetchBuffer[tid][4],fetchBuffer[tid][5],fetchBuffer[tid][6],fetchBuffer[tid][7],
+                                fetchBuffer[tid][8],fetchBuffer[tid][9],fetchBuffer[tid][10],fetchBuffer[tid][11],fetchBuffer[tid][12],fetchBuffer[tid][13],fetchBuffer[tid][14],fetchBuffer[tid][15]            
+                            );
                             
                             // decoder never should say the next instruction is ready at anytime when returning from the speculative cache
                             // if this assert gets activated we need to reset instReady manualy in decoder. 
@@ -2039,11 +2055,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                 decoder[tid]->isHitInUopCache(thisPC.instAddr());
 
                 if (newMacro) {
+                    
                     fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
                     blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
                     pcOffset = 0;
                     curMacroop = NULL;
-
                 }
 
                 
