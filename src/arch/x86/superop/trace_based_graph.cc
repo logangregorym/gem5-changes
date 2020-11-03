@@ -318,6 +318,17 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
         Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
         StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
         DPRINTF(SuperOp, "%p:%i -- spec[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));    
+		for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
+			// LAYNE : TODO : print predicted inputs (checking syntax)
+			if (decodedMicroOp->sourcesPredicted[i]) {
+				DPRINTF(SuperOp, "\tSource for register %i predicted as %x\n", decodedMicroOp->srcRegIdx(i), decodedMicroOp->sourcePredictions[i]);
+			}
+		}
+		for (int i=0; i<decodedMicroOp->numDestRegs(); i++) {
+			if (decodedMicroOp->liveOutPredicted[i]) {
+				DPRINTF(SuperOp, "\tLive out for register %i predicted as %x\n", decodedMicroOp->destRegIdx(i), decodedMicroOp->liveOut[i]);
+			}
+		}
     }
 
     advanceTrace(trace);
@@ -484,6 +495,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
             RegId destReg = currentTrace.inst->destRegIdx(i);
             if (destReg.classValue() == IntRegClass) {
+				DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), value, type);
                 regCtx[destReg.flatIndex()].value = currentTrace.inst->predictedValue = value;
                 regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].source = currentTrace.inst->predictedLoad = true;
                 currentTrace.inst->confidence = confidence;
@@ -695,7 +707,8 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -715,10 +728,7 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
     assert(size == 8 || size == 4 || size == 2 || size == 1);
 
     unsigned destRegId = inst->destRegIdx(0).flatIndex();
-
-
-
-    
+ 
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
@@ -755,7 +765,8 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
 
             DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
 
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, "limm");
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -779,15 +790,33 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     uint64_t destVal = regCtx[destRegId].value;
     uint64_t srcVal = regCtx[srcRegId].value;
 
+	DPRINTF(SuperOp, "This is an add. We're adding values %x from reg %i and %x from reg %i\n", destVal, destRegId, srcVal, srcRegId);
+
     // value construction is easy for this one
     uint64_t forwardVal = destVal + srcVal;
+
+	// TODO: Confirm if this is really a solution
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
 
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -818,7 +847,8 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -849,7 +879,8 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -880,7 +911,8 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -911,7 +943,8 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -937,7 +970,8 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -967,7 +1001,8 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -997,7 +1032,8 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -1027,7 +1063,8 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -1057,7 +1094,8 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -1087,7 +1125,8 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -1117,7 +1156,8 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -1147,7 +1187,8 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -1179,7 +1220,8 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
         if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
+            DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), forwardVal, type);
+			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
     }
@@ -1224,7 +1266,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     assert(destReg.isIntReg());
 
     DPRINTF(ConstProp, "ConstProp Forwarding ZExtI value %lx through register %i\n", DestReg, destReg.flatIndex());
-    
+    DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), DestReg, type);
     regCtx[destReg.flatIndex()].value = DestReg;
     regCtx[destReg.flatIndex()].valid = true;
 
