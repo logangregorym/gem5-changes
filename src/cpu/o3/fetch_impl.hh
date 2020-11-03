@@ -1909,7 +1909,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                             DPRINTF(Fetch, "[tid:%i]: Done streaming from speculative cache and "
                                                 "fetch buffer is still valid!.\n", tid);
-                            fetchBufferValid[tid] = true;
+                            fetchBufferValid[tid] = false;
 
                             
                             
@@ -2060,6 +2060,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
                     pcOffset = 0;
                     curMacroop = NULL;
+<<<<<<< HEAD
+=======
+		    DPRINTF(Fetch, "A new macro is needed with fetchAddr: %#x fetchBufferPC: %#x instSize: %d blkoffset: %d\n", fetchAddr, fetchBufferPC[tid], instSize, blkOffset);
+>>>>>>> 8760a83c983de16d19a1ee9d095badc93c283e53
                 }
 
                 
