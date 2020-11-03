@@ -358,8 +358,11 @@ bool TraceBasedGraph::generateNextTraceInst() {
             int way = currentTrace.optimizedHead.way;
             if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
                 // mark end of trace and propagate live outs
-                DPRINTF(SuperOp, "End of Trace at %s!\n", currentTrace.inst->getName());
-                currentTrace.inst->setEndOfTrace();
+                DPRINTF(SuperOp, "End of Trace at %s!\n", currentTrace.prevNonEliminatedInst->getName());
+                
+                // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
+                currentTrace.prevNonEliminatedInst->setEndOfTrace();
+                
                 if (!currentTrace.inst->isControl()) { // control instructions already propagate live outs
                     for (int i=0; i<16; i++) { // 16 int registers
                         if (regCtx[i].valid && !regCtx[i].source) {
@@ -483,8 +486,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
     // Any inst in a trace may be a prediction source
     DPRINTF(ConstProp, "Trace %i: Processing instruction: %p:%i -- %s\n", currentTrace.id, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
-    uint64_t value;
-    unsigned confidence;
+    uint64_t value = 0;
+    unsigned confidence = 0;
     unsigned latency;
     string type = currentTrace.inst->getName();
     if (type != "limm" && type != "movi" && isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) {
@@ -501,7 +504,14 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.inst->confidence = confidence;
             }
         }
-        updateSuccessful = updateSpecTrace(currentTrace);
+        bool isDeadCode = false;
+        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode);
+        // if it's not a dead code, then update the last non-eliminated microop of the specTrace
+        if (!isDeadCode)
+        {
+            currentTrace.prevNonEliminatedInst = currentTrace.inst;
+        }
+
     } else {
         // Propagate predicted values
         if (type == "mov") {
@@ -576,7 +586,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
             DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
         }
 
-        updateSuccessful = updateSpecTrace(currentTrace);
+        bool isDeadCode = false;
+        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode);
+        // if it's not a dead code, then update the last non-eliminated microop of the specTrace
+        if (!isDeadCode)
+        {
+            currentTrace.prevNonEliminatedInst = currentTrace.inst;
+        }
     }
 
     // Simulate a stall if update to speculative cache wasn't successful
@@ -603,7 +619,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     return true;
 }
 
-bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
+bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode ) {
     // IMPORTANT NOTE: This is written assuming the trace will be traversed in order, and so the register map will be accurate for the current point in the trace
     trace.length++;
 
@@ -615,7 +631,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace) {
     }
 
     string type = trace.inst->getName();
-    bool isDeadCode = allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "slri" || type == "slli" || type == "sexti" || type == "zexti");
+    isDeadCode = allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "slri" || type == "slli" || type == "sexti" || type == "zexti");
 
     // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC
     uint64_t value;
@@ -964,8 +980,16 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
         return true;
     }
 
-    uint64_t forwardVal = inst->getImmediate();
+    
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t size = inst_regop->dataSize;
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+
+
+    uint64_t imm = inst->getImmediate();
     unsigned destRegId = inst->destRegIdx(0).flatIndex();
+/**
+ * <<<<<<< HEAD
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
     for (int i = 0; i < inst->numDestRegs(); i++) {
         RegId destReg = inst->destRegIdx(i);
@@ -974,7 +998,49 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
 			regCtx[destReg.flatIndex()].value = forwardVal;
             regCtx[destReg.flatIndex()].valid = true;
         }
+=======
+**/
+    DPRINTF(ConstProp, "MOVI: Forwarding value %lx through register %i\n", imm, destRegId);
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+
+    uint64_t destVal;
+    // if the last value of regCtx is not valid, then we need to get the valid value from ExecContext
+    // TODO: This is not completely true, if the dest reg is not valid, it means we need ti make sure 
+    // that depending on the size we are not overwriitng bitfilds
+    if (!regCtx[destReg.flatIndex()].valid)
+    {
+                
+        destVal = 0;
     }
+    else 
+    {
+        destVal = regCtx[destReg.flatIndex()].value;
+    }
+    // construct the value
+    uint64_t forwardVal;
+            
+    if (size == 8) {
+        forwardVal = imm;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (imm & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (imm & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (imm & 0xff); // mask 1 byte
+    } 
+    else 
+    {
+        assert(0);
+// >>>>>>> 65dc54fc0a0f2624b1c891182fbed6b2b10a1e68
+    }
+    
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+
     return true;
 }
 

@@ -66,6 +66,9 @@ struct SpecTrace
     // instruction being optimized
     StaticInstPtr inst;
 
+    // previous non-eliminated instruction
+    StaticInstPtr prevNonEliminatedInst;
+
     // address of the last instruction in the trace
     FullUopAddr end;
 
@@ -112,6 +115,7 @@ struct SpecTrace
         head = FullCacheIdx();
         addr = FullCacheIdx();
         inst = NULL;
+        prevNonEliminatedInst = NULL;
     }
 };
 
@@ -127,7 +131,7 @@ class TraceBasedGraph : public SimObject
 
     void predictValue(Addr addr, unsigned uopAddr, int64_t value, unsigned confidence, unsigned latency);
 
-    bool updateSpecTrace(SpecTrace &trace);
+    bool updateSpecTrace(SpecTrace &trace, bool& isDeadCode);
 
     bool isPredictionSource(SpecTrace trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency);
 
