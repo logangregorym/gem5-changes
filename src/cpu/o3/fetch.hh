@@ -640,6 +640,9 @@ class DefaultFetch
     Stats::Scalar maxLength;
     Stats::Scalar maxConfidence;
     Stats::Scalar maxDelay;
+
+
+    Stats::Scalar numFetchBWCyclesWastedDuringSwitch;
 };
 
 #endif //__CPU_O3_FETCH_HH__

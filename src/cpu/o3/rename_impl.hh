@@ -369,6 +369,11 @@ DefaultRename<Impl>::squash(const InstSeqNum &squash_seq_num, ThreadID tid)
             fromDecode->insts[i]->seqNum > squash_seq_num) {
             fromDecode->insts[i]->setSquashed();
             wroteToTimeBuffer = true;
+
+            // if squashed because of LVP missprediction count it
+            if (fromCommit->commitInfo[tid].squashDueToLVP) 
+                cpu->squashedDueToLVPAllStages++;
+                
         }
 
     }

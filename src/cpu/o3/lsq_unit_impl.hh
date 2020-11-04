@@ -993,7 +993,7 @@ LSQUnit<Impl>::removeMSHR(InstSeqNum seqNum)
 
 template <class Impl>
 void
-LSQUnit<Impl>::squash(const InstSeqNum &squashed_num)
+LSQUnit<Impl>::squash(const InstSeqNum &squashed_num, bool squashDueToLVP)
 {
     DPRINTF(LSQUnit, "Squashing until [sn:%lli]!"
             "(Loads:%i Stores:%i)\n", squashed_num, loads, stores);
@@ -1012,6 +1012,10 @@ LSQUnit<Impl>::squash(const InstSeqNum &squashed_num)
             stallingStoreIsn = 0;
             stallingLoadIdx = 0;
         }
+
+        // if squashed because of LVP missprediction count it
+        if (squashDueToLVP) 
+            cpu->squashedDueToLVPAllStages++;
 
         // Clear the smart pointer to make sure it is decremented.
         loadQueue[load_idx]->setSquashed();
@@ -1052,6 +1056,10 @@ LSQUnit<Impl>::squash(const InstSeqNum &squashed_num)
             stalled = false;
             stallingStoreIsn = 0;
         }
+
+        // if squashed because of LVP missprediction count it
+        if (squashDueToLVP) 
+            cpu->squashedDueToLVPAllStages++;
 
         // Clear the smart pointer to make sure it is decremented.
         storeQueue[store_idx].inst->setSquashed();

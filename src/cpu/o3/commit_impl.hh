@@ -591,7 +591,7 @@ DefaultCommit<Impl>::squashAll(ThreadID tid)
     // Hopefully nothing breaks.)
     youngestSeqNum[tid] = lastCommitedSeqNum[tid];
 
-    rob->squash(squashed_inst, tid);
+    rob->squash(squashed_inst, tid, false);
     changedROBNumEntries[tid] = true;
 
     // Send back the sequence number of the squashed instruction.
@@ -705,7 +705,7 @@ DefaultCommit<Impl>::tick()
             } else {
                 DPRINTF(Commit,"[tid:%u]: Still Squashing, cannot commit any"
                         " insts this cycle.\n", tid);
-                rob->doSquash(tid);
+                rob->doSquash(tid, toIEW->commitInfo[tid].squashDueToLVP);
                 toIEW->commitInfo[tid].robSquashing = true;
                 wroteToTimeBuffer = true;
             }
@@ -911,7 +911,7 @@ DefaultCommit<Impl>::commit()
             // number as the youngest instruction in the ROB.
             youngestSeqNum[tid] = squashed_inst;
 
-            rob->squash(squashed_inst, tid);
+            rob->squash(squashed_inst, tid, fromIEW->squashDueToLVP[tid]);
             changedROBNumEntries[tid] = true;
 
             toIEW->commitInfo[tid].doneSeqNum = squashed_inst;

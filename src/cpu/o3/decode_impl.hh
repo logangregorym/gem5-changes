@@ -293,6 +293,9 @@ DefaultDecode<Impl>::squash(DynInstPtr &inst, ThreadID tid)
     DPRINTF(Decode, "[tid:%i]: [sn:%i] Squashing due to incorrect branch "
             "prediction detected at decode.\n", tid, inst->seqNum);
 
+
+
+
     // Send back mispredict information.
     toFetch->decodeInfo[tid].branchMispredict = true;
     toFetch->decodeInfo[tid].predIncorrect = true;
@@ -321,6 +324,11 @@ DefaultDecode<Impl>::squash(DynInstPtr &inst, ThreadID tid)
         if (fromFetch->insts[i]->threadNumber == tid &&
             fromFetch->insts[i]->seqNum > squash_seq_num) {
             fromFetch->insts[i]->setSquashed();
+
+            // these microops may be squashed because of a folded branch missprediction, there fore we need to count them
+            if (inst->isStreamedFromSpeculativeCache()) 
+                cpu->squashedDueToLVPAllStages++;
+        
         }
     }
 
@@ -372,6 +380,10 @@ DefaultDecode<Impl>::squash(ThreadID tid)
         if (fromFetch->insts[i]->threadNumber == tid) {
             fromFetch->insts[i]->setSquashed();
             squash_count++;
+
+            // if squashed because of LVP missprediction count it
+            if (fromCommit->commitInfo[tid].squashDueToLVP) 
+                cpu->squashedDueToLVPAllStages++;
         }
     }
 
