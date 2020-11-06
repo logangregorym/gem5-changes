@@ -1264,10 +1264,49 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
     int way = traceConstructor->traceMap[traceID].addr.way;
     int uop = traceConstructor->traceMap[traceID].addr.uop;
 
-    if ((traceConstructor->streamTrace.id != traceID || !traceConstructor->streamTrace.addr.valid) && thisPC._pc == speculativeAddrArray[idx][way][uop].pcAddr) { 
+    
+    if ((traceConstructor->streamTrace.id != traceID || !traceConstructor->streamTrace.addr.valid) ) { 
+
+        DPRINTF(Decoder, "traceConstructor->streamTrace.id  = %d, \
+                          traceConstructor->streamTrace.addr.valid = %d \
+                          thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x:\n", 
+                        traceConstructor->streamTrace.id, traceConstructor->streamTrace.addr.valid, 
+                        thisPC._pc, idx, way, uop , speculativeAddrArray[idx][way][uop].pcAddr);
+        
+
         traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
-        DPRINTF(Decoder, "Trace %i ought to be triggered:\n", traceConstructor->streamTrace.id);
+        DPRINTF(Decoder, "Trace %d ought to be triggered:\n", traceConstructor->streamTrace.id);
         traceConstructor->dumpTrace(traceConstructor->streamTrace);
+
+        int _idx = traceConstructor->streamTrace.addr.idx;
+        int _way = traceConstructor->streamTrace.addr.way;
+        int _uop = traceConstructor->streamTrace.addr.uop;
+
+        DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x, \
+                          speculativeValidArray[%d][%d] = %d,  \
+                          speculativeTraceIDArray[%d][%d] = %d, traceID = %d \n", 
+                        thisPC._pc, _idx, _way, _uop , speculativeAddrArray[_idx][_way][_uop].pcAddr,
+                        _idx, _way , speculativeValidArray[_idx][_way],
+                        _idx, _way ,speculativeTraceIDArray[_idx][_way], traceID);
+
+        assert(thisPC._pc == speculativeAddrArray[_idx][_way][_uop].pcAddr);
+        assert(traceConstructor->streamTrace.addr.valid);
+        assert(speculativeTraceIDArray[_idx][_way] == traceID);
+    }
+    // if the traceID is correct and addr is valid, then thisPC._pc should be equal to speculativeAddrArray[idx][way][uop].pcAddr
+    // if this is not true, then there is a bug?
+    else if (thisPC._pc != speculativeAddrArray[idx][way][uop].pcAddr || 
+            !speculativeValidArray[idx][way] || 
+            speculativeTraceIDArray[idx][way] != traceID)
+    {
+        DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x, \
+                          speculativeValidArray[%d][%d] = %d,  \
+                          speculativeTraceIDArray[%d][%d] = %d, traceID = %d \n", 
+                        thisPC._pc, idx, way, uop , speculativeAddrArray[idx][way][uop].pcAddr,
+                        idx, way , speculativeValidArray[idx][way],
+                        idx, way ,speculativeTraceIDArray[idx][way], traceID);
+        
+        assert(0);
     }
 
 
@@ -1277,6 +1316,18 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
 
     void *bpHistory;
     StaticInstPtr curInst = speculativeCache[idx][way][uop];
+    /// dump all the micropps in the way and then assert!
+    if (!curInst)
+    {
+        for (size_t i = 0; i < 6; i++)
+        {
+            if (speculativeCache[idx][way][i])
+                DPRINTF(Decoder, "speculativeCache[%d][%d][%d] = %s!\n", idx, way, i, speculativeCache[idx][way][i]->getName());
+            else 
+                DPRINTF(Decoder, "speculativeCache[%d][%d][%d] = NULL!\n", idx, way, i);
+        }
+        
+    }
     assert(curInst);
     FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
     predict_taken = false;
