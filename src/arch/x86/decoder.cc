@@ -1267,11 +1267,10 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
     
     if ((traceConstructor->streamTrace.id != traceID || !traceConstructor->streamTrace.addr.valid) ) { 
 
-        DPRINTF(Decoder, "traceConstructor->streamTrace.id  = %d, \
-                          traceConstructor->streamTrace.addr.valid = %d \
-                          thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x:\n", 
-                        traceConstructor->streamTrace.id, traceConstructor->streamTrace.addr.valid, 
-                        thisPC._pc, idx, way, uop , speculativeAddrArray[idx][way][uop].pcAddr);
+        DPRINTF(Decoder, "traceConstructor->streamTrace.id  = %d\n", traceConstructor->streamTrace.id);
+        DPRINTF(Decoder, "traceConstructor->streamTrace.addr.valid = %d\n", traceConstructor->streamTrace.addr.valid);
+        DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x:\n", thisPC._pc, idx, way, uop , speculativeAddrArray[idx][way][uop].pcAddr); 
+    
         
 
         traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
@@ -1282,32 +1281,26 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
         int _way = traceConstructor->streamTrace.addr.way;
         int _uop = traceConstructor->streamTrace.addr.uop;
 
-        DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x, \
-                          speculativeValidArray[%d][%d] = %d,  \
-                          speculativeTraceIDArray[%d][%d] = %d, traceID = %d \n", 
-                        thisPC._pc, _idx, _way, _uop , speculativeAddrArray[_idx][_way][_uop].pcAddr,
-                        _idx, _way , speculativeValidArray[_idx][_way],
-                        _idx, _way ,speculativeTraceIDArray[_idx][_way], traceID);
-
-        assert(thisPC._pc == speculativeAddrArray[_idx][_way][_uop].pcAddr);
-        assert(traceConstructor->streamTrace.addr.valid);
-        assert(speculativeTraceIDArray[_idx][_way] == traceID);
+        DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x\n",thisPC._pc, _idx, _way, _uop , speculativeAddrArray[_idx][_way][_uop].pcAddr);
+        DPRINTF(Decoder,"speculativeValidArray[%d][%d] = %d\n", _idx, _way , speculativeValidArray[_idx][_way]);
+        DPRINTF(Decoder,"speculativeTraceIDArray[%d][%d] = %d, traceID = %d\n", _idx, _way ,speculativeTraceIDArray[_idx][_way], traceID); 
+                        
+        // assert(thisPC._pc == speculativeAddrArray[_idx][_way][_uop].pcAddr);
+        // assert(traceConstructor->streamTrace.addr.valid);
+        // assert(speculativeTraceIDArray[_idx][_way] == traceID);
     }
     // if the traceID is correct and addr is valid, then thisPC._pc should be equal to speculativeAddrArray[idx][way][uop].pcAddr
     // if this is not true, then there is a bug?
-    else if (thisPC._pc != speculativeAddrArray[idx][way][uop].pcAddr || 
-            !speculativeValidArray[idx][way] || 
-            speculativeTraceIDArray[idx][way] != traceID)
-    {
-        DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x, \
-                          speculativeValidArray[%d][%d] = %d,  \
-                          speculativeTraceIDArray[%d][%d] = %d, traceID = %d \n", 
-                        thisPC._pc, idx, way, uop , speculativeAddrArray[idx][way][uop].pcAddr,
-                        idx, way , speculativeValidArray[idx][way],
-                        idx, way ,speculativeTraceIDArray[idx][way], traceID);
+    // else if (thisPC._pc != speculativeAddrArray[idx][way][uop].pcAddr || 
+    //         !speculativeValidArray[idx][way] || 
+    //         speculativeTraceIDArray[idx][way] != traceID)
+    // {
+        DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x\n",thisPC._pc, idx, way, uop , speculativeAddrArray[idx][way][uop].pcAddr);
+        DPRINTF(Decoder,"speculativeValidArray[%d][%d] = %d\n", idx, way , speculativeValidArray[idx][way]);
+        DPRINTF(Decoder,"speculativeTraceIDArray[%d][%d] = %d, traceID = %d\n", idx, way ,speculativeTraceIDArray[idx][way], traceID); 
         
-        assert(0);
-    }
+    //     assert(0);
+    // }
 
 
     idx = traceConstructor->streamTrace.addr.idx;
