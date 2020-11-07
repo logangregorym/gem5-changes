@@ -530,7 +530,7 @@ DefaultIEW<Impl>::squash(ThreadID tid)
     instQueue.squash(tid);
 
     // Tell the LDSTQ to start squashing.
-    ldstQueue.squash(fromCommit->commitInfo[tid].doneSeqNum, tid);
+    ldstQueue.squash(fromCommit->commitInfo[tid].doneSeqNum,fromCommit->commitInfo[tid].squashDueToLVP , tid);
     updatedQueues = true;
 
     // Clear the skid buffer in case it has any data in it.
@@ -605,7 +605,7 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
         toCommit->squashDueToLVP[tid] = true;
 
         wroteToTimeBuffer = true;
-        instsSquashedByLVP[tid] += (cpu->globalSeqNum - inst->seqNum);
+        //instsSquashedByLVP[tid] += (cpu->globalSeqNum - inst->seqNum);
     } else if (toCommit->squash[tid] && inst->seqNum > toCommit->squashedSeqNum[tid]) {
         DPRINTF(LVP, "Already squashing from [sn:%i], so skipping\n", toCommit->squashedSeqNum[tid]);
     }

@@ -560,6 +560,12 @@ FullO3CPU<Impl>::regStats()
         .name(name() + ".misc_regfile_writes")
         .desc("number of misc regfile writes")
         .prereq(miscRegfileWrites);
+
+    squashedDueToLVPAllStages
+        .name(name() + ".squashedDueToLVPAllStages")
+        .desc("Number of microops squashed in all stages because of LVP")
+        .prereq(squashedDueToLVPAllStages);
+
 }
 
 template <class Impl>
@@ -785,8 +791,8 @@ FullO3CPU<Impl>::suspendContext(ThreadID tid)
     decode.squash(tid);
     rename.squash(squash_seq_num, tid);
     iew.squash(tid);
-    iew.ldstQueue.squash(squash_seq_num, tid);
-    commit.rob->squash(squash_seq_num, tid);
+    iew.ldstQueue.squash(squash_seq_num, tid, false);
+    commit.rob->squash(squash_seq_num, tid, false);
 
 
     assert(iew.instQueue.getCount(tid) == 0);
@@ -912,8 +918,8 @@ FullO3CPU<Impl>::removeThread(ThreadID tid)
     decode.squash(tid);
     rename.squash(squash_seq_num, tid);
     iew.squash(tid);
-    iew.ldstQueue.squash(squash_seq_num, tid);
-    commit.rob->squash(squash_seq_num, tid);
+    iew.ldstQueue.squash(squash_seq_num, tid, false);
+    commit.rob->squash(squash_seq_num, tid, false);
 
 
     assert(iew.instQueue.getCount(tid) == 0);
@@ -1630,7 +1636,7 @@ FullO3CPU<Impl>::removeFrontInst(DynInstPtr &inst)
 
 template <class Impl>
 void
-FullO3CPU<Impl>::removeInstsNotInROB(ThreadID tid)
+FullO3CPU<Impl>::removeInstsNotInROB(ThreadID tid, bool squashDueToLVP)
 {
     DPRINTF(O3CPU, "Thread %i: Deleting instructions from instruction"
             " list.\n", tid);
@@ -1661,7 +1667,7 @@ FullO3CPU<Impl>::removeInstsNotInROB(ThreadID tid)
     while (inst_it != end_it) {
         assert(!instList.empty());
 
-        squashInstIt(inst_it, tid);
+        squashInstIt(inst_it, tid, squashDueToLVP);
 
         inst_it--;
     }
@@ -1669,7 +1675,7 @@ FullO3CPU<Impl>::removeInstsNotInROB(ThreadID tid)
     // If the ROB was empty, then we actually need to remove the first
     // instruction as well.
     if (rob_empty) {
-        squashInstIt(inst_it, tid);
+        squashInstIt(inst_it, tid, squashDueToLVP);
     }
 }
 
@@ -1693,7 +1699,8 @@ FullO3CPU<Impl>::removeInstsUntil(const InstSeqNum &seq_num, ThreadID tid)
 
         bool break_loop = (inst_iter == instList.begin());
 
-        squashInstIt(inst_iter, tid);
+        // this function is never used therefore just send false
+        squashInstIt(inst_iter, tid, false);
 
         inst_iter--;
 
@@ -1704,7 +1711,7 @@ FullO3CPU<Impl>::removeInstsUntil(const InstSeqNum &seq_num, ThreadID tid)
 
 template <class Impl>
 inline void
-FullO3CPU<Impl>::squashInstIt(const ListIt &instIt, ThreadID tid)
+FullO3CPU<Impl>::squashInstIt(const ListIt &instIt, ThreadID tid, bool squashDueToLVP)
 {
     if ((*instIt)->threadNumber == tid) {
         DPRINTF(O3CPU, "Squashing instruction, "
@@ -1712,6 +1719,8 @@ FullO3CPU<Impl>::squashInstIt(const ListIt &instIt, ThreadID tid)
                 (*instIt)->threadNumber,
                 (*instIt)->seqNum,
                 (*instIt)->pcState());
+
+        if (squashDueToLVP) squashedDueToLVPAllStages++;
 
         // Mark it as squashed.
         (*instIt)->setSquashed();

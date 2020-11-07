@@ -171,7 +171,7 @@ class LSQUnit {
     void resizeSQ(unsigned size);
 
     /** Squashes all instructions younger than a specific sequence number. */
-    void squash(const InstSeqNum &squashed_num);
+    void squash(const InstSeqNum &squashed_num, bool squashDueToLVP);
 
     /** Returns if there is a memory ordering violation. Value is reset upon
      * call to getMemDepViolator().

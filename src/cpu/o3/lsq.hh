@@ -139,8 +139,8 @@ class LSQ {
     /**
      * Squash instructions from a thread until the specified sequence number.
      */
-    void squash(const InstSeqNum &squashed_num, ThreadID tid)
-    { thread[tid].squash(squashed_num); }
+    void squash(const InstSeqNum &squashed_num, bool squashDueToLVP, ThreadID tid)
+    { thread[tid].squash(squashed_num, squashDueToLVP); }
 
     /** Returns whether or not there was a memory ordering violation. */
     bool violation();

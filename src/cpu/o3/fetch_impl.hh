@@ -411,6 +411,10 @@ DefaultFetch<Impl>::regStats()
 	maxDelay
 		.name(name() + ".maxDelay")
 		.desc("Top end of range of load resolution delay");
+
+    numFetchBWCyclesWastedDuringSwitch
+	    .name(name() + ".numFetchBWCyclesWastedDuringSwitch")
+	    .desc("Number of fetch bandwidth cycles wasted due to switch from Spec$ to Uop$/Decoder and vice versa");
 }
 
 template<class Impl>
@@ -1020,7 +1024,7 @@ DefaultFetch<Impl>::squash(const TheISA::PCState &newPC,
 
 
     // Tell the CPU to remove any instructions that are not in the ROB.
-    cpu->removeInstsNotInROB(tid);
+    cpu->removeInstsNotInROB(tid, squashDueToLVP);
 }
 
 template <class Impl>
@@ -1930,6 +1934,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             // this is necessary as we don't want to fetch from both speculative cahce and uop cache in the same cycle
                             switchFromSpeculativeCacheToUopCacheDecoder = true;
 
+                            // let's count number of wasted fetch bandwidth cycles due to switch
+                            assert(numInst <= fetchWidth);
+                            numFetchBWCyclesWastedDuringSwitch += (fetchWidth - numInst);
+
                             // jumps to the while loop condition and because:
                             //  inSpeculativeCache <== false; 
                             //  (curMacroop || decoder[tid]->instReady() || inUopCache) <== false; 
@@ -2093,6 +2101,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         inUopCache = false;
                         useUopCache = false;
                         decoder[tid]->setUopCacheActive(false);
+
+                        // let's count number of wasted fetch bandwidth cycles due to switch
+                        assert(numInst <= fetchWidth);
+                        numFetchBWCyclesWastedDuringSwitch += (fetchWidth - numInst);
+
                         break;
                     }
                 

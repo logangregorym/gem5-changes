@@ -1388,6 +1388,11 @@ InstructionQueue<Impl>::doSquash(ThreadID tid)
            (*squash_it)->seqNum > squashedSeqNum[tid]) {
 
         DynInstPtr squashed_inst = (*squash_it);
+
+        // if squashed because of LVP missprediction count it
+        if (fromCommit->commitInfo[tid].squashDueToLVP) 
+            cpu->squashedDueToLVPAllStages++;
+
         if (squashed_inst->isFloating()) {
             fpInstQueueWrites++;
         } else if (squashed_inst->isVector()) {

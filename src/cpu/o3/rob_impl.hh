@@ -327,7 +327,7 @@ ROB<Impl>::numFreeEntries(ThreadID tid)
 
 template <class Impl>
 void
-ROB<Impl>::doSquash(ThreadID tid)
+ROB<Impl>::doSquash(ThreadID tid, bool squashDueToLVP)
 {
     robWrites++;
     DPRINTF(ROB, "[tid:%u]: Squashing instructions until [sn:%i].\n",
@@ -358,6 +358,8 @@ ROB<Impl>::doSquash(ThreadID tid)
                 (*squashIt[tid])->pcState(),
                 (*squashIt[tid])->seqNum);
 
+
+        if (squashDueToLVP) cpu->squashedDueToLVPAllStages++;
         // Mark the instruction as squashed, and ready to commit so that
         // it can drain out of the pipeline.
         (*squashIt[tid])->setSquashed();
@@ -484,7 +486,7 @@ ROB<Impl>::updateTail()
 
 template <class Impl>
 void
-ROB<Impl>::squash(InstSeqNum squash_num, ThreadID tid)
+ROB<Impl>::squash(InstSeqNum squash_num, ThreadID tid, bool squashDueToLVP)
 {
     if (isEmpty(tid)) {
         DPRINTF(ROB, "Does not need to squash due to being empty "
@@ -508,7 +510,7 @@ ROB<Impl>::squash(InstSeqNum squash_num, ThreadID tid)
 
         squashIt[tid] = tail_thread;
 
-        doSquash(tid);
+        doSquash(tid, squashDueToLVP);
     }
 }
 

@@ -552,13 +552,13 @@ class FullO3CPU : public BaseO3CPU
 
     /** Remove all instructions that are not currently in the ROB.
      *  There's also an option to not squash delay slot instructions.*/
-    void removeInstsNotInROB(ThreadID tid);
+    void removeInstsNotInROB(ThreadID tid, bool squashDueToLVP);
 
     /** Remove all instructions younger than the given sequence number. */
     void removeInstsUntil(const InstSeqNum &seq_num, ThreadID tid);
 
     /** Removes the instruction pointed to by the iterator. */
-    inline void squashInstIt(const ListIt &instIt, ThreadID tid);
+    inline void squashInstIt(const ListIt &instIt, ThreadID tid, bool squashDueToLVP);
 
     /** Cleans up all instructions on the remove list. */
     void cleanUpRemovedInsts();
@@ -810,6 +810,9 @@ class FullO3CPU : public BaseO3CPU
     // cleanup memory
     StaticInstPtr commitMacroOp;
     StaticInstPtr squashMacroOp;
+
+    //number of microops squashed in all stages because of LVP
+    Stats::Scalar squashedDueToLVPAllStages;
 };
 
 #endif // __CPU_O3_CPU_HH__
