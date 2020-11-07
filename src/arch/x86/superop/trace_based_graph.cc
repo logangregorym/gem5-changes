@@ -811,7 +811,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     // value construction is easy for this one
     uint64_t forwardVal = destVal + srcVal;
 
-	// TODO: Confirm if this is really a solution
+	// START: Data Size Edit
 	const uint8_t size = inst->getDataSize();
     assert(size == 8 || size == 4 || size == 2 || size == 1);
 	if (size == 8) {
@@ -825,6 +825,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     } else {
         panic("Add data size not recognized\n");
     }
+	// END: Data Size Edit
 
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
@@ -858,6 +859,22 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     // value construction is easy for this one
     uint64_t forwardVal = destVal - srcVal;
 
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
+
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
     for (int i = 0; i < inst->numDestRegs(); i++) {
@@ -889,6 +906,22 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
 
     // value construction is easy for this one
     uint64_t forwardVal = destVal & srcVal;
+
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
 
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
@@ -922,6 +955,22 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     // value construction is easy for this one
     uint64_t forwardVal = destVal | srcVal;
 
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
+
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
     for (int i = 0; i < inst->numDestRegs(); i++) {
@@ -953,6 +1002,22 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
 
     // value construction is easy for this one
     uint64_t forwardVal = destVal ^ srcVal;
+
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
 
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
@@ -1062,6 +1127,22 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     // value construction is easy for this one
     uint64_t forwardVal = destVal - srcVal;
 
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
+
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
     for (int i = 0; i < inst->numDestRegs(); i++) {
@@ -1092,6 +1173,22 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
 
     // value construction is easy for this one
     uint64_t forwardVal = destVal + srcVal;
+
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
 
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
@@ -1124,6 +1221,22 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     // value construction is easy for this one
     uint64_t forwardVal = destVal & srcVal;
 
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
+
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
     for (int i = 0; i < inst->numDestRegs(); i++) {
@@ -1154,6 +1267,22 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
 
     // value construction is easy for this one
     uint64_t forwardVal = destVal | srcVal;
+
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
 
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
@@ -1186,6 +1315,22 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     // value construction is easy for this one
     uint64_t forwardVal = destVal ^ srcVal;
 
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
+
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
     for (int i = 0; i < inst->numDestRegs(); i++) {
@@ -1217,6 +1362,22 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     // value construction is easy for this one
     uint64_t forwardVal = destVal << srcVal;
 
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
+
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
     for (int i = 0; i < inst->numDestRegs(); i++) {
@@ -1247,6 +1408,22 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
 
     // value construction is easy for this one
     uint64_t forwardVal = destVal >> srcVal;
+
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
 
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
@@ -1280,6 +1457,22 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     int signBit = bits(destVal, srcVal, srcVal);
     uint64_t signMask = mask(srcVal);
     uint64_t forwardVal = signBit ? (destVal | ~signMask) : (destVal & signMask);
+
+	// START: Data Size Edit
+	const uint8_t size = inst->getDataSize();
+    assert(size == 8 || size == 4 || size == 2 || size == 1);
+	if (size == 8) {
+    	forwardVal = forwardVal;
+    } else if (size == 4) {
+        forwardVal = (destVal & 0xffffffff00000000) | (forwardVal & 0xffffffff); // mask 4 bytes
+    } else if (size == 2) {
+        forwardVal = (destVal & 0xffffffffffff0000) | (forwardVal & 0xffff); // mask 2 bytes
+    } else if (size == 1) {
+        forwardVal = (destVal & 0xffffffffffffff00) | (forwardVal & 0xff); // mask 1 byte
+    } else {
+        panic("Add data size not recognized\n");
+    }
+	// END: Data Size Edit
 
     destRegId = inst->destRegIdx(0).flatIndex();
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
