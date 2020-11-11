@@ -13,7 +13,10 @@
 #include "debug/ConstProp.hh"
 #include "cpu/reg_class.hh"
 
+using namespace X86ISA;
 using namespace std;
+
+
 
 unsigned SpecTrace::traceIDCounter = 1;
 
@@ -493,18 +496,25 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
         }
         bool isDeadCode = false;
-        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode);
-        // if it's not a dead code, then update the last non-eliminated microop of the specTrace
+        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
+        
+        // source predictions never get eliminated
         if (!isDeadCode)
         {
             currentTrace.prevNonEliminatedInst = currentTrace.inst;
         }
+        else 
+        {
+            panic("Source prediction is a dead code?!");
+        }
 
     } else {
+
+        bool propagated = false;
         // Propagate predicted values
         if (type == "mov") {
             DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateMov(currentTrace.inst);
+            propagated = propagateMov(currentTrace.inst);
         } else if (type == "wrip" || type == "wripi") {
             DPRINTF(ConstProp, "Found a WRIP/WRIPI branch at [%i][%i][%i], compacting...\n", idx, way, uop);
             // propagateWrip(currentTrace.inst);
@@ -513,51 +523,51 @@ bool TraceBasedGraph::generateNextTraceInst() {
             // TODO: check for stopping condition or predicted target
         } else if (type == "movi") {
             DPRINTF(ConstProp, "Found a MOVI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateMovI(currentTrace.inst);
+            propagated = propagateMovI(currentTrace.inst);
         } else if (type == "and") {
             DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateAnd(currentTrace.inst);
+            propagated = propagateAnd(currentTrace.inst);
         } else if (type == "add") {
             DPRINTF(ConstProp, "Found an ADD at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateAdd(currentTrace.inst);
+            propagated = propagateAdd(currentTrace.inst);
         } else if (type == "sub") {
             DPRINTF(ConstProp, "Found a SUB at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateSub(currentTrace.inst);
+            propagated = propagateSub(currentTrace.inst);
         } else if (type == "xor") {
             DPRINTF(ConstProp, "Found an XOR at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateXor(currentTrace.inst);
+            propagated = propagateXor(currentTrace.inst);
         } else if (type == "or") {
             DPRINTF(ConstProp, "Found an OR at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateOr(currentTrace.inst);
+            propagated = propagateOr(currentTrace.inst);
         } else if (type == "subi") {
             DPRINTF(ConstProp, "Found a SUBI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateSubI(currentTrace.inst);
+            propagated = propagateSubI(currentTrace.inst);
         } else if (type == "addi") {
             DPRINTF(ConstProp, "Found an ADDI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateAddI(currentTrace.inst);
+            propagated = propagateAddI(currentTrace.inst);
         } else if (type == "slli") {
             DPRINTF(ConstProp, "Found a SLLI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateSllI(currentTrace.inst);
+            propagated = propagateSllI(currentTrace.inst);
         } else if (type == "srli") {
             DPRINTF(ConstProp, "Found a SRLI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateSrlI(currentTrace.inst);
+            propagated = propagateSrlI(currentTrace.inst);
         } else if (type == "lea") {
             DPRINTF(ConstProp, "Type is LEA");
             // Requires multiple ALU operations to propagate, not using
         } else if (type == "sexti") {
             // Implementation has multiple ALU operations, but this is not required by the nature of the operation
             DPRINTF(ConstProp, "Found a SEXTI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateSExtI(currentTrace.inst);
+            propagated = propagateSExtI(currentTrace.inst);
         } else if (type == "zexti") {
             // Implementation has multiple ALU operations, but this is not required by the nature of the operation
             DPRINTF(ConstProp, "Found a ZEXTI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateZExtI(currentTrace.inst);
+            propagated = propagateZExtI(currentTrace.inst);
         } else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
             DPRINTF(ConstProp, "Type is MUL1S, MUL1U, MULEL, or MULEH\n");
             // TODO: two dest regs with different values? maybe too complex arithmetic?
         } else if (type == "limm") {
             DPRINTF(ConstProp, "Found a LIMM at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagateLimm(currentTrace.inst);
+            propagated = propagateLimm(currentTrace.inst);
         } else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
             DPRINTF(ConstProp, "Type    is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
             // TODO: add control registers to graph?
@@ -575,7 +585,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         }
 
         bool isDeadCode = false;
-        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode);
+        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, propagated);
         // if it's not a dead code, then update the last non-eliminated microop of the specTrace
         if (!isDeadCode)
         {
@@ -607,7 +617,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     return true;
 }
 
-bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode ) {
+bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool propagated) {
     // IMPORTANT NOTE: This is written assuming the trace will be traversed in order, and so the register map will be accurate for the current point in the trace
     trace.length++;
 
@@ -626,7 +636,16 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode ) {
     unsigned confidence;
     unsigned latency;
     bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) && type != "limm" && type != "movi";
-    isDeadCode &= (!isPredSource && !(trace.inst->isCC() || trace.inst->isReturn()));
+    isDeadCode &= (propagated && !isPredSource && !(trace.inst->isCC() || trace.inst->isReturn()));
+
+    if (allSrcsReady && (trace.inst->isCC()))
+    {
+        DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not a dead code as it's a CC inst!\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+    }
+    else if (allSrcsReady && !propagated)
+    {
+        DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not a dead code as its data size is less than 4/8 bytes!\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+    }
 
     // Inst will never already be in this trace, single pass
     if (isDeadCode) {
@@ -681,100 +700,101 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "mov");
     
-    if (inst->numSrcRegs() > 3) {
+    if(inst->numSrcRegs() != 3) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC Mov Inst! We can't propagate CC insts!\n");
         return false;
     }
 
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
-    uint8_t size = inst->getDataSize();
-    if ((!regCtx[destRegId].valid) || (size < 8 && !regCtx[srcRegId].valid)) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = regCtx[srcRegId].value;
+    // Mov is both inhereted from RegOp
+    X86ISA::RegOp * inst_regop = (X86ISA::RegOp * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    // construct the value
-    uint64_t forwardVal;
-    if (size == 8) {
-        forwardVal = srcVal;
-    } else if (size == 4) {
-        forwardVal = (destVal & 0xffffffff00000000) | (srcVal & 0xffffffff); // mask 4 bytes
-    } else if (size == 2) {
-        forwardVal = (destVal & 0xffffffffffff0000) | (srcVal & 0xffff); // mask 2 bytes
-    } else if (size == 1) {
-        forwardVal = (destVal & 0xffffffffffffff00) | (srcVal & 0xff); // mask 1 byte
-    } else {
+    if (dataSize < 4) return false;
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex(); src1 = src1;
+    unsigned src2 = inst->srcRegIdx(1).flatIndex(); // this is the soruce reg in 4 or 8 byte moves
+
+    if (/*(!regCtx[src1].valid) ||*/ (!regCtx[src2].valid)) {
         return false;
     }
 
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
+    //uint64_t SrcReg1 = regCtx[src1].value;
+    uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+
+    assert(SrcReg2 == psrc2);  // for 4 or 8 bytes move this should always hold but not true for 1 or 2 byts move
+
+    forwardVal = x86_inst->merge(forwardVal, psrc2, dataSize);
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
     return true;
+
 }
 
 bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
-    if (inst->numSrcRegs() > 1) { // sometimes limm has an implicit source (the same as dest) to preserve dependencies
+    
+    string type = inst->getName();
+    assert(type == "limm");
+
+    // Limm (dataSize == 1 || dataSize == 2) has 1 sources and LimmBig (dataSize == 4 || dataSize == 8) has 0 sources
+    if(inst->numSrcRegs() != 0) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC Limm Inst! We can't propagate CC insts!\n");
         return false;
     }
 
     // for 8B LimmBig, Limm, and Lfpimm Only (Memory layput is the same for these classes)
-    X86ISAInst::Limm * inst_regop = (X86ISAInst::Limm * )inst.get(); 
+    X86ISAInst::LimmBig * inst_regop = (X86ISAInst::LimmBig * )inst.get(); 
 
     uint64_t imm = inst->getImmediate();
-    const uint8_t size = inst_regop->dataSize;
-    assert(size == 8 || size == 4 || size == 2 || size == 1);
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    unsigned destRegId = inst->destRegIdx(0).flatIndex();
+    // let's not do anything for Limm and Only propagate LimmBig
+    assert(dataSize >= 4);
 
 
+
+    uint64_t forwardVal = 0; 
+
+    if (dataSize >= 4)
+    {
+        forwardVal = imm & mask(dataSize * 8);
+    }
+    else 
+    {
+        assert(0);
+    } 
 
     
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
+    
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
 
-            uint64_t destVal;
-            // if the last value of regCtx is not valid, then we need to get the valid value from ExecContext
-            // TODO: This is not completely true, if the dest reg is not valid, it means we need ti make sure 
-            // that depending on the size we are not overwriitng bitfilds
-            if (!regCtx[destReg.flatIndex()].valid)
-            {
-                
-                destVal = 0;
-            }
-            else 
-            {
-                destVal = regCtx[destReg.flatIndex()].value;
-            }
-            // construct the value
-            uint64_t forwardVal;
-            
-            if (size == 8) {
-                forwardVal = imm;
-            } else if (size == 4) {
-                forwardVal = (destVal & 0xffffffff00000000) | (imm & 0xffffffff); // mask 4 bytes
-            } else if (size == 2) {
-                forwardVal = (destVal & 0xffffffffffff0000) | (imm & 0xffff); // mask 2 bytes
-            } else if (size == 1) {
-                forwardVal = (destVal & 0xffffffffffffff00) | (imm & 0xff); // mask 1 byte
-            } 
-            else 
-            {
-                assert(0);
-            }
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
 
-            DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+        
+    
     return true;
 }
 
@@ -782,491 +802,46 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "add");
     
-    if (inst->numSrcRegs() > 3) {
-        return false;
-    }
 
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
-    if ((!regCtx[srcRegId].valid) || (!regCtx[destRegId].valid)) {
-        return false;
-    }
+    // Add (dataSize == 1 || dataSize == 2) has 3 sources and AddBig (dataSize == 4 || dataSize == 8) has 2 sources
+    if (inst->numSrcRegs() != 2) return false;
 
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = regCtx[srcRegId].value;
-
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal + srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "sub");
-    
-    if (inst->numSrcRegs() > 3) {
-        return false;
-    }
-
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
-    if ((!regCtx[srcRegId].valid) || (!regCtx[destRegId].valid)) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = regCtx[srcRegId].value;
-
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal - srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "and");
-    
-    if (inst->numSrcRegs() > 3) {
-        return false;
-    }
-
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
-    if ((!regCtx[srcRegId].valid) || (!regCtx[destRegId].valid)) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = regCtx[srcRegId].value;
-
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal & srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "or");
-    
-    if (inst->numSrcRegs() > 3) {
-        return false;
-    }
-
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
-    if ((!regCtx[srcRegId].valid) || (!regCtx[destRegId].valid)) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = regCtx[srcRegId].value;
-
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal | srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "xor");
-    
-    if (inst->numSrcRegs() > 3) {
-        return false;
-    }
-
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    unsigned srcRegId = inst->srcRegIdx(1).flatIndex();
-    if ((!regCtx[srcRegId].valid) || (!regCtx[destRegId].valid)) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = regCtx[srcRegId].value;
-
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal ^ srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "movi");
-    
-    if (inst->numSrcRegs() > 1) {
-        return false;
-    }
-
-    // Conditional moves
-    if (inst->isCC()) {
-        return true;
-    }
-
-    
-    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
-    const uint8_t size = inst_regop->dataSize;
-    assert(size == 8 || size == 4 || size == 2 || size == 1);
-
-
-    uint64_t imm = inst->getImmediate();
-    unsigned destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "MOVI: Forwarding value %lx through register %i\n", imm, destRegId);
-
-    RegId destReg = inst->destRegIdx(0);
-    assert(destReg.isIntReg());
-
-
-    uint64_t destVal;
-    // if the last value of regCtx is not valid, then we need to get the valid value from ExecContext
-    // TODO: This is not completely true, if the dest reg is not valid, it means we need ti make sure 
-    // that depending on the size we are not overwriitng bitfilds
-    if (!regCtx[destReg.flatIndex()].valid)
+    if (inst->isCC())
     {
-                
-        destVal = 0;
+        DPRINTF(ConstProp, "CC Add Inst! We can't propagate CC insts!\n");
+        return false;
     }
-    else 
-    {
-        destVal = regCtx[destReg.flatIndex()].value;
-    }
-    // construct the value
-    uint64_t forwardVal;
-            
-    if (size == 8) {
-        forwardVal = imm;
-    } else if (size == 4) {
-        forwardVal = (destVal & 0xffffffff00000000) | (imm & 0xffffffff); // mask 4 bytes
-    } else if (size == 2) {
-        forwardVal = (destVal & 0xffffffffffff0000) | (imm & 0xffff); // mask 2 bytes
-    } else if (size == 1) {
-        forwardVal = (destVal & 0xffffffffffffff00) | (imm & 0xff); // mask 1 byte
-    } 
-    else 
-    {
-        assert(0);
-    }
+
+    // Add and AddBig are both inhereted from RegOp
+    // For both src 0 and src 1 are the source operands
+    X86ISA::RegOp * inst_regop = (X86ISA::RegOp * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
     
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
 
-
-    return true;
-}
-
-bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "subi");
-    
-    if (inst->numSrcRegs() > 1) {
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
         return false;
     }
 
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!regCtx[destRegId].valid) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = inst->getImmediate();
+    uint64_t SrcReg1 = regCtx[src1].value;
+    uint64_t SrcReg2 = regCtx[src2].value;
 
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal - srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "addi");
-    
-    if (inst->numSrcRegs() > 1) {
-        return false;
-    }
-
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!regCtx[destRegId].valid) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = inst->getImmediate();
-
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal + srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "andi");
-    
-    if (inst->numSrcRegs() > 1) {
-        return false;
-    }
-
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!regCtx[destRegId].valid) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = inst->getImmediate();
-
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal & srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "ori");
-    
-    if (inst->numSrcRegs() > 1) {
-        return false;
-    }
-
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!regCtx[destRegId].valid) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = inst->getImmediate();
-
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal | srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "xori");
-    
-    if (inst->numSrcRegs() > 1) {
-        return false;
-    }
-
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!regCtx[destRegId].valid) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = inst->getImmediate();
-
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal ^ srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "slli");
-    
-    if (inst->numSrcRegs() > 1) {
-        return false;
-    }
-
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!regCtx[destRegId].valid) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = inst->getImmediate();
-
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal << srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "srli");
-    
-    if (inst->numSrcRegs() > 1) {
-        return false;
-    }
-
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!regCtx[destRegId].valid) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = inst->getImmediate();
-
-    // value construction is easy for this one
-    uint64_t forwardVal = destVal >> srcVal;
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "sexti");
-    
-    if (inst->numSrcRegs() > 1) {
-        return false;
-    }
-
-    unsigned destRegId = inst->srcRegIdx(0).flatIndex();
-    if (!regCtx[destRegId].valid) {
-        return false;
-    }
-    uint64_t destVal = regCtx[destRegId].value;
-    uint64_t srcVal = inst->getImmediate();
-
-    // value construction taken from isa file
-    int signBit = bits(destVal, srcVal, srcVal);
-    uint64_t signMask = mask(srcVal);
-    uint64_t forwardVal = signBit ? (destVal | ~signMask) : (destVal & signMask);
-
-    destRegId = inst->destRegIdx(0).flatIndex();
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destRegId);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        RegId destReg = inst->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].value = forwardVal;
-            regCtx[destReg.flatIndex()].valid = true;
-        }
-    }
-    return true;
-}
-
-bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
-    string type = inst->getName();
-    assert(type == "zexti");
-    if (inst->numSrcRegs() > 1) {
-        assert(0);
-    }
-
-    assert(inst->srcRegIdx(0).isIntReg());
-    unsigned srcRegId = inst->srcRegIdx(0).flatIndex();
-    if (!regCtx[srcRegId].valid) {
-        return false;
-    }
-
-    uint64_t DestReg = 0;
-    uint64_t SrcReg1 = regCtx[srcRegId].value;
-    uint64_t imm8 = inst->getImmediate();
-
-    uint8_t dataSize = inst->getDataSize();
-
+    uint64_t forwardVal = 0;
     if (dataSize >= 4)
     {
         X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-        DestReg = bits(psrc1, imm8, 0) & mask(dataSize * 8);
+        uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+        forwardVal = (psrc1 + psrc2) & mask(dataSize * 8);;
+        
     }
     else {
-        // still don't know what this microop is
+        // still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
@@ -1274,13 +849,942 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
 
+
+
+
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "ConstProp Forwarding ZExtI value %lx through register %i\n", DestReg, destReg.flatIndex());
-    
-    regCtx[destReg.flatIndex()].value = DestReg;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
 
+    
     return true;
+}
+
+bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
+
+
+    string type = inst->getName();
+    assert(type == "sub");
+    
+    // Sub (dataSize == 1 || dataSize == 2) has 3 sources and SubBig (dataSize == 4 || dataSize == 8) has 2 sources
+    if(inst->numSrcRegs() != 2) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC Sub Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // Subb and SubbBig are both inhereted from RegOp
+    // For both src 0 and src 1 are the source operands
+    X86ISA::RegOp * inst_regop = (X86ISA::RegOp * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+        forwardVal = (psrc1 - psrc2) & mask(dataSize * 8);;
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+
+}
+
+bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "and");
+    
+
+    // And (dataSize == 1 || dataSize == 2) has 3 sources and AndBig (dataSize == 4 || dataSize == 8) has 2 sources
+    if(inst->numSrcRegs() != 2) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC And Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // And and AndBig are both inhereted from RegOp
+    // For both src 0 and src 1 are the source operands
+    X86ISA::RegOp * inst_regop = (X86ISA::RegOp * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+        forwardVal = (psrc1 & psrc2) & mask(dataSize * 8);
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+
+}
+
+bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "or");
+    
+    // Or (dataSize == 1 || dataSize == 2) has 3 sources and OrBig (dataSize == 4 || dataSize == 8) has 2 sources
+    if(inst->numSrcRegs() != 2) return false;
+    
+   if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC Or Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // Or and OrBig are both inhereted from RegOp
+    // For both src 0 and src 1 are the source operands
+    X86ISA::RegOp * inst_regop = (X86ISA::RegOp * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+        forwardVal = (psrc1 | psrc2) & mask(dataSize * 8);
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+}
+
+bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "xor");
+    
+    // Xor (dataSize == 1 || dataSize == 2) has 3 sources and XorBig (dataSize == 4 || dataSize == 8) has 2 sources
+    if(inst->numSrcRegs() != 2) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC Xor Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // Xor and XorBig are both inhereted from RegOp
+    // For both src 0 and src 1 are the source operands
+    X86ISA::RegOp * inst_regop = (X86ISA::RegOp * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+        forwardVal = (psrc1 ^ psrc2) & mask(dataSize * 8);
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+}
+
+bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "movi");
+    
+    // MovImm has 2 source registers for all datasize and MovFlagsImm has 7 sources
+    if(inst->numSrcRegs() != 2) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC MOVI Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // Mov is both inhereted from RegOp
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    if (dataSize < 4) return false;
+
+
+  
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get(); 
+
+    uint64_t forwardVal = 0;
+    uint8_t imm8 = inst_regop->imm8;
+    forwardVal = x86_inst->merge(forwardVal, imm8, dataSize);
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+}
+
+bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "subi");
+    
+    
+    // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
+    if(inst->numSrcRegs() != 1) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC SUBI Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // SubImm and SubImmBig are both inhereted from RegOpImm
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    //unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    //uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint8_t imm8 = inst_regop->imm8;
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        forwardVal = (psrc1 - imm8) & mask(dataSize * 8);;
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+    
+}
+
+bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "addi");
+    
+    // AddImm (dataSize == 1 || dataSize == 2) has 2 sources and AddImmBig (dataSize == 4 || dataSize == 8) has 1 sources
+    if(inst->numSrcRegs() != 1) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC ADDI Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // SubImm and SubImmBig are both inhereted from RegOpImm
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    //unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    //uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint8_t imm8 = inst_regop->imm8;
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        forwardVal = (psrc1 + imm8) & mask(dataSize * 8);;
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+    
+
+}
+
+bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "andi");
+    
+    // AndImm (dataSize == 1 || dataSize == 2) has 2 sources and AndImmBig (dataSize == 4 || dataSize == 8) has 1 sources
+    if(inst->numSrcRegs() != 1) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC ANDI Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // SubImm and SubImmBig are both inhereted from RegOpImm
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    //unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    //uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint8_t imm8 = inst_regop->imm8;
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        forwardVal = (psrc1 & imm8) & mask(dataSize * 8);;
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+    
+
+}
+
+bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "ori");
+    
+    // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
+    if (inst->numSrcRegs() != 1) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC ORI Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // SubImm and SubImmBig are both inhereted from RegOpImm
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    //unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    //uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint8_t imm8 = inst_regop->imm8;
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        forwardVal = (psrc1 | imm8) & mask(dataSize * 8);;
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+    
+
+}
+
+bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "xori");
+    
+    // XorImm (dataSize == 1 || dataSize == 2) has 2 sources and XorImmBig (dataSize == 4 || dataSize == 8) has 1 sources
+    if(inst->numSrcRegs() != 1) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC XORI Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // SubImm and SubImmBig are both inhereted from RegOpImm
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    //unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    //uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint8_t imm8 = inst_regop->imm8;
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        forwardVal = (psrc1 ^ imm8) & mask(dataSize * 8);;
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+    
+
+}
+
+bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "slli");
+    
+    // SllImm (dataSize == 1 || dataSize == 2) has 2 sources and SllImmBig (dataSize == 4 || dataSize == 8) has 1 sources
+    if (inst->numSrcRegs() != 1) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC SLLI Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // SllImm and SslImmBig are both inhereted from RegOpImm
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    //unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    //uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint8_t imm8 = inst_regop->imm8;
+
+
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
+        uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
+        forwardVal = (psrc1 << shiftAmt) & mask(dataSize * 8);
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+}
+
+bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "srli");
+    
+    // SrlImm (dataSize == 1 || dataSize == 2) has 2 sources and SrlImmBig (dataSize == 4 || dataSize == 8) has 1 sources
+    if (inst->numSrcRegs() != 1) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC SRLI Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // SrlImm and SrllImmBig are both inhereted from RegOpImm
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    //unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    //uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint8_t imm8 = inst_regop->imm8;
+
+
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
+        uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
+        uint64_t logicalMask = mask(dataSize * 8 - shiftAmt);
+        forwardVal = (psrc1 >> shiftAmt) & logicalMask;
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+}
+
+bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
+
+    string type = inst->getName();
+    assert(type == "sexti");
+    
+    // SextImm (dataSize == 1 || dataSize == 2) has 2 sources and SextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
+    if(inst->numSrcRegs() != 1) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC SEXTI Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // SextImm and SextImmBig are both inhereted from RegOpImm
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    //unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    //uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint8_t imm8 = inst_regop->imm8;
+
+
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
+        IntReg val = psrc1;
+        // Mask the bit position so that it wraps.
+        int bitPos = imm8 & (dataSize * 8 - 1);
+        int sign_bit = bits(val, bitPos, bitPos);
+        uint64_t maskVal = mask(bitPos+1);
+        val = sign_bit ? (val | ~maskVal) : (val & maskVal);
+        forwardVal = val & mask(dataSize * 8);
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+}
+
+bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "zexti");
+
+    // ZextImm (dataSize == 1 || dataSize == 2) has 2 sources and ZextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
+    if(inst->numSrcRegs() != 1) return false;
+
+    if (inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC SEXTI Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    // ZextImm and ZextImmBig are both inhereted from RegOpImm
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    //unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    //uint64_t SrcReg2 = regCtx[src2].value;
+
+    uint64_t forwardVal = 0;
+
+    if (dataSize >= 4)
+    {
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+        uint8_t imm8 = inst_regop->imm8;
+
+
+        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        forwardVal = bits(psrc1, imm8, 0) & mask(dataSize * 8);;
+        
+    }
+    else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+
+
+
+    RegId destReg = inst->destRegIdx(0);
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+
+    regCtx[destReg.flatIndex()].value = forwardVal;
+    regCtx[destReg.flatIndex()].valid = true;
+
+    
+    return true;
+
 }

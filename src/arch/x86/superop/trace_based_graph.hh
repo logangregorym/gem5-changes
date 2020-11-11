@@ -131,7 +131,7 @@ class TraceBasedGraph : public SimObject
 
     void predictValue(Addr addr, unsigned uopAddr, int64_t value, unsigned confidence, unsigned latency);
 
-    bool updateSpecTrace(SpecTrace &trace, bool& isDeadCode);
+    bool updateSpecTrace(SpecTrace &trace, bool& isDeadCode, bool propagated);
 
     bool isPredictionSource(SpecTrace trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency);
 
