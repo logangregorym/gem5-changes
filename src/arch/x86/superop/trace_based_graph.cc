@@ -654,7 +654,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
         return true;
     }
 
-    bool updateSuccessful = decoder->addUopToSpeculativeCache(trace.inst, trace.instAddr.pcAddr, trace.instAddr.uopAddr, trace.id);
+    bool updateSuccessful = decoder->addUopToSpeculativeCache( trace);
     trace.shrunkLength++;
 
     // Step 3b: Mark all predicted values on the StaticInst -- don't do this for prediction sources
@@ -681,11 +681,13 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
 
     // Update head of the optimized trace
     if (!trace.optimizedHead.valid) {
+        DPRINTF(Decoder, "updateSpecTrace: Trace %d optimized head is not valid!\n", trace.id);
         trace.optimizedHead.idx = trace.head.idx; 
         trace.optimizedHead.uop = 0;
         for (int way=0; way<8; way++) {
             int idx = trace.head.idx;
             if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == trace.id) {
+                DPRINTF(Decoder, "updateSpecTrace: Trace %d optimized head way is updated to %d!\n", trace.id, way);
                 trace.optimizedHead.way = way;
                 trace.optimizedHead.valid = true;
                 break;
@@ -1788,3 +1790,4 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     return true;
 
 }
+

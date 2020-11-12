@@ -949,7 +949,14 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
 }
 
 bool
-Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, unsigned traceID) {
+Decoder::addUopToSpeculativeCache(SpecTrace &trace) {
+
+   
+    StaticInstPtr inst =  trace.inst;
+    Addr addr = trace.instAddr.pcAddr;
+    unsigned uop = trace.instAddr.uopAddr; 
+    unsigned traceID = trace.id;
+
     int idx = (addr >> 5) & 0x1f;
     uint64_t tag = (addr >> 10);
     int numFullWays = 0;
@@ -957,8 +964,14 @@ Decoder::addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, u
 
     int baseWay = 0;
     //int waysVisited = 0;
-    if (traceConstructor->traceMap[traceID].optimizedHead.valid) {
-        baseWay = traceConstructor->traceMap[traceID].optimizedHead.way;
+    if (trace.optimizedHead.valid) {
+        baseWay = trace.optimizedHead.way;
+        DPRINTF(Decoder, "addUopToSpeculativeCache: Trace %d optimized head way is %d!\n", traceID, baseWay);
+    }
+    else 
+    {
+        //baseWay = 10;
+        DPRINTF(Decoder, "addUopToSpeculativeCache: Trace %d optimized head is not valid!\n", traceID);
     }
 
 
