@@ -114,6 +114,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
 
     bool endOfTrace;
     bool isStreamedFromSpecCache;
+    bool isPredictionSource;
 
   public:
 
@@ -202,6 +203,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
 
     bool isRipRel() { return _srcRegIdx[1] == RegId(IntRegClass, 23); }
 
+    bool isTracePredictionSource() const { return isPredictionSource;}
+    void setTracePredictionSource(bool state) {isPredictionSource = state;}
     bool isEndOfTrace() { return endOfTrace; }
     void setEndOfTrace() { endOfTrace = true; }
     bool isStreamedFromSpeculativeCache() const {return isStreamedFromSpecCache;}
@@ -271,14 +274,14 @@ class StaticInst : public RefCounted, public StaticInstFlags
           _numFPDestRegs(0), _numIntDestRegs(0), _numCCDestRegs(0),
           _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
-    { endOfTrace = false; isStreamedFromSpecCache = false;}
+    { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false;}
 
     StaticInst(const char *_mnemonic, ExtMachInst _machInst, OpClass __opClass)
 	: _opClass(__opClass), _numSrcRegs(0), _numDestRegs(0),
 	  _numFPDestRegs(0), _numIntDestRegs(0), _numCCDestRegs(0),
 	  _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
-    { endOfTrace = false; isStreamedFromSpecCache = false;}
+    { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false;}
 
   public:
     virtual ~StaticInst();

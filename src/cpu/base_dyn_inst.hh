@@ -508,6 +508,8 @@ class BaseDynInst : public ExecContext, public RefCounted
     //
     //  Instruction types.  Forward checks to StaticInst object.
     //
+    bool isTracePredictionSource() const { return staticInst->isTracePredictionSource();}
+    void setTracePredictionSource(bool state) {staticInst->setTracePredictionSource(state);}
     bool isStreamedFromSpeculativeCache() const {return staticInst->isStreamedFromSpeculativeCache();}
     void setStreamedFromSpeculativeCache(bool state)      {staticInst->setStreamedFromSpeculativeCache(state);}
     bool isNop()          const { return staticInst->isNop(); }

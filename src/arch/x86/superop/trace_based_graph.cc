@@ -376,6 +376,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 for (int i=0; i<4; i++) {
                     DPRINTF(SuperOp, "Prediction Source %i\n", i);
                     if (currentTrace.source[i].valid) {
+                        // set the predecitions sources in spec$
+
                         DPRINTF(SuperOp, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i\n",
                                     currentTrace.source[i].addr.pcAddr,  currentTrace.source[i].addr.uopAddr,
                                     currentTrace.source[i].value, currentTrace.source[i].confidence,
@@ -505,7 +507,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         }
         else 
         {
-            panic("Source prediction is a dead code?!");
+            panic("Prediction Source is a dead code?!");
         }
 
     } else {
@@ -654,7 +656,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
         return true;
     }
 
-    bool updateSuccessful = decoder->addUopToSpeculativeCache( trace);
+    bool updateSuccessful = decoder->addUopToSpeculativeCache( trace, isPredSource);
     trace.shrunkLength++;
 
     // Step 3b: Mark all predicted values on the StaticInst -- don't do this for prediction sources

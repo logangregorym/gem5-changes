@@ -1350,8 +1350,8 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
 
     // Make load value prediction if necessary
     // string opcode = instruction->getName();
-    bool valuePredictable = instruction->isLoad();
-    if (instruction->isInteger() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
+    bool valuePredictable = instruction->isLoad() ; 
+    if (!instruction->isStore() && instruction->isInteger() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
         for (int i = 0; i < instruction->numDestRegs(); i++) {
             RegId destReg = instruction->destRegIdx(i);
             if (destReg.classValue() == IntRegClass) {
@@ -1360,6 +1360,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
             }
         }
     }
+    valuePredictable  = valuePredictable && staticInst->getName() != "limm" && staticInst->getName() != "movi"; 
     if (valuePredictable && !staticInst->isStreamedFromSpeculativeCache()) { // don't check against new prediction is the instruction is part of a spec trace
         if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
             DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);

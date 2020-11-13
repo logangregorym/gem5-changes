@@ -949,7 +949,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
 }
 
 bool
-Decoder::addUopToSpeculativeCache(SpecTrace &trace) {
+Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
 
    
     StaticInstPtr inst =  trace.inst;
@@ -991,6 +991,13 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace) {
             speculativeTraceIDArray[idx][way] = traceID;
             speculativeCache[idx][way][waySize] = inst;
             speculativeAddrArray[idx][way][waySize] = FullUopAddr(addr, uop);
+
+            if (isPredSource)
+            {
+                DPRINTF(Decoder, "Setting microop in the speculative cache as a Prediction Source: %#x tag:%#x idx:%d way:%d uop:%d nextway:%d prevway:%d.\n", addr, tag, idx, way, waySize, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
+                speculativeCache[idx][way][waySize]->setTracePredictionSource(true);
+            }
+
             DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, waySize, addr, uop);
             updateLRUBitsSpeculative(idx, way);
             DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d nextway:%d prevway:%d.\n", addr, tag, idx, way, waySize, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
@@ -1022,6 +1029,13 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace) {
             speculativeCache[idx][way][u] = inst;
             speculativeAddrArray[idx][way][u] = FullUopAddr(addr, uop);
             updateLRUBitsSpeculative(idx, way);
+
+            if (isPredSource)
+            {
+                DPRINTF(Decoder, "Setting microop in the speculative cache as a Prediction Source: %#x tag:%#x idx:%d way:%d uop:%d nextway:%d prevway:%d.\n", addr, tag, idx, way, u, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
+                speculativeCache[idx][way][u]->setTracePredictionSource(true);
+            }
+
             DPRINTF(Decoder, "Allocating a new way and adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d nextWay:%d prevway:%d.\n", addr, tag, idx, way, u, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
             DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, u, addr, uop);
             return true;
@@ -1091,9 +1105,16 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace) {
         speculativeTraceIDArray[idx][evictWay] = traceID;
         speculativeCache[idx][evictWay][u] = inst;
         speculativeAddrArray[idx][evictWay][u] = FullUopAddr(addr, uop);
+
+        if (isPredSource)
+        {
+            DPRINTF(Decoder, "Setting microop in the speculative cache as a Prediction Source: %#x tag:%#x idx:%d way:%d uop:%d nextway:%d prevway:%d.\n", addr, tag, idx, evictWay, u, speculativeNextWayArray[idx][evictWay], speculativePrevWayArray[idx][evictWay]);
+            speculativeCache[idx][evictWay][u]->setTracePredictionSource(true);
+        }
+        
         DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, evictWay, u, addr, uop);
         updateLRUBitsSpeculative(idx, evictWay);        
-        DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%#x.\n", addr, tag, idx, evictWay, u);
+        DPRINTF(Decoder, "Evicting and allocating a way and  adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%#x.\n", addr, tag, idx, evictWay, u);
         return true;
     }
     DPRINTF(ConstProp, "Optimized trace could not be loaded into speculative cache because eviction failed\n");

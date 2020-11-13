@@ -1502,7 +1502,7 @@ DefaultIEW<Impl>::executeInsts()
 		}
 
                 string opcode = inst->getName();
-                if (opcode == "limm" || (inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
+                if (opcode == "limm" || (!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
                     inst->memoryAccessStartCycle = cpu->numCycles.value();
                     inst->memoryAccessEndCycle = cpu->numCycles.value();
                     DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
@@ -1546,8 +1546,8 @@ DefaultIEW<Impl>::executeInsts()
                             panic("Unknown register class: %d", (int)dest_reg->classValue());
                    	    }
                     }
-                    if (inst->lvMispred) {
-                    	DPRINTF(LVP, "OH NO! processPacketRecieved returned false :(\n");
+                    if (inst->lvMispred && inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource()) {
+                    	DPRINTF(LVP, "DefaultIEW::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
                     	// cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
                     	loadPred->lastMisprediction = inst->memoryAccessEndCycle;
                     	// Moved from commit
