@@ -1146,7 +1146,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                     PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                     uint64_t value;
                     switch (dest_reg->classValue()) {
-			// Note: changed "memoryAccessStartCycle" to "cycleFetched" in all these
+			            // Note: changed "memoryAccessStartCycle" to "cycleFetched" in all these
                       case IntRegClass:
                         value = cpu->readIntReg(dest_reg);
                         DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
@@ -1187,6 +1187,13 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                     // Moved from commit
                     iewStage->squashDueToLoad(inst, inst, tid);
                 }
+
+                // logic to update the trace confidences base on prediction result
+                if ( inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource())
+                {
+                    iewStage->updateTraceConfidence(inst);
+                }
+
             }
 
         } else {

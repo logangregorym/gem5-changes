@@ -253,6 +253,8 @@ class DefaultIEW
      */
     void squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstWoken, ThreadID tid);
 
+    void updateTraceConfidence(DynInstPtr &inst);
+
   private:
     /** Sets Dispatch to blocked, and signals back to other stages to block. */
     void block(ThreadID tid);

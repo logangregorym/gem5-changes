@@ -163,6 +163,8 @@ uint64_t FA3P::getValuePredicted(Addr loadAddr)
     return value;
 }
 
+// To not mess around with this logic, we will only update the confidence in Load Value Predictor in this fucntion. 
+// The trace confidence is updated in IEW::squashDueToLoad function
 bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
 {
 	// New stats time
@@ -175,6 +177,10 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
 	} else {
 		panic("unrecognized inst returned value to LVP\n");
 	}
+
+    // don't predict for these types TODO: add more types gradually
+    assert(!inst->isStore());
+    assert(inst->getName() != "limm" && inst->getName() != "movi");
 	
 
     DPRINTF(LVP, "Inst %s called processPacketRecieved\n", inst->disassemble(pc.instAddr()));
@@ -192,6 +198,8 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
 	    addressInfo->numUses++;
         }
     }
+
+    assert(addressInfo);
 
     uint64_t responseVal = value;
 /**
@@ -269,6 +277,8 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
                 ++incorrectNotUsed;
             }
         }
+
+
 
         bool misPred = (confidence >= 0) && (prediction != responseVal);
 

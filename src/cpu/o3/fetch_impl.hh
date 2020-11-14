@@ -1515,8 +1515,16 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         // check the speculative cache even before the microop cache
         if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive()) {
             currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr());
-            if (currentTraceID != 0) {
-                DPRINTF(Fetch, "Activaring Spec$. currentTraceID is %i\n", currentTraceID);
+            if (currentTraceID != 0 && decoder[tid]->redirectDueToLVPSquashing) {
+                DPRINTF(Fetch, "A trace is available but due to a previous LVP missprediction squash we can't fetch from spec$! Available TraceID is %i.\n", currentTraceID);
+            }
+            else if (currentTraceID != 0 && !decoder[tid]->redirectDueToLVPSquashing)
+            {
+                DPRINTF(Fetch, "A trace is available and Spec$ will be activated! Available TraceID is %i.\n", currentTraceID);
+            }
+            else if (currentTraceID == 0)
+            {
+                DPRINTF(Fetch, "No trace is Avaialble at this PC.\n", currentTraceID);
             }
         }
         if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive())
@@ -1536,7 +1544,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             DPRINTF(Fetch, "Setting speculative cache active at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
             //Enable Speculative Cache
             inSpeculativeCache = true;
-            decoder[tid]->setSpeculativeCacheActive(true);
+            decoder[tid]->setSpeculativeCacheActive(true, currentTraceID);
             //Disable Uop Cache
             inUopCache = false;
             useUopCache = false;
@@ -2095,7 +2103,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         
                         DPRINTF(Fetch, "Swithching from Uop$/Decoder to Speculative Cache active at Pc %s as profitability analysis unit requested. currentTraceID = %d\n", thisPC, currentTraceID);
                         inSpeculativeCache = true;
-                        decoder[tid]->setSpeculativeCacheActive(true);
+                        decoder[tid]->setSpeculativeCacheActive(true, currentTraceID);
                         // this will cause outer loop to exit and therefore a switch with one cycle penalty
                         switchFromUopCacheDecoderToSpeculativeCache = true;
                         //fetchBufferValid[tid] = false;

@@ -51,6 +51,7 @@
 #include <queue>
 
 #include "arch/utility.hh"
+#include "arch/x86/superop/trace_based_graph.hh"
 #include "config/the_isa.hh"
 #include "cpu/checker/cpu.hh"
 #include "cpu/o3/dep_graph.hh"
@@ -620,6 +621,10 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
     } else {
         squashedLoadsInNeitherCache[tid]++;
     }
+
+
+
+
 }
 //*****CHANGE END**********
 
@@ -1501,8 +1506,9 @@ DefaultIEW<Impl>::executeInsts()
                     inst->forwardOldRegs();
 		}
 
+                // update LVP for every instruction 
                 string opcode = inst->getName();
-                if (opcode == "limm" || (!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
+                if (opcode != "limm" && opcode != "movi" && (!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
                     inst->memoryAccessStartCycle = cpu->numCycles.value();
                     inst->memoryAccessEndCycle = cpu->numCycles.value();
                     DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
@@ -1512,7 +1518,7 @@ DefaultIEW<Impl>::executeInsts()
                     	PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                     	uint64_t value;
                     	switch (dest_reg->classValue()) {
-			    // Note: changed memoryAccessStartCycle to cycleFetched in all these
+			                // Note: changed memoryAccessStartCycle to cycleFetched in all these
                           case IntRegClass:
                             value = cpu->readIntReg(dest_reg);
                             DPRINTF(LVP, "IntRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
@@ -1546,13 +1552,25 @@ DefaultIEW<Impl>::executeInsts()
                             panic("Unknown register class: %d", (int)dest_reg->classValue());
                    	    }
                     }
-                    if (inst->lvMispred && inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource()) {
+                    // TODO: Just squash when we actually have used the predicted value whether in super optimizer or LVP
+                    // TODO: FOR NOW JUST TRACE PREDICTIONS, LATER LVP + TRACE
+                    if (inst->lvMispred  && inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource()) {
                     	DPRINTF(LVP, "DefaultIEW::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
                     	// cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
                     	loadPred->lastMisprediction = inst->memoryAccessEndCycle;
                     	// Moved from commit
                     	squashDueToLoad(inst, inst, tid);
+                        
+
                     }
+
+                    // logic to update the trace confidences base on prediction result
+                    if ( inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource())
+                    {
+                        updateTraceConfidence(inst);
+                    }
+                    
+
             	}
             }
 
@@ -1913,5 +1931,77 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
         }
     }
 }
+
+template <class Impl>
+void
+DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
+{
+    ThreadID tid = inst->threadNumber;
+    Addr addr = inst->pcState().instAddr();
+    //int idx = (addr >> 5) & 0x1f;
+    unsigned int traceID = inst->staticInst->traceID;
+    
+    // this should never be zero
+    assert(traceID);
+
+    // this trace may have been flushed therfore there is no need to update its confidence
+    if (cpu->fetch.decoder[tid]->traceConstructor->traceMap.find(traceID) == cpu->fetch.decoder[tid]->traceConstructor->traceMap.end())
+    {
+        DPRINTF(LVP, "DefaultIEW::executeInsts():: Couldn't find trace %d in traceMap! Is it flushed? \n", traceID);
+        return;
+    }
+
+
+    if (!inst->lvMispred)
+    {
+        
+        bool updated = false;
+        // We just update the confidence in trace because Decoder::isTraceAvaible() is going to use this confidence value
+        for (int i=0; i<4; i++) {
+            if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].valid && 
+                cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].addr.pcAddr == addr) 
+            {
+                // Is there a limit on confidence? I'm assuming 9.
+                if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence < 9) 
+                    cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence++;
+                
+                DPRINTF(LVP, "DefaultIEW::executeInsts():: Correct Prediction! Increasing trace %d confidence! Confidence level is %d\n", traceID, 
+                        cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence);
+                updated = true;
+            }
+        }
+
+        assert(updated);
+
+
+    }
+    else 
+    {
+        
+        bool updated = false;
+        // We just update the confidence in trace because Decoder::isTraceAvaible() is going to use this confidence value
+        for (int i=0; i<4; i++) {
+            if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].valid && 
+                cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].addr.pcAddr == addr) 
+            {
+                // Is there a limit on confidence? I'm assuming 0.
+                if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence > 0) 
+                    cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence--;
+                
+                DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction! Decreasing trace %d confidence! Confidence level is %d\n", traceID, 
+                        cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence);
+                updated = true;
+            }
+        }
+        
+        assert(updated);
+
+    }
+
+
+}
+
+
+
 
 #endif//__CPU_O3_IEW_IMPL_IMPL_HH__
