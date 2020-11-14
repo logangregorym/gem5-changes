@@ -445,7 +445,7 @@ protected:
 	// Interface for superoptimization, interacts with cache differently in gem5
 	// In hardware wouldn't need a different interface, as both are streaming caches
 
-	bool addUopToSpeculativeCache(StaticInstPtr inst, Addr addr, unsigned uop, unsigned traceID);
+	bool addUopToSpeculativeCache( SpecTrace &trace, bool isPredSource);
 
     bool isSpeculativeCacheActive()
     {

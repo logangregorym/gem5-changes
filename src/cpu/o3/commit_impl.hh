@@ -1314,7 +1314,18 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         }
     }
 
+    if ((uint64_t)cpu->thread[tid]->numInsts.value() % 1000000 == 0 &&
+            !head_inst->isNop() &&
+            !head_inst->isInstPrefetch() &&
+            head_inst->isLastMicroop()
+           )
+    {
 
+            std::cout <<
+            "--------------------START OF EPOCH----------------------------" <<
+            std::endl << std::dec << cpu->thread[tid]->numInsts.value() <<
+            std::endl;
+    }
 
     DPRINTF(Commit, "Committing instruction with [sn:%lli] PC %s\n",
             head_inst->seqNum, head_inst->pcState());

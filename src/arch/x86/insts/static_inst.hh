@@ -111,7 +111,7 @@ namespace X86ISA
 
         virtual uint64_t getImmediate() { panic("getImmediate() should only be called by a RegOpImm, called by X86StaticInst"); }
         
-
+        public:
         inline uint64_t merge(uint64_t into, uint64_t val, int size) const
         {
             X86IntReg reg = into;
@@ -141,7 +141,7 @@ namespace X86ISA
             }
             return reg;
         }
-        public:
+        
         inline uint64_t pick(uint64_t from, int idx, int size) const
         {
             X86IntReg reg = from;

@@ -23,101 +23,8 @@ using namespace std;
 
 class ISA;
 
-// tracks instructions with confident value predictions
-struct PredictionSource
-{
-    FullUopAddr addr;
-    bool valid;
-    bool isBranch;
-    uint64_t value;
-    unsigned confidence;
-    unsigned latency;
 
-    PredictionSource() {valid = false; isBranch = false;}
-};
 
-// Register context block for liveness analysis
-struct RegisterContext {
-    uint64_t value;
-    bool valid;
-    bool source;
-
-    RegisterContext() {value = 0; valid = false; source = false;}
-};
-
-// Speculative Trace
-struct SpecTrace
-{
-    // Trace ID
-    unsigned id;
-
-    // (idx, way, uop) of head of the trace
-    FullCacheIdx head;
-
-    // (idx, way, uop) of head of the optimized trace
-    FullCacheIdx optimizedHead;
-
-    // (idx, way, uop) of the instruction being optimized
-    FullCacheIdx addr;
-
-    // address of the instruction being optimized
-    FullUopAddr instAddr;
-
-    // instruction being optimized
-    StaticInstPtr inst;
-
-    // previous non-eliminated instruction
-    StaticInstPtr prevNonEliminatedInst;
-
-    // address of the last instruction in the trace
-    FullUopAddr end;
-
-    enum State {
-        Invalid,
-        
-        QueuedForFirstTimeOptimization,
-        QueuedForReoptimization,
-
-        // first time optimization
-        OptimizationInProcess,
-
-        // re-optimization (e.g., due to a new pred source)
-        ReoptimizationInProcess,
-
-        // evicted before we could process it
-        Evicted,
-
-        Complete
-    };
-
-    // Trace Satte
-    State state;
-
-    // Prediction Sources (at most 4)
-    PredictionSource source[4];
-
-    // Trace Length
-    unsigned length;
-
-    // Shrunk length
-    unsigned shrunkLength;
-
-    // ID of the trace being re-optimized in case this is a re-optimization
-    unsigned reoptId;
-
-    // Counter to assign trace IDs
-    static unsigned traceIDCounter;
-
-    SpecTrace() {
-        state = Invalid;
-        length = 0;
-        shrunkLength = 0;
-        head = FullCacheIdx();
-        addr = FullCacheIdx();
-        inst = NULL;
-        prevNonEliminatedInst = NULL;
-    }
-};
 
 class TraceBasedGraph : public SimObject
 {
@@ -131,7 +38,7 @@ class TraceBasedGraph : public SimObject
 
     void predictValue(Addr addr, unsigned uopAddr, int64_t value, unsigned confidence, unsigned latency);
 
-    bool updateSpecTrace(SpecTrace &trace, bool& isDeadCode);
+    bool updateSpecTrace(SpecTrace &trace, bool& isDeadCode, bool propagated);
 
     bool isPredictionSource(SpecTrace trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency);
 
@@ -188,5 +95,6 @@ class TraceBasedGraph : public SimObject
     Stats::Scalar tracesWithInvalidHead;
 
 }; // class TraceBasedGraph
+
 
 #endif // __ARCH_X86_TRACE_BASED_GRAPH_HH__

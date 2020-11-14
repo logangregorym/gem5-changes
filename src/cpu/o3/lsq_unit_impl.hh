@@ -1180,8 +1180,8 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                         panic("Unknown register class: %d", (int)dest_reg->classValue());
                     }
                 }
-                if (inst->lvMispred) {
-                    DPRINTF(LVP, "OH NO! processPacketRecieved returned false :(\n");
+                if (inst->lvMispred && inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource()) {
+                    DPRINTF(LVP, "LSQUnit::writeback: OH NO! processPacketRecieved returned false :(\n");
                     // cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
                     iewStage->loadPred->lastMisprediction = inst->memoryAccessEndCycle;
                     // Moved from commit
