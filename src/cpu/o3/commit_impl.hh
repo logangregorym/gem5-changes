@@ -1314,7 +1314,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         }
     }
 
-    if ((uint64_t)cpu->thread[tid]->numInsts.value() % 1000000 == 0 &&
+    if ((uint64_t)cpu->thread[tid]->numInsts.value() % 100000 == 0 &&
             !head_inst->isNop() &&
             !head_inst->isInstPrefetch() &&
             head_inst->isLastMicroop()
@@ -1323,7 +1323,8 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
 
             std::cout <<
             "--------------------START OF EPOCH----------------------------" <<
-            std::endl << std::dec << cpu->thread[tid]->numInsts.value() <<
+            std::endl << std::dec << "NumOfInsts: " << cpu->thread[tid]->numInsts.value() <<
+            std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() << 
             std::endl;
     }
 

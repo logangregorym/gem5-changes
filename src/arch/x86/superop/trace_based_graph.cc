@@ -44,14 +44,14 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
 {
     /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
     for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
-        SpecTrace trace = it->second;
-        if (trace.state == SpecTrace::Invalid) {
+        //SpecTrace trace = it->second;
+        if (it->second.state == SpecTrace::Invalid) {
             continue;
         } 
         for (int i=0; i<4; i++) {
             /* Do we already consider this as a prediction source? */
-            if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uopAddr) &&
-                trace.source[i].value == value && trace.source[i].confidence >= 5) {
+            if (it->second.source[i].valid && it->second.source[i].addr == FullUopAddr(addr, uopAddr) &&
+                it->second.source[i].value == value && it->second.source[i].confidence >= 5) {
                 return;
             }
         }
