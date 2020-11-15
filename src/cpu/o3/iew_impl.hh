@@ -1951,7 +1951,7 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
         return;
     }
 
-
+    DPRINTF(LVP, "updateTraceConfidence:: Updating trace %d cofidence level!\n", traceID);
     if (!inst->lvMispred)
     {
         

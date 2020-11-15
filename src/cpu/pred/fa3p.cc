@@ -199,7 +199,6 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
         }
     }
 
-    assert(addressInfo);
 
     uint64_t responseVal = value;
 /**
