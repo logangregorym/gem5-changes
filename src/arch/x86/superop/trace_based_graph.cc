@@ -61,31 +61,39 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
     bool lowConfidence = false;
     int idx = (addr >> 5) & 0x1f;
     for (int way=0; way<8; way++) {
-        traceId = decoder->speculativeTraceIDArray[idx][way];
-        SpecTrace trace = traceMap[traceId];
-        for (int i=0; i<4; i++) {
-            /* Do we already consider this as a prediction source? */
-            if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uopAddr) && trace.source[i].value == value) {
-                if (trace.source[i].confidence < 5) {
-                    lowConfidence = true;
-                } else {
-                    return;
-                }
+        if (decoder->speculativeValidArray[idx][way])
+        {
+            traceId = decoder->speculativeTraceIDArray[idx][way];
+            assert(traceId);
+            assert(traceMap.find(traceId) != traceMap.end());
+            for (int i=0; i<4; i++) {
+                    /* Do we already consider this as a prediction source? */
+                    if (traceMap[traceId].source[i].valid && 
+                        traceMap[traceId].source[i].addr == FullUopAddr(addr, uopAddr) && 
+                        traceMap[traceId].source[i].value == value) {
+                        if (traceMap[traceId].source[i].confidence < 5) {
+                            lowConfidence = true;
+                        } else {
+                            return;
+                        }
+                    }
             }
         }
     }
 
     // if an already optimized trace has low confidence, it is time to phase it out
     if (traceId && !lowConfidence) {
-        SpecTrace trace = traceMap[traceId];
+        assert(traceMap.find(traceId) != traceMap.end());
         for (int i=0; i<4; i++) {
             /* Have we exhausted all prediction sources? If not, we can further compact this trace.    */
-            if (!trace.source[i].valid) {
+            if (!traceMap[traceId].source[i].valid) {
+                
+                //assert(0); // Haven't seen any reoptimize yet! 
                 SpecTrace newTrace;
                 newTrace.id = SpecTrace::traceIDCounter++;
                 for (int j=0; j<4; j++) {
-                    if (trace.source[j].valid) {
-                        newTrace.source[j] = trace.source[j];
+                    if (traceMap[traceId].source[j].valid) {
+                        newTrace.source[j] = traceMap[traceId].source[j];
                     }
                 }
                 newTrace.source[i].valid = true;
@@ -147,7 +155,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
     }
 }
 
-bool TraceBasedGraph::isPredictionSource(SpecTrace trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency) {
+bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency) {
     for (int i=0; i<4; i++) {
         if (trace.source[i].valid && trace.source[i].addr == addr) {
             value = trace.source[i].value;

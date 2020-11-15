@@ -1239,15 +1239,19 @@ Decoder::doSquash(Addr addr) {
     int idx = (addr >> 5) & 0x1f;
     for (int way = 0; way < 8; way++) {
         if (speculativeValidArray[idx][way] && speculativeAddrArray[idx][way][0].pcAddr == addr && speculativePrevWayArray[idx][way] == 10) {
-            SpecTrace trace = traceConstructor->traceMap[speculativeTraceIDArray[idx][way]];
+
+            assert(traceConstructor->traceMap.find(speculativeTraceIDArray[idx][way]) != traceConstructor->traceMap.end());
+
+            //SpecTrace trace = traceConstructor->traceMap[speculativeTraceIDArray[idx][way]];
             for (int i=0; i<4; i++) {
-                if (trace.source[i].valid && trace.source[i].addr.pcAddr == addr) {
-                    trace.source[i].confidence--;
+                if (traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].valid && 
+                    traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].addr.pcAddr == addr) {
+                    traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].confidence--;
                     return;
                 }
             }
             // we might have gotten squashed at the middle of the trace
-            trace.source[0].confidence--;
+            traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[0].confidence--;
         }
     }
 }
@@ -1290,6 +1294,7 @@ unsigned
 Decoder::minConfidence(unsigned traceId) {
     unsigned minConf = 50;
     for (int i = 0; i < 4; i++) {
+        assert(traceConstructor->traceMap.find(traceId) != traceConstructor->traceMap.end());
         if (traceConstructor->traceMap[traceId].source[i].valid) {
             unsigned sourceConf = traceConstructor->traceMap[traceId].source[i].confidence;
             if (sourceConf < minConf) { minConf = sourceConf; }
@@ -1306,6 +1311,7 @@ Decoder::maxLatency(unsigned traceId) {
     unsigned maxLat = 0;
     for (int i = 0; i < 4; i++) {
         if (traceConstructor->traceMap[traceId].source[i].valid) {
+            assert(traceConstructor->traceMap.find(traceId) != traceConstructor->traceMap.end());
             unsigned sourceLat = traceConstructor->traceMap[traceId].source[i].latency;
             if (sourceLat > maxLat) { maxLat = sourceLat; }
         }
