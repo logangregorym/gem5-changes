@@ -90,7 +90,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
                 
                 //assert(0); // Haven't seen any reoptimize yet! 
                 SpecTrace newTrace;
-                newTrace.id = SpecTrace::traceIDCounter++;
+                
                 for (int j=0; j<4; j++) {
                     if (traceMap[traceId].source[j].valid) {
                         newTrace.source[j] = traceMap[traceId].source[j];
@@ -104,12 +104,16 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
                 newTrace.state = SpecTrace::QueuedForReoptimization;
                 newTrace.reoptId = traceId;
 
-                int way;
-                for (way=0; way<8; way++) {
+                
+                for (int way=0; way<8; way++) {
                     for (int uop=0; uop<6; uop++) {
-                        if (decoder->speculativeValidArray[idx][way] && decoder->speculativeAddrArray[idx][way][uop].pcAddr == addr &&
-                            decoder->speculativeAddrArray[idx][way][uop].uopAddr == uopAddr && decoder->speculativeTraceIDArray[idx][way] == traceId) {
+                        if (decoder->speculativeValidArray[idx][way] && 
+                            decoder->speculativeAddrArray[idx][way][uop].pcAddr == addr &&
+                            decoder->speculativeAddrArray[idx][way][uop].uopAddr == uopAddr && 
+                            decoder->speculativeTraceIDArray[idx][way] == traceId) 
+                        {
                             newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
+                            newTrace.id = SpecTrace::traceIDCounter++;
                             traceMap[newTrace.id] = newTrace;
                             traceQueue.push(newTrace);
                             DPRINTF(SuperOp, "Queueing up new trace request %i to reoptimize trace %i at spec[%i][%i][%i]\n", newTrace.id, newTrace.reoptId, idx, way, uopAddr);
@@ -122,7 +126,10 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
     } else {
         for (int way=0; way<8; way++) {
             for (int uop=0; uop<6; uop++) {
-                if (decoder->uopValidArray[idx][way] && decoder->uopAddrArray[idx][way][uop].pcAddr == addr && decoder->uopAddrArray[idx][way][uop].uopAddr == uopAddr) {
+                if (decoder->uopValidArray[idx][way] && 
+                    decoder->uopAddrArray[idx][way][uop].pcAddr == addr && 
+                    decoder->uopAddrArray[idx][way][uop].uopAddr == uopAddr) 
+                {
                     SpecTrace newTrace;
                     newTrace.source[0].valid = true;
                     newTrace.source[0].addr = FullUopAddr(addr, uopAddr);
@@ -480,7 +487,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.inst = decodedMacroOp->fetchMicroop(decoder->speculativeAddrArray[idx][way][uop].uopAddr);
             currentTrace.inst->macroOp = decodedMacroOp;
         }
-        currentTrace.instAddr == decoder->speculativeAddrArray[idx][way][uop];
+        currentTrace.instAddr = decoder->speculativeAddrArray[idx][way][uop];
     }
     decodedMacroOp = NULL;
 

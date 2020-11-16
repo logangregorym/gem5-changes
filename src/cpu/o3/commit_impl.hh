@@ -1320,12 +1320,39 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             head_inst->isLastMicroop()
            )
     {
+            std::map<unsigned int,unsigned int> spec_count;
+            for (int idx = 0; idx < 32; idx++) {
+                for (int way = 0; way < 8; way++) {
+                    if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
+                        spec_count[cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way]] = 0;
+                    }
+                }
+            }
 
             std::cout <<
             "--------------------START OF EPOCH----------------------------" <<
             std::endl << std::dec << "NumOfInsts: " << cpu->thread[tid]->numInsts.value() <<
-            std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() << 
-            std::endl;
+            std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   
+		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << std::endl;        
+            for (int idx = 0; idx < 32; idx++){
+                for (int way = 0; way < 8; way++) {
+                    if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
+                        std::cout << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " ";
+                   }
+                    else if (cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] != 0)
+                    {
+                       std::cout << "((" << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << ")) ";
+                       assert(0);
+                    }
+                    else 
+                    {
+                        std::cout  << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " ";
+                        
+                    }
+                }
+                std::cout << std::endl;
+            }
+            std::cout << std::endl;  
     }
 
     DPRINTF(Commit, "Committing instruction with [sn:%lli] PC %s\n",
