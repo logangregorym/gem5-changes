@@ -1049,23 +1049,32 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     unsigned evictWay = 8;
     for (int way = 0; way < 8; way++) {
         // check if we are processing the trace for first time optimization -- write to way in progress
-        if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+        if ((traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+            traceConstructor->currentTrace.id != 0) && 
             (traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][way] ||
              traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
              traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) {
+            
+            DPRINTF(Decoder, "Can't evict becuase OptimizationInProcess: tag:%#x idx:%d way:%d. currentTrace.id: %d\n", tag, idx, way, traceConstructor->currentTrace.id);
             continue;
         }
         // check if we are processing the trace for re-optimization -- read from way in progress
-        if (traceConstructor->currentTrace.state == SpecTrace::ReoptimizationInProcess &&
+        if ((traceConstructor->currentTrace.state == SpecTrace::ReoptimizationInProcess && 
+            traceConstructor->currentTrace.reoptId != 0) && 
             (traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][way] ||
              traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
-             traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) {
+             traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) 
+        {
+            DPRINTF(Decoder, "Can't evict becuase ReoptimizationInProcess: tag:%#x idx:%d way:%d. currentTrace.reoptId: %d\n", tag, idx, way, traceConstructor->currentTrace.reoptId);
             continue;
         }
         // check if we are streaming the trace -- read from way in progress
-        if (traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][way] ||
+        if ((traceConstructor->streamTrace.id != 0) && 
+            (traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][way] ||
             traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
-            traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]]) {
+            traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) 
+        {
+            DPRINTF(Decoder, "Can't evict becuase we are streaming from this trace: tag:%#x idx:%d way:%d. streamTrace.id: %d\n", tag, idx, way, traceConstructor->streamTrace.id);
             continue;
         }
 
@@ -1076,16 +1085,22 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
             currentActiveTraceID == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
             currentActiveTraceID == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) 
         {
+            DPRINTF(Decoder, "Can't evict becuase we just activated streaming from this trace: tag:%#x idx:%d way:%d. currentActiveTraceID: %d\n", tag, idx, way, currentActiveTraceID);
             continue;
         }
 
         if (speculativeLRUArray[idx][way] < lruWay) {
+            DPRINTF(Decoder, "lruWay = %d,  speculativeLRUArray[%d][%d] = %d\n", lruWay, idx, way, speculativeLRUArray[idx][way]);
             lruWay = speculativeLRUArray[idx][way];
             evictWay = way;
         }
+        else 
+        {
+            DPRINTF(Decoder, "lruWay = %d,  speculativeLRUArray[%d][%d] = %d\n", lruWay, idx, way, speculativeLRUArray[idx][way]);
+        }
     }
     if (evictWay != 8) {
-        DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%#x way:%#x.\n Affected PCs:\n", tag, idx, evictWay);
+        DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%d way:%d.\n Affected PCs:\n", tag, idx, evictWay);
         /* Invalidate all prior content. */
         for (int w = 0; w < 8; w++) {
             if (speculativeValidArray[idx][w] &&
@@ -1098,7 +1113,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
                 speculativeCountArray[idx][w] = 0;
                 speculativePrevWayArray[idx][w] = 10;
                 speculativeNextWayArray[idx][w] = 10;
-                //speculativeTraceIDArray[idx][w] = 0;
+                speculativeTraceIDArray[idx][w] = 0;
                 StaticInstPtr macroOp = speculativeCache[idx][w][0]->macroOp;
                 if (macroOp) {
                     macroOp->deleteMicroOps();
@@ -1128,10 +1143,17 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
         
         DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, evictWay, u, addr, uop);
         updateLRUBitsSpeculative(idx, evictWay);        
-        DPRINTF(Decoder, "Evicting and allocating a way and  adding microop in the speculative cache: %#x tag:%#x idx:%#x way:%#x uop:%#x.\n", addr, tag, idx, evictWay, u);
+        DPRINTF(Decoder, "Evicting and allocating a way and  adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d.\n", addr, tag, idx, evictWay, u);
         return true;
     }
     DPRINTF(ConstProp, "Optimized trace could not be loaded into speculative cache because eviction failed\n");
+
+    // if we can't evict a way, we need to put the spec cache into a consistent state before inserting this trace
+    // Just invalid all the way's that this trace with TraceID has
+
+    // should we remove the trace from the trace queue too? 
+
+    // what is the policy in case of an eviction failure in general?
     return false;
 }
 

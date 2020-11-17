@@ -1319,7 +1319,8 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             !head_inst->isInstPrefetch() &&
             head_inst->isLastMicroop()
            )
-    {
+    {   
+            bool pass = true;
             std::map<unsigned int,unsigned int> spec_count;
             for (int idx = 0; idx < 32; idx++) {
                 for (int way = 0; way < 8; way++) {
@@ -1335,24 +1336,28 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   
 		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << std::endl;        
             for (int idx = 0; idx < 32; idx++){
+                std::cout << "Idx " << idx  << " : " ;
                 for (int way = 0; way < 8; way++) {
+                    
                     if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
+                        pass &= true; 
                         std::cout << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " ";
                    }
                     else if (cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] != 0)
                     {
                        std::cout << "((" << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << ")) ";
-                       assert(0);
+                       pass &= false; 
                     }
                     else 
                     {
                         std::cout  << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " ";
-                        
+                        pass &= true; 
                     }
                 }
                 std::cout << std::endl;
             }
             std::cout << std::endl;  
+            assert(pass);
     }
 
     DPRINTF(Commit, "Committing instruction with [sn:%lli] PC %s\n",
