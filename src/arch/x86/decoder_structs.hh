@@ -84,7 +84,7 @@ struct RegisterContext {
 struct SpecTrace
 {
     // Trace ID
-    unsigned id;
+    unsigned int id;
 
     // (idx, way, uop) of head of the trace
     FullCacheIdx head;
@@ -138,12 +138,14 @@ struct SpecTrace
     unsigned shrunkLength;
 
     // ID of the trace being re-optimized in case this is a re-optimization
-    unsigned reoptId;
+    unsigned int reoptId;
 
     // Counter to assign trace IDs
     static unsigned traceIDCounter;
 
     SpecTrace() {
+        id = 0;
+        reoptId = 0;
         state = Invalid;
         length = 0;
         shrunkLength = 0;

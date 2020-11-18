@@ -135,6 +135,7 @@ class Decoder
     StaticInstPtr speculativeCache[32][8][6];
     FullUopAddr speculativeAddrArray[32][8][6];
     uint64_t speculativeTagArray[32][8];
+    uint64_t speculativeEvictionStat[32][8];
     int speculativePrevWayArray[32][8];
     int speculativeNextWayArray[32][8];
     bool speculativeValidArray[32][8];

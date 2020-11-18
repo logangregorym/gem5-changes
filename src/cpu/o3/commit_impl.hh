@@ -49,6 +49,7 @@
 #include <string>
 
 #include "arch/utility.hh"
+#include "arch/x86/decoder_structs.hh"
 #include "base/loader/symtab.hh"
 #include "base/cp_annotate.hh"
 #include "config/the_isa.hh"
@@ -1314,7 +1315,8 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         }
     }
 
-    if ((uint64_t)cpu->thread[tid]->numInsts.value() % 100000 == 0 &&
+    if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
+        (uint64_t)cpu->thread[tid]->numInsts.value() % 100000 == 0 &&
             !head_inst->isNop() &&
             !head_inst->isInstPrefetch() &&
             head_inst->isLastMicroop()
@@ -1341,16 +1343,16 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
                     
                     if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
                         pass &= true; 
-                        std::cout << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " ";
+                        std::cout << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
                    }
                     else if (cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] != 0)
                     {
-                       std::cout << "((" << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << ")) ";
-                       pass &= false; 
+                        std::cout << "{" << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << "} (" << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
+                        pass &= false; 
                     }
                     else 
                     {
-                        std::cout  << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " ";
+                        std::cout  << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
                         pass &= true; 
                     }
                 }
@@ -1358,6 +1360,24 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             }
             std::cout << std::endl;  
             assert(pass);
+            
+            pass = true;
+            for (auto &it : cpu->fetch.decoder[tid]->traceConstructor->traceMap)
+            {
+                if (spec_count.find(it.first) == spec_count.end() && it.second.state == SpecTrace::Complete)
+                {   
+                    std::cout << "Can't find trace " << it.first << " in spec$ but it is present in trace map and its state is complete!\n";
+                    pass &= false;   
+                }
+                else if (spec_count.find(it.first) == spec_count.end() && it.second.state != SpecTrace::Complete)
+                {
+                    std::cout << "Can't find trace " << it.first << " in spec$ but it is present in trace map and its state is " << it.second.state << "\n";
+                    //pass &= false; 
+                }
+            }
+            assert(pass);
+            
+
     }
 
     DPRINTF(Commit, "Committing instruction with [sn:%lli] PC %s\n",

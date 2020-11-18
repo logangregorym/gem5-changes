@@ -86,6 +86,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
             speculativeNextWayArray[idx][way] = 10;
             specHotnessArray[idx][way] = BigSatCounter(4);
             speculativeTraceIDArray[idx][way] = 0;
+            speculativeEvictionStat[idx][way] = 0;
             for (int uop = 0; uop < 6; uop++) {
                 uopAddrArray[idx][way][uop] = FullUopAddr();
                 speculativeAddrArray[idx][way][uop] = FullUopAddr();
@@ -1102,10 +1103,15 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     if (evictWay != 8) {
         DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%d way:%d.\n Affected PCs:\n", tag, idx, evictWay);
         /* Invalidate all prior content. */
+        unsigned int evictedTraceID = speculativeTraceIDArray[idx][evictWay];
+        uint64_t     evcitedTag = speculativeTagArray[idx][evictWay];
+        assert(evictedTraceID); // never should be zero
+        assert(evcitedTag);
         for (int w = 0; w < 8; w++) {
             if (speculativeValidArray[idx][w] &&
-                speculativeTagArray[idx][w] == speculativeTagArray[idx][evictWay] &&
-                speculativeTraceIDArray[idx][w] == speculativeTraceIDArray[idx][evictWay]) {
+                speculativeTagArray[idx][w] == evcitedTag &&
+                speculativeTraceIDArray[idx][w] == evictedTraceID) 
+            {
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) {
                     DPRINTF(Decoder, "Trace %i: spec[%i][%i][%i] -- %#x:%i\n", speculativeTraceIDArray[idx][w], idx, w, uop, speculativeAddrArray[idx][w][uop].pcAddr, speculativeAddrArray[idx][w][uop].uopAddr);
                 }
@@ -1114,6 +1120,8 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
                 speculativePrevWayArray[idx][w] = 10;
                 speculativeNextWayArray[idx][w] = 10;
                 speculativeTraceIDArray[idx][w] = 0;
+                speculativeTagArray[idx][w] = 0;
+                speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
                 StaticInstPtr macroOp = speculativeCache[idx][w][0]->macroOp;
                 if (macroOp) {
                     macroOp->deleteMicroOps();
@@ -1121,7 +1129,10 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
                 }
             }
         }
-        traceConstructor->traceMap.erase(speculativeTraceIDArray[idx][evictWay]);
+        // trace map should always hold it
+        DPRINTF(Decoder, "Removing trace %d from Trace Map.  Tag :%#x\n", evictedTraceID, evcitedTag);
+        assert(traceConstructor->traceMap.find(evictedTraceID) != traceConstructor->traceMap.end());
+        traceConstructor->traceMap.erase(evictedTraceID);
         if (lastWay != -1) {
             /* Multi-way region. */
             speculativeNextWayArray[idx][lastWay] = evictWay;
