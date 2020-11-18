@@ -413,7 +413,7 @@ class DefaultFetch
     LVPredUnit *loadPred;
 
     // For Trace-Based Implementation, need to track trace ID across cycles
-    unsigned currentTraceID = 0;
+    unsigned int currentTraceID = 0;
 
   private:
     bool usingTrace = false;

@@ -131,9 +131,11 @@ class Decoder
     bool redirectDueToLVPSquashing;
     bool isSpeculativeCachePresent;
     bool speculativeCacheActive;
+    unsigned int currentActiveTraceID;
     StaticInstPtr speculativeCache[32][8][6];
     FullUopAddr speculativeAddrArray[32][8][6];
     uint64_t speculativeTagArray[32][8];
+    uint64_t speculativeEvictionStat[32][8];
     int speculativePrevWayArray[32][8];
     int speculativeNextWayArray[32][8];
     bool speculativeValidArray[32][8];
@@ -431,10 +433,11 @@ protected:
     void updateLRUBitsSpeculative(int idx, int way);
 
     //*****CHANGE START**********
-    void setSpeculativeCacheActive(bool active)
+    void setSpeculativeCacheActive(bool active, unsigned int _currentTraceID = 0)
     {
+
         speculativeCacheActive = active;
-        //if (!active) { instDone = false; state = ResetState; }
+        currentActiveTraceID = _currentTraceID;
     }
     //*****CHANGE END**********
     void setSpeculativeCachePresent(bool present)

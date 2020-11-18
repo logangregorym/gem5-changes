@@ -40,7 +40,7 @@ class TraceBasedGraph : public SimObject
 
     bool updateSpecTrace(SpecTrace &trace, bool& isDeadCode, bool propagated);
 
-    bool isPredictionSource(SpecTrace trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency);
+    bool isPredictionSource(SpecTrace& trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency);
 
     bool generateNextTraceInst();
 

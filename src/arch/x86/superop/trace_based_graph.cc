@@ -44,48 +44,67 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
 {
     /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
     for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
-        SpecTrace trace = it->second;
-        if (trace.state == SpecTrace::Invalid) {
+        //SpecTrace trace = it->second;
+        if (it->second.state == SpecTrace::Invalid) {
+            assert(0);
             continue;
         } 
         for (int i=0; i<4; i++) {
             /* Do we already consider this as a prediction source? */
-            if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uopAddr) &&
-                trace.source[i].value == value && trace.source[i].confidence >= 5) {
-                return;
+            if (it->second.source[i].valid && 
+                it->second.source[i].addr == FullUopAddr(addr, uopAddr) &&
+                it->second.source[i].value == value) 
+            {
+                DPRINTF(SuperOp, "Trace Map already holds a trace for this prediction source! addr = %#x uopAddr = %d  value = %#x  confidence = %d\n", 
+                                  addr, uopAddr, it->second.source[i].value, it->second.source[i].confidence);
+                
+                if (it->second.source[i].confidence >= 5)   
+                    return;
             }
         }
     }
 
-    unsigned traceId = 0; 
+    unsigned int traceId = 0; 
     bool lowConfidence = false;
     int idx = (addr >> 5) & 0x1f;
     for (int way=0; way<8; way++) {
-        traceId = decoder->speculativeTraceIDArray[idx][way];
-        SpecTrace trace = traceMap[traceId];
-        for (int i=0; i<4; i++) {
-            /* Do we already consider this as a prediction source? */
-            if (trace.source[i].valid && trace.source[i].addr == FullUopAddr(addr, uopAddr) && trace.source[i].value == value) {
-                if (trace.source[i].confidence < 5) {
-                    lowConfidence = true;
-                } else {
-                    return;
-                }
+        if (decoder->speculativeValidArray[idx][way])
+        {
+            traceId = decoder->speculativeTraceIDArray[idx][way];
+            assert(traceId);
+            assert(traceMap.find(traceId) != traceMap.end());
+            for (int i=0; i<4; i++) {
+                    /* Do we already consider this as a prediction source? */
+                    if (traceMap[traceId].source[i].valid && 
+                        traceMap[traceId].source[i].addr == FullUopAddr(addr, uopAddr) && 
+                        traceMap[traceId].source[i].value == value) 
+                    {
+                        DPRINTF(SuperOp, "Speculative Cache already holds a trace for this prediction source! addr = %#x uopAddr = %d value = %#x  confidence = %d\n", 
+                                        addr, uopAddr, traceMap[traceId].source[i].value, traceMap[traceId].source[i].confidence);
+
+                        if (traceMap[traceId].source[i].confidence < 5) {
+                            lowConfidence = true;
+                        } else {
+                            return;
+                        }
+                    }
             }
         }
     }
 
     // if an already optimized trace has low confidence, it is time to phase it out
     if (traceId && !lowConfidence) {
-        SpecTrace trace = traceMap[traceId];
+        assert(traceMap.find(traceId) != traceMap.end());
         for (int i=0; i<4; i++) {
             /* Have we exhausted all prediction sources? If not, we can further compact this trace.    */
-            if (!trace.source[i].valid) {
+            if (!traceMap[traceId].source[i].valid) {
+                
+                //assert(0); // Haven't seen any reoptimize yet! 
                 SpecTrace newTrace;
-                newTrace.id = SpecTrace::traceIDCounter++;
+                
                 for (int j=0; j<4; j++) {
-                    if (trace.source[j].valid) {
-                        newTrace.source[j] = trace.source[j];
+                    if (traceMap[traceId].source[j].valid) {
+                        newTrace.source[j] = traceMap[traceId].source[j];
                     }
                 }
                 newTrace.source[i].valid = true;
@@ -96,12 +115,24 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
                 newTrace.state = SpecTrace::QueuedForReoptimization;
                 newTrace.reoptId = traceId;
 
-                int way;
-                for (way=0; way<8; way++) {
+                
+                for (int way=0; way<8; way++) {
                     for (int uop=0; uop<6; uop++) {
-                        if (decoder->speculativeValidArray[idx][way] && decoder->speculativeAddrArray[idx][way][uop].pcAddr == addr &&
-                            decoder->speculativeAddrArray[idx][way][uop].uopAddr == uopAddr && decoder->speculativeTraceIDArray[idx][way] == traceId) {
+                        if (decoder->speculativeValidArray[idx][way] && 
+                            decoder->speculativeAddrArray[idx][way][uop].pcAddr == addr &&
+                            decoder->speculativeAddrArray[idx][way][uop].uopAddr == uopAddr && 
+                            decoder->speculativeTraceIDArray[idx][way] == traceId) 
+                        {
+
+                            unsigned length = computeLength(newTrace);
+                            if ( length < 4) { // TODO: revisit: pretty low bar
+                                DPRINTF(SuperOp, "Rejecting trace request to re-optimize trace at uop[%i][%i][%i]\n", idx, way, uop);
+                                DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
+                                DPRINTF(SuperOp, "length=%i\n", length);
+                                return;
+                            }
                             newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
+                            newTrace.id = SpecTrace::traceIDCounter++;
                             traceMap[newTrace.id] = newTrace;
                             traceQueue.push(newTrace);
                             DPRINTF(SuperOp, "Queueing up new trace request %i to reoptimize trace %i at spec[%i][%i][%i]\n", newTrace.id, newTrace.reoptId, idx, way, uopAddr);
@@ -114,7 +145,10 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
     } else {
         for (int way=0; way<8; way++) {
             for (int uop=0; uop<6; uop++) {
-                if (decoder->uopValidArray[idx][way] && decoder->uopAddrArray[idx][way][uop].pcAddr == addr && decoder->uopAddrArray[idx][way][uop].uopAddr == uopAddr) {
+                if (decoder->uopValidArray[idx][way] && 
+                    decoder->uopAddrArray[idx][way][uop].pcAddr == addr && 
+                    decoder->uopAddrArray[idx][way][uop].uopAddr == uopAddr) 
+                {
                     SpecTrace newTrace;
                     newTrace.source[0].valid = true;
                     newTrace.source[0].addr = FullUopAddr(addr, uopAddr);
@@ -147,7 +181,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
     }
 }
 
-bool TraceBasedGraph::isPredictionSource(SpecTrace trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency) {
+bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency) {
     for (int i=0; i<4; i++) {
         if (trace.source[i].valid && trace.source[i].addr == addr) {
             value = trace.source[i].value;
@@ -402,6 +436,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         do {
             if (traceQueue.empty()) {
                 currentTrace.addr.valid = false;
+                currentTrace.id = 0;
                 return false; 
             }
 
@@ -409,13 +444,25 @@ bool TraceBasedGraph::generateNextTraceInst() {
             traceQueue.pop();
             tracesPoppedFromQueue++;
 
+            assert(currentTrace.id);
+
             int idx = currentTrace.addr.idx;
             int way = currentTrace.addr.way;
             if (!(currentTrace.state == SpecTrace::QueuedForFirstTimeOptimization && decoder->uopValidArray[idx][way]) &&
-                !(currentTrace.state == SpecTrace::QueuedForReoptimization && decoder->speculativeValidArray[idx][way])) {
+                !(currentTrace.state == SpecTrace::QueuedForReoptimization && decoder->speculativeValidArray[idx][way])) 
+            {
                 DPRINTF(SuperOp, "Trace %i at (%i,%i,%i) evicted before we could process it.\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
+                
+
+                // remove it from traceMap
+                DPRINTF(Decoder, "Removing traceID: %d (reoptID: %d) from Trace Map because of eviction!.\n", currentTrace.id, currentTrace.reoptId );
+                assert(traceMap.find(currentTrace.id) != traceMap.end());
+                traceMap.erase(currentTrace.id);
+
+                currentTrace.id = 0;
+                
             }
         } while (!currentTrace.addr.valid);
 
@@ -483,7 +530,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.inst = decodedMacroOp->fetchMicroop(decoder->speculativeAddrArray[idx][way][uop].uopAddr);
             currentTrace.inst->macroOp = decodedMacroOp;
         }
-        currentTrace.instAddr == decoder->speculativeAddrArray[idx][way][uop];
+        currentTrace.instAddr = decoder->speculativeAddrArray[idx][way][uop];
     }
     decodedMacroOp = NULL;
 
