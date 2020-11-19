@@ -221,7 +221,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
     CPUClass.usingTrace = options.usingTrace
     CPUClass.traceConstructor.usingControlTracking = options.usingControlTracking
-    CPUClass.traceConstructor.usingControlTracking = options.usingCCTracking
+    CPUClass.traceConstructor.usingCCTracking = options.usingCCTracking
     CPUClass.checkpoint_at_instr = options.checkpoint_at_instr
     CPUClass.after_exec_cnt = options.after_exec_cnt
 
@@ -254,7 +254,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.maxDependencyRecursion = options.maxDependencyRecursion
     FutureClass.usingTrace = options.usingTrace
     FutureClass.traceConstructor.usingControlTracking = options.usingControlTracking
-    FutureClass.traceConstructor.usingControlTracking = options.usingCCTracking
+    FutureClass.traceConstructor.usingCCTracking = options.usingCCTracking
     FutureClass.numThreads = numThreads
     FutureClass.branchPred.numThreads = numThreads
     FutureClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize

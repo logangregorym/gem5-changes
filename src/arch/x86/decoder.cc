@@ -1374,7 +1374,7 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
         
 
         traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
-        DPRINTF(Decoder, "Trace %d ought to be triggered:\n", traceConstructor->streamTrace.id);
+        DPRINTF(Decoder, "Trace %d ought to be triggered with shrinkage %d:\n", traceConstructor->streamTrace.id, (traceConstructor->streamTrace.length - traceConstructor->streamTrace.shrunkLength));
         traceConstructor->dumpTrace(traceConstructor->streamTrace);
 
         int _idx = traceConstructor->streamTrace.addr.idx;

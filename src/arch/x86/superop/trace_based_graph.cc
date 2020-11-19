@@ -865,7 +865,7 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
     // let's not do anything for Limm and Only propagate LimmBig
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
 
@@ -900,7 +900,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     
 
     // Add (dataSize == 1 || dataSize == 2) has 3 sources and AddBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if (inst->numSrcRegs() != 2) return false;
+    //if (inst->numSrcRegs() != 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -914,7 +914,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
     
 
@@ -994,7 +994,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     assert(type == "sub");
     
     // Sub (dataSize == 1 || dataSize == 2) has 3 sources and SubBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() != 2) return false;
+    //if(inst->numSrcRegs() != 2) return false;
 
     // Subb and SubbBig are both inhereted from RegOp
     // For both src 0 and src 1 are the source operands
@@ -1002,7 +1002,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1087,7 +1087,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     
 
     // And (dataSize == 1 || dataSize == 2) has 3 sources and AndBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() != 2) return false;
+    //if(inst->numSrcRegs() != 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1101,7 +1101,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
@@ -1181,7 +1181,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     assert(type == "or");
     
     // Or (dataSize == 1 || dataSize == 2) has 3 sources and OrBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() != 2) return false;
+    //if(inst->numSrcRegs() != 2) return false;
     
     if (!usingCCTracking && inst->isCC())
     {
@@ -1195,7 +1195,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
 
@@ -1275,7 +1275,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     assert(type == "xor");
     
     // Xor (dataSize == 1 || dataSize == 2) has 3 sources and XorBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() != 2) return false;
+    //if(inst->numSrcRegs() != 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1289,13 +1289,14 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if (src1 == src2) {
+        DPRINTF(ConstProp, "NOP: (src1:%d == src2:%d)\n", src1, src2);
         regCtx[src1].value = regCtx[src2].value = 0;
         regCtx[src1].valid = regCtx[src2].valid = true;
     }
@@ -1418,7 +1419,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     
     
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    //if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1431,7 +1432,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
@@ -1510,7 +1511,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     assert(type == "addi");
     
     // AddImm (dataSize == 1 || dataSize == 2) has 2 sources and AddImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    //if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1523,7 +1524,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
 
@@ -1604,7 +1605,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     assert(type == "andi");
     
     // AndImm (dataSize == 1 || dataSize == 2) has 2 sources and AndImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    //if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1617,7 +1618,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
 
@@ -1699,7 +1700,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     assert(type == "ori");
     
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() != 1) return false;
+    //if (inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1712,7 +1713,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
 
@@ -1794,7 +1795,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     assert(type == "xori");
     
     // XorImm (dataSize == 1 || dataSize == 2) has 2 sources and XorImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    //if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1807,7 +1808,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
 
@@ -1889,7 +1890,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     assert(type == "slli");
     
     // SllImm (dataSize == 1 || dataSize == 2) has 2 sources and SllImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() != 1) return false;
+    //if (inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1902,7 +1903,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
@@ -2000,7 +2001,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     assert(type == "srli");
     
     // SrlImm (dataSize == 1 || dataSize == 2) has 2 sources and SrlImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() != 1) return false;
+    //if (inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2013,7 +2014,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
 
@@ -2110,7 +2111,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     assert(type == "sexti");
     
     // SextImm (dataSize == 1 || dataSize == 2) has 2 sources and SextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    //if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2123,7 +2124,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
@@ -2211,7 +2212,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     assert(type == "zexti");
 
     // ZextImm (dataSize == 1 || dataSize == 2) has 2 sources and ZextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    //if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2224,7 +2225,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
 
 
@@ -2284,7 +2285,7 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -2354,7 +2355,7 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    assert(dataSize >= 4);
+    if (dataSize < 4) return false;
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
