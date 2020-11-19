@@ -148,6 +148,8 @@ parser.add_option("--connectionCount", default=4096, type="int", action="store",
 parser.add_option("--branchConfidenceCounterSize", default=2, type="int", action="store", help="Size of the branch confidence counters in bits.")
 parser.add_option("--branchConfidenceThreshold", default=3, type="int", action="store", help="Minimum confidence needed to do LVP across a branch.")
 parser.add_option("--doStoragelessBranchConf", action="store_true", help="Whether to use storageless TAGE confidence (Seznec 2010).")
+parser.add_option("--checkpoint_at_instr", default=0, type="int", action="store", help="");
+parser.add_option("--after_exec_cnt", default=0, type="int", action="store", help="");
 
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
@@ -193,6 +195,9 @@ else:
 
 (CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(options)
 
+
+
+
 if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.enable_microop_cache = options.enable_microop_cache
     CPUClass.enable_micro_fusion = options.enable_micro_fusion
@@ -215,12 +220,15 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
     CPUClass.usingTrace = options.usingTrace
     CPUClass.traceConstructor.usingControlTracking = options.usingControlTracking
+    CPUClass.checkpoint_at_instr = options.checkpoint_at_instr
+    CPUClass.after_exec_cnt = options.after_exec_cnt
 
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
 CPUClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize
 CPUClass.branchPred.branchConfidenceThreshold = options.branchConfidenceThreshold
 CPUClass.branchPred.doStoragelessBranchConf = options.doStoragelessBranchConf
+
 
 if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.enable_microop_cache = options.enable_microop_cache
@@ -249,6 +257,8 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize
     FutureClass.branchPred.branchConfidenceThreshold = options.branchConfidenceThreshold
     FutureClass.branchPred.doStoragelessBranchConf = options.doStoragelessBranchConf
+    FutureClass.after_exec_cnt = options.after_exec_cnt
+    FutureClass.checkpoint_at_instr = options.checkpoint_at_instr
 
 # Check -- do not allow SMT with multiple CPUs
 if options.smt and options.num_cpus > 1:

@@ -146,6 +146,9 @@ DefaultCommit<Impl>::DefaultCommit(O3CPU *_cpu, DerivO3CPUParams *params)
         squashAfterInst[tid] = NULL;
     }
     interrupt = NoFault;
+
+    checkpointAtInstr = params->checkpoint_at_instr;
+    afterExecCnt = params->after_exec_cnt;
 }
 
 template <class Impl>
@@ -310,6 +313,12 @@ DefaultCommit<Impl>::regStats()
         .desc("Percent of committed instructions that are reducable (with opsCommitted)")
         ;
     reducableCommitPercent2 = (reducableCommitted / opsCommitted) * 100;
+
+    exec_cnt
+        .name(name() + ".progress")
+        .desc("Progress counter")
+        ;
+
 }
 
 template <class Impl>
@@ -1314,6 +1323,25 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             }
         }
     }
+
+
+    Addr cur_pc = head_inst->pcState().instAddr();
+
+    if ((uint64_t)cpu->thread[tid]->numInsts.value() >= 99999990 && 
+        (uint64_t)cpu->thread[tid]->numInsts.value() <= 100000000)
+    {
+        std::cout << "Inst: " << (uint64_t)cpu->thread[tid]->numInsts.value() << "PC: " << cur_pc << std::endl << std::flush;
+    }
+
+    if (checkpointAtInstr == cur_pc &&
+        (!head_inst->isMicroop() || head_inst->pcState().microPC() == 0)) {
+        exec_cnt++;
+        //cout << exec_cnt << ":" << head_inst->seqNum << ":" << checkpointAtBB << ":" << afterExecCnt << "\n";
+        if ((uint64_t)exec_cnt.value() == afterExecCnt && afterExecCnt != 0) {
+            exitSimLoop("simpoint reached", 0);
+        }
+    }
+
 
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->thread[tid]->numInsts.value() % 100000 == 0 &&
