@@ -136,6 +136,10 @@ class DefaultCommit
     /** Commit policy used in SMT mode. */
     CommitPolicy commitPolicy;
 
+    uint64_t checkpointAtInstr;
+    uint64_t afterExecCnt;
+
+
     /** Probe Points. */
     ProbePointArg<DynInstPtr> *ppCommit;
     ProbePointArg<DynInstPtr> *ppCommitStall;
@@ -529,6 +533,8 @@ class DefaultCommit
     Stats::Formula reducableCommitPercent1;
     /** Percentage of instructions committed that are reducable. */
     Stats::Formula reducableCommitPercent2;
+
+    Stats::Scalar exec_cnt;
 };
 
 #endif // __CPU_O3_COMMIT_HH__

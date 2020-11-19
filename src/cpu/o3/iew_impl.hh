@@ -1508,7 +1508,7 @@ DefaultIEW<Impl>::executeInsts()
 
                 // update LVP for every instruction 
                 string opcode = inst->getName();
-                if (opcode != "limm" && opcode != "movi" && (!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
+                if ((!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
                     inst->memoryAccessStartCycle = cpu->numCycles.value();
                     inst->memoryAccessEndCycle = cpu->numCycles.value();
                     DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
@@ -1975,28 +1975,28 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
 
 
     }
-    // else 
-    // {
+    else 
+    {
         
-    //     bool updated = false;
-    //     // We just update the confidence in trace because Decoder::isTraceAvaible() is going to use this confidence value
-    //     for (int i=0; i<4; i++) {
-    //         if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].valid && 
-    //             cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].addr.pcAddr == addr) 
-    //         {
-    //             // Is there a limit on confidence? I'm assuming 0.
-    //             if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence > 0) 
-    //                 cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence--;
+        bool updated = false;
+        // We just update the confidence in trace because Decoder::isTraceAvaible() is going to use this confidence value
+        for (int i=0; i<4; i++) {
+            if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].valid && 
+                cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].addr.pcAddr == addr) 
+            {
+                // Is there a limit on confidence? I'm assuming 0.
+                // if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence > 0) 
+                //     cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence--;
                 
-    //             DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction! Decreasing trace %d confidence! Confidence level is %d\n", traceID, 
-    //                     cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence);
-    //             updated = true;
-    //         }
-    //     }
+                DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction! Decreasing trace %d confidence! Confidence level is %d\n", traceID, 
+                        cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence);
+                updated = true;
+            }
+        }
         
-    //     assert(updated);
+        assert(updated);
 
-    // }
+    }
 
 
 }

@@ -1354,14 +1354,19 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     if (!instruction->isStore() && instruction->isInteger() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
         for (int i = 0; i < instruction->numDestRegs(); i++) {
             RegId destReg = instruction->destRegIdx(i);
-            if (destReg.classValue() == IntRegClass) {
+            if (destReg.classValue() == IntRegClass && destReg.index() != 4) { // exclude stack and FP operations
                 valuePredictable = true;
                 break;
             }
         }
     }
-    valuePredictable  = valuePredictable && staticInst->getName() != "limm" && staticInst->getName() != "movi"; 
-    if (valuePredictable && !staticInst->isStreamedFromSpeculativeCache()) { // don't check against new prediction is the instruction is part of a spec trace
+    //valuePredictable  = valuePredictable && staticInst->getName() != "limm" && staticInst->getName() != "movi"; 
+    uint64_t value;
+    unsigned confidence, latency;
+    if (valuePredictable && 
+        !(staticInst->isStreamedFromSpeculativeCache() &&
+          decoder[tid]->traceConstructor->isPredictionSource(decoder[tid]->traceConstructor->traceMap[currentTraceID], FullUopAddr(thisPC.instAddr(), thisPC.upc()), value, confidence, latency))) {
+        // don't check against new prediction is the instruction is part of a spec trace
         if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
             DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);
             instruction->cycleFetched = cpu->numCycles.value();
@@ -1514,7 +1519,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         //*****CHANGE START**********
         // check the speculative cache even before the microop cache
         if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive()) {
-            currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr());
+            LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+            currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), ret.predictedValue, ret.confidence);
             if (currentTraceID != 0 && decoder[tid]->redirectDueToLVPSquashing) {
                 DPRINTF(Fetch, "A trace is available but due to a previous LVP missprediction squash we can't fetch from spec$! Available TraceID is %i.\n", currentTraceID);
             }
@@ -2096,7 +2102,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 if (newMacro)
                 {
                     if (isSuperOptimizationPresent) {
-                        currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr());
+                        LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+                        currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), ret.predictedValue, ret.confidence);
                     }
                     if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
                     {

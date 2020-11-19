@@ -109,7 +109,16 @@ namespace X86ISA
                 uint8_t scale, RegIndex index, RegIndex base,
                 uint64_t disp, uint8_t addressSize, bool rip) const;
 
+        virtual uint16_t getExt() { panic("getExt() should only be called by a RegOpImm, called by X86StaticInst"); } 
+        virtual uint64_t genFlags(uint64_t oldFlags, uint64_t flagMask,
+                uint64_t _dest, uint64_t _src1, uint64_t _src2,
+                bool subtract = false) const {
+                panic("genFlags() should only be called by a RegOp, called by X86MicroopBase");
+        }
         virtual uint64_t getImmediate() { panic("getImmediate() should only be called by a RegOpImm, called by X86StaticInst"); }
+        virtual bool checkCondition(uint64_t flags, int condition) const {
+                panic("checkCondition() should only be called by X86MicroopBase");
+        }
         
         public:
         inline uint64_t merge(uint64_t into, uint64_t val, int size) const

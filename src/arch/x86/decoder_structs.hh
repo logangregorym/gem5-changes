@@ -86,6 +86,9 @@ struct SpecTrace
     // Trace ID
     unsigned int id;
 
+    // address of the head of the trace
+    FullUopAddr headAddr;
+
     // (idx, way, uop) of head of the trace
     FullCacheIdx head;
 

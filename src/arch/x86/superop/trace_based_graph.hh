@@ -35,6 +35,7 @@ class TraceBasedGraph : public SimObject
     X86ISA::Decoder* decoder;
 
     bool usingControlTracking = false;
+    bool usingCCTracking = false;
 
     void predictValue(Addr addr, unsigned uopAddr, int64_t value, unsigned confidence, unsigned latency);
 
@@ -59,6 +60,14 @@ class TraceBasedGraph : public SimObject
     // Register context block of the trace being optimized
     RegisterContext regCtx[38]; // 38 integer registers including implicit ones
 
+    // Condition codes
+    uint64_t PredccFlagBits;
+    uint64_t PredcfofBits;
+    uint64_t PreddfBit;
+    uint64_t PredecfBit;
+    uint64_t PredezfBit;
+    bool ccValid;
+
     BPredUnit* branchPred;
 
     // Propagation Functions
@@ -80,6 +89,8 @@ class TraceBasedGraph : public SimObject
     bool propagateSrlI(StaticInstPtr inst);
     bool propagateSExtI(StaticInstPtr inst);
     bool propagateZExtI(StaticInstPtr inst);
+    bool propagateWrip(StaticInstPtr inst);
+    bool propagateWripI(StaticInstPtr inst);
     
     // dump trace for debugging
     void dumpTrace(SpecTrace trace);

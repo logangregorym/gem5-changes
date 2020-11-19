@@ -111,6 +111,16 @@ namespace X86ISA
             }
         }
 
+        virtual uint16_t getExt() {
+                printf("Inst is %s.%s\n", instMnem, mnemonic);
+                panic("getExt() should only be called by a RegOp, called by X86MicroopBase");
+        } 
+        virtual uint64_t genFlags(uint64_t oldFlags, uint64_t flagMask,
+                uint64_t _dest, uint64_t _src1, uint64_t _src2,
+                bool subtract = false) const {
+                panic("genFlags() should only be called by a RegOp, called by X86MicroopBase");
+        }
+
         std::string generateDisassembly(Addr pc,
                 const SymbolTable *symtab) const
         {

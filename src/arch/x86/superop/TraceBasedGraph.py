@@ -6,4 +6,5 @@ class TraceBasedGraph(SimObject):
         cxx_class = 'TraceBasedGraph'
         cxx_header = 'arch/x86/superop/trace_based_graph.hh'
         usingControlTracking = Param.Bool(0, "Tracking control dependencies to optimize across?");
+        usingCCTracking = Param.Bool(0, "Tracking condition codes?");
         connectionCount = Param.Unsigned(4096, "Number of connections to track at a time")
