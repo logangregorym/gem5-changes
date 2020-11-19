@@ -174,6 +174,9 @@ class DerivO3CPU(BaseCPU):
     maxDependencyRecursion = Param.Unsigned(15, "How deep to recurse when counting dependencies")
     usingTrace = Param.Bool(False, "Whether to stream the optimized trace")
 
+    checkpoint_at_instr = Param.UInt64(0, "checkpoint at Instruction")
+    after_exec_cnt = Param.UInt64(0, "checkpoint at Instruction")
+
     def addCheckerCpu(self):
         if buildEnv['TARGET_ISA'] in ['arm']:
             from ArmTLB import ArmTLB
