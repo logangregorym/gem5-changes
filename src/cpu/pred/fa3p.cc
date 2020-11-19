@@ -180,7 +180,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
 
     // don't predict for these types TODO: add more types gradually
     assert(!inst->isStore());
-    assert(inst->getName() != "limm" && inst->getName() != "movi");
+//    assert(inst->getName() != "limm" && inst->getName() != "movi");
 	
 
     DPRINTF(LVP, "Inst %s called processPacketRecieved\n", inst->disassemble(pc.instAddr()));

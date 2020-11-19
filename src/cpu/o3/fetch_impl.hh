@@ -1354,13 +1354,13 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     if (!instruction->isStore() && instruction->isInteger() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
         for (int i = 0; i < instruction->numDestRegs(); i++) {
             RegId destReg = instruction->destRegIdx(i);
-            if (destReg.classValue() == IntRegClass) {
+            if (destReg.classValue() == IntRegClass && destReg.index() != 4) { // exclude stack and FP operations
                 valuePredictable = true;
                 break;
             }
         }
     }
-    valuePredictable  = valuePredictable && staticInst->getName() != "limm" && staticInst->getName() != "movi"; 
+    //valuePredictable  = valuePredictable && staticInst->getName() != "limm" && staticInst->getName() != "movi"; 
     if (valuePredictable && !staticInst->isStreamedFromSpeculativeCache()) { // don't check against new prediction is the instruction is part of a spec trace
         if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
             DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);

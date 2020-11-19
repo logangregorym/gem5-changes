@@ -1508,7 +1508,7 @@ DefaultIEW<Impl>::executeInsts()
 
                 // update LVP for every instruction 
                 string opcode = inst->getName();
-                if (opcode != "limm" && opcode != "movi" && (!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
+                if ((!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
                     inst->memoryAccessStartCycle = cpu->numCycles.value();
                     inst->memoryAccessEndCycle = cpu->numCycles.value();
                     DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);

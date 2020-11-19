@@ -42,6 +42,7 @@ void TraceBasedGraph::regStats()
 
 void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, unsigned confidence, unsigned latency)
 {
+    DPRINTF(SuperOp, "predictValue: addr=%#x:%x value=%#x confidence=%d latency=%d\n", addr, uopAddr, value, confidence, latency);
     /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
     for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
         //SpecTrace trace = it->second;
@@ -93,7 +94,8 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
     }
 
     // if an already optimized trace has low confidence, it is time to phase it out
-    if (traceId && !lowConfidence) {
+    if (traceId && lowConfidence) {
+        DPRINTF(SuperOp, "Trace %i exists for this prediction source! addr = %#x uopAddr = %d\n", traceId, addr, uopAddr);
         assert(traceMap.find(traceId) != traceMap.end());
         for (int i=0; i<4; i++) {
             /* Have we exhausted all prediction sources? If not, we can further compact this trace.    */
@@ -144,7 +146,8 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
         }
     } else {
         for (int way=0; way<8; way++) {
-            for (int uop=0; uop<6; uop++) {
+            DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", idx, way, decoder->uopCountArray[idx][way]);
+            for (int uop=0; uop<decoder->uopCountArray[idx][way]; uop++) {
                 if (decoder->uopValidArray[idx][way] && 
                     decoder->uopAddrArray[idx][way][uop].pcAddr == addr && 
                     decoder->uopAddrArray[idx][way][uop].uopAddr == uopAddr) 
