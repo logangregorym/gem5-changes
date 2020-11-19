@@ -181,6 +181,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
                     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
                     newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
                     newTrace.headAddr = FullUopAddr(addr, uopAddr);
+                    newTrace.instAddr = FullUopAddr(0, 0);
 
                     // before adding it to the queue, check if profitable -- we prefer long hot traces
                     unsigned hotness = decoder->uopHotnessArray[idx][way].read();
@@ -253,20 +254,18 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     // if it is a direct call or a jump, fold the branch (provided it is predicted taken)
     Addr target = pcAddr + decodedMacroOp->machInst.instSize;
     if (std::string(decodedMicroOp->instMnem) == "CALL_NEAR_I" || std::string(decodedMicroOp->instMnem) == "JMP_I" || decodedMicroOp->isCondCtrl()) {
-        target += decodedMacroOp->machInst.immediate;
+        target = pcAddr + decodedMacroOp->machInst.instSize + decodedMacroOp->machInst.immediate;
     } 
 
     // not a taken branch -- advance normally
     void *bpHistory = NULL;
     bool predTaken = branchPred->lookup(0, pcAddr, bpHistory);
     if (!(std::string(decodedMicroOp->instMnem) == "CALL_NEAR_I" || std::string(decodedMicroOp->instMnem) == "JMP_I") && !predTaken) {
-        if (decodedMacroOp->isMacroop()) { 
-			decodedMacroOp->deleteMicroOps();
-			decodedMacroOp = NULL;
-		}
-        branchPred->squash(0, bpHistory); // assuming tid = 0 
-        return false;
+        target = pcAddr + decodedMacroOp->machInst.instSize;
     }
+
+    // delete history to prevent memory leak
+    branchPred->squash(0, bpHistory);
 
     // indirect branch -- lookup indirect predictor
     if (decodedMacroOp->machInst.opcode.op == 0xFF) {
@@ -413,13 +412,32 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
                 currentTrace.prevNonEliminatedInst->setEndOfTrace();
                 
-                if (!currentTrace.inst->isControl()) { // control instructions already propagate live outs
+                if (!currentTrace.prevNonEliminatedInst->isControl()) { // control prevNonEliminatedInstructions already propagate live outs
                     for (int i=0; i<16; i++) { // 16 int registers
                         if (regCtx[i].valid && !regCtx[i].source) {
-                            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
-                            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
-                            currentTrace.inst->addDestReg(RegId(IntRegClass, i));
+                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
+                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
+                            currentTrace.prevNonEliminatedInst->_numIntDestRegs++;
                         }
+                    }
+                    if (ccValid) {
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredccFlagBits;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredcfofBits;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PreddfBit;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_DF));
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredecfBit;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ECF));
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredezfBit;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_EZF));
+                        currentTrace.prevNonEliminatedInst->_numCCDestRegs += 5;
                     }
                 }
                 currentTrace.addr = currentTrace.optimizedHead;
@@ -430,6 +448,15 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 for (int i=0; i<16; i++) {
                     if (regCtx[i].valid && !regCtx[i].source)
                         DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
+                }
+                if (ccValid) {
+                    DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
+                    DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
+                    DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
+                    DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
+                    DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
+                } else {
+                    DPRINTF(SuperOp, "No live out CC\n");
                 }
                 for (int i=0; i<4; i++) {
                     DPRINTF(SuperOp, "Prediction Source %i\n", i);
@@ -510,6 +537,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     SpecTrace::State state = currentTrace.state;
 
     StaticInstPtr decodedMacroOp = NULL;
+    bool newMacro = false;
     if (state == SpecTrace::OptimizationInProcess) {
         if (!decoder->uopValidArray[idx][way] || (uop >= decoder->uopCountArray[idx][way])) {
             tracesWithInvalidHead++;
@@ -535,7 +563,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
         } else {
             currentTrace.inst = decodedMacroOp;
         }
+        currentTrace.lastAddr = currentTrace.instAddr;
         currentTrace.instAddr = decoder->uopAddrArray[idx][way][uop];
+        newMacro = (currentTrace.lastAddr.pcAddr != currentTrace.instAddr.pcAddr);
     } else if (state == SpecTrace::ReoptimizationInProcess) {
         if (!decoder->speculativeValidArray[idx][way] || (uop >= decoder->speculativeCountArray[idx][way])) {
             tracesWithInvalidHead++;
@@ -548,9 +578,18 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.inst = decodedMacroOp->fetchMicroop(decoder->speculativeAddrArray[idx][way][uop].uopAddr);
             currentTrace.inst->macroOp = decodedMacroOp;
         }
+        currentTrace.lastAddr = currentTrace.instAddr;
         currentTrace.instAddr = decoder->speculativeAddrArray[idx][way][uop];
+        newMacro = (currentTrace.lastAddr.pcAddr != currentTrace.instAddr.pcAddr);
     }
     decodedMacroOp = NULL;
+
+    if (newMacro) {
+        /* Clear Micro Registers in Reg Context Block. */
+        for (int i=16; i<38; i++) {
+            regCtx[i].valid = regCtx[i].source = false;
+        }
+    }
 
     bool updateSuccessful = false;
 
@@ -687,19 +726,47 @@ bool TraceBasedGraph::generateNextTraceInst() {
     }
 
     // Propagate live outs at the end of each control instruction
-    if (currentTrace.inst->isControl()) {
+    if (currentTrace.inst->isControl() && updateSuccessful) {
         for (int i=0; i<16; i++) { // 16 int registers
             if (regCtx[i].valid && !regCtx[i].source) {
                 currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
                 currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
                 currentTrace.inst->addDestReg(RegId(IntRegClass, i));
+                currentTrace.inst->_numIntDestRegs++;
             }
+        }
+        if (ccValid) {
+            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = PredccFlagBits;
+            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
+            currentTrace.inst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
+            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = PredcfofBits;
+            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
+            currentTrace.inst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
+            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = PreddfBit;
+            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
+            currentTrace.inst->addDestReg(RegId(CCRegClass, CCREG_DF));
+            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = PredecfBit;
+            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
+            currentTrace.inst->addDestReg(RegId(CCRegClass, CCREG_ECF));
+            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = PredezfBit;
+            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
+            currentTrace.inst->addDestReg(RegId(CCRegClass, CCREG_EZF));
+            currentTrace.inst->_numCCDestRegs += 5;
         }
     }
     DPRINTF(SuperOp, "Live Outs:\n");
     for (int i=0; i<16; i++) {
         if (regCtx[i].valid && !regCtx[i].source)
             DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
+    }
+    if (ccValid) {
+        DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
+        DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
+        DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
+        DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
+        DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
+    } else {
+        DPRINTF(SuperOp, "No live out CC\n");
     }
 
     return true;
@@ -837,6 +904,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -889,6 +957,7 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
         
     
     return true;
@@ -900,7 +969,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     
 
     // Add (dataSize == 1 || dataSize == 2) has 3 sources and AddBig (dataSize == 4 || dataSize == 8) has 2 sources
-    //if (inst->numSrcRegs() != 2) return false;
+    if (inst->numSrcRegs() != 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -982,6 +1051,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -994,7 +1064,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     assert(type == "sub");
     
     // Sub (dataSize == 1 || dataSize == 2) has 3 sources and SubBig (dataSize == 4 || dataSize == 8) has 2 sources
-    //if(inst->numSrcRegs() != 2) return false;
+    if(inst->numSrcRegs() != 2) return false;
 
     // Subb and SubbBig are both inhereted from RegOp
     // For both src 0 and src 1 are the source operands
@@ -1075,6 +1145,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -1087,7 +1158,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     
 
     // And (dataSize == 1 || dataSize == 2) has 3 sources and AndBig (dataSize == 4 || dataSize == 8) has 2 sources
-    //if(inst->numSrcRegs() != 2) return false;
+    if(inst->numSrcRegs() != 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1170,6 +1241,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -1181,7 +1253,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     assert(type == "or");
     
     // Or (dataSize == 1 || dataSize == 2) has 3 sources and OrBig (dataSize == 4 || dataSize == 8) has 2 sources
-    //if(inst->numSrcRegs() != 2) return false;
+    if(inst->numSrcRegs() != 2) return false;
     
     if (!usingCCTracking && inst->isCC())
     {
@@ -1265,6 +1337,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -1275,7 +1348,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     assert(type == "xor");
     
     // Xor (dataSize == 1 || dataSize == 2) has 3 sources and XorBig (dataSize == 4 || dataSize == 8) has 2 sources
-    //if(inst->numSrcRegs() != 2) return false;
+    if(inst->numSrcRegs() != 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1365,6 +1438,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -1408,6 +1482,7 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -1419,7 +1494,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     
     
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    //if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1500,6 +1575,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -1511,7 +1587,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     assert(type == "addi");
     
     // AddImm (dataSize == 1 || dataSize == 2) has 2 sources and AddImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    //if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1593,6 +1669,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -1605,7 +1682,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     assert(type == "andi");
     
     // AndImm (dataSize == 1 || dataSize == 2) has 2 sources and AndImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    //if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1688,6 +1765,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -1700,7 +1778,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     assert(type == "ori");
     
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    //if (inst->numSrcRegs() != 1) return false;
+    if (inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1783,6 +1861,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -1795,7 +1874,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     assert(type == "xori");
     
     // XorImm (dataSize == 1 || dataSize == 2) has 2 sources and XorImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    //if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1878,6 +1957,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -1890,7 +1970,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     assert(type == "slli");
     
     // SllImm (dataSize == 1 || dataSize == 2) has 2 sources and SllImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    //if (inst->numSrcRegs() != 1) return false;
+    if (inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1991,6 +2071,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -2001,7 +2082,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     assert(type == "srli");
     
     // SrlImm (dataSize == 1 || dataSize == 2) has 2 sources and SrlImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    //if (inst->numSrcRegs() != 1) return false;
+    if (inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2100,6 +2181,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -2111,7 +2193,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     assert(type == "sexti");
     
     // SextImm (dataSize == 1 || dataSize == 2) has 2 sources and SextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    //if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2202,6 +2284,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -2212,7 +2295,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     assert(type == "zexti");
 
     // ZextImm (dataSize == 1 || dataSize == 2) has 2 sources and ZextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    //if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() != 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2265,6 +2348,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
+    regCtx[destReg.flatIndex()].source = false;
 
     
     return true;
@@ -2306,28 +2390,27 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
             uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
             uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
             target = psrc1 + psrc2; // assuming CSBase = 0;
-
-            int idx = (target >> 5) & 0x1f;
-            uint64_t tag = (target >> 10);
-            for (int way = 0; way < 8; way++) {
-                DPRINTF(ConstProp, "Looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
-                if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
-                    for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
-                        if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
-                                decoder->uopAddrArray[idx][way][uop].uopAddr == 0) {
-                            currentTrace.addr.idx = idx;
-                            currentTrace.addr.way = way;
-                            currentTrace.addr.uop = uop;
-                            currentTrace.addr.valid = true;
-                            DPRINTF(ConstProp, "Jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
-                            return true;
-                        }
+        } else {
+            DPRINTF(ConstProp, "Condition failed, advancing trace\n");
+            target = currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize();
+        }
+        int idx = (target >> 5) & 0x1f;
+        uint64_t tag = (target >> 10);
+        for (int way = 0; way < 8; way++) {
+            DPRINTF(ConstProp, "Looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
+            if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
+                for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
+                    if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
+                            decoder->uopAddrArray[idx][way][uop].uopAddr == 0) {
+                        currentTrace.addr.idx = idx;
+                        currentTrace.addr.way = way;
+                        currentTrace.addr.uop = uop;
+                        currentTrace.addr.valid = true;
+                        DPRINTF(ConstProp, "Jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+                        return true;
                     }
                 }
             }
-        } else {
-            advanceTrace(currentTrace);
-            return true;
         }
     } else {
         // still don't know what to do with this microop
@@ -2376,28 +2459,27 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
             X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
             uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
             target = psrc1 + imm8; // assuming CSBase = 0;
-
-            int idx = (target >> 5) & 0x1f;
-            uint64_t tag = (target >> 10);
-            for (int way = 0; way < 8; way++) {
-                DPRINTF(ConstProp, "Looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
-                if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
-                    for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
-                        if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
-                                decoder->uopAddrArray[idx][way][uop].uopAddr == 0) {
-                            currentTrace.addr.idx = idx;
-                            currentTrace.addr.way = way;
-                            currentTrace.addr.uop = uop;
-                            currentTrace.addr.valid = true;
-                            DPRINTF(ConstProp, "Jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
-                            return true;
-                        }
+        } else {
+            DPRINTF(ConstProp, "Condition failed, advancing trace\n");
+            target = currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize();
+        }
+        int idx = (target >> 5) & 0x1f;
+        uint64_t tag = (target >> 10);
+        for (int way = 0; way < 8; way++) {
+            DPRINTF(ConstProp, "Looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
+            if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
+                for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
+                    if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
+                            decoder->uopAddrArray[idx][way][uop].uopAddr == 0) {
+                        currentTrace.addr.idx = idx;
+                        currentTrace.addr.way = way;
+                        currentTrace.addr.uop = uop;
+                        currentTrace.addr.valid = true;
+                        DPRINTF(ConstProp, "Jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+                        return true;
                     }
                 }
             }
-        } else {
-            advanceTrace(currentTrace);
-            return true;
         }
     } else {
         // still don't know what to do with this microop

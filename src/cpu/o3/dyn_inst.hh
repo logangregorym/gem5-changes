@@ -79,7 +79,7 @@ class BaseO3DynInst : public BaseDynInst<Impl>
 
     enum {
         MaxInstSrcRegs = TheISA::MaxInstSrcRegs,        //< Max source regs
-        MaxInstDestRegs = TheISA::MaxInstDestRegs       //< Max dest regs
+        MaxInstDestRegs = 15//TheISA::MaxInstDestRegs       //< Max dest regs
     };
 
   public:
@@ -271,6 +271,7 @@ class BaseO3DynInst : public BaseDynInst<Impl>
 
     IntReg readIntRegOperand(const StaticInst *si, int idx)
     {
+        DPRINTF(IEW, "SuperOptimizer: readIntRegOperand: Predicted:%i Value: %i:%#x\n", si->sourcesPredicted[idx], idx, si->sourcePredictions[idx]);
         if (si->sourcesPredicted[idx]) {
             DPRINTF(IEW, "SuperOptimizer: readIntRegOperand: Returning Predicted Value: %i:%#x\n", idx, si->sourcePredictions[idx]);
             return si->sourcePredictions[idx];

@@ -76,14 +76,14 @@ class StaticInst : public RefCounted, public StaticInstFlags
 
     enum {
         MaxInstSrcRegs = TheISA::MaxInstSrcRegs,        //< Max source regs
-        MaxInstDestRegs = TheISA::MaxInstDestRegs       //< Max dest regs
+        MaxInstDestRegs = 15//TheISA::MaxInstDestRegs       //< Max dest regs
     };
 
     void* branch_hist;  // to be used by array dependency tracker for iPred
 
     virtual void deleteMicroOps() { panic("undoInjectMicroops: This should only be called by a macroop"); }
 
-  protected:
+  public:
 
     /// Flag values for this instruction.
     std::bitset<Num_Flags> flags = {0};

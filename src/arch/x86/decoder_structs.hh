@@ -101,6 +101,9 @@ struct SpecTrace
     // address of the instruction being optimized
     FullUopAddr instAddr;
 
+    // address of the last instruction processed
+    FullUopAddr lastAddr;
+
     // instruction being optimized
     StaticInstPtr inst;
 
