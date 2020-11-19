@@ -1110,7 +1110,6 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
         assert(evcitedTag);
         for (int w = 0; w < 8; w++) {
             if (speculativeValidArray[idx][w] &&
-                speculativeTagArray[idx][w] == evcitedTag &&
                 speculativeTraceIDArray[idx][w] == evictedTraceID) 
             {
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) {
