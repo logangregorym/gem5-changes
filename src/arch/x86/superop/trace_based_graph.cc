@@ -1295,6 +1295,11 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if (src1 == src2) {
+        regCtx[src1].value = regCtx[src2].value = 0;
+        regCtx[src1].valid = regCtx[src2].valid = true;
+    }
+
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
         if (usingCCTracking && inst->isCC()) {
             ccValid = false;
