@@ -70,6 +70,8 @@ namespace X86ISA
             foldOBit = (dataSize == 1 && !_machInst.rex.present) ? 1 << 6 : 0;
         }
 
+        uint16_t getExt() { return ext; }
+
         //Figure out what the condition code flags should be.
         uint64_t genFlags(uint64_t oldFlags, uint64_t flagMask,
                 uint64_t _dest, uint64_t _src1, uint64_t _src2,

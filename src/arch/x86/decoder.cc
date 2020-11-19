@@ -968,6 +968,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     int baseWay = 0;
     //int waysVisited = 0;
     if (trace.optimizedHead.valid) {
+        idx = trace.optimizedHead.idx;
         baseWay = trace.optimizedHead.way;
         DPRINTF(Decoder, "addUopToSpeculativeCache: Trace %d optimized head way is %d!\n", traceID, baseWay);
     }
@@ -980,7 +981,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
 
     /* Link list traversal traversal. */
     for (int way = baseWay; way != 10  && numFullWays < 3; way = speculativeNextWayArray[idx][way]) {
-        if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag && speculativeTraceIDArray[idx][way] == traceID) {
+        if (speculativeValidArray[idx][way] && speculativeTraceIDArray[idx][way] == traceID) {
             /* Check if this way can accommodate the uops that correspond
                  to this instruction. */
             int waySize = speculativeCountArray[idx][way];
@@ -1215,7 +1216,7 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
 }
 
 unsigned
-Decoder::isTraceAvailable(Addr addr) {
+Decoder::isTraceAvailable(Addr addr, int64_t value, unsigned confidence) {
     // Consider multiple candidate traces
     int idx = (addr >> 5) & 0x1f;
 
@@ -1238,17 +1239,21 @@ Decoder::isTraceAvailable(Addr addr) {
                 continue;
             }
 
-            unsigned confidence = minConfidence(trace.id);
+            if (confidence >= 5 && value != trace.source[0].value) { // trace with incorrect value, move on to a different trace
+                continue;
+            }
+
+            unsigned traceConfidence = minConfidence(trace.id);
             unsigned latency = maxLatency(trace.id);
             unsigned shrinkage = trace.length - trace.shrunkLength;
             DPRINTF(Decoder, "confidence=%i, latency=%i, shrinkage=%i\n", confidence, latency, shrinkage);
-            if (confidence < 5) { // low confidence, move on the the next trace at this index
+            if (traceConfidence < 5) { // low confidence, move on the the next trace at this index
                 continue;
             }
 
             // taking product because we want the highest confidence, latency, and shrinkage
             // we don't include hotness here as that is considered while generating a trace
-            unsigned score = confidence * shrinkage * (latency + 1);
+            unsigned score = traceConfidence * shrinkage * (latency + 1);
             if (score > maxScore) {
                 maxScore = score; // Select this trace
                 maxTraceID = trace.id; 

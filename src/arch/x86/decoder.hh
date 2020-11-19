@@ -475,7 +475,7 @@ protected:
 
 	// Interface for fetch!
     // tells fetch stage that if a speculative trace is availble for this PC
-	unsigned isTraceAvailable(Addr addr);
+	unsigned isTraceAvailable(Addr addr, int64_t value, unsigned confidence);
 
     StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
 

@@ -142,6 +142,7 @@ parser.add_option("--predictingArithmetic", default=0, type="int", action="store
 parser.add_option("--predictStage", default=3, type="int", action="store", help="Prediction Stage: fetch/iew/both.");
 parser.add_option("--maxDependencyRecursion", default=15, type="int", action="store", help="How deep to recurse when counting dependencies.");
 parser.add_option("--usingControlTracking", default=0, type="int", action="store", help="Track control dependencies to optimize across?");
+parser.add_option("--usingCCTracking", default=0, type="int", action="store", help="Track condition codes?");
 parser.add_option("--maxRecursiveDepth", default=8, type="int", action="store", help="Maximum depth to recurse to when measuring dependency chains")
 parser.add_option("--usingTrace", default=0, type="int", action="store", help="Whether to stream the optimized trace")
 parser.add_option("--connectionCount", default=4096, type="int", action="store", help="Number of connections to track at any given time");
@@ -220,6 +221,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
     CPUClass.usingTrace = options.usingTrace
     CPUClass.traceConstructor.usingControlTracking = options.usingControlTracking
+    CPUClass.traceConstructor.usingControlTracking = options.usingCCTracking
     CPUClass.checkpoint_at_instr = options.checkpoint_at_instr
     CPUClass.after_exec_cnt = options.after_exec_cnt
 
@@ -252,6 +254,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.maxDependencyRecursion = options.maxDependencyRecursion
     FutureClass.usingTrace = options.usingTrace
     FutureClass.traceConstructor.usingControlTracking = options.usingControlTracking
+    FutureClass.traceConstructor.usingControlTracking = options.usingCCTracking
     FutureClass.numThreads = numThreads
     FutureClass.branchPred.numThreads = numThreads
     FutureClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize

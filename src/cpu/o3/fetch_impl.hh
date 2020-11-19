@@ -1514,7 +1514,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         //*****CHANGE START**********
         // check the speculative cache even before the microop cache
         if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive()) {
-            currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr());
+            LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+            currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), ret.predictedValue, ret.confidence);
             if (currentTraceID != 0 && decoder[tid]->redirectDueToLVPSquashing) {
                 DPRINTF(Fetch, "A trace is available but due to a previous LVP missprediction squash we can't fetch from spec$! Available TraceID is %i.\n", currentTraceID);
             }
@@ -2096,7 +2097,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 if (newMacro)
                 {
                     if (isSuperOptimizationPresent) {
-                        currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr());
+                        LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+                        currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), ret.predictedValue, ret.confidence);
                     }
                     if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
                     {

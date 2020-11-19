@@ -20,8 +20,9 @@ using namespace std;
 
 unsigned SpecTrace::traceIDCounter = 1;
 
-TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking) {
+TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking), usingCCTracking(p->usingCCTracking) {
     DPRINTF(SuperOp, "Control tracking: %i\n", usingControlTracking);
+    DPRINTF(SuperOp, "CC tracking: %i\n", usingCCTracking);
 }
 
 TraceBasedGraph* TraceBasedGraphParams::create() {
@@ -61,15 +62,16 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
                 return;
             }
         }
-        if (it->second.state != SpecTrace::QueuedForFirstTimeOptimization ||
-            it->second.state != SpecTrace::QueuedForReoptimization) {
+        if (it->second.state != SpecTrace::QueuedForFirstTimeOptimization && it->second.state != SpecTrace::QueuedForReoptimization) {
             continue;
         }
         if (idx != it->second.head.idx) {
             continue;
         }
+        DPRINTF(SuperOp, "Incoming trace request has the same index as trace %i already in queue\n", it->second.id);
         if (decoder->uopValidArray[idx][it->second.head.way]) {
             for (int way = it->second.head.way; way != 10; way = decoder->uopNextWayArray[idx][way]) {
+                DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", idx, way, decoder->uopCountArray[idx][way]);
                 for (int uop = it->second.head.uop; uop < decoder->uopCountArray[idx][way]; uop++) {
                     if (decoder->uopAddrArray[idx][it->second.head.way][uop] == FullUopAddr(addr, uopAddr)) {
                         if (numPredSources < 4) {
@@ -493,8 +495,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
         /* Clear Reg Context Block. */
         for (int i=0; i<38; i++) {
-            regCtx[i].valid = false;
-            regCtx[i].source = false;
+            regCtx[i].valid = regCtx[i].source = ccValid = false;
+            PredccFlagBits = PredcfofBits = PreddfBit = PredecfBit = PredezfBit = 0;
         }
     } else { 
         assert(currentTrace.state == SpecTrace::OptimizationInProcess || currentTrace.state == SpecTrace::ReoptimizationInProcess);
@@ -587,13 +589,21 @@ bool TraceBasedGraph::generateNextTraceInst() {
     } else {
 
         bool propagated = false;
+        bool folded = false;
         // Propagate predicted values
         if (type == "mov") {
             DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateMov(currentTrace.inst);
-        } else if (type == "wrip" || type == "wripi") {
-            DPRINTF(ConstProp, "Found a WRIP/WRIPI branch at [%i][%i][%i], compacting...\n", idx, way, uop);
-            // propagateWrip(currentTrace.inst);
+        } else if (type == "rdip") {
+            RegId destReg = currentTrace.inst->destRegIdx(0);
+            regCtx[destReg.flatIndex()].value = currentTrace.instAddr.pcAddr + currentTrace.inst->macroOp->getMacroopSize();
+            regCtx[destReg.flatIndex()].valid = propagated = true;
+        } else if (type == "wrip") {
+            DPRINTF(ConstProp, "Found a WRIP branch at [%i][%i][%i], compacting...\n", idx, way, uop);
+            propagated = folded = propagateWrip(currentTrace.inst);
+        } else if (type == "wripi") {
+            DPRINTF(ConstProp, "Found a WRIPI branch at [%i][%i][%i], compacting...\n", idx, way, uop);
+            propagated = folded = propagateWripI(currentTrace.inst);
         } else if (currentTrace.inst->isControl()) {
             // printf("Control instruction of type %s\n", type);
             // TODO: check for stopping condition or predicted target
@@ -653,17 +663,19 @@ bool TraceBasedGraph::generateNextTraceInst() {
         } else if (type == "panic" || type == "CPUID") {
             DPRINTF(ConstProp, "Type is PANIC or CPUID\n");
             // TODO: possibly remove, what is purpose?
-        } else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp" || "rdip") {
-            DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, CALL_FAR_MP, or RDIP\n");
+        } else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp") {
+            DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, or CALL_FAR_MP\n");
             // TODO: cannot remove
         } else {
             DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
         }
 
         bool isDeadCode = false;
-        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, propagated);
+        if (!folded) {
+            updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, propagated);
+        }
         // if it's not a dead code, then update the last non-eliminated microop of the specTrace
-        if (!isDeadCode)
+        if (!isDeadCode && !folded)
         {
             currentTrace.prevNonEliminatedInst = currentTrace.inst;
         }
@@ -705,16 +717,17 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     }
 
     string type = trace.inst->getName();
-    isDeadCode = allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "slri" || type == "slli" || type == "sexti" || type == "zexti");
+    isDeadCode = (type == "rdip") || (allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "slri" || type == "slli" || type == "sexti" || type == "zexti"));
 
     // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC
     uint64_t value;
     unsigned confidence;
     unsigned latency;
-    bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) && type != "limm" && type != "movi";
-    isDeadCode &= (propagated && !isPredSource && !(trace.inst->isCC() || trace.inst->isReturn()));
+    bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) && type != "limm" && type != "movi" && type != "rdip";
+    isDeadCode &= (propagated && !isPredSource && !((!usingCCTracking && trace.inst->isCC()) || trace.inst->isReturn()));
 
-    if (allSrcsReady && (trace.inst->isCC()))
+    DPRINTF(ConstProp, "isDeadCode:%d propagated:%d isPredSource:%d CC:%d Return:%d\n", isDeadCode, propagated, isPredSource, (!usingCCTracking && trace.inst->isCC()), trace.inst->isReturn());
+    if (allSrcsReady && (!usingCCTracking && trace.inst->isCC()))
     {
         DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not a dead code as it's a CC inst!\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
     }
@@ -780,7 +793,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     
     if(inst->numSrcRegs() != 3) return false;
 
-    if (inst->isCC())
+    if (inst->isCC() && (!usingCCTracking || !ccValid))
     {
         DPRINTF(ConstProp, "CC Mov Inst! We can't propagate CC insts!\n");
         return false;
@@ -810,7 +823,12 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
 
     assert(SrcReg2 == psrc2);  // for 4 or 8 bytes move this should always hold but not true for 1 or 2 byts move
 
-    forwardVal = x86_inst->merge(forwardVal, psrc2, dataSize);
+    uint16_t ext = inst->getExt();
+    if (!inst->isCC() || inst->checkCondition(PredccFlagBits | PredcfofBits | PreddfBit | PredecfBit | PredezfBit, ext)) {
+        forwardVal = x86_inst->merge(forwardVal, psrc2, dataSize);
+    } else {
+        return true;
+    }
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -833,7 +851,7 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
     // Limm (dataSize == 1 || dataSize == 2) has 1 sources and LimmBig (dataSize == 4 || dataSize == 8) has 0 sources
     if(inst->numSrcRegs() != 0) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC Limm Inst! We can't propagate CC insts!\n");
         return false;
@@ -884,7 +902,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     // Add (dataSize == 1 || dataSize == 2) has 3 sources and AddBig (dataSize == 4 || dataSize == 8) has 2 sources
     if (inst->numSrcRegs() != 2) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC Add Inst! We can't propagate CC insts!\n");
         return false;
@@ -903,6 +921,9 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -917,6 +938,30 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
         uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 + psrc2) & mask(dataSize * 8);;
         
+        if (usingCCTracking && inst->isCC())
+        {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                               PreddfBit | PredecfBit | PredezfBit,
+                                               ext, forwardVal, psrc1, psrc2, true);
+            PredcfofBits = newFlags & cfofMask;
+            PredecfBit = newFlags & ECFBit;
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -951,12 +996,6 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     // Sub (dataSize == 1 || dataSize == 2) has 3 sources and SubBig (dataSize == 4 || dataSize == 8) has 2 sources
     if(inst->numSrcRegs() != 2) return false;
 
-    if (inst->isCC())
-    {
-        DPRINTF(ConstProp, "CC Sub Inst! We can't propagate CC insts!\n");
-        return false;
-    }
-
     // Subb and SubbBig are both inhereted from RegOp
     // For both src 0 and src 1 are the source operands
     X86ISA::RegOp * inst_regop = (X86ISA::RegOp * )inst.get(); 
@@ -965,11 +1004,18 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
 
     assert(dataSize >= 4);
 
-
+    if (!usingCCTracking && inst->isCC())
+    {
+        DPRINTF(ConstProp, "CC And Inst! We can't propagate CC insts!\n");
+        return false;
+    }
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -984,7 +1030,31 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 - psrc2) & mask(dataSize * 8);;
-        
+
+        if (usingCCTracking && inst->isCC())
+        {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                               PreddfBit | PredecfBit | PredezfBit,
+                                               ext, forwardVal, psrc1, ~psrc2, true);
+            PredcfofBits = newFlags & cfofMask;
+            PredecfBit = newFlags & ECFBit;
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1019,7 +1089,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     // And (dataSize == 1 || dataSize == 2) has 3 sources and AndBig (dataSize == 4 || dataSize == 8) has 2 sources
     if(inst->numSrcRegs() != 2) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC And Inst! We can't propagate CC insts!\n");
         return false;
@@ -1037,6 +1107,9 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -1052,6 +1125,31 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
         uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 & psrc2) & mask(dataSize * 8);
         
+        if (usingCCTracking && inst->isCC())
+        {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+
+            uint64_t mask = CFBit | ECFBit | OFBit;
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                 PredezfBit, ext & ~mask, forwardVal, psrc1, psrc2);
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            //If a logic microop wants to set these, it wants to set them to 0.
+            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+            PredecfBit = PredecfBit & ~(ECFBit & ext);
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1085,7 +1183,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     // Or (dataSize == 1 || dataSize == 2) has 3 sources and OrBig (dataSize == 4 || dataSize == 8) has 2 sources
     if(inst->numSrcRegs() != 2) return false;
     
-   if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC Or Inst! We can't propagate CC insts!\n");
         return false;
@@ -1104,6 +1202,9 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -1119,6 +1220,31 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
         uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 | psrc2) & mask(dataSize * 8);
         
+        if (usingCCTracking && inst->isCC())
+        {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+
+            uint64_t mask = CFBit | ECFBit | OFBit;
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                 PredezfBit, ext & ~mask, forwardVal, psrc1, psrc2);
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            //If a logic microop wants to set these, it wants to set them to 0.
+            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+            PredecfBit = PredecfBit & ~(ECFBit & ext);
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1151,7 +1277,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     // Xor (dataSize == 1 || dataSize == 2) has 3 sources and XorBig (dataSize == 4 || dataSize == 8) has 2 sources
     if(inst->numSrcRegs() != 2) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC Xor Inst! We can't propagate CC insts!\n");
         return false;
@@ -1170,6 +1296,9 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -1185,6 +1314,31 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
         uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 ^ psrc2) & mask(dataSize * 8);
         
+        if (usingCCTracking && inst->isCC())
+        {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+
+            uint64_t mask = CFBit | ECFBit | OFBit;
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                 PredezfBit, ext & ~mask, forwardVal, psrc1, psrc2);
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            //If a logic microop wants to set these, it wants to set them to 0.
+            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+            PredecfBit = PredecfBit & ~(ECFBit & ext);
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1217,7 +1371,7 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
     // MovImm has 2 source registers for all datasize and MovFlagsImm has 7 sources
     if(inst->numSrcRegs() != 2) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC MOVI Inst! We can't propagate CC insts!\n");
         return false;
@@ -1261,7 +1415,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
     if(inst->numSrcRegs() != 1) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC SUBI Inst! We can't propagate CC insts!\n");
         return false;
@@ -1278,6 +1432,9 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -1293,6 +1450,30 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 - imm8) & mask(dataSize * 8);;
         
+        if (usingCCTracking && inst->isCC())
+        {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                               PreddfBit | PredecfBit | PredezfBit,
+                                               ext, forwardVal, psrc1, ~imm8, true);
+            PredcfofBits = newFlags & cfofMask;
+            PredecfBit = newFlags & ECFBit;
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1326,7 +1507,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     // AddImm (dataSize == 1 || dataSize == 2) has 2 sources and AddImmBig (dataSize == 4 || dataSize == 8) has 1 sources
     if(inst->numSrcRegs() != 1) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC ADDI Inst! We can't propagate CC insts!\n");
         return false;
@@ -1344,6 +1525,9 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -1359,6 +1543,30 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 + imm8) & mask(dataSize * 8);;
         
+        if (usingCCTracking && inst->isCC())
+        {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                               PreddfBit | PredecfBit | PredezfBit,
+                                               ext, forwardVal, psrc1, imm8, true);
+            PredcfofBits = newFlags & cfofMask;
+            PredecfBit = newFlags & ECFBit;
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1393,7 +1601,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     // AndImm (dataSize == 1 || dataSize == 2) has 2 sources and AndImmBig (dataSize == 4 || dataSize == 8) has 1 sources
     if(inst->numSrcRegs() != 1) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC ANDI Inst! We can't propagate CC insts!\n");
         return false;
@@ -1411,6 +1619,9 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -1426,6 +1637,31 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 & imm8) & mask(dataSize * 8);;
         
+        if (usingCCTracking && inst->isCC())
+        {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+
+            uint64_t mask = CFBit | ECFBit | OFBit;
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                 PredezfBit, ext & ~mask, forwardVal, psrc1, imm8);
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            //If a logic microop wants to set these, it wants to set them to 0.
+            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+            PredecfBit = PredecfBit & ~(ECFBit & ext);
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1460,7 +1696,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
     if (inst->numSrcRegs() != 1) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC ORI Inst! We can't propagate CC insts!\n");
         return false;
@@ -1478,6 +1714,9 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -1493,6 +1732,31 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 | imm8) & mask(dataSize * 8);;
         
+        if (usingCCTracking && inst->isCC())
+        {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+
+            uint64_t mask = CFBit | ECFBit | OFBit;
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                 PredezfBit, ext & ~mask, forwardVal, psrc1, imm8);
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            //If a logic microop wants to set these, it wants to set them to 0.
+            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+            PredecfBit = PredecfBit & ~(ECFBit & ext);
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1527,7 +1791,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     // XorImm (dataSize == 1 || dataSize == 2) has 2 sources and XorImmBig (dataSize == 4 || dataSize == 8) has 1 sources
     if(inst->numSrcRegs() != 1) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC XORI Inst! We can't propagate CC insts!\n");
         return false;
@@ -1545,6 +1809,9 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -1560,6 +1827,31 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 ^ imm8) & mask(dataSize * 8);;
         
+        if (usingCCTracking && inst->isCC())
+        {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+
+            uint64_t mask = CFBit | ECFBit | OFBit;
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                 PredezfBit, ext & ~mask, forwardVal, psrc1, imm8);
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            //If a logic microop wants to set these, it wants to set them to 0.
+            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+            PredecfBit = PredecfBit & ~(ECFBit & ext);
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1594,7 +1886,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     // SllImm (dataSize == 1 || dataSize == 2) has 2 sources and SllImmBig (dataSize == 4 || dataSize == 8) has 1 sources
     if (inst->numSrcRegs() != 1) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC SLLI Inst! We can't propagate CC insts!\n");
         return false;
@@ -1611,6 +1903,9 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -1630,6 +1925,46 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
         uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
         forwardVal = (psrc1 << shiftAmt) & mask(dataSize * 8);
         
+        // If the shift amount is zero, no flags should be modified.
+        if (usingCCTracking && shiftAmt && inst->isCC()) {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+            //Zero out any flags we might modify. This way we only have to
+            //worry about setting them.
+            PredcfofBits = PredcfofBits & ~(ext & (CFBit | OFBit));
+            PredecfBit = PredecfBit & ~(ext & ECFBit);
+            int CFBits = 0;
+            //Figure out if we -would- set the CF bits if requested.
+            if (shiftAmt <= dataSize * 8 &&
+                    bits(SrcReg1, dataSize * 8 - shiftAmt)) {
+                CFBits = 1;
+            }
+            //If some combination of the CF bits need to be set, set them.
+            if ((ext & (CFBit | ECFBit)) && CFBits) {
+                PredcfofBits = PredcfofBits | (ext & CFBit);
+                PredecfBit = PredecfBit | (ext & ECFBit);
+            }
+            //Figure out what the OF bit should be.
+            if ((ext & OFBit) && (CFBits ^ bits(forwardVal, dataSize * 8 - 1)))
+                PredcfofBits = PredcfofBits | OFBit;
+            //Use the regular mechanisms to calculate the other flags.
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                               PredezfBit, ext & ~(CFBit | ECFBit | OFBit),
+                                               forwardVal, psrc1, imm8);
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1662,7 +1997,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     // SrlImm (dataSize == 1 || dataSize == 2) has 2 sources and SrlImmBig (dataSize == 4 || dataSize == 8) has 1 sources
     if (inst->numSrcRegs() != 1) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC SRLI Inst! We can't propagate CC insts!\n");
         return false;
@@ -1680,6 +2015,9 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -1700,6 +2038,42 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
         uint64_t logicalMask = mask(dataSize * 8 - shiftAmt);
         forwardVal = (psrc1 >> shiftAmt) & logicalMask;
         
+        // If the shift amount is zero, no flags should be modified.
+        if (usingCCTracking && shiftAmt && inst->isCC()) {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+            //Zero out any flags we might modify. This way we only have to
+            //worry about setting them.
+            PredcfofBits = PredcfofBits & ~(ext & (CFBit | OFBit));
+            PredecfBit = PredecfBit & ~(ext & ECFBit);
+            //If some combination of the CF bits need to be set, set them.
+            if ((ext & (CFBit | ECFBit)) &&
+                    shiftAmt <= dataSize * 8 &&
+                    bits(SrcReg1, shiftAmt - 1)) {
+                PredcfofBits = PredcfofBits | (ext & CFBit);
+                PredecfBit = PredecfBit | (ext & ECFBit);
+            }
+            //Figure out what the OF bit should be.
+            if ((ext & OFBit) && bits(SrcReg1, dataSize * 8 - 1))
+                PredcfofBits = PredcfofBits | OFBit;
+            //Use the regular mechanisms to calculate the other flags.
+            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                               PredezfBit, ext & ~(CFBit | ECFBit | OFBit),
+                                               forwardVal, psrc1, imm8);
+            PredezfBit = newFlags & EZFBit;
+            PreddfBit = newFlags & DFBit;
+            PredccFlagBits = newFlags & ccFlagMask;
+            ccValid = true;
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1733,7 +2107,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     // SextImm (dataSize == 1 || dataSize == 2) has 2 sources and SextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
     if(inst->numSrcRegs() != 1) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC SEXTI Inst! We can't propagate CC insts!\n");
         return false;
@@ -1750,6 +2124,9 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
+        if (usingCCTracking && inst->isCC()) {
+            ccValid = false;
+        }
         return false;
     }
 
@@ -1774,6 +2151,31 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
         val = sign_bit ? (val | ~maskVal) : (val & maskVal);
         forwardVal = val & mask(dataSize * 8);
         
+        if (usingCCTracking && inst->isCC())
+        {
+            uint16_t ext = inst->getExt();
+
+            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+                PredccFlagBits = 0; 
+            }
+            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+                PredcfofBits = 0;
+            }
+            PreddfBit = 0;
+            PredecfBit = 0;
+            PredezfBit = 0;
+            if (!sign_bit) {
+                PredccFlagBits = PredccFlagBits & ~(ext & (ZFBit));
+                PredcfofBits = PredcfofBits & ~(ext & (CFBit));
+                PredecfBit = PredecfBit & ~(ext & ECFBit);
+                PredezfBit = PredezfBit & ~(ext & EZFBit);
+            } else {
+                PredccFlagBits = PredccFlagBits | (ext & (ZFBit));
+                PredcfofBits = PredcfofBits | (ext & (CFBit));
+                PredecfBit = PredecfBit | (ext & ECFBit);
+                PredezfBit = PredezfBit | (ext & EZFBit);
+            }
+        }
     }
     else {
         // still don't know what to do with this microop
@@ -1806,7 +2208,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     // ZextImm (dataSize == 1 || dataSize == 2) has 2 sources and ZextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
     if(inst->numSrcRegs() != 1) return false;
 
-    if (inst->isCC())
+    if (!usingCCTracking && inst->isCC())
     {
         DPRINTF(ConstProp, "CC SEXTI Inst! We can't propagate CC insts!\n");
         return false;
@@ -1840,7 +2242,6 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
 
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = bits(psrc1, imm8, 0) & mask(dataSize * 8);;
-        
     }
     else {
         // still don't know what to do with this microop
@@ -1850,9 +2251,6 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1867,3 +2265,142 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
 
 }
 
+bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "wrip");
+
+    if (inst->isCC() && (!usingCCTracking || !ccValid))
+    {
+        DPRINTF(ConstProp, "CC WRIP Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
+        DPRINTF(ConstProp, "sources (%d, %d) invalid\n", regCtx[src1].valid, regCtx[src2].valid); 
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    uint64_t SrcReg2 = regCtx[src2].value;
+    uint16_t ext = inst->getExt();
+
+    Addr target;
+
+    if (dataSize >= 4) {
+        if (!inst->isCC() || inst->checkCondition(PredccFlagBits | PredcfofBits | PreddfBit | PredecfBit | PredezfBit, ext)) {
+            X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+            uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+            uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+            target = psrc1 + psrc2; // assuming CSBase = 0;
+
+            int idx = (target >> 5) & 0x1f;
+            uint64_t tag = (target >> 10);
+            for (int way = 0; way < 8; way++) {
+                DPRINTF(ConstProp, "Looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
+                if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
+                    for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
+                        if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
+                                decoder->uopAddrArray[idx][way][uop].uopAddr == 0) {
+                            currentTrace.addr.idx = idx;
+                            currentTrace.addr.way = way;
+                            currentTrace.addr.uop = uop;
+                            currentTrace.addr.valid = true;
+                            DPRINTF(ConstProp, "Jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+                            return true;
+                        }
+                    }
+                }
+            }
+        } else {
+            advanceTrace(currentTrace);
+            return true;
+        }
+    } else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+    return false;
+}
+
+bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "wripi");
+
+    if (inst->isCC() && (!usingCCTracking || !ccValid))
+    {
+        DPRINTF(ConstProp, "CC WRIP Inst! We can't propagate CC insts!\n");
+        return false;
+    }
+
+    X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
+    const uint8_t dataSize = inst_regop->dataSize;
+    assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
+
+    assert(dataSize >= 4);
+
+    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    //unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    if ((!regCtx[src1].valid)/* || (!regCtx[src2].valid)*/) {
+        return false;
+    }
+
+    uint64_t SrcReg1 = regCtx[src1].value;
+    //uint64_t SrcReg2 = regCtx[src2].value;
+    uint16_t ext = inst->getExt();
+
+    Addr target;
+
+    if (dataSize >= 4) {
+        uint8_t imm8 = inst_regop->imm8;
+        
+        if (!inst->isCC() || inst->checkCondition(PredccFlagBits | PredcfofBits | PreddfBit | PredecfBit | PredezfBit, ext)) {
+            X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+            uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+            target = psrc1 + imm8; // assuming CSBase = 0;
+
+            int idx = (target >> 5) & 0x1f;
+            uint64_t tag = (target >> 10);
+            for (int way = 0; way < 8; way++) {
+                DPRINTF(ConstProp, "Looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
+                if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
+                    for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
+                        if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
+                                decoder->uopAddrArray[idx][way][uop].uopAddr == 0) {
+                            currentTrace.addr.idx = idx;
+                            currentTrace.addr.way = way;
+                            currentTrace.addr.uop = uop;
+                            currentTrace.addr.valid = true;
+                            DPRINTF(ConstProp, "Jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+                            return true;
+                        }
+                    }
+                }
+            }
+        } else {
+            advanceTrace(currentTrace);
+            return true;
+        }
+    } else {
+        // still don't know what to do with this microop
+        assert(0);
+        // assert(inst->srcRegIdx(1).isIntReg());
+        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
+        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
+        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+    return false;
+}
