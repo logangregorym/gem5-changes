@@ -94,7 +94,7 @@ class BaseDynInst : public ExecContext, public RefCounted
 
     enum {
         MaxInstSrcRegs = TheISA::MaxInstSrcRegs,        /// Max source regs
-        MaxInstDestRegs = TheISA::MaxInstDestRegs       /// Max dest regs
+        MaxInstDestRegs = 15//TheISA::MaxInstDestRegs       /// Max dest regs
     };
 
   protected:
@@ -250,12 +250,14 @@ class BaseDynInst : public ExecContext, public RefCounted
     /** Flattened register index of the destination registers of this
      *  instruction.
      */
-    std::array<RegId, TheISA::MaxInstDestRegs> _flatDestRegIdx;
+    //std::array<RegId, TheISA::MaxInstDestRegs> _flatDestRegIdx;
+    std::array<RegId, MaxInstDestRegs> _flatDestRegIdx;
 
     /** Physical register index of the destination registers of this
      *  instruction.
      */
-    std::array<PhysRegIdPtr, TheISA::MaxInstDestRegs> _destRegIdx;
+    //std::array<PhysRegIdPtr, TheISA::MaxInstDestRegs> _destRegIdx;
+    std::array<PhysRegIdPtr, MaxInstDestRegs> _destRegIdx;
 
     /** Physical register index of the source registers of this
      *  instruction.
@@ -265,7 +267,8 @@ class BaseDynInst : public ExecContext, public RefCounted
     /** Physical register index of the previous producers of the
      *  architected destinations.
      */
-    std::array<PhysRegIdPtr, TheISA::MaxInstDestRegs> _prevDestRegIdx;
+    //std::array<PhysRegIdPtr, TheISA::MaxInstDestRegs> _prevDestRegIdx;
+    std::array<PhysRegIdPtr, MaxInstDestRegs> _prevDestRegIdx;
 
 
   public:

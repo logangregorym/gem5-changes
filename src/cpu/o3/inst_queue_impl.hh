@@ -1193,7 +1193,11 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
             break;
           case CCRegClass:
             DPRINTF(LVP, "LVP: Setting cc register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
-            inst->setCCRegOperand(inst->staticInst.get(), i, inst->staticInst->predictedValue);
+            if (inst->staticInst->liveOutPredicted[i]) {
+                inst->setIntRegOperand(inst->staticInst.get(), i, inst->staticInst->liveOut[i]);
+            } else {
+                inst->setCCRegOperand(inst->staticInst.get(), i, inst->staticInst->predictedValue);
+            }
             break;
           case MiscRegClass:
             // panic("Using a lvp prediction for a misc register");
