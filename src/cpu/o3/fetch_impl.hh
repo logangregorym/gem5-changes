@@ -1361,7 +1361,12 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
         }
     }
     //valuePredictable  = valuePredictable && staticInst->getName() != "limm" && staticInst->getName() != "movi"; 
-    if (valuePredictable) {// && !staticInst->isStreamedFromSpeculativeCache()) { // don't check against new prediction is the instruction is part of a spec trace
+    uint64_t value;
+    unsigned confidence, latency;
+    if (valuePredictable && 
+        !(staticInst->isStreamedFromSpeculativeCache() &&
+          decoder[tid]->traceConstructor->isPredictionSource(decoder[tid]->traceConstructor->traceMap[currentTraceID], FullUopAddr(thisPC.instAddr(), thisPC.upc()), value, confidence, latency))) {
+        // don't check against new prediction is the instruction is part of a spec trace
         if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
             DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);
             instruction->cycleFetched = cpu->numCycles.value();
