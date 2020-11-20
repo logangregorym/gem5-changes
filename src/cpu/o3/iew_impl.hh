@@ -1401,7 +1401,7 @@ DefaultIEW<Impl>::executeInsts()
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
 
-                if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
+                if (false && cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
                 {
                     assert(!inst->isSquashed());
                     
