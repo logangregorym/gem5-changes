@@ -1330,7 +1330,8 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     if ((uint64_t)cpu->thread[tid]->numInsts.value() >= 99999990 && 
         (uint64_t)cpu->thread[tid]->numInsts.value() <= 100000000)
     {
-        std::cout << "Inst: " << (uint64_t)cpu->thread[tid]->numInsts.value() << "PC: " << cur_pc << std::endl << std::flush;
+        std::cout << std::dec << "Inst: " << (uint64_t)cpu->thread[tid]->numInsts.value() << 
+                    "PC: " << cur_pc << " exec_cnt: " << (uint64_t)exec_cnt.value() << std::endl << std::flush;
     }
 
     if (checkpointAtInstr == cur_pc &&

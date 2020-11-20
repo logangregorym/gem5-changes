@@ -1194,6 +1194,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                 // we can have load instructions which are streamed from speculative cache and their values are forwaded speculativly
                 else if (inst->lvMispred && inst->isSpeculativlyForwarded()) 
                 {
+                    assert(!inst->isStreamedFromSpeculativeCache());
                     DPRINTF(LVP, "LSQUnit::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
                     DPRINTF(LVP, "LSQUnit::executeInsts():: Missprediction for a instruction which is not a trace prediction source!\n");
                     DPRINTF(LVP, "LSQUnit::executeInsts():: IsStreamedFromSpeculativeCache? %d\n", inst->isStreamedFromSpeculativeCache());

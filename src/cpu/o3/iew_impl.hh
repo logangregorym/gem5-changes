@@ -1401,61 +1401,36 @@ DefaultIEW<Impl>::executeInsts()
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
 
-                if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
+                if ( cpu->fetch.decoder[tid]->isSuperOptimizationPresent && !inst->isStreamedFromSpeculativeCache())
                 {
                     assert(!inst->isSquashed());
                     
                     inst->memoryAccessStartCycle = cpu->numCycles.value();
 
-                    if (loadPred->predictStage == 2 || loadPred->predictStage == 3) {
-                        
-                        // Check the Load Prediction Unit
-                        
-                        
-                        LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(inst->pcState(), tid, cpu->numCycles.value());
+                    DPRINTF(LVP, "Fetch Predicted (%d) Value: %#x and Confidence %d\n", 
+                                inst->staticInst->predictedLoad, inst->staticInst->predictedValue, inst->staticInst->confidence);
 
-                        DPRINTF(LVP, "IEW Predicted value for Inst with PC: %#x SeqNum[%d] Setting Value to: %#x Setting confidence to: %d: \n", 
-                                inst->pcState().instAddr(), inst->seqNum, ret.predictedValue, ret.confidence);
-                        
-                        DPRINTF(LVP, "Fetch Predicted (%d) Value: %#x and Confidence %d , IEW Predicted Value: %#x and Confidence %d\n", 
-                                inst->staticInst->predictedLoad, inst->staticInst->predictedValue, inst->staticInst->confidence, ret.predictedValue, ret.confidence);
+                    // if (inst->staticInst->predictedLoad) {
+                    //         // Got a prediction in the fetch stage
+                    //         if (inst->staticInst->confidence < 0 && ret.confidence >= 0) {
+                    //                 ++confidenceThresholdPassed[tid];
+                    //         }
+                    //         if (inst->staticInst->predictedValue != ret.predictedValue && inst->staticInst->confidence >= 0) {
+                    //                 ++predictionChanged[tid];
+                    //         }
+                    //         if (inst->staticInst->confidence >= 0 && (ret.confidence < 0 || ret.predictedValue != inst->staticInst->predictedValue)) {
+                    //                 ++predictionInvalidated[tid];
+                    //         }
+                    // }
 
-                
-
-                        if (inst->staticInst->predictedLoad) {
-                            // Got a prediction in the fetch stage
-                            if (inst->staticInst->confidence < 0 && ret.confidence >= 0) {
-                                    ++confidenceThresholdPassed[tid];
-                            }
-                            if (inst->staticInst->predictedValue != ret.predictedValue && inst->staticInst->confidence >= 0) {
-                                    ++predictionChanged[tid];
-                            }
-                            if (inst->staticInst->confidence >= 0 && (ret.confidence < 0 || ret.predictedValue != inst->staticInst->predictedValue)) {
-                                    ++predictionInvalidated[tid];
-                            }
-                        }
-
-                        if ((inst->memoryAccessStartCycle - loadPred->lastMisprediction < loadPred->resetDelay) && loadPred->dynamicThreshold) {
-                                DPRINTF(LVP, "Misprediction occured %i cycles ago, setting confidence to -1\n", inst->memoryAccessStartCycle - loadPred->lastMisprediction);
-                                inst->staticInst->predictedValue = ret.predictedValue;
-                                inst->staticInst->confidence = -1;
-                                inst->staticInst->predictedLoad = true;
-                        } else {
-                                inst->staticInst->predictedValue = ret.predictedValue;
-                                inst->staticInst->confidence = ret.confidence;
-                                inst->staticInst->predictedLoad = true;
-                        }
-                        
-                        DPRINTF(LVP, "LVP returned confidence %d, inst->staticInst->confidence set to %d\n", ret.confidence, inst->staticInst->confidence);
-
-                        if (inst->staticInst->confidence >= 0) {
-                            if ( inst->getFault() == NoFault) {
+                    if (inst->staticInst->confidence >= 5) {
+                        if ( inst->getFault() == NoFault) {
                                     DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
                                     forwardPredictionToDependents(inst);
-                            }
                         }
-                        
+                           
                     }
+
 
                 }
                 // Loads will mark themselves as executed, and their writeback
@@ -1584,6 +1559,7 @@ DefaultIEW<Impl>::executeInsts()
                     // we can have non-load instructions which are streamed from speculative cache and thier values are forwaded speculativly
                     else if (inst->lvMispred && inst->isSpeculativlyForwarded()) 
                     {
+                        assert(!inst->isStreamedFromSpeculativeCache());
                          DPRINTF(LVP, "DefaultIEW::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
                          DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction for a instruction which is not a trace prediction source!\n");
                          DPRINTF(LVP, "DefaultIEW::executeInsts():: isStreamedFromSpeculativeCache? %d\n", inst->isStreamedFromSpeculativeCache());

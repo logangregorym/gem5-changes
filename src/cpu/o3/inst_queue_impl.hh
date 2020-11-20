@@ -1142,8 +1142,8 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
         memDepUnit[inst->threadNumber].wakeDependents(inst);
         // completeMemInst(inst);
     } else if (inst->isMemBarrier() || inst->isWriteBarrier()) {
-        // TODO: should we call completeBarrier here?!
-        memDepUnit[inst->threadNumber].completeBarrier(inst);
+        DPRINTF(SuperOp, "Instruction is a MemBarrier or WriteBarrier. We can't forward it's value!\n");
+        return;
     }
 
     // loads that we are handling only have 1 dest regs
@@ -1170,7 +1170,8 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
 
     // depending on the size, we set values differently
 
-    switch (dest_reg->classValue()) {
+    switch (dest_reg->classValue()) 
+    {
         case IntRegClass:
         {
 
@@ -1178,7 +1179,11 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
             DPRINTF(LVP, "LVP: Setting int register %i to %x for inst: %s\n", 
                     dest_reg->index(), inst->staticInst->predictedValue, type);
 
-            panic_if((type == "ldsplit" || type == "ldsplitl"), "We currently dont support these type of loads!");
+            if(type == "ldsplit" || type == "ldsplitl")
+            {
+                DPRINTF(SuperOp, "Instruction is a %s. We can't forward it's value!\n", type);
+                return;
+            }
             // for all these integer loads everithing is the same        
             assert(type == "ld" || type == "ldis"|| type == "ldst" || type == "ldstl");
             
