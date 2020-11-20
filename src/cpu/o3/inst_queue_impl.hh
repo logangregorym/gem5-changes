@@ -1119,8 +1119,22 @@ InstructionQueue<Impl>::wakeDependents(DynInstPtr &completed_inst)
 }
 
 template<class Impl>
-void
-InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
+bool
+InstructionQueue<Impl>::forwardNonLoadValuePredictionToDependents(DynInstPtr &inst) {
+
+    assert(!inst->isStore());
+    assert(inst->isInteger());
+
+    //according to fetch, we anly predict dest regs for integer microops which at least have one IntReg destination register and 
+    //dest_reg.index() != 4 (FP and Stack)
+
+    return false;
+
+}
+
+template<class Impl>
+bool
+InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst) {
 
     // this function is only for loads! We should have a diffrent function for non-loads instructions
     assert(inst->isLoad());
@@ -1143,7 +1157,7 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
         // completeMemInst(inst);
     } else if (inst->isMemBarrier() || inst->isWriteBarrier()) {
         DPRINTF(SuperOp, "Instruction is a MemBarrier or WriteBarrier. We can't forward it's value!\n");
-        return;
+        return false;
     }
 
     // loads that we are handling only have 1 dest regs
@@ -1156,7 +1170,7 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
     if (dest_reg->isFixedMapping() || inst->destRegIdx(0) == RegId(IntRegClass, TheISA::ZeroReg)) {
             DPRINTF(IQ, "Reg %d [%s] is part of a fix mapping, skipping\n",
                     dest_reg->index(), dest_reg->className());
-            return;
+            return false;
     }
 
     DPRINTF(IQ, "Waking any dependents on register %i (%s).\n",
@@ -1182,7 +1196,7 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
             if(type == "ldsplit" || type == "ldsplitl")
             {
                 DPRINTF(SuperOp, "Instruction is a %s. We can't forward it's value!\n", type);
-                return;
+                return false;
             }
             // for all these integer loads everithing is the same        
             assert(type == "ld" || type == "ldis"|| type == "ldst" || type == "ldstl");
@@ -1357,7 +1371,8 @@ InstructionQueue<Impl>::forwardPredictionToDependents(DynInstPtr &inst) {
 
     
     DPRINTF(LVP, "LVP: %d dependents woken\n", dependentCount);
-   
+    
+    return true;
 
 }
 

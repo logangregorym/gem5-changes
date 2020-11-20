@@ -231,7 +231,8 @@ class InstructionQueue
     int wakeDependents(DynInstPtr &completed_inst);
 
     /** Wakes dependents with predicted result of instruction. */
-    void forwardPredictionToDependents(DynInstPtr &inst);
+    bool forwardLoadValuePredictionToDependents(DynInstPtr &inst);
+    bool forwardNonLoadValuePredictionToDependents(DynInstPtr &inst);
 
     /** Adds a ready memory instruction to the ready list. */
     void addReadyMemInst(DynInstPtr &ready_inst);
