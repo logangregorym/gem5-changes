@@ -137,6 +137,7 @@ class BaseDynInst : public ExecContext, public RefCounted
         IsStrictlyOrdered,
         ReqMade,
         MemOpDone,
+        SpeculativlyForwarded,
         MaxFlags
     };
 
@@ -556,6 +557,9 @@ class BaseDynInst : public ExecContext, public RefCounted
     bool isFirstMicroop() const { return staticInst->isFirstMicroop(); }
     bool isMicroBranch() const { return staticInst->isMicroBranch(); }
 
+
+    bool isSpeculativlyForwarded() const {return instFlags[SpeculativlyForwarded]; }
+    void setSpeculativlyForwarded(bool state)  { instFlags[SpeculativlyForwarded] = state; }
     /** Temporarily sets this instruction as a serialize before instruction. */
     void setSerializeBefore() { status.set(SerializeBefore); }
 
