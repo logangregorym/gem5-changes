@@ -1249,7 +1249,7 @@ template<class Impl>
 bool
 InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst) {
 
-    // this function is only for loads! We should have a diffrent function for non-loads instructions
+        // this function is only for loads! We should have a diffrent function for non-loads instructions
     assert(inst->isLoad());
 
     // unsigned c = dependGraph.countDependentsOf(inst);
@@ -1260,7 +1260,11 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     DPRINTF(SuperOp, "Dependency Chain of length %i for inst 0x:%x:  SeqNum:%d  Assembly:%s\n", 
             depChain.size(), inst->pcState().instAddr(), inst->seqNum, inst->staticInst->disassemble(inst->instAddr()));
 
+    // loads that we are handling only have 1 dest regs
+    assert(inst->numDestRegs() == 1);
+    PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(0);
 
+    if (dest_reg->classValue() != IntRegClass) return false;
 
     unsigned dependentCount = 0;
 
@@ -1273,12 +1277,9 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
         return false;
     }
 
-    // loads that we are handling only have 1 dest regs
-    assert(inst->numDestRegs() == 1);
 
-    PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(0);
 
-    if (!(dest_reg->classValue() == IntRegClass)) return false;
+
 
     // Special case of uniq or control registers.  They are not
     // handled by the IQ and thus have no dependency graph entry.
@@ -1297,165 +1298,167 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
 
     DPRINTF(SuperOp, "SuperOp: Forwarding data of size: %i\n", dataSize);
 
-    uint64_t Mem = inst->staticInst->predictedValue;
-    inst->setIntRegOperand(inst->staticInst.get(), 0, Mem);      
-
     // depending on the size, we set values differently
 
-    // switch (dest_reg->classValue()) 
-    // {
-    //     case IntRegClass:
-    //     {
+    switch (dest_reg->classValue()) 
+    {
+        case IntRegClass:
+        {
 
-    //         string type = inst->staticInst->getName();
-    //         DPRINTF(LVP, "LVP: Setting int register %i to %x for inst: %s\n", 
-    //                 dest_reg->index(), inst->staticInst->predictedValue, type);
+            string type = inst->staticInst->getName();
+            DPRINTF(LVP, "LVP: Setting int register %i to %x for inst: %s\n", 
+                    dest_reg->index(), inst->staticInst->predictedValue, type);
 
-    //         if(type == "ldsplit" || type == "ldsplitl")
-    //         {
-    //             DPRINTF(SuperOp, "Instruction is a %s. We can't forward it's value!\n", type);
-    //             return false;
-    //         }
-    //         // for all these integer loads everithing is the same        
-    //         assert(type == "ld" || type == "ldis"|| type == "ldst" || type == "ldstl");
+            if(type == "ldsplit" || type == "ldsplitl")
+            {
+                DPRINTF(SuperOp, "Instruction is a %s. We can't forward it's value!\n", type);
+                return false;
+            }
+            // for all these integer loads everithing is the same        
+            assert(type == "ld" || type == "ldis"|| type == "ldst" || type == "ldstl");
             
             
-    //         if (dataSize >= 4)
-    //         {
-    //             assert(inst->numSrcRegs() == 3); // LdBig has 3 sources
-    //             uint64_t Mem = 0;
-    //             Mem = inst->staticInst->predictedValue;
+            if (dataSize >= 4)
+            {
+                assert(inst->numSrcRegs() == 3); // LdBig has 3 sources
+                uint64_t Mem = 0;
+          
+                Mem = inst->staticInst->predictedValue;
+               
+
+                uint64_t Data = Mem & mask(dataSize * 8);
+                //uint64_t Data = Mem;
+                inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
+            }
+            else 
+            {
+                // first read the dest reg value 
+                assert(inst->numSrcRegs() == 4); // Ld has 4 sources
+                uint64_t Data = inst->readIntRegOperand(inst->staticInst.get(), 2);
+                uint64_t Mem = 0;
+
+                Mem = inst->staticInst->predictedValue;
                 
-
-    //             uint64_t Data = Mem & mask(dataSize * 8);
-    //             inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
-    //         }
-    //         else 
-    //         {
-    //             // first read the dest reg value 
-    //             assert(inst->numSrcRegs() == 4); // Ld has 4 sources
-    //             uint64_t Data = inst->readIntRegOperand(inst->staticInst.get(), 2);
-    //             uint64_t Mem = 0;
-    //             Mem = inst->staticInst->predictedValue;
                 
+                X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get(); x86_inst = x86_inst;
+                Data = x86_inst->merge(Data, Mem, dataSize);;
+                //Data = Mem;
+                inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
 
-    //             X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get();
-    //             Data = x86_inst->merge(Data, Mem, dataSize);;
-    //             inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
-
-    //         }
+            }
             
 
-    //         break;
+            break;
 
-    //     }
+        }
 
-    //     case FloatRegClass:
-    //     {
-    //         string type = inst->staticInst->getName();
-    //         DPRINTF(LVP, "LVP: Setting int register %i to %x for inst: %s\n", 
-    //                 dest_reg, inst->staticInst->predictedValue, type);
+        case FloatRegClass:
+        {
+            string type = inst->staticInst->getName();
+            DPRINTF(LVP, "LVP: Setting int register %i to %x for inst: %s\n", 
+                    dest_reg, inst->staticInst->predictedValue, type);
 
-    //         // It seems we just have these type of floating loads from (decoder-ns.cc.inc) file     
-    //         assert(type == "ldfp" || type == "ldfp87" || type == "ldifp87");
+            // It seems we just have these type of floating loads from (decoder-ns.cc.inc) file     
+            assert(type == "ldfp" || type == "ldfp87" || type == "ldifp87");
 
-    //         if (type == "ldfp")
-    //         {
-    //             assert(inst->numSrcRegs() == 3); // Ldfp has 3 sources
-    //             DPRINTF(LVP, "LVP: Setting float register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
-    //             uint64_t Mem = inst->staticInst->predictedValue;
-    //             uint64_t Data = Mem & mask(dataSize * 8);
-    //             inst->setFloatRegOperandBits(inst->staticInst.get(), 0, Data);
-    //         }
-    //         else if (type == "ldfp87")
-    //         {
-    //             assert(inst->numSrcRegs() == 3); // Ldfp has 3 sources
-    //             DPRINTF(LVP, "LVP: Setting float register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
-    //             uint64_t Mem = inst->staticInst->predictedValue;
-    //             double FpData = 0;
-    //             switch (dataSize)
-    //             {
-    //             case 4:
-    //                 FpData = *(float *)&Mem;
-    //                 break;
-    //             case 8:
-    //                 FpData = *(double *)&Mem;
-    //                 break;
-    //             default:
-    //                 panic("Unhandled data size in LdFp87.\n");
-    //             }
+            if (type == "ldfp")
+            {
+                assert(inst->numSrcRegs() == 3); // Ldfp has 3 sources
+                DPRINTF(LVP, "LVP: Setting float register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
+                uint64_t Mem = inst->staticInst->predictedValue;
+                //uint64_t Data = Mem & mask(dataSize * 8);
+                uint64_t Data = Mem;
+                inst->setFloatRegOperandBits(inst->staticInst.get(), 0, Data);
+            }
+            else if (type == "ldfp87")
+            {
+                assert(inst->numSrcRegs() == 3); // Ldfp has 3 sources
+                DPRINTF(LVP, "LVP: Setting float register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
+                uint64_t Mem = inst->staticInst->predictedValue;
+                double FpData = 0;
+                switch (dataSize)
+                {
+                case 4:
+                    FpData = *(float *)&Mem;
+                    break;
+                case 8:
+                    FpData = *(double *)&Mem;
+                    break;
+                default:
+                    panic("Unhandled data size in LdFp87.\n");
+                }
 
-    //             inst->setFloatRegOperand(inst->staticInst.get(), 0, FpData);
-    //         }
-    //         else if (type == "ldifp87")
-    //         {
-    //             assert(inst->numSrcRegs() == 3); // Ldfp has 3 sources
-    //             DPRINTF(LVP, "LVP: Setting float register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
-    //             uint64_t Mem = inst->staticInst->predictedValue;
-    //             double FpData = 0;
-    //             switch (dataSize)
-    //             {
-    //             case 2:
-    //                 FpData = (int64_t)sext<16>(Mem);
-    //                 break;
-    //             case 4:
-    //                 FpData = (int64_t)sext<32>(Mem);
-    //                 break;
-    //             case 8:
-    //                 FpData = (int64_t)Mem;
-    //                 break;
-    //             default:
-    //                 panic("Unhandled data size in LdIFp87.\n");
-    //             }
+                inst->setFloatRegOperand(inst->staticInst.get(), 0, FpData);
+            }
+            else if (type == "ldifp87")
+            {
+                assert(inst->numSrcRegs() == 3); // Ldfp has 3 sources
+                DPRINTF(LVP, "LVP: Setting float register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
+                uint64_t Mem = inst->staticInst->predictedValue;
+                double FpData = 0;
+                switch (dataSize)
+                {
+                case 2:
+                    FpData = (int64_t)sext<16>(Mem);
+                    break;
+                case 4:
+                    FpData = (int64_t)sext<32>(Mem);
+                    break;
+                case 8:
+                    FpData = (int64_t)Mem;
+                    break;
+                default:
+                    panic("Unhandled data size in LdIFp87.\n");
+                }
 
-    //             inst->setFloatRegOperand(inst->staticInst.get(), 0, FpData);
-    //         }
+                inst->setFloatRegOperand(inst->staticInst.get(), 0, FpData);
+            }
             
 
-    //         break;
-    //     }
+            break;
+        }
 
-    //     case VecRegClass:
-    //     {
-    //         panic("Using a lvp prediction for a VecRegClass register container");
-    //         // DPRINTF(LVP, "Setting vec register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
-    //         // inst->setVecRegOperand(inst->staticInst.get(), i, inst->staticInst->predictedValue);
-    //         break;
-    //     }
+        case VecRegClass:
+        {
+            panic("Using a lvp prediction for a VecRegClass register container");
+            // DPRINTF(LVP, "Setting vec register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
+            // inst->setVecRegOperand(inst->staticInst.get(), i, inst->staticInst->predictedValue);
+            break;
+        }
         
-    //     case VecElemClass:
-    //     {
-    //         panic("Using a lvp prediction for a VecElemClass register container");
-    //         DPRINTF(LVP, "LVP: Setting vector element  %i to %x\n", dest_reg, inst->staticInst->predictedValue);
-    //         inst->setVecElemOperand(inst->staticInst.get(), 0, inst->staticInst->predictedValue);
-    //         break;
-    //     }
+        case VecElemClass:
+        {
+            panic("Using a lvp prediction for a VecElemClass register container");
+            DPRINTF(LVP, "LVP: Setting vector element  %i to %x\n", dest_reg, inst->staticInst->predictedValue);
+            inst->setVecElemOperand(inst->staticInst.get(), 0, inst->staticInst->predictedValue);
+            break;
+        }
         
-    //     case CCRegClass:
-    //     {
-    //         panic("Using a lvp prediction for a CCRegClass register container");
-    //         DPRINTF(LVP, "LVP: Setting cc register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
-    //         if (inst->staticInst->liveOutPredicted[0]) {
-    //             inst->setIntRegOperand(inst->staticInst.get(), 0, inst->staticInst->liveOut[0]);
-    //         } else {
-    //             inst->setCCRegOperand(inst->staticInst.get(), 0, inst->staticInst->predictedValue);
-    //         }
-    //         break;
-    //     }
+        case CCRegClass:
+        {
+            panic("Using a lvp prediction for a CCRegClass register container");
+            DPRINTF(LVP, "LVP: Setting cc register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
+            if (inst->staticInst->liveOutPredicted[0]) {
+                inst->setIntRegOperand(inst->staticInst.get(), 0, inst->staticInst->liveOut[0]);
+            } else {
+                inst->setCCRegOperand(inst->staticInst.get(), 0, inst->staticInst->predictedValue);
+            }
+            break;
+        }
         
-    //     case MiscRegClass:
-    //     {
-    //         panic("Using a lvp prediction for a MiscRegClass register");
-    //         // DPRINTF(LVP, "Setting misc register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
-    //         // inst->setMiscRegOperand(inst->staticInst.get(), i, inst->staticInst->predictedValue);
-    //         break;
-    //     }
+        case MiscRegClass:
+        {
+            panic("Using a lvp prediction for a MiscRegClass register");
+            // DPRINTF(LVP, "Setting misc register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
+            // inst->setMiscRegOperand(inst->staticInst.get(), i, inst->staticInst->predictedValue);
+            break;
+        }
         
-    //     default:
-    //     {
-    //         panic("Unknown register class: %d", (int)dest_reg->classValue());
-    //     }
-    // }
+        default:
+        {
+            panic("Unknown register class: %d", (int)dest_reg->classValue());
+        }
+    }
 
         // value of the dest reg for this load is speculativly forwarded
         inst->setSpeculativlyForwarded(true);
@@ -1485,7 +1488,6 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     DPRINTF(LVP, "LVP: %d dependents woken\n", dependentCount);
     
     return true;
-
 }
 
 template <class Impl>
