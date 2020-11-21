@@ -69,8 +69,9 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
             continue;
         }
         DPRINTF(SuperOp, "Incoming trace request has the same index as trace %i already in queue\n", it->second.id);
-        if (decoder->uopValidArray[idx][it->second.head.way]) {
-            for (int way = it->second.head.way; way != 10; way = decoder->uopNextWayArray[idx][way]) {
+        int numWays = 0;
+        for (int way = it->second.head.way; way != 10 && numWays < 8; way = decoder->uopNextWayArray[idx][way]) {
+            if (decoder->uopValidArray[idx][way]) {
                 DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", idx, way, decoder->uopCountArray[idx][way]);
                 for (int uop = it->second.head.uop; uop < decoder->uopCountArray[idx][way]; uop++) {
                     if (decoder->uopAddrArray[idx][it->second.head.way][uop] == FullUopAddr(addr, uopAddr)) {
@@ -84,6 +85,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
                     }
                 }
             }
+            numWays++;
         }
     }
 
