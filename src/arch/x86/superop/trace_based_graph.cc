@@ -225,6 +225,10 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     if (trace.state != SpecTrace::QueuedForFirstTimeOptimization && trace.state != SpecTrace::OptimizationInProcess)
         return false;
 
+    // don't fold more than 2 branches
+    if (trace.branchesFolded > 2)
+        return false;
+
     StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop]);
     StaticInstPtr decodedMicroOp = decodedMacroOp;
     if (decodedMacroOp->isMacroop()) {
@@ -291,6 +295,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
                         decodedMacroOp = NULL;
                     }
                     DPRINTF(ConstProp, "Control Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+                    trace.branchesFolded++;
                     return true;
                 }
             }
