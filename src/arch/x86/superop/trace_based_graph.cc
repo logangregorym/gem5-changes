@@ -243,6 +243,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     // end the trace if a return or a branch without a confident prediction is encountered
     Addr pcAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].pcAddr;
     if (decodedMicroOp->isReturn() || !branchPred->getConfidenceForSSO(pcAddr)) {
+        DPRINTF(SuperOp, "Ending trace -- return or a branch without a confident prediction is encountered\n");
         trace.addr.valid = false;
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
@@ -281,6 +282,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     int idx = (target >> 5) & 0x1f;
     uint64_t tag = (target >> 10);
     for (int way = 0; way < 8; way++) {
+        DPRINTF(ConstProp, "Control Tracking: looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
         if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
             for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
                 if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
@@ -292,6 +294,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
                         decodedMacroOp->deleteMicroOps();
                         decodedMacroOp = NULL;
                     }
+                    DPRINTF(ConstProp, "Control Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
                     return true;
                 }
             }
@@ -610,7 +613,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     unsigned confidence = 0;
     unsigned latency;
     string type = currentTrace.inst->getName();
-    if (type != "limm" && type != "movi" && isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) {
+    if (type != "rdip" && type != "limm" && type != "movi" && isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) {
         // Step 1: Get predicted value from LVP
         // Step 2: Determine dest register(s)
         // Step 3: Annotate dest register entries with that value
@@ -646,9 +649,11 @@ bool TraceBasedGraph::generateNextTraceInst() {
             DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateMov(currentTrace.inst);
         } else if (type == "rdip") {
+            DPRINTF(ConstProp, "Found an RDIP at [%i][%i][%i], compacting...\n", idx, way, uop);
             RegId destReg = currentTrace.inst->destRegIdx(0);
             regCtx[destReg.flatIndex()].value = currentTrace.instAddr.pcAddr + currentTrace.inst->macroOp->getMacroopSize();
             regCtx[destReg.flatIndex()].valid = propagated = true;
+            DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", regCtx[destReg.flatIndex()].value, destReg.flatIndex());
         } else if (type == "wrip") {
             DPRINTF(ConstProp, "Found a WRIP branch at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = folded = propagateWrip(currentTrace.inst);
@@ -2372,7 +2377,7 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
         int idx = (target >> 5) & 0x1f;
         uint64_t tag = (target >> 10);
         for (int way = 0; way < 8; way++) {
-            DPRINTF(ConstProp, "Looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
+            DPRINTF(ConstProp, "CC Tracking: looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
             if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
                 for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
                     if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
@@ -2381,7 +2386,7 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
                         currentTrace.addr.way = way;
                         currentTrace.addr.uop = uop;
                         currentTrace.addr.valid = true;
-                        DPRINTF(ConstProp, "Jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+                        DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
                         return true;
                     }
                 }
@@ -2441,7 +2446,7 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
         int idx = (target >> 5) & 0x1f;
         uint64_t tag = (target >> 10);
         for (int way = 0; way < 8; way++) {
-            DPRINTF(ConstProp, "Looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
+            DPRINTF(ConstProp, "CC Tracking: looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
             if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
                 for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
                     if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
@@ -2450,7 +2455,7 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
                         currentTrace.addr.way = way;
                         currentTrace.addr.uop = uop;
                         currentTrace.addr.valid = true;
-                        DPRINTF(ConstProp, "Jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+                        DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
                         return true;
                     }
                 }

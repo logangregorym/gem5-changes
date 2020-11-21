@@ -707,14 +707,35 @@ DefaultIEW<Impl>::wakeDependents(DynInstPtr &inst)
 }
 
 template<class Impl>
-void
+bool
 DefaultIEW<Impl>::forwardPredictionToDependents(DynInstPtr &inst)
-{
-    instQueue.forwardPredictionToDependents(inst);
-    for (int i = 0; i < inst->numDestRegs(); i++) {
-        scoreboard->setReg(inst->renamedDestRegIdx(i));
-        DPRINTF(LVP, "LVP: Updated scoreboard for register %i.\n", inst->renamedDestRegIdx(i));
+{   
+    bool forwarded = false;
+    if (inst->isLoad())
+    {
+        forwarded = instQueue.forwardLoadValuePredictionToDependents(inst);
+        if (forwarded)
+        {
+            assert(inst->numDestRegs() == 1);
+            scoreboard->setReg(inst->renamedDestRegIdx(0));
+            DPRINTF(LVP, "Load Value Forwarded and Updated scoreboard for register %i.\n", inst->renamedDestRegIdx(0));
+        }
     }
+    else 
+    {
+        assert(0);
+        forwarded = instQueue.forwardNonLoadValuePredictionToDependents(inst);
+        if (forwarded)
+        {
+            for (int i = 0; i < inst->numDestRegs(); i++) {
+                scoreboard->setReg(inst->renamedDestRegIdx(i));
+                DPRINTF(LVP, "LVP: Updated scoreboard for register %i.\n", inst->renamedDestRegIdx(i));
+            }
+        }
+    }
+
+    return forwarded;
+    
 }
 
 template<class Impl>
@@ -1409,23 +1430,11 @@ DefaultIEW<Impl>::executeInsts()
                     DPRINTF(LVP, "Fetch Predicted (%d) Value: %#x and Confidence %d\n", 
                                 inst->staticInst->predictedLoad, inst->staticInst->predictedValue, inst->staticInst->confidence);
 
-                    // if (inst->staticInst->predictedLoad) {
-                    //         // Got a prediction in the fetch stage
-                    //         if (inst->staticInst->confidence < 0 && ret.confidence >= 0) {
-                    //                 ++confidenceThresholdPassed[tid];
-                    //         }
-                    //         if (inst->staticInst->predictedValue != ret.predictedValue && inst->staticInst->confidence >= 0) {
-                    //                 ++predictionChanged[tid];
-                    //         }
-                    //         if (inst->staticInst->confidence >= 0 && (ret.confidence < 0 || ret.predictedValue != inst->staticInst->predictedValue)) {
-                    //                 ++predictionInvalidated[tid];
-                    //         }
-                    // }
 
                     if (inst->staticInst->confidence >= 5) {
                         if ( inst->getFault() == NoFault) {
-                                    DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
-                                    forwardPredictionToDependents(inst);
+                            DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
+                            forwardPredictionToDependents(inst);
                         }
                            
                     }
@@ -1488,9 +1497,10 @@ DefaultIEW<Impl>::executeInsts()
             // will be replaced and we will lose it.
             if (inst->getFault() == NoFault) {
                 inst->execute(); // this is op specific! so need to read dest reg to get returned value
+
                 if (!inst->readPredicate()) {
                     inst->forwardOldRegs();
-		}
+		        }
 
                 // update LVP for every instruction 
                 string opcode = inst->getName();

@@ -1430,6 +1430,8 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
         traceConstructor->branchPred->squash(0, bpHistory);
     }
 
+    assert(curInst->macroOp);
+    thisPC.size(curInst->macroOp->getMacroopSize());
     thisPC._npc = thisPC._pc + curInst->macroOp->getMacroopSize();
     thisPC._nupc = thisPC._upc + 1;
 
@@ -1453,6 +1455,7 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
         /* Assuming a trace always ends at the last micro-op of a macro-op. */
         nextPC._pc += curInst->macroOp->getMacroopSize();
         nextPC._npc = nextPC._pc + 1;
+        nextPC.size(0);
         nextPC._upc = 0;
         nextPC._nupc = 1;
         nextPC.valid = false;

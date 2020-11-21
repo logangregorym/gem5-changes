@@ -1782,6 +1782,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                         DPRINTF(Fetch, "Speculative instruction created: [sn:%lli]:%s thisPC = %s nextPC = %s. currentTraceID is %d \n", 
                                     instruction->seqNum, instruction->pcState(), thisPC, nextPC, currentTraceID);
+                        DPRINTF(Fetch, "pc:%#x, npc:%#x, upc:%#x, nupc:%#x, size:%#x\n", instruction->pcState().pc(), instruction->pcState().npc(), instruction->pcState().upc(), instruction->pcState().nupc(), instruction->pcState().size());
                         for (int j=0; j<staticInst->numSrcRegs(); j++) {
                             if (staticInst->sourcesPredicted[j])
                                 DPRINTF(Fetch, "Speculative instruction has propagated constant %#x at operand %#x\n", staticInst->sourcePredictions[j], j);
