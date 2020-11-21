@@ -870,7 +870,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "mov");
     
-    if(inst->numSrcRegs() != 3) return false;
+    if (inst->numSrcRegs() != 3) return false;
 
     if (inst->isCC() && (!usingCCTracking || !ccValid))
     {
@@ -929,7 +929,7 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
     assert(type == "limm");
 
     // Limm (dataSize == 1 || dataSize == 2) has 1 sources and LimmBig (dataSize == 4 || dataSize == 8) has 0 sources
-    if(inst->numSrcRegs() != 0) return false;
+    if(inst->numSrcRegs() > 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -977,7 +977,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     
 
     // Add (dataSize == 1 || dataSize == 2) has 3 sources and AddBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if (inst->numSrcRegs() != 2) return false;
+    if (inst->numSrcRegs() > 3) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1045,9 +1045,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
 		IntReg result M5_VAR_USED; // Don't totally know what this is?
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1+psrc2), dataSize);
-        // still don't know what to do with this microop
-        assert(0);
+		forwardVal = x86_inst->merge(DestReg, result = (psrc1+psrc2), dataSize); 
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
@@ -1077,7 +1075,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     assert(type == "sub");
     
     // Sub (dataSize == 1 || dataSize == 2) has 3 sources and SubBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() != 2) return false;
+    if(inst->numSrcRegs() > 3) return false;
 
     // Subb and SubbBig are both inhereted from RegOp
     // For both src 0 and src 1 are the source operands
@@ -1146,16 +1144,11 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1-psrc2), dataSize);
-        // still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1165,19 +1158,16 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-
     
     return true;
-
 }
 
 bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "and");
     
-
     // And (dataSize == 1 || dataSize == 2) has 3 sources and AndBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() != 2) return false;
+    if(inst->numSrcRegs() > 3) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1192,7 +1182,6 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
 //    if (dataSize < 4) return false;
-
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -1248,16 +1237,11 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1&psrc2), dataSize);
-        // still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1267,10 +1251,8 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-
-    
+ 
     return true;
-
 }
 
 bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
@@ -1278,7 +1260,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     assert(type == "or");
     
     // Or (dataSize == 1 || dataSize == 2) has 3 sources and OrBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() != 2) return false;
+    if(inst->numSrcRegs() > 3) return false;
     
     if (!usingCCTracking && inst->isCC())
     {
@@ -1293,8 +1275,6 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
 //    if (dataSize < 4) return false;
-
-
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -1349,16 +1329,11 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1|psrc2), dataSize);
-        // still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1368,7 +1343,6 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-
     
     return true;
 }
@@ -1378,7 +1352,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     assert(type == "xor");
     
     // Xor (dataSize == 1 || dataSize == 2) has 3 sources and XorBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() != 2) return false;
+    if(inst->numSrcRegs() > 3) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1454,16 +1428,11 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1|psrc2), dataSize);
-		// still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1473,7 +1442,6 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-
     
     return true;
 }
@@ -1524,7 +1492,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     
     
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1594,8 +1562,6 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
 		IntReg result M5_VAR_USED; // Don't totally know what this is?
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1 - imm8), dataSize);
-	    // still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
@@ -1610,10 +1576,8 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-
     
-    return true;
-    
+    return true; 
 }
 
 bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
@@ -1621,7 +1585,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     assert(type == "addi");
     
     // AddImm (dataSize == 1 || dataSize == 2) has 2 sources and AddImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1689,8 +1653,6 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
 		IntReg result M5_VAR_USED; // Don't totally know what this is?
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1 + imm8), dataSize);
-	    // still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
@@ -1705,8 +1667,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-
-    
+ 
     return true;
 }
 
@@ -1715,7 +1676,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     assert(type == "andi");
     
     // AndImm (dataSize == 1 || dataSize == 2) has 2 sources and AndImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1729,8 +1690,6 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
     // if (dataSize < 4) return false;
-
-
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -1785,8 +1744,6 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
 		IntReg result M5_VAR_USED; // Don't totally know what this is?
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1 & imm8), dataSize);
-	    // still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
@@ -1802,10 +1759,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
 
-    
     return true;
-    
-
 }
 
 bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
@@ -1813,7 +1767,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     assert(type == "ori");
     
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() != 1) return false;
+    if (inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1881,8 +1835,6 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
 		IntReg result M5_VAR_USED; // Don't totally know what this is?
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1 | imm8), dataSize);
-	    // still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
@@ -1897,11 +1849,8 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-
-    
+ 
     return true;
-    
-
 }
 
 bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
@@ -1909,7 +1858,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     assert(type == "xori");
     
     // XorImm (dataSize == 1 || dataSize == 2) has 2 sources and XorImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1977,8 +1926,6 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
 		IntReg result M5_VAR_USED; // Don't totally know what this is?
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1 ^ imm8), dataSize);
-		// still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
@@ -2002,7 +1949,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     assert(type == "slli");
     
     // SllImm (dataSize == 1 || dataSize == 2) has 2 sources and SllImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() != 1) return false;
+    if (inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2016,7 +1963,6 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
     // if (dataSize < 4) return false;
-
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -2089,16 +2035,11 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
 		forwardVal = x86_inst->merge(DestReg, psrc1 << shiftAmt, dataSize);
-		// still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -2109,7 +2050,6 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
 
-    
     return true;
 }
 
@@ -2118,7 +2058,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     assert(type == "srli");
     
     // SrlImm (dataSize == 1 || dataSize == 2) has 2 sources and SrlImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() != 1) return false;
+    if (inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2203,8 +2143,6 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
 		uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
 		uint64_t logicalMask = mask(dataSize * 8 - shiftAmt);
 		forwardVal = x86_inst->merge(DestReg, (psrc1 >> shiftAmt) & logicalMask, dataSize);
-		// still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
@@ -2229,7 +2167,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     assert(type == "sexti");
     
     // SextImm (dataSize == 1 || dataSize == 2) has 2 sources and SextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2243,7 +2181,6 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
     // if (dataSize < 4) return false;
-
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -2311,8 +2248,6 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
 		uint64_t maskVal = mask(bitPos+1);
 		val = sign_bit ? (val | ~maskVal) : (val & maskVal);
 		forwardVal = x86_inst->merge(DestReg, val, dataSize);
-	    // still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
@@ -2336,7 +2271,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     assert(type == "zexti");
 
     // ZextImm (dataSize == 1 || dataSize == 2) has 2 sources and ZextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() != 1) return false;
+    if(inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2377,8 +2312,6 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
 		IntReg result M5_VAR_USED; // Don't totally know what this is?
 		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);	
 		forwardVal = x86_inst->merge(DestReg, bits(psrc1, imm8, 0), dataSize);
-	    // still don't know what to do with this microop
-        assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
@@ -2388,21 +2321,13 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
 
-/**<<<<<<< HEAD
-    DPRINTF(ConstProp, "ConstProp Forwarding ZExtI value %lx through register %i\n", DestReg, destReg.flatIndex());
-    DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), DestReg, type);
-    regCtx[destReg.flatIndex()].value = DestReg;
-=======
-*/
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
 
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-
     
     return true;
-
 }
 
 bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
