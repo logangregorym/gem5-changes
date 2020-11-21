@@ -82,7 +82,6 @@ class StaticInst : public RefCounted, public StaticInstFlags
     void* branch_hist;  // to be used by array dependency tracker for iPred
     bool stride_pred = false;  // used by EVES
     void* lvpData;  // this feels incredibly hacky...
-
 	// Equally hacky tact of unpacking/repacking
 	bool predVtage = false;
 	bool predStride = false;
@@ -93,7 +92,6 @@ class StaticInst : public RefCounted, public StaticInstFlags
 	int B[3] = {0};
 	int STHIT;
 	int HitBank;
-
     virtual void deleteMicroOps() { panic("undoInjectMicroops: This should only be called by a macroop"); }
 
   public:

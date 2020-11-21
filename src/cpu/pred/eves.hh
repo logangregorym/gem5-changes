@@ -49,7 +49,6 @@ private:
   bool VtageUpdateU(LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
   bool VtageAllocateOrNot(LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency, bool MedConf);
   void UpdateVtagePred(LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
-
   #define PREDSTRIDE
   #define PREDVTAGE
 

@@ -10,7 +10,11 @@
 
 #include "base/statistics.hh"
 #include "base/types.hh"
+<<<<<<< HEAD
 // #include "cpu/base_dyn_inst.hh"
+=======
+//#include "cpu/base_dyn_inst.hh"
+>>>>>>> 14882fbd81c19ed79b8b56bf6bb5ae9dc769dd16
 //#include "cpu/o3/dyn_inst.hh"
 //#include "cpu/o3/cpu.hh"
 #include "cpu/base.hh"
@@ -19,13 +23,6 @@
 #include "mem/packet.hh"
 #include "params/LoadValuePredictor.hh"
 #include "sim/sim_object.hh"
-
-//class DynInstPtr;
-//class RefCountingPtr<BaseO3DynInst<O3CPUImpl>;
-
-class O3CPUImpl;
-// template <class T> class BaseO3DynInst;
-
 
 /**
  * Base of load value predictor, specific implementations inherit from this
@@ -98,6 +95,9 @@ class LVPredUnit : public SimObject
      * Does lookUpLVPT and lookUpLCT and stores results in instruction itself
      */
     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle) = 0;
+    // overload for eves
+    //virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle, std::list<DynInstPtr>* cpuInsts) = 0;
+
 
     virtual uint64_t getValuePredicted(Addr addr) { panic("getValuePredicted not implemented for this type of value predictor\n"); }
 
@@ -106,6 +106,14 @@ class LVPredUnit : public SimObject
      * cyclesElapsed = memoryAccessStartCycle - memoryAccessEndCycle
      */
     virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle) = 0;
+<<<<<<< HEAD
+=======
+    // overload for eves
+    //virtual bool processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
+    //uint64_t actual_value, ThreadID tid, uint64_t predictedValue, int8_t confidence,
+    //unsigned actual_latency, unsigned currentCycle, std::list<DynInstPtr>* instList) = 0;
+
+>>>>>>> 14882fbd81c19ed79b8b56bf6bb5ae9dc769dd16
     int8_t firstConst;
 
     bool dynamicThreshold;

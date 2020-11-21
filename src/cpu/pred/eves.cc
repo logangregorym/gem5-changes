@@ -479,8 +479,7 @@ EvesLVP::VtageUpdateU (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint6
 }
 
 bool
-EvesLVP::VtageAllocateOrNot (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency,
-		    bool MedConf)
+EvesLVP::VtageAllocateOrNot (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency, bool MedConf)
 {
   bool X = false;
 
@@ -808,7 +807,6 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
         // assert (U != NULL);
 
         bool p = U.prediction_result;
-
   if (true) 
     {
 #ifdef LIMITSTUDY
@@ -822,7 +820,7 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
       UpdateStridePred (U, inst, actual_value, (int) actual_latency);
 #endif
       //U.todo = 0;
-    }
+   }
   seq_commit = stored_seq_no;  // this might cause big problems
   
   // return true iff no misp occurred
