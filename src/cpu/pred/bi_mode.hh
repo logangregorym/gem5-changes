@@ -59,6 +59,7 @@ class BiModeBP : public BPredUnit
     BiModeBP(const BiModeBPParams *params);
     void uncondBranch(ThreadID tid, Addr pc, void * &bp_history);
     void squash(ThreadID tid, void *bp_history);
+    bool lookupWithoutUpdate(ThreadID tid, Addr branch_addr);
     bool lookup(ThreadID tid, Addr branch_addr, void * &bp_history);
     void btbUpdate(ThreadID tid, Addr branch_addr, void * &bp_history);
     void update(ThreadID tid, Addr branch_addr, bool taken, void *bp_history,

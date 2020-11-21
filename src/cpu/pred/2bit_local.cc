@@ -87,6 +87,37 @@ LocalBP::btbUpdate(ThreadID tid, Addr branch_addr, void * &bp_history)
 
 
 bool
+LocalBP::lookupWithoutUpdate(ThreadID tid, Addr branch_addr)
+{
+    bool taken;
+    uint8_t counter_val;
+    unsigned local_predictor_idx = getLocalIndex(branch_addr);
+
+    DPRINTF(Fetch, "Looking up index %#x\n",
+            local_predictor_idx);
+
+    counter_val = localCtrs[local_predictor_idx].read();
+
+    DPRINTF(Fetch, "prediction is %i.\n",
+            (int)counter_val);
+
+    taken = getPrediction(counter_val);
+
+#if 0
+    // Speculative update.
+    if (taken) {
+        DPRINTF(Fetch, "Branch updated as taken.\n");
+        localCtrs[local_predictor_idx].increment();
+    } else {
+        DPRINTF(Fetch, "Branch updated as not taken.\n");
+        localCtrs[local_predictor_idx].decrement();
+    }
+#endif
+
+    return taken;
+}
+
+bool
 LocalBP::lookup(ThreadID tid, Addr branch_addr, void * &bp_history)
 {
     bool taken;

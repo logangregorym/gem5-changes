@@ -921,6 +921,41 @@ InstructionQueue<Impl>::scheduleReadyInsts()
                 FUCompletion *execution = new FUCompletion(issuing_inst,
                                                            idx, this);
 
+
+                if ( false && cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
+                    !issuing_inst->isMemRef() && 
+                    !issuing_inst->isStreamedFromSpeculativeCache())
+                {
+                    // inst->memoryAccessStartCycle = cpu->numCycles.value();
+
+                    DPRINTF(LVP, "Non-Load: Fetch Predicted (%d) Value for Non-load Microop: %#x and Confidence %d\n", 
+                                issuing_inst->staticInst->predictedLoad, issuing_inst->staticInst->predictedValue, issuing_inst->staticInst->confidence);
+
+
+                    if (issuing_inst->staticInst->confidence >= 5) {
+                            
+                        bool forwarded = forwardNonLoadValuePredictionToDependents(issuing_inst);
+                        if (forwarded)
+                        {
+                            
+                            if (forwarded)
+                            {
+                                DPRINTF(LVP, "Non-Load: Waking dependencies of [sn:%i] early with prediction\n", issuing_inst->seqNum);
+                                iewStage->scoreboard->setReg(issuing_inst->renamedDestRegIdx(0));
+                                DPRINTF(LVP, "Non-Load: LVP: Updated scoreboard for register %i.\n", issuing_inst->renamedDestRegIdx(0));
+                                    
+                            }
+                            else 
+                            {
+                                DPRINTF(LVP, "Non-Load: Couldn't forward the predicted value for [sn:%i]\n", issuing_inst->seqNum);
+                            }
+                        }
+                    }
+
+
+                }
+
+
                 cpu->schedule(execution,
                               cpu->clockEdge(Cycles(op_latency - 1)));
 
@@ -1125,10 +1160,88 @@ InstructionQueue<Impl>::forwardNonLoadValuePredictionToDependents(DynInstPtr &in
     assert(!inst->isStore());
     assert(inst->isInteger());
 
-    //according to fetch, we anly predict dest regs for integer microops which at least have one IntReg destination register and 
-    //dest_reg.index() != 4 (FP and Stack)
+    // this method is not for these type of microops
+    // assert(!inst->isMemRef());
+    // assert(!inst->isMemBarrier());
+    // assert(!inst->isWriteBarrier());
 
-    return false;
+
+    PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(0);
+
+    // if the first int reg is not an Integer then don't forward the predicted value
+    if (!(dest_reg->classValue() == IntRegClass)) return false; 
+    // exclude stack and FP operations
+    if (dest_reg->index() == 4)  return false;
+
+    vector<pair<DynInstPtr,unsigned>> depChain = dependGraph.getDependentsOf(inst);
+
+    DPRINTF(SuperOp, "LVP-NonLoad: Dependency Chain of length %i for inst 0x:%x:  SeqNum:%d  Assembly:%s\n", 
+            depChain.size(), inst->pcState().instAddr(), inst->seqNum, inst->staticInst->disassemble(inst->instAddr()));
+
+
+
+    unsigned dependentCount = 0;
+
+    // Added in gem5 version
+    if (inst->isMemRef()) {
+        DPRINTF(SuperOp, "LVP-NonLoad: Instruction is a isMemRef. We can't forward it's value!\n");
+        return false;
+        // completeMemInst(inst);
+    } else if (inst->isMemBarrier() || inst->isWriteBarrier()) {
+        DPRINTF(SuperOp, "LVP-NonLoad: Instruction is a MemBarrier or WriteBarrier. We can't forward it's value!\n");
+        return false;
+    }
+
+
+
+    // Special case of uniq or control registers.  They are not
+    // handled by the IQ and thus have no dependency graph entry.
+    if (dest_reg->isFixedMapping() || inst->destRegIdx(0) == RegId(IntRegClass, TheISA::ZeroReg)) {
+            DPRINTF(IQ, "LVP-NonLoad: Reg %d [%s] is part of a fix mapping, skipping\n",
+                    dest_reg->index(), dest_reg->className());
+            return false;
+    }
+
+    DPRINTF(IQ, "LVP-NonLoad: Waking any dependents on register %i (%s).\n",
+                dest_reg->index(),
+                dest_reg->className());
+
+
+    DPRINTF(SuperOp, "LVP-NonLoad: SuperOp: Forwarding value for a Non-Load microop\n");
+
+    uint64_t Data = inst->staticInst->predictedValue;
+
+    inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
+
+    // value of the dest reg for this load is speculativly forwarded
+    inst->setSpeculativlyForwarded(true);
+
+
+    DPRINTF(IQ, "LVP-NonLoad: Popping dependGraph of register %i\n", dest_reg->index());
+    DynInstPtr dep_inst = dependGraph.pop(dest_reg->index());
+    while (dep_inst) {
+
+        DPRINTF(IQ, "LVP-NonLoad: Speculatively waking up a dependent instruction, [sn:%lli] "
+                    "PC %s.\n", dep_inst->seqNum, dep_inst->pcState());
+ 
+        dependentCount++;
+            dep_inst->markSrcRegReady();
+            addIfReady(dep_inst);
+
+        DPRINTF(IQ, "LVP-NonLoad: Popping next dependency of register %i\n", dest_reg);
+        dep_inst = dependGraph.pop(dest_reg->flatIndex());
+
+    }
+
+    
+    assert(dependGraph.empty(dest_reg->flatIndex()));
+    dependGraph.clearInst(dest_reg->flatIndex());
+    regScoreboard[dest_reg->flatIndex()] = true;
+
+    
+    DPRINTF(LVP, "LVP-NonLoad: %d dependents woken\n", dependentCount);
+    
+    return true;
 
 }
 
@@ -1136,7 +1249,7 @@ template<class Impl>
 bool
 InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst) {
 
-    // this function is only for loads! We should have a diffrent function for non-loads instructions
+        // this function is only for loads! We should have a diffrent function for non-loads instructions
     assert(inst->isLoad());
 
     // unsigned c = dependGraph.countDependentsOf(inst);
@@ -1147,7 +1260,11 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     DPRINTF(SuperOp, "Dependency Chain of length %i for inst 0x:%x:  SeqNum:%d  Assembly:%s\n", 
             depChain.size(), inst->pcState().instAddr(), inst->seqNum, inst->staticInst->disassemble(inst->instAddr()));
 
+    // loads that we are handling only have 1 dest regs
+    assert(inst->numDestRegs() == 1);
+    PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(0);
 
+    if (dest_reg->classValue() != IntRegClass) return false;
 
     unsigned dependentCount = 0;
 
@@ -1160,10 +1277,9 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
         return false;
     }
 
-    // loads that we are handling only have 1 dest regs
-    assert(inst->numDestRegs() == 1);
 
-    PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(0);
+
+
 
     // Special case of uniq or control registers.  They are not
     // handled by the IQ and thus have no dependency graph entry.
@@ -1206,13 +1322,12 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
             {
                 assert(inst->numSrcRegs() == 3); // LdBig has 3 sources
                 uint64_t Mem = 0;
-                if (inst->staticInst->liveOutPredicted[0]) {
-                    Mem = inst->staticInst->liveOut[0];
-                } else {
-                    Mem = inst->staticInst->predictedValue;
-                }
+          
+                Mem = inst->staticInst->predictedValue;
+               
 
                 uint64_t Data = Mem & mask(dataSize * 8);
+                //uint64_t Data = Mem;
                 inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
             }
             else 
@@ -1221,14 +1336,13 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                 assert(inst->numSrcRegs() == 4); // Ld has 4 sources
                 uint64_t Data = inst->readIntRegOperand(inst->staticInst.get(), 2);
                 uint64_t Mem = 0;
-                if (inst->staticInst->liveOutPredicted[0]) {
-                    Mem = inst->staticInst->liveOut[0];
-                } else {
-                    Mem = inst->staticInst->predictedValue;
-                }
 
-                X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get();
+                Mem = inst->staticInst->predictedValue;
+                
+                
+                X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get(); x86_inst = x86_inst;
                 Data = x86_inst->merge(Data, Mem, dataSize);;
+                //Data = Mem;
                 inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
 
             }
@@ -1252,7 +1366,8 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                 assert(inst->numSrcRegs() == 3); // Ldfp has 3 sources
                 DPRINTF(LVP, "LVP: Setting float register %i to %x\n", dest_reg, inst->staticInst->predictedValue);
                 uint64_t Mem = inst->staticInst->predictedValue;
-                uint64_t Data = Mem & mask(dataSize * 8);
+                //uint64_t Data = Mem & mask(dataSize * 8);
+                uint64_t Data = Mem;
                 inst->setFloatRegOperandBits(inst->staticInst.get(), 0, Data);
             }
             else if (type == "ldfp87")
@@ -1373,7 +1488,6 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     DPRINTF(LVP, "LVP: %d dependents woken\n", dependentCount);
     
     return true;
-
 }
 
 template <class Impl>

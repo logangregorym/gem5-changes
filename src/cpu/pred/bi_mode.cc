@@ -147,6 +147,35 @@ BiModeBP::lookup(ThreadID tid, Addr branchAddr, void * &bpHistory)
     return finalPrediction;
 }
 
+bool
+BiModeBP::lookupWithoutUpdate(ThreadID tid, Addr branchAddr)
+{
+    unsigned choiceHistoryIdx = ((branchAddr >> instShiftAmt)
+                                & choiceHistoryMask);
+    unsigned globalHistoryIdx = (((branchAddr >> instShiftAmt)
+                                ^ globalHistoryReg[tid])
+                                & globalHistoryMask);
+
+    assert(choiceHistoryIdx < choicePredictorSize);
+    assert(globalHistoryIdx < globalPredictorSize);
+
+    bool choicePrediction = choiceCounters[choiceHistoryIdx].read()
+                            > choiceThreshold;
+    bool takenGHBPrediction = takenCounters[globalHistoryIdx].read()
+                              > takenThreshold;
+    bool notTakenGHBPrediction = notTakenCounters[globalHistoryIdx].read()
+                                 > notTakenThreshold;
+    bool finalPrediction;
+
+    if (choicePrediction) {
+        finalPrediction = takenGHBPrediction;
+    } else {
+        finalPrediction = notTakenGHBPrediction;
+    }
+
+    return finalPrediction;
+}
+
 void
 BiModeBP::btbUpdate(ThreadID tid, Addr branchAddr, void * &bpHistory)
 {
@@ -232,7 +261,8 @@ BiModeBP::update(ThreadID tid, Addr branchAddr, bool taken, void *bpHistory,
 unsigned
 BiModeBP::getGHR(ThreadID tid, void *bp_history) const
 {
-    return static_cast<BPHistory*>(bp_history)->globalHistoryReg;
+//    return static_cast<BPHistory*>(bp_history)->globalHistoryReg;
+    return globalHistoryReg[tid];
 }
 
 void

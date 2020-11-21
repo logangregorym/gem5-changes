@@ -113,6 +113,9 @@ struct SpecTrace
     // address of the last instruction in the trace
     FullUopAddr end;
 
+    // Number of branches folded
+    unsigned branchesFolded;
+
     enum State {
         Invalid,
         
@@ -159,6 +162,7 @@ struct SpecTrace
         addr = FullCacheIdx();
         inst = NULL;
         prevNonEliminatedInst = NULL;
+        branchesFolded = 0;
     }
 };
 #endif // __ARCH_X86_DECODER_STRUCTS__

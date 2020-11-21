@@ -70,6 +70,7 @@ class LTAGE: public BPredUnit
 
     // Base class methods.
     void uncondBranch(ThreadID tid, Addr br_pc, void* &bp_history) override;
+    bool lookupWithoutUpdate(ThreadID tid, Addr branch_addr) override;
     bool lookup(ThreadID tid, Addr branch_addr, void* &bp_history) override;
     void btbUpdate(ThreadID tid, Addr branch_addr, void* &bp_history) override;
     void update(ThreadID tid, Addr branch_addr, bool taken, void *bp_history,
