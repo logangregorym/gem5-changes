@@ -80,6 +80,7 @@
 #include "sim/full_system.hh"
 #include "sim/system.hh"
 
+#include <iostream>
 using namespace std;
 
 template<class Impl>
@@ -162,6 +163,8 @@ DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
 
     branchPred = params->branchPred;
     loadPred = params->loadPred;
+    //loadPred->cpuInsts = &(cpu->instList);
+
     // constantLoads = vector<Addr>(constantBufferSize, 0);
     // constantLoadAddrs = {0};
     // constantLoadValidBits = {0};
@@ -1335,6 +1338,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                               TheISA::PCState nextPC, bool trace)
 {
     assert(staticInst);
+
     // Get a sequence number.
     InstSeqNum seq;
     seq = cpu->getAndIncrementInstSeq();
@@ -1370,8 +1374,35 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
         if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
             DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);
             instruction->cycleFetched = cpu->numCycles.value();
-            LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
-            DPRINTF(LVP, "fetch predicted %x with confidence %i\n", ret.predictedValue, ret.confidence);
+            loadPred->stored_seq_no = seq;
+	    
+	    int inflight_count = 0;
+            for (const DynInstPtr& cpuInst : cpu->instList) {
+                if (cpuInst->instAddr() == thisPC.pc()) {
+                    inflight_count += 1;
+                }
+            }
+            loadPred->stored_inflight = inflight_count;	    
+
+            LVPredUnit::lvpReturnValues ret;
+            ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+            instruction->staticInst->lvpData = &ret;
+			instruction->staticInst->predictedValue = ret.predictedValue;
+			instruction->staticInst->confidence = ret.confidence;
+			instruction->staticInst->predVtage = ret.predVtage;
+			instruction->staticInst->predStride = ret.predStride;
+			instruction->staticInst->prediction_result = ret.prediction_result;
+			for (int i=0; i<9; i++) {
+				instruction->staticInst->GTAG[i] = ret.GTAG[i];
+				instruction->staticInst->GI[i] = ret.GI[i];
+			}
+			for (int i=0; i<3; i++) {
+				instruction->staticInst->TAGSTR[i] = ret.TAGSTR[i];
+				instruction->staticInst->B[i] = ret.B[i];
+			}
+			instruction->staticInst->STHIT = ret.STHIT;
+			instruction->staticInst->HitBank = ret.HitBank;
+		    DPRINTF(LVP, "fetch predicted %x with confidence %i\n", ret.predictedValue, ret.confidence);
             if ((cpu->numCycles.value() - loadPred->lastMisprediction < loadPred->resetDelay) && loadPred->dynamicThreshold) {
                 DPRINTF(LVP, "Misprediction occured %i cycles ago, setting confidence to -1\n", cpu->numCycles.value() - loadPred->lastMisprediction);
                 staticInst->predictedValue = ret.predictedValue;

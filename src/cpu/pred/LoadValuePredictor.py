@@ -8,7 +8,7 @@ class LoadValuePredictor(SimObject):
     cxx_class = 'LVPredUnit'
     cxx_header = "cpu/pred/lvpred_unit.hh"
 
-    lvpredType = Param.String("basic", "Load Value predictor type ('basic', 'strideHist', '3period', 'hybrid', 'fa3p', 'none')")
+    lvpredType = Param.String("basic", "Load Value predictor type ('basic', 'strideHist', '3period', 'hybrid', 'fa3p', 'eves', 'none')")
     tableEntries = Param.Unsigned(256, "Number of entries in the lookup table")
     constantThreshold = Param.Int(10, "First usable prediction")
     dynamicThreshold = Param.Bool(1, "Learn the constant threshold dynamically?")
