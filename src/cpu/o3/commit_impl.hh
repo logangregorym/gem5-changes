@@ -911,6 +911,7 @@ DefaultCommit<Impl>::commit()
 
             //*****CHANGE START**********
             toIEW->commitInfo[tid].squashDueToLVP = fromIEW->squashDueToLVP[tid];
+            toIEW->commitInfo[tid].currentTraceID = fromIEW->currentTraceID[tid];
             //*****CHANGE END**********
 
             if (fromIEW->includeSquashInst[tid]) {

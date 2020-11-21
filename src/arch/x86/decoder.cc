@@ -951,6 +951,27 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     return false;
 }
 
+void
+Decoder::updateStreamTrace(unsigned traceID, X86ISA::PCState &thisPC) {
+    traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
+    int idx = traceConstructor->streamTrace.optimizedHead.idx;
+    int baseWay = traceConstructor->streamTrace.optimizedHead.way;
+    FullUopAddr addr = FullUopAddr(thisPC.pc(), thisPC.upc());
+
+    for (int way = baseWay; way != 10; way = speculativeNextWayArray[idx][way]) {
+        if (speculativeValidArray[idx][way] && speculativeTraceIDArray[idx][way] == traceID) {
+            for (int uop = 0; uop < speculativeCountArray[idx][way]; uop++) {
+                if (speculativeAddrArray[idx][way][uop] == addr) {
+                    traceConstructor->streamTrace.addr = FullCacheIdx(idx, way, uop);
+                    DPRINTF(Decoder, "updateStreamTrace: stream trace %d to begin at SPEC[%d][%d][%d]\n", traceID, idx, way, uop);
+                    return;
+                }
+            }
+        }
+    }
+    DPRINTF(Decoder, "updateStreamTrace: couldn't find instruction in stream trace %d\n", traceID);
+}
+
 bool
 Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
 

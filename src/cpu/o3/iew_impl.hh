@@ -650,10 +650,12 @@ DefaultIEW<Impl>::squashDueToMemOrder(DynInstPtr &inst, ThreadID tid)
         toCommit->mispredictInst[tid] = NULL;
         
         // in this way we can find out whether mem order violation was in the trace or not
-        if (inst->isStreamedFromSpeculativeCache())
+        if (inst->isStreamedFromSpeculativeCache()) {
             toCommit->squashDueToLVP[tid] = true;
-        else 
+            toCommit->currentTraceID[tid] = inst->staticInst->traceID;
+        } else {
             toCommit->squashDueToLVP[tid] = false;
+        }
         
         // Must include the memory violator in the squash.
         toCommit->includeSquashInst[tid] = true;
