@@ -919,11 +919,9 @@ LTAGE::storagelessConfHandler(ThreadHistory hist, BranchInfo*  bi) {
 
 bool
 LTAGE::getConfidenceForSSO(Addr pc)
-{
-    //if (branch_confidence.count(pc) > 0) {
-	 return branch_confidence[pc & 2047].read() >= branchConfidenceThreshold;
-    //}
-    return false;
+{   
+    if (doStoragelessBranchConf) { return true; }
+    return branch_confidence[pc & 2047].read() >= branchConfidenceThreshold;
 }
 
 LTAGE*

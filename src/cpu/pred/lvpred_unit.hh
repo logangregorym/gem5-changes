@@ -6,14 +6,26 @@
 #define __CPU_PRED_LVPRED_UNIT_HH__
 
 #include <deque> // is this the best structure?
+#include <list>
 
 #include "base/statistics.hh"
 #include "base/types.hh"
+#include "cpu/base_dyn_inst.hh"
+//#include "cpu/o3/dyn_inst.hh"
+//#include "cpu/o3/cpu.hh"
+#include "cpu/base.hh"
 #include "cpu/pred/big_sat_counter.hh"
 #include "cpu/static_inst.hh"
 #include "mem/packet.hh"
 #include "params/LoadValuePredictor.hh"
 #include "sim/sim_object.hh"
+
+//class DynInstPtr;
+//class RefCountingPtr<BaseO3DynInst<O3CPUImpl>;
+
+class O3CPUImpl;
+template <class T> class BaseO3DynInst;
+
 
 /**
  * Base of load value predictor, specific implementations inherit from this
@@ -23,11 +35,15 @@ class LVPredUnit : public SimObject
   public:
     typedef LoadValuePredictorParams Params;
 
+    // used by EVES; put higher up for better compilation feedback
+    //std::list<RefCountingPtr<BaseO3DynInst<O3CPUImpl>>>* cpuInsts;
+
     /**
      * Constructor for LVPredUnit base
      * @param params The params object with size information
      */
     LVPredUnit(const Params *p);
+
 
     /** Registers statistics. */
     void regStats();
@@ -62,12 +78,29 @@ class LVPredUnit : public SimObject
         int8_t confidence;
         unsigned latency;
         uint8_t predSource;
+
+	// eves specific stuff ahead
+        bool predVtage = false;
+        bool predStride = false;
+        bool prediction_result;  // is there a prediction result?
+	uint64_t GTAG[9] = {0};
+        uint64_t GI[9] = {0};  // these are snapshots of the VTAGE components
+	int TAGSTR[3] = {0};  // TODO: allow multiple sizes, but for now this is fine
+        int B[3] = {0};
+	int STHIT;
+        int HitBank;
     };
+
+    uint64_t stored_seq_no;
+    int stored_inflight;  // these are calculated externally and passed in immediately before use
 
     /**
      * Does lookUpLVPT and lookUpLCT and stores results in instruction itself
      */
     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle) = 0;
+    // overload for eves
+    //virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle, std::list<DynInstPtr>* cpuInsts) = 0;
+
 
     virtual uint64_t getValuePredicted(Addr addr) { panic("getValuePredicted not implemented for this type of value predictor\n"); }
 
@@ -76,6 +109,10 @@ class LVPredUnit : public SimObject
      * cyclesElapsed = memoryAccessStartCycle - memoryAccessEndCycle
      */
     virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle) = 0;
+    // overload for eves
+    //virtual bool processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
+    //uint64_t actual_value, ThreadID tid, uint64_t predictedValue, int8_t confidence,
+    //unsigned actual_latency, unsigned currentCycle, std::list<DynInstPtr>* instList) = 0;
 
     int8_t firstConst;
 

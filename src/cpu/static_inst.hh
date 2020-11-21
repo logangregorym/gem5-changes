@@ -80,6 +80,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
     };
 
     void* branch_hist;  // to be used by array dependency tracker for iPred
+    bool stride_pred = false;  // used by EVES
+    void* lvpData;  // this feels incredibly hacky...
 
     virtual void deleteMicroOps() { panic("undoInjectMicroops: This should only be called by a macroop"); }
 
@@ -250,8 +252,10 @@ class StaticInst : public RefCounted, public StaticInstFlags
      * within the debugger when #cachedDisassembly has not been
      * initialized.
      */
+  public:
     const char *mnemonic;
-
+  
+  protected:
     /**
      * String representation of disassembly (lazily evaluated via
      * disassemble()).

@@ -52,6 +52,7 @@ Source('three_period.cc')
 # Source('hybrid.cc')
 Source('empty_lvp.cc')
 Source('fa3p.cc')
+Source('eves.cc')
 
 DebugFlag('FreeList')
 DebugFlag('Branch')

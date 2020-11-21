@@ -10,6 +10,7 @@
 // #include "cpu/pred/hybrid.hh"
 #include "cpu/pred/empty_lvp.hh"
 #include "cpu/pred/fa3p.hh"
+#include "cpu/pred/eves.hh"
 
 LVPredUnit *
 LoadValuePredictorParams::create()
@@ -24,6 +25,8 @@ LoadValuePredictorParams::create()
 // 	return new HybridLVP(this);
     } else if (lvpredType == "fa3p") {
         return new FA3P(this);
+    } else if (lvpredType == "eves") {
+	return new EvesLVP(this);
     } else if (lvpredType == "none") {
         return new EmptyLVP(this);
     } else {
