@@ -10,7 +10,7 @@
 
 #include "base/statistics.hh"
 #include "base/types.hh"
-#include "cpu/base_dyn_inst.hh"
+//#include "cpu/base_dyn_inst.hh"
 //#include "cpu/o3/dyn_inst.hh"
 //#include "cpu/o3/cpu.hh"
 #include "cpu/base.hh"
@@ -20,11 +20,8 @@
 #include "params/LoadValuePredictor.hh"
 #include "sim/sim_object.hh"
 
-//class DynInstPtr;
-//class RefCountingPtr<BaseO3DynInst<O3CPUImpl>;
-
-class O3CPUImpl;
-template <class T> class BaseO3DynInst;
+//class O3CPUImpl;
+//template <class T> class BaseO3DynInst;
 
 
 /**
