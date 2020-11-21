@@ -879,7 +879,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "mov");
     
-    if (inst->numSrcRegs() != 3) return false;
+    if(inst->numSrcRegs() != 3) return false;
 
     if (inst->isCC() && (!usingCCTracking || !ccValid))
     {
@@ -891,9 +891,6 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     X86ISA::RegOp * inst_regop = (X86ISA::RegOp * )inst.get(); 
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
-
-//    if (dataSize < 4) return false;
-//	LAYNE: put that line back if you recieve an email saying you should
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex(); src1 = src1;
     unsigned src2 = inst->srcRegIdx(1).flatIndex(); // this is the soruce reg in 4 or 8 byte moves
@@ -953,9 +950,6 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    // let's not do anything for Limm and Only propagate LimmBig
-//    if (dataSize < 4) return false;
-
     uint64_t forwardVal = 0; 
 
     if (dataSize >= 4)
@@ -969,7 +963,9 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
 
 	if (dataSize < 4 && regCtx[destReg.flatIndex()].valid) {
 		forwardVal = x86_inst->merge(regCtx[destReg.flatIndex()].value, imm, dataSize);
-	} else if (dataSize < 4) { return false; }
+	} else if (dataSize < 4) { 
+        return false; 
+    }
 
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
 
@@ -1000,8 +996,6 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    // if (dataSize < 4) return false; 
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
@@ -1015,54 +1009,53 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     uint64_t SrcReg2 = regCtx[src2].value;
     uint64_t forwardVal = 0;
 	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+
+    uint64_t psrc1, psrc2;
     if (dataSize >= 4)
     {
         X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-        uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 + psrc2) & mask(dataSize * 8);;
         
-        if (usingCCTracking && inst->isCC())
-        {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
-                                               PreddfBit | PredecfBit | PredezfBit,
-                                               ext, forwardVal, psrc1, psrc2, true);
-            PredcfofBits = newFlags & cfofMask;
-            PredecfBit = newFlags & ECFBit;
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            ccValid = true;
-        }
-    }
-    else {
+    } else {
 		RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1+psrc2), dataSize); 
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+		
+        forwardVal = x86_inst->merge(DestReg, result = (psrc1+psrc2), dataSize);
     }
 
+    if (usingCCTracking && inst->isCC())
+    {
+        uint16_t ext = inst->getExt();
 
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
 
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                           PreddfBit | PredecfBit | PredezfBit,
+                                           ext, forwardVal, psrc1, psrc2, true);
+        PredcfofBits = newFlags & cfofMask;
+        PredecfBit = newFlags & ECFBit;
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        ccValid = true;
+    }
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1078,8 +1071,6 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
 }
 
 bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
-
-
     string type = inst->getName();
     assert(type == "sub");
     
@@ -1091,8 +1082,6 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     X86ISA::RegOp * inst_regop = (X86ISA::RegOp * )inst.get(); 
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
-
-//    if (dataSize < 4) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1113,50 +1102,50 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     uint64_t SrcReg2 = regCtx[src2].value;
     uint64_t forwardVal = 0;
 	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint64_t psrc1, psrc2;
     if (dataSize >= 4)
     {
         X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-        uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 - psrc2) & mask(dataSize * 8);;
-
-        if (usingCCTracking && inst->isCC())
-        {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
-                                               PreddfBit | PredecfBit | PredezfBit,
-                                               ext, forwardVal, psrc1, ~psrc2, true);
-            PredcfofBits = newFlags & cfofMask;
-            PredecfBit = newFlags & ECFBit;
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            ccValid = true;
-        }
-    }
-    else {
+    } else {
 		RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+		
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1-psrc2), dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+    if (usingCCTracking && inst->isCC())
+    {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                           PreddfBit | PredecfBit | PredezfBit,
+                                           ext, forwardVal, psrc1, ~psrc2, true);
+        PredcfofBits = newFlags & cfofMask;
+        PredecfBit = newFlags & ECFBit;
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        ccValid = true;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -1190,8 +1179,6 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-//    if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
@@ -1206,50 +1193,50 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     uint64_t forwardVal = 0;
 	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
 
+    uint64_t psrc1, psrc2;
     if (dataSize >= 4)
     { 
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-        uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 & psrc2) & mask(dataSize * 8);
-        
-        if (usingCCTracking && inst->isCC())
-        {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-
-            uint64_t mask = CFBit | ECFBit | OFBit;
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
-                                 PredezfBit, ext & ~mask, forwardVal, psrc1, psrc2);
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            //If a logic microop wants to set these, it wants to set them to 0.
-            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
-            PredecfBit = PredecfBit & ~(ECFBit & ext);
-            ccValid = true;
-        }
-    }
-    else {
+    } else {
         RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1&psrc2), dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+    
+    if (usingCCTracking && inst->isCC())
+    {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+
+        uint64_t mask = CFBit | ECFBit | OFBit;
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                             PredezfBit, ext & ~mask, forwardVal, psrc1, psrc2);
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        //If a logic microop wants to set these, it wants to set them to 0.
+        PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+        PredecfBit = PredecfBit & ~(ECFBit & ext);
+        ccValid = true;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -1260,7 +1247,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
- 
+
     return true;
 }
 
@@ -1283,8 +1270,6 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-//    if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
@@ -1298,50 +1283,50 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     uint64_t SrcReg2 = regCtx[src2].value;
     uint64_t forwardVal = 0;
 	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint64_t psrc1, psrc2;
     if (dataSize >= 4)
     {
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-        uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 | psrc2) & mask(dataSize * 8);
-        
-        if (usingCCTracking && inst->isCC())
-        {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-
-            uint64_t mask = CFBit | ECFBit | OFBit;
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
-                                 PredezfBit, ext & ~mask, forwardVal, psrc1, psrc2);
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            //If a logic microop wants to set these, it wants to set them to 0.
-            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
-            PredecfBit = PredecfBit & ~(ECFBit & ext);
-            ccValid = true;
-        }
-    }
-    else {
+    } else {
 		RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1|psrc2), dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+    
+    if (usingCCTracking && inst->isCC())
+    {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+
+        uint64_t mask = CFBit | ECFBit | OFBit;
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                             PredezfBit, ext & ~mask, forwardVal, psrc1, psrc2);
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        //If a logic microop wants to set these, it wants to set them to 0.
+        PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+        PredecfBit = PredecfBit & ~(ECFBit & ext);
+        ccValid = true;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -1375,8 +1360,6 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-//    if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if (src1 == src2) {
@@ -1397,50 +1380,51 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     uint64_t forwardVal = 0;
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
  
+    uint64_t psrc1, psrc2;
     if (dataSize >= 4)
     {
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-        uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 ^ psrc2) & mask(dataSize * 8);
-        
-        if (usingCCTracking && inst->isCC())
-        {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-
-            uint64_t mask = CFBit | ECFBit | OFBit;
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
-                                 PredezfBit, ext & ~mask, forwardVal, psrc1, psrc2);
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            //If a logic microop wants to set these, it wants to set them to 0.
-            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
-            PredecfBit = PredecfBit & ~(ECFBit & ext);
-            ccValid = true;
-        }
     }
     else {
         RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1|psrc2), dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+    
+    if (usingCCTracking && inst->isCC())
+    {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+
+        uint64_t mask = CFBit | ECFBit | OFBit;
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                             PredezfBit, ext & ~mask, forwardVal, psrc1, psrc2);
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        //If a logic microop wants to set these, it wants to set them to 0.
+        PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+        PredecfBit = PredecfBit & ~(ECFBit & ext);
+        ccValid = true;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -1514,8 +1498,6 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-//    if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
@@ -1532,49 +1514,49 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
 
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
+    uint64_t psrc1;
     if (dataSize >= 4)
     {
         X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
         uint8_t imm8 = inst_regop->imm8;
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 - imm8) & mask(dataSize * 8);;
-        
-        if (usingCCTracking && inst->isCC())
-        {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
-                                               PreddfBit | PredecfBit | PredezfBit,
-                                               ext, forwardVal, psrc1, ~imm8, true);
-            PredcfofBits = newFlags & cfofMask;
-            PredecfBit = newFlags & ECFBit;
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            ccValid = true;
-        }
-    }
-    else {
+    } else {
         RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1 - imm8), dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+    
+    if (usingCCTracking && inst->isCC())
+    {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                           PreddfBit | PredecfBit | PredezfBit,
+                                           ext, forwardVal, psrc1, ~imm8, true);
+        PredcfofBits = newFlags & cfofMask;
+        PredecfBit = newFlags & ECFBit;
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        ccValid = true;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -1585,8 +1567,8 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-    
-    return true; 
+
+    return true;
 }
 
 bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
@@ -1607,8 +1589,6 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-//    if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
@@ -1625,47 +1605,46 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
 	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
 
+    uint64_t psrc1;
     if (dataSize >= 4)
     {
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 + imm8) & mask(dataSize * 8);;
         
-        if (usingCCTracking && inst->isCC())
-        {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
-                                               PreddfBit | PredecfBit | PredezfBit,
-                                               ext, forwardVal, psrc1, imm8, true);
-            PredcfofBits = newFlags & cfofMask;
-            PredecfBit = newFlags & ECFBit;
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            ccValid = true;
-        }
-    }
-    else {
+    } else {
         RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1 + imm8), dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+    if (usingCCTracking && inst->isCC()) {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                           PreddfBit | PredecfBit | PredezfBit,
+                                           ext, forwardVal, psrc1, imm8, true);
+        PredcfofBits = newFlags & cfofMask;
+        PredecfBit = newFlags & ECFBit;
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        ccValid = true;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -1676,7 +1655,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
- 
+
     return true;
 }
 
@@ -1698,8 +1677,6 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    // if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
@@ -1715,48 +1692,47 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
 
 	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
+    uint64_t psrc1;
     if (dataSize >= 4)
     {
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 & imm8) & mask(dataSize * 8);;
-        
-        if (usingCCTracking && inst->isCC())
-        {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-
-            uint64_t mask = CFBit | ECFBit | OFBit;
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
-                                 PredezfBit, ext & ~mask, forwardVal, psrc1, imm8);
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            //If a logic microop wants to set these, it wants to set them to 0.
-            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
-            PredecfBit = PredecfBit & ~(ECFBit & ext);
-            ccValid = true;
-        }
-    }
-    else {
+    } else {
         RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1 & imm8), dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+    
+    if (usingCCTracking && inst->isCC())
+    {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+
+        uint64_t mask = CFBit | ECFBit | OFBit;
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                             PredezfBit, ext & ~mask, forwardVal, psrc1, imm8);
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        //If a logic microop wants to set these, it wants to set them to 0.
+        PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+        PredecfBit = PredecfBit & ~(ECFBit & ext);
+        ccValid = true;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -1789,8 +1765,6 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-//    if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
@@ -1805,49 +1779,48 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     uint64_t forwardVal = 0;
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
- 
+
+    uint64_t psrc1; 
     if (dataSize >= 4)
     {
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 | imm8) & mask(dataSize * 8);;
-        
-        if (usingCCTracking && inst->isCC())
-        {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-
-            uint64_t mask = CFBit | ECFBit | OFBit;
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
-                                 PredezfBit, ext & ~mask, forwardVal, psrc1, imm8);
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            //If a logic microop wants to set these, it wants to set them to 0.
-            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
-            PredecfBit = PredecfBit & ~(ECFBit & ext);
-            ccValid = true;
-        }
-    }
-    else {
+    } else {
         RegId destReg = inst->destRegIdx(0);
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1 | imm8), dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+    
+    if (usingCCTracking && inst->isCC())
+    {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+
+        uint64_t mask = CFBit | ECFBit | OFBit;
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                             PredezfBit, ext & ~mask, forwardVal, psrc1, imm8);
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        //If a logic microop wants to set these, it wants to set them to 0.
+        PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+        PredecfBit = PredecfBit & ~(ECFBit & ext);
+        ccValid = true;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -1858,7 +1831,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
- 
+
     return true;
 }
 
@@ -1880,8 +1853,6 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-//    if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
@@ -1897,48 +1868,48 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
  
+    uint64_t psrc1;
     if (dataSize >= 4)
     {
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 ^ imm8) & mask(dataSize * 8);;
-        
-        if (usingCCTracking && inst->isCC())
-        {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-
-            uint64_t mask = CFBit | ECFBit | OFBit;
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
-                                 PredezfBit, ext & ~mask, forwardVal, psrc1, imm8);
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            //If a logic microop wants to set these, it wants to set them to 0.
-            PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
-            PredecfBit = PredecfBit & ~(ECFBit & ext);
-            ccValid = true;
-        }
-    }
-    else {
+    } else {
         RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
 		forwardVal = x86_inst->merge(DestReg, result = (psrc1 ^ imm8), dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+    
+    if (usingCCTracking && inst->isCC())
+    {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+
+        uint64_t mask = CFBit | ECFBit | OFBit;
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                             PredezfBit, ext & ~mask, forwardVal, psrc1, imm8);
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        //If a logic microop wants to set these, it wants to set them to 0.
+        PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
+        PredecfBit = PredecfBit & ~(ECFBit & ext);
+        ccValid = true;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -1971,8 +1942,6 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    // if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
@@ -1988,66 +1957,67 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     
 	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
+    uint64_t psrc1;
+    uint8_t shiftAmt;
     if (dataSize >= 4)
     {
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
-        uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
+        shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
         forwardVal = (psrc1 << shiftAmt) & mask(dataSize * 8);
-        
-        // If the shift amount is zero, no flags should be modified.
-        if (usingCCTracking && shiftAmt && inst->isCC()) {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-            //Zero out any flags we might modify. This way we only have to
-            //worry about setting them.
-            PredcfofBits = PredcfofBits & ~(ext & (CFBit | OFBit));
-            PredecfBit = PredecfBit & ~(ext & ECFBit);
-            int CFBits = 0;
-            //Figure out if we -would- set the CF bits if requested.
-            if (shiftAmt <= dataSize * 8 &&
-                    bits(SrcReg1, dataSize * 8 - shiftAmt)) {
-                CFBits = 1;
-            }
-            //If some combination of the CF bits need to be set, set them.
-            if ((ext & (CFBit | ECFBit)) && CFBits) {
-                PredcfofBits = PredcfofBits | (ext & CFBit);
-                PredecfBit = PredecfBit | (ext & ECFBit);
-            }
-            //Figure out what the OF bit should be.
-            if ((ext & OFBit) && (CFBits ^ bits(forwardVal, dataSize * 8 - 1)))
-                PredcfofBits = PredcfofBits | OFBit;
-            //Use the regular mechanisms to calculate the other flags.
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
-                                               PredezfBit, ext & ~(CFBit | ECFBit | OFBit),
-                                               forwardVal, psrc1, imm8);
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            ccValid = true;
-        }
-    }
-    else {
+    } else {
         RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-		uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
+		shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
+
 		forwardVal = x86_inst->merge(DestReg, psrc1 << shiftAmt, dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+    
+    // If the shift amount is zero, no flags should be modified.
+    if (usingCCTracking && shiftAmt && inst->isCC()) {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+        //Zero out any flags we might modify. This way we only have to
+        //worry about setting them.
+        PredcfofBits = PredcfofBits & ~(ext & (CFBit | OFBit));
+        PredecfBit = PredecfBit & ~(ext & ECFBit);
+        int CFBits = 0;
+        //Figure out if we -would- set the CF bits if requested.
+        if (shiftAmt <= dataSize * 8 &&
+                bits(SrcReg1, dataSize * 8 - shiftAmt)) {
+            CFBits = 1;
+        }
+        //If some combination of the CF bits need to be set, set them.
+        if ((ext & (CFBit | ECFBit)) && CFBits) {
+            PredcfofBits = PredcfofBits | (ext & CFBit);
+            PredecfBit = PredecfBit | (ext & ECFBit);
+        }
+        //Figure out what the OF bit should be.
+        if ((ext & OFBit) && (CFBits ^ bits(forwardVal, dataSize * 8 - 1)))
+            PredcfofBits = PredcfofBits | OFBit;
+        //Use the regular mechanisms to calculate the other flags.
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                           PredezfBit, ext & ~(CFBit | ECFBit | OFBit),
+                                           forwardVal, psrc1, imm8);
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        ccValid = true;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2080,8 +2050,6 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    // if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
@@ -2097,65 +2065,65 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
 
-
+    uint64_t psrc1;
+    uint8_t shiftAmt;
     if (dataSize >= 4)
     {
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
-        uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
+        shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
         uint64_t logicalMask = mask(dataSize * 8 - shiftAmt);
         forwardVal = (psrc1 >> shiftAmt) & logicalMask;
-        
-        // If the shift amount is zero, no flags should be modified.
-        if (usingCCTracking && shiftAmt && inst->isCC()) {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-            //Zero out any flags we might modify. This way we only have to
-            //worry about setting them.
-            PredcfofBits = PredcfofBits & ~(ext & (CFBit | OFBit));
-            PredecfBit = PredecfBit & ~(ext & ECFBit);
-            //If some combination of the CF bits need to be set, set them.
-            if ((ext & (CFBit | ECFBit)) &&
-                    shiftAmt <= dataSize * 8 &&
-                    bits(SrcReg1, shiftAmt - 1)) {
-                PredcfofBits = PredcfofBits | (ext & CFBit);
-                PredecfBit = PredecfBit | (ext & ECFBit);
-            }
-            //Figure out what the OF bit should be.
-            if ((ext & OFBit) && bits(SrcReg1, dataSize * 8 - 1))
-                PredcfofBits = PredcfofBits | OFBit;
-            //Use the regular mechanisms to calculate the other flags.
-            uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
-                                               PredezfBit, ext & ~(CFBit | ECFBit | OFBit),
-                                               forwardVal, psrc1, imm8);
-            PredezfBit = newFlags & EZFBit;
-            PreddfBit = newFlags & DFBit;
-            PredccFlagBits = newFlags & ccFlagMask;
-            ccValid = true;
-        }
-    }
-    else {
+    } else {
         RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-		uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
 		uint64_t logicalMask = mask(dataSize * 8 - shiftAmt);
+
 		forwardVal = x86_inst->merge(DestReg, (psrc1 >> shiftAmt) & logicalMask, dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+    
+    // If the shift amount is zero, no flags should be modified.
+    if (usingCCTracking && shiftAmt && inst->isCC()) {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+        //Zero out any flags we might modify. This way we only have to
+        //worry about setting them.
+        PredcfofBits = PredcfofBits & ~(ext & (CFBit | OFBit));
+        PredecfBit = PredecfBit & ~(ext & ECFBit);
+        //If some combination of the CF bits need to be set, set them.
+        if ((ext & (CFBit | ECFBit)) &&
+                shiftAmt <= dataSize * 8 &&
+                bits(SrcReg1, shiftAmt - 1)) {
+            PredcfofBits = PredcfofBits | (ext & CFBit);
+            PredecfBit = PredecfBit | (ext & ECFBit);
+        }
+        //Figure out what the OF bit should be.
+        if ((ext & OFBit) && bits(SrcReg1, dataSize * 8 - 1))
+            PredcfofBits = PredcfofBits | OFBit;
+        //Use the regular mechanisms to calculate the other flags.
+        uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                           PredezfBit, ext & ~(CFBit | ECFBit | OFBit),
+                                           forwardVal, psrc1, imm8);
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        ccValid = true;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2189,8 +2157,6 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    // if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
@@ -2207,9 +2173,10 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
 
+    uint64_t psrc1;
     if (dataSize >= 4)
     {
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
         IntReg val = psrc1;
         // Mask the bit position so that it wraps.
@@ -2218,49 +2185,48 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
         uint64_t maskVal = mask(bitPos+1);
         val = sign_bit ? (val | ~maskVal) : (val & maskVal);
         forwardVal = val & mask(dataSize * 8);
-        
-        if (usingCCTracking && inst->isCC())
-        {
-            uint16_t ext = inst->getExt();
-
-            if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-                PredccFlagBits = 0; 
-            }
-            if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-                PredcfofBits = 0;
-            }
-            PreddfBit = 0;
-            PredecfBit = 0;
-            PredezfBit = 0;
-            if (!sign_bit) {
-                PredccFlagBits = PredccFlagBits & ~(ext & (ZFBit));
-                PredcfofBits = PredcfofBits & ~(ext & (CFBit));
-                PredecfBit = PredecfBit & ~(ext & ECFBit);
-                PredezfBit = PredezfBit & ~(ext & EZFBit);
-            } else {
-                PredccFlagBits = PredccFlagBits | (ext & (ZFBit));
-                PredcfofBits = PredcfofBits | (ext & (CFBit));
-                PredecfBit = PredecfBit | (ext & ECFBit);
-                PredezfBit = PredezfBit | (ext & EZFBit);
-            }
-        }
-    }
-    else {
+    } else {
         RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+
 		IntReg val = psrc1;
 		int bitPos = imm8 & (dataSize * 8 - 1);
 		int sign_bit = bits(val, bitPos, bitPos);
 		uint64_t maskVal = mask(bitPos+1);
+
 		val = sign_bit ? (val | ~maskVal) : (val & maskVal);
 		forwardVal = x86_inst->merge(DestReg, val, dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+    
+    if (usingCCTracking && inst->isCC())
+    {
+        uint16_t ext = inst->getExt();
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+        if (!sign_bit) {
+            PredccFlagBits = PredccFlagBits & ~(ext & (ZFBit));
+            PredcfofBits = PredcfofBits & ~(ext & (CFBit));
+            PredecfBit = PredecfBit & ~(ext & ECFBit);
+            PredezfBit = PredezfBit & ~(ext & EZFBit);
+        } else {
+            PredccFlagBits = PredccFlagBits | (ext & (ZFBit));
+            PredcfofBits = PredcfofBits | (ext & (CFBit));
+            PredecfBit = PredecfBit | (ext & ECFBit);
+            PredezfBit = PredezfBit | (ext & EZFBit);
+        }
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2293,8 +2259,6 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-//    if (dataSize < 4) return false;
-
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     if ((!regCtx[src1].valid) /*|| (!regCtx[src2].valid)*/) {
@@ -2309,22 +2273,23 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
 
+    uint64_t psrc1;
     if (dataSize >= 4)
     {
-        uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+        psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = bits(psrc1, imm8, 0) & mask(dataSize * 8);;
     }
     else {
         RegId destReg = inst->destRegIdx(0);
+        assert(destReg.isIntReg());
+
 		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
-		IntReg result M5_VAR_USED; // Don't totally know what this is?
-		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);	
+
+		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);	
+
 		forwardVal = x86_inst->merge(DestReg, bits(psrc1, imm8, 0), dataSize);
-        // assert(inst->srcRegIdx(1).isIntReg());
-        // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
-        // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
-        // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
 
     RegId destReg = inst->destRegIdx(0);
