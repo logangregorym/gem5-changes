@@ -27,7 +27,7 @@ bool isSlowALU (StaticInstPtr p) {
 }
 
 void
-EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues * U, uint64_t & predicted_value)
+EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predicted_value)
 {
   bool predvtage = false;
   //uint64_t pc = pc;
@@ -35,18 +35,18 @@ EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues * U, uint64_t & pred
   uint64_t PCbank = (PCindex >> LOGBANK) << LOGBANK;
   for (int i = 1; i <= NHIST; i++)
     {
-      U->GI[i] = (gi (i, pc) + (PCbank + (i << LOGBANK))) % PREDSIZE;
-      U->GTAG[i] = gtag (i, pc);
+      U.GI[i] = (gi (i, pc) + (PCbank + (i << LOGBANK))) % PREDSIZE;
+      U.GTAG[i] = gtag (i, pc);
     }
-  U->GTAG[0] = (pc ^ (pc >> 4) ^ (pc >> TAGWIDTH)) & ((1 << TAGWIDTH) - 1);
-  U->GI[0] = PCindex;
-  U->HitBank = -1;
+  U.GTAG[0] = (pc ^ (pc >> 4) ^ (pc >> TAGWIDTH)) & ((1 << TAGWIDTH) - 1);
+  U.GI[0] = PCindex;
+  U.HitBank = -1;
 
   for (int i = NHIST; i >= 0; i--)
     {
-      if (Vtage[U->GI[i]].tag == U->GTAG[i])
+      if (Vtage[U.GI[i]].tag == U.GTAG[i])
 	{
-	  U->HitBank = i;
+	  U.HitBank = i;
 	  break;
 	}
     }
@@ -54,21 +54,21 @@ EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues * U, uint64_t & pred
   if (LastMispVT >= 128)
 // when a misprediction is encountered on VTAGE, we do not predict with VTAGE for 128 instructions;
 // does not bring significant speed-up, but reduces the misprediction number significantly: mispredictions tend to be clustered       
-    if (U->HitBank >= 0)
+    if (U.HitBank >= 0)
       {
-	int index = Vtage[U->GI[U->HitBank]].hashpt;
+	int index = Vtage[U.GI[U.HitBank]].hashpt;
 	if (index < 3 * BANKDATA)
 	  {
 	    // the hash and the data are both present
-	    U->predictedValue = LDATA[index].data;
-	    predvtage = ((Vtage[U->GI[U->HitBank]].conf >= MAXCONFID));
+	    U.predictedValue = LDATA[index].data;
+	    predvtage = ((Vtage[U.GI[U.HitBank]].conf >= MAXCONFID));
 	  }
       }
-  U->predVtage = predvtage;
+  U.predVtage = predvtage;
 }
 
 void
-EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues * U, uint64_t & predicted_value, uint64_t seq_no)
+EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predicted_value, uint64_t seq_no)
 {
   bool predstride = false;
 
@@ -93,8 +93,8 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues * U, uint64_t & pre
 	 (pc >> (3 * LOGSTR - j)) ^ (pc >> (4 * LOGSTR - j))) & ((1 <<
 								  TAGWIDTHSTR)
 								 - 1);
-      U->B[i] = B[i];
-      U->TAGSTR[i] = TAG[i];
+      U.B[i] = B[i];
+      U.TAGSTR[i] = TAG[i];
     }
 
   int STHIT = -1;
@@ -106,7 +106,7 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues * U, uint64_t & pre
 	  break;
 	}
     }
-  U->STHIT = STHIT;
+  U.STHIT = STHIT;
   if (STHIT >= 0)
     if (SafeStride >= 0)
       {				// hit
@@ -123,13 +123,13 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues * U, uint64_t & pre
 		// inflight += (Update[i & (MAXINFLIGHT - 1)].pc == pc);
 	 //      } 
 
-	    U->predictedValue =
+	    U.predictedValue =
 	      (uint64_t) ((int64_t) LastCommitedValue +
 			  ((inflight + 1) * ((int64_t) STR[STHIT].Stride)));
 	    predstride = true;
 	  }
       }
-  U->predStride = predstride;
+  U.predStride = predstride;
 }
 
 
@@ -150,10 +150,10 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
 
 
 #ifdef PREDSTRIDE
-  getPredStride (pc.pc(), &U, predicted_value, stored_seq_no);
+  getPredStride (pc.pc(), U, predicted_value, stored_seq_no);
 #endif
 #ifdef PREDVTAGE
-  getPredVtage (pc.pc(), &U, predicted_value);
+  getPredVtage (pc.pc(), U, predicted_value);
 #endif
 // the two predictions are very rarely both high confidence; when they are pick the VTAGE prediction
 
@@ -163,15 +163,15 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
 // Update of the Stride predictor
 // function determining whether to  update or not confidence on a correct prediction
 bool
-EvesLVP::strideupdateconf (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency,
+EvesLVP::strideupdateconf (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency,
 		  int stride)
 {
 	// jer5ae note: no idea why updateconfstr1 and updateconfstr appear redundant...
-#define UPDATECONFSTR2 (((!U->prediction_result) || (U->predStride)) && ((random () & ((1 << (NOTLLCMISS + NOTL2MISS + NOTL1MISS + 2*MFASTINST  + 2*(!inst->isLoad()))) - 1)) == 0))
+#define UPDATECONFSTR2 (((!U.prediction_result) || (U.predStride)) && ((random () & ((1 << (NOTLLCMISS + NOTL2MISS + NOTL1MISS + 2*MFASTINST  + 2*(!inst->isLoad()))) - 1)) == 0))
 #define UPDATECONFSTR1 (abs (stride >= 8) ? (UPDATECONFSTR2 || UPDATECONFSTR2) : (UPDATECONFSTR2))
 #define UPDATECONFSTR (abs (stride >= 64) ? (UPDATECONFSTR1 || UPDATECONFSTR1) : (UPDATECONFSTR1))
   return (UPDATECONFSTR &
-	  ((abs (stride) > 1) || (!inst->isLoad()) //(U->INSTTYPE != loadInstClass)
+	  ((abs (stride) > 1) || (!inst->isLoad()) //(U.INSTTYPE != loadInstClass)
 	   || ((stride == -1) & ((random () & 1) == 0))
 	   || ((stride == 1) & ((random () & 3) == 0))));
 //All strides are not equal: the smaller the stride the smaller the benefit (not huge :-))
@@ -180,12 +180,12 @@ EvesLVP::strideupdateconf (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, 
 
 //Allocate or not if instruction absent from the predictor
 bool
-EvesLVP::StrideAllocateOrNot (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
+EvesLVP::StrideAllocateOrNot (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
 {
 #ifndef LIMITSTUDY
   bool X = false;
 #define LOGPBINVSTR 4
- //  switch (U->INSTTYPE)
+ //  switch (U.INSTTYPE)
  //    {
  //    case aluInstClass:
  //    case storeInstClass:
@@ -225,7 +225,7 @@ EvesLVP::StrideAllocateOrNot (LVPredUnit::lvpReturnValues * U, StaticInstPtr ins
 }
 
 void
-EvesLVP::UpdateStridePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
+EvesLVP::UpdateStridePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
 {
 
 
@@ -233,8 +233,8 @@ EvesLVP::UpdateStridePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, 
   int TAG[NBWAYSTR];
   for (int i = 0; i < NBWAYSTR; i++)
     {
-      B[i] = U->B[i];
-      TAG[i] = U->TAGSTR[i];
+      B[i] = U.B[i];
+      TAG[i] = U.TAGSTR[i];
     }
   int STHIT = -1;
 
@@ -333,7 +333,7 @@ EvesLVP::UpdateStridePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, 
 	}
     }
   else				// the address was not present and is not predicted by VTAGE
-  if (!U->prediction_result)
+  if (!U.prediction_result)
     {
       if (StrideAllocateOrNot (U, inst, actual_value, actual_latency))
 	{			// try to allocate
@@ -397,13 +397,13 @@ EvesLVP::UpdateStridePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, 
 // function determining whether to  update or not confidence on a correct prediction
 
 bool
-EvesLVP::vtageupdateconf (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
+EvesLVP::vtageupdateconf (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
 {
 #define LOWVAL ((abs (2*((int64_t) actual_value)+1)<(1<<16))+ (actual_value==0))
 
 
 #ifdef K8
-#define updateconf ((random () & (((1 << (LOWVAL+NOTLLCMISS+2*FASTINST+NOTL2MISS+NOTL1MISS + ((!inst->isLoad()) ||NOTL1MISS)      + (U->HitBank > 1) ))- 1)))==0)
+#define updateconf ((random () & (((1 << (LOWVAL+NOTLLCMISS+2*FASTINST+NOTL2MISS+NOTL1MISS + ((!inst->isLoad()) ||NOTL1MISS)      + (U.HitBank > 1) ))- 1)))==0)
 #else
 #define updateconf ((random () & (((1 << (LOWVAL+NOTLLCMISS+2*FASTINST+NOTL2MISS+NOTL1MISS + ((!inst->isLoad()) ||NOTL1MISS)       ))- 1)))==0)
 #endif
@@ -411,17 +411,17 @@ EvesLVP::vtageupdateconf (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, u
 // jer5ae note: frankly again I have no idea why these macros are so repetitive
 // might be worth emailing seznec about it...
 #ifdef LIMITSTUDY
-#define UPDATECONF2 ((U->HitBank<=1) ? (updateconf || updateconf ) || (updateconf || updateconf ) : (updateconf || updateconf ))
+#define UPDATECONF2 ((U.HitBank<=1) ? (updateconf || updateconf ) || (updateconf || updateconf ) : (updateconf || updateconf ))
 #define UPDATECONF (UPDATECONF2 || UPDATECONF2)
 #else
 #ifdef K32
-#define UPDATECONF (((U->HitBank<=1) ? (updateconf || updateconf) : updateconf))
+#define UPDATECONF (((U.HitBank<=1) ? (updateconf || updateconf) : updateconf))
 #else
   // K8
 #define UPDATECONF updateconf
 #endif
 #endif
-  // switch (U->INSTTYPE)
+  // switch (U.INSTTYPE)
   //   {
   //   case aluInstClass:
 
@@ -449,11 +449,11 @@ EvesLVP::vtageupdateconf (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, u
 
 // Update of the U counter or not 
 bool
-EvesLVP::VtageUpdateU (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
+EvesLVP::VtageUpdateU (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
 {
 
-#define UPDATEU ((!U->prediction_result) && ((random () & ((1<<( LOWVAL + 2*NOTL1MISS  + (!inst->isLoad()) + FASTINST + 2*(inst->isInteger())*(inst->numDestRegs()<2)))-1)) == 0))
-  // switch (U->INSTTYPE)
+#define UPDATEU ((!U.prediction_result) && ((random () & ((1<<( LOWVAL + 2*NOTL1MISS  + (!inst->isLoad()) + FASTINST + 2*(inst->isInteger())*(inst->numDestRegs()<2)))-1)) == 0))
+  // switch (U.INSTTYPE)
   //   {
   //   case aluInstClass:
   //   case fpInstClass:
@@ -479,8 +479,7 @@ EvesLVP::VtageUpdateU (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint
 }
 
 bool
-EvesLVP::VtageAllocateOrNot (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency,
-		    bool MedConf)
+EvesLVP::VtageAllocateOrNot (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency, bool MedConf)
 {
   bool X = false;
 
@@ -527,7 +526,7 @@ return X && c;
 
 
 void
-EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
+EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
 {
 
   bool MedConf = false;
@@ -539,14 +538,14 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, u
     3 * BANKDATA;
 
   bool ShouldWeAllocate = true;
-  if (U->HitBank != -1)
+  if (U.HitBank != -1)
     {
       // there was  an  hitting entry in VTAGE
-      uint64_t index = U->GI[U->HitBank];
+      uint64_t index = U.GI[U.HitBank];
       // the entry may have dissappeared in the interval between the prediction and  the commit
 
 
-      if (Vtage[index].tag == U->GTAG[U->HitBank])
+      if (Vtage[index].tag == U.GTAG[U.HitBank])
 	{
 	  //  update the prediction
 	  uint64_t indindex = Vtage[index].hashpt;
@@ -676,7 +675,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, u
 	}
     }
 
-  if (!U->prediction_result)
+  if (!U.prediction_result)
     //Don't waste your time allocating if it is predicted by the other component
     if (ShouldWeAllocate)
       {
@@ -685,11 +684,11 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, u
 	  {
 	    int ALL = 0;
 	    int NA = 0;
-	    int DEP = (U->HitBank + 1) + ((random () & 7) == 0);
-	    if (U->HitBank == 0)
+	    int DEP = (U.HitBank + 1) + ((random () & 7) == 0);
+	    if (U.HitBank == 0)
 	      DEP++;
 
-	    if (U->HitBank == -1)
+	    if (U.HitBank == -1)
 	      {
 		if (random () & 7)
 		  DEP = random () & 1;
@@ -704,7 +703,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, u
 
 		for (int i = DEP; i <= NHIST; i++)
 		  {
-		    int index = U->GI[i];
+		    int index = U.GI[i];
 		    if ((Vtage[index].u == 0)
 			&& ((Vtage[index].conf == MAXCONFID / 2)
 			    || (Vtage[index].conf <=
@@ -713,7 +712,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, u
 		      {
 			Vtage[index].hashpt = HashData;
 			Vtage[index].conf = MAXCONFID / 2;	//set to 3  for faster warming to  high confidence 
-			Vtage[index].tag = U->GTAG[i];
+			Vtage[index].tag = U.GTAG[i];
 			ALL++;
 
 			break;
@@ -733,7 +732,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, u
 		  {
 		    int i = (j + DEP) & 1;
 
-		    int index = U->GI[i];
+		    int index = U.GI[i];
 		    if ((Vtage[index].u == 0)
 			&& ((Vtage[index].conf == MAXCONFID / 2)
 			    || (Vtage[index].conf <=
@@ -744,7 +743,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, u
 			if (inst->numDestRegs() == 0)
 			  if (inst->isInteger())
 			    Vtage[index].conf = MAXCONFID;
-			Vtage[index].tag = U->GTAG[i];
+			Vtage[index].tag = U.GTAG[i];
 			ALL++;
 			break;
 		      }
@@ -788,19 +787,31 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
   // ForUpdate *U;
   // U = &Update[seq_no & (MAXINFLIGHT - 1)];
 	
-	LVPredUnit::lvpReturnValues* U = (LVPredUnit::lvpReturnValues*) inst->lvpData;
-	if (U == NULL) {
-	    cout << inst->disassemble(actual_addr.pc()) << endl;
-        }
-        assert (U != NULL);
+	LVPredUnit::lvpReturnValues U = LVPredUnit::lvpReturnValues(inst->predictedValue, inst->confidence);
+	U.predVtage = inst->predVtage;
+	U.predStride = inst->predStride;
+	U.prediction_result = inst->prediction_result;
+	for (int i=0; i<9; i++) {
+		U.GTAG[i] = inst->GTAG[i];
+		U.GI[i] = inst->GI[i];
+	}
+	for (int i=0; i<3; i++) {
+		U.TAGSTR[i] = inst->TAGSTR[i];
+		U.B[i] = inst->B[i];
+	}
+	U.STHIT = inst->STHIT;
+	U.HitBank = inst->HitBank;
+	// if (U == NULL) {
+	//     cout << "NULL U for " << inst->disassemble(actual_addr.pc()) << endl;
+        // }
+        // assert (U != NULL);
 
-        bool p = U->prediction_result;
-
+        bool p = U.prediction_result;
   if (true) 
     {
 #ifdef LIMITSTUDY
       //just to force allocations and update on both predictors
-      U->prediction_result = 0;
+      U.prediction_result = 0;
 #endif
 #ifdef PREDVTAGE
       UpdateVtagePred (U, inst, actual_value, (int) actual_latency);
@@ -808,8 +819,8 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
 #ifdef PREDSTRIDE
       UpdateStridePred (U, inst, actual_value, (int) actual_latency);
 #endif
-      //U->todo = 0;
-    }
+      //U.todo = 0;
+   }
   seq_commit = stored_seq_no;  // this might cause big problems
   
   // return true iff no misp occurred
@@ -842,26 +853,26 @@ speculativeUpdate (uint64_t seq_no,	// dynamic micro-instruction # (starts at 0 
   if (eligible)
     {
 
-      U->NbOperand =
+      U.NbOperand =
 	(src1 != 0xdeadbeef) + (src2 != 0xdeadbeef) + (src3 != 0xdeadbeef);
-      U->todo = 1;
-      U->INSTTYPE = insn;
-      U->prediction_result = (prediction_result == 1);
+      U.todo = 1;
+      U.INSTTYPE = insn;
+      U.prediction_result = (prediction_result == 1);
       if (SafeStride < (1 << 15) - 1)
 	SafeStride++;
       if (prediction_result != 2)
 	{
 	  if (prediction_result)
 	    {
-	      if (U->predstride)
+	      if (U.predstride)
 		if (SafeStride < (1 << 15) - 1)
 		  SafeStride += 4 * (1 + (insn == loadInstClass));
 	    }
 	  else
 	    {
-	      if (U->predvtage)
+	      if (U.predvtage)
 		LastMispVT = 0;
-	      if (U->predstride)
+	      if (U.predstride)
 		SafeStride -= 1024;
 	    }  // TODO: I *think* we probably just need to update SafeStride and LastMispVT.
 	    // Both of these can be viewed as optimizations, though; let's do them later.

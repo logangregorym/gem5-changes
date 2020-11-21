@@ -1622,6 +1622,7 @@ FullO3CPU<Impl>::removeFrontInst(DynInstPtr &inst)
 
     inst->macroop = NULL;
     if (inst->staticInst->macroOp && inst->staticInst->macroOp != commitMacroOp && !inst->isSquashed() && !inst->isStreamedFromSpeculativeCache()) {
+	// cout << "Inst with sn " << inst->seqNum << " is getting deleted\n" << endl;
         if (commitMacroOp) {
             commitMacroOp->deleteMicroOps();
         }

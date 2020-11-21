@@ -1419,8 +1419,7 @@ DefaultIEW<Impl>::executeInsts()
 
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
-
-                if ( cpu->fetch.decoder[tid]->isSuperOptimizationPresent && !inst->isStreamedFromSpeculativeCache())
+                if (false && cpu->fetch.decoder[tid]->isSuperOptimizationPresent && !inst->isStreamedFromSpeculativeCache())
                 {
                     assert(!inst->isSquashed());
                     
@@ -1506,6 +1505,7 @@ DefaultIEW<Impl>::executeInsts()
                 if ((!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
                     inst->memoryAccessStartCycle = cpu->numCycles.value();
                     inst->memoryAccessEndCycle = cpu->numCycles.value();
+		    cout << "About to call eves on sn " << inst->seqNum << endl;
                     DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
                     ThreadID tid = inst->threadNumber;
                     DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence);

@@ -40,16 +40,15 @@ public:
 protected:
   void setUpTables(const Params *p) { };
 private:
-  void getPredVtage(Addr pc, LVPredUnit::lvpReturnValues * U, uint64_t & predicted_value);
-  void getPredStride(Addr pc, LVPredUnit::lvpReturnValues * U, uint64_t & predicted_value, uint64_t seq_no);
-  bool strideupdateconf(LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency, int stride);
-  bool StrideAllocateOrNot(LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
-  void UpdateStridePred(LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
-  bool vtageupdateconf(LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
-  bool VtageUpdateU(LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
-  bool VtageAllocateOrNot(LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency, bool MedConf);
-  void UpdateVtagePred(LVPredUnit::lvpReturnValues * U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
-
+  void getPredVtage(Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predicted_value);
+  void getPredStride(Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predicted_value, uint64_t seq_no);
+  bool strideupdateconf(LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency, int stride);
+  bool StrideAllocateOrNot(LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
+  void UpdateStridePred(LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
+  bool vtageupdateconf(LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
+  bool VtageUpdateU(LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
+  bool VtageAllocateOrNot(LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency, bool MedConf);
+  void UpdateVtagePred(LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency);
   #define PREDSTRIDE
   #define PREDVTAGE
 

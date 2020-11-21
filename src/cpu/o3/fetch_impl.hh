@@ -1386,7 +1386,22 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
             LVPredUnit::lvpReturnValues ret;
             ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
             instruction->staticInst->lvpData = &ret;
-	    DPRINTF(LVP, "fetch predicted %x with confidence %i\n", ret.predictedValue, ret.confidence);
+			instruction->staticInst->predictedValue = ret.predictedValue;
+			instruction->staticInst->confidence = ret.confidence;
+			instruction->staticInst->predVtage = ret.predVtage;
+			instruction->staticInst->predStride = ret.predStride;
+			instruction->staticInst->prediction_result = ret.prediction_result;
+			for (int i=0; i<9; i++) {
+				instruction->staticInst->GTAG[i] = ret.GTAG[i];
+				instruction->staticInst->GI[i] = ret.GI[i];
+			}
+			for (int i=0; i<3; i++) {
+				instruction->staticInst->TAGSTR[i] = ret.TAGSTR[i];
+				instruction->staticInst->B[i] = ret.B[i];
+			}
+			instruction->staticInst->STHIT = ret.STHIT;
+			instruction->staticInst->HitBank = ret.HitBank;
+		    DPRINTF(LVP, "fetch predicted %x with confidence %i\n", ret.predictedValue, ret.confidence);
             if ((cpu->numCycles.value() - loadPred->lastMisprediction < loadPred->resetDelay) && loadPred->dynamicThreshold) {
                 DPRINTF(LVP, "Misprediction occured %i cycles ago, setting confidence to -1\n", cpu->numCycles.value() - loadPred->lastMisprediction);
                 staticInst->predictedValue = ret.predictedValue;
