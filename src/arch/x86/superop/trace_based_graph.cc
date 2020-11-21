@@ -381,6 +381,17 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
         Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
         StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
         DPRINTF(SuperOp, "%p:%i -- spec[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));    
+		for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
+			// LAYNE : TODO : print predicted inputs (checking syntax)
+			if (decodedMicroOp->sourcesPredicted[i]) {
+				DPRINTF(SuperOp, "\tSource for register %i predicted as %x\n", decodedMicroOp->srcRegIdx(i), decodedMicroOp->sourcePredictions[i]);
+			}
+		}
+		for (int i=0; i<decodedMicroOp->numDestRegs(); i++) {
+			if (decodedMicroOp->liveOutPredicted[i]) {
+				DPRINTF(SuperOp, "\tLive out for register %i predicted as %x\n", decodedMicroOp->destRegIdx(i), decodedMicroOp->liveOut[i]);
+			}
+		}
     }
 
     advanceTrace(trace);
@@ -610,6 +621,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
             RegId destReg = currentTrace.inst->destRegIdx(i);
             if (destReg.classValue() == IntRegClass) {
+				DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), value, type);
                 regCtx[destReg.flatIndex()].value = currentTrace.inst->predictedValue = value;
                 regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].source = currentTrace.inst->predictedLoad = true;
                 currentTrace.inst->confidence = confidence;
@@ -876,8 +888,8 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
-
+//    if (dataSize < 4) return false;
+//	LAYNE: put that line back if you recieve an email saying you should
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex(); src1 = src1;
     unsigned src2 = inst->srcRegIdx(1).flatIndex(); // this is the soruce reg in 4 or 8 byte moves
@@ -893,7 +905,8 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 
-    assert(SrcReg2 == psrc2);  // for 4 or 8 bytes move this should always hold but not true for 1 or 2 byts move
+	// I think for movs that should be okay? --LAYNE
+    // assert(SrcReg2 == psrc2);  // for 4 or 8 bytes move this should always hold but not true for 1 or 2 byts move
 
     uint16_t ext = inst->getExt();
     if (!inst->isCC() || inst->checkCondition(PredccFlagBits | PredcfofBits | PreddfBit | PredecfBit | PredezfBit, ext)) {
@@ -911,7 +924,6 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
 
-    
     return true;
 
 }
@@ -938,9 +950,7 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
     // let's not do anything for Limm and Only propagate LimmBig
-    if (dataSize < 4) return false;
-
-
+//    if (dataSize < 4) return false;
 
     uint64_t forwardVal = 0; 
 
@@ -948,15 +958,14 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
     {
         forwardVal = imm & mask(dataSize * 8);
     }
-    else 
-    {
-        assert(0);
-    } 
-
-    
     
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get(); 
+
+	if (dataSize < 4 && regCtx[destReg.flatIndex()].valid) {
+		forwardVal = x86_inst->merge(regCtx[destReg.flatIndex()].value, imm, dataSize);
+	} else if (dataSize < 4) { return false; }
 
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
 
@@ -964,7 +973,6 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
         
-    
     return true;
 }
 
@@ -988,9 +996,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
-
-    
+    // if (dataSize < 4) return false; 
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -1003,8 +1009,8 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
 
     uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
-
     uint64_t forwardVal = 0;
+	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     if (dataSize >= 4)
     {
         X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
@@ -1038,6 +1044,13 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
         }
     }
     else {
+		RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+		forwardVal = x86_inst->merge(DestReg, result = (psrc1+psrc2), dataSize);
         // still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
@@ -1077,7 +1090,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
+//    if (dataSize < 4) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1096,9 +1109,8 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
 
     uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
-
     uint64_t forwardVal = 0;
-
+	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     if (dataSize >= 4)
     {
         X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
@@ -1132,6 +1144,13 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
         }
     }
     else {
+		RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+		forwardVal = x86_inst->merge(DestReg, result = (psrc1-psrc2), dataSize);
         // still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
@@ -1177,7 +1196,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
+//    if (dataSize < 4) return false;
 
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
@@ -1191,12 +1210,11 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
 
     uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
-
     uint64_t forwardVal = 0;
+	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
 
     if (dataSize >= 4)
-    {
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    { 
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 & psrc2) & mask(dataSize * 8);
@@ -1228,6 +1246,13 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
         }
     }
     else {
+        RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+		forwardVal = x86_inst->merge(DestReg, result = (psrc1&psrc2), dataSize);
         // still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
@@ -1272,7 +1297,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
+//    if (dataSize < 4) return false;
 
 
 
@@ -1287,12 +1312,10 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
 
     uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
-
     uint64_t forwardVal = 0;
-
+	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     if (dataSize >= 4)
     {
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 | psrc2) & mask(dataSize * 8);
@@ -1324,6 +1347,13 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
         }
     }
     else {
+		RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+		forwardVal = x86_inst->merge(DestReg, result = (psrc1|psrc2), dataSize);
         // still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
@@ -1367,9 +1397,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
-
-
+//    if (dataSize < 4) return false;
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -1388,12 +1416,11 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
 
     uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
-
     uint64_t forwardVal = 0;
-
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+ 
     if (dataSize >= 4)
     {
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 ^ psrc2) & mask(dataSize * 8);
@@ -1425,7 +1452,14 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
         }
     }
     else {
-        // still don't know what to do with this microop
+        RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		uint64_t psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
+		forwardVal = x86_inst->merge(DestReg, result = (psrc1|psrc2), dataSize);
+		// still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
@@ -1467,8 +1501,8 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
-
+//    if (dataSize < 4) return false;
+// LAYNE -- if you get an email change this
 
   
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get(); 
@@ -1477,14 +1511,10 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
     uint8_t imm8 = inst_regop->imm8;
     forwardVal = x86_inst->merge(forwardVal, imm8, dataSize);
 
-
-
-
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
 
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
@@ -1512,8 +1542,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
-
+//    if (dataSize < 4) return false;
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -1529,6 +1558,8 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
 
     uint64_t forwardVal = 0;
 
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint8_t imm8 = inst_regop->imm8;
     if (dataSize >= 4)
     {
         X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
@@ -1562,16 +1593,19 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
         }
     }
     else {
-        // still don't know what to do with this microop
+        RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		forwardVal = x86_inst->merge(DestReg, result = (psrc1 - imm8), dataSize);
+	    // still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1605,9 +1639,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
-
-
+//    if (dataSize < 4) return false;
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -1620,13 +1652,13 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
 
     uint64_t SrcReg1 = regCtx[src1].value;
     //uint64_t SrcReg2 = regCtx[src2].value;
-
     uint64_t forwardVal = 0;
+
+	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint8_t imm8 = inst_regop->imm8;
 
     if (dataSize >= 4)
     {
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
-        uint8_t imm8 = inst_regop->imm8;
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 + imm8) & mask(dataSize * 8);;
         
@@ -1656,16 +1688,19 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
         }
     }
     else {
-        // still don't know what to do with this microop
+        RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		forwardVal = x86_inst->merge(DestReg, result = (psrc1 + imm8), dataSize);
+	    // still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1678,8 +1713,6 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
 
     
     return true;
-    
-
 }
 
 bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
@@ -1700,7 +1733,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
+    // if (dataSize < 4) return false;
 
 
 
@@ -1715,13 +1748,12 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
 
     uint64_t SrcReg1 = regCtx[src1].value;
     //uint64_t SrcReg2 = regCtx[src2].value;
-
     uint64_t forwardVal = 0;
 
+	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint8_t imm8 = inst_regop->imm8;
     if (dataSize >= 4)
     {
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
-        uint8_t imm8 = inst_regop->imm8;
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 & imm8) & mask(dataSize * 8);;
         
@@ -1752,16 +1784,19 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
         }
     }
     else {
-        // still don't know what to do with this microop
+        RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		forwardVal = x86_inst->merge(DestReg, result = (psrc1 & imm8), dataSize);
+	    // still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1796,9 +1831,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
-
-
+//    if (dataSize < 4) return false;
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -1811,13 +1844,12 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
 
     uint64_t SrcReg1 = regCtx[src1].value;
     //uint64_t SrcReg2 = regCtx[src2].value;
-
     uint64_t forwardVal = 0;
-
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint8_t imm8 = inst_regop->imm8;
+ 
     if (dataSize >= 4)
     {
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
-        uint8_t imm8 = inst_regop->imm8;
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 | imm8) & mask(dataSize * 8);;
         
@@ -1848,16 +1880,19 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
         }
     }
     else {
-        // still don't know what to do with this microop
+        RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		forwardVal = x86_inst->merge(DestReg, result = (psrc1 | imm8), dataSize);
+	    // still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1892,9 +1927,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
-
-
+//    if (dataSize < 4) return false;
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -1907,13 +1940,12 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
 
     uint64_t SrcReg1 = regCtx[src1].value;
     //uint64_t SrcReg2 = regCtx[src2].value;
-
     uint64_t forwardVal = 0;
-
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint8_t imm8 = inst_regop->imm8;
+ 
     if (dataSize >= 4)
     {
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
-        uint8_t imm8 = inst_regop->imm8;
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 ^ imm8) & mask(dataSize * 8);;
         
@@ -1944,16 +1976,19 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
         }
     }
     else {
-        // still don't know what to do with this microop
+        RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		forwardVal = x86_inst->merge(DestReg, result = (psrc1 ^ imm8), dataSize);
+		// still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1963,11 +1998,8 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-
     
     return true;
-    
-
 }
 
 bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
@@ -1988,7 +2020,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
+    // if (dataSize < 4) return false;
 
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
@@ -2002,15 +2034,12 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
 
     uint64_t SrcReg1 = regCtx[src1].value;
     //uint64_t SrcReg2 = regCtx[src2].value;
-
     uint64_t forwardVal = 0;
-
+    
+	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint8_t imm8 = inst_regop->imm8;
     if (dataSize >= 4)
     {
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
-        uint8_t imm8 = inst_regop->imm8;
-
-
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
         uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
@@ -2058,7 +2087,14 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
         }
     }
     else {
-        // still don't know what to do with this microop
+        RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
+		forwardVal = x86_inst->merge(DestReg, psrc1 << shiftAmt, dataSize);
+		// still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
@@ -2100,9 +2136,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
-
-
+    // if (dataSize < 4) return false;
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -2115,15 +2149,13 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
 
     uint64_t SrcReg1 = regCtx[src1].value;
     //uint64_t SrcReg2 = regCtx[src2].value;
-
     uint64_t forwardVal = 0;
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint8_t imm8 = inst_regop->imm8;
+
 
     if (dataSize >= 4)
     {
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
-        uint8_t imm8 = inst_regop->imm8;
-
-
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
         uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
@@ -2168,16 +2200,21 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
         }
     }
     else {
-        // still don't know what to do with this microop
+        RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		uint8_t shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
+		uint64_t logicalMask = mask(dataSize * 8 - shiftAmt);
+		forwardVal = x86_inst->merge(DestReg, (psrc1 >> shiftAmt) & logicalMask, dataSize);
+		// still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -2187,7 +2224,6 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-
     
     return true;
 }
@@ -2211,7 +2247,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
+    // if (dataSize < 4) return false;
 
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
@@ -2227,13 +2263,11 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     //uint64_t SrcReg2 = regCtx[src2].value;
 
     uint64_t forwardVal = 0;
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint8_t imm8 = inst_regop->imm8;
 
     if (dataSize >= 4)
     {
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
-        uint8_t imm8 = inst_regop->imm8;
-
-
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
         IntReg val = psrc1;
@@ -2271,16 +2305,24 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
         }
     }
     else {
-        // still don't know what to do with this microop
+        RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
+		IntReg val = psrc1;
+		int bitPos = imm8 & (dataSize * 8 - 1);
+		int sign_bit = bits(val, bitPos, bitPos);
+		uint64_t maskVal = mask(bitPos+1);
+		val = sign_bit ? (val | ~maskVal) : (val & maskVal);
+		forwardVal = x86_inst->merge(DestReg, val, dataSize);
+	    // still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
-
-
-
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -2290,7 +2332,6 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     regCtx[destReg.flatIndex()].value = forwardVal;
     regCtx[destReg.flatIndex()].valid = true;
     regCtx[destReg.flatIndex()].source = false;
-
     
     return true;
 }
@@ -2313,9 +2354,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    if (dataSize < 4) return false;
-
-
+//    if (dataSize < 4) return false;
 
     unsigned src1 = inst->srcRegIdx(0).flatIndex();
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
@@ -2328,17 +2367,22 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
 
     uint64_t forwardVal = 0;
 
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    uint8_t imm8 = inst_regop->imm8;
+
     if (dataSize >= 4)
     {
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
-        uint8_t imm8 = inst_regop->imm8;
-
-
         uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = bits(psrc1, imm8, 0) & mask(dataSize * 8);;
     }
     else {
-        // still don't know what to do with this microop
+        RegId destReg = inst->destRegIdx(0);
+		if (!regCtx[destReg.flatIndex()].valid) { return false; }
+		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		IntReg result M5_VAR_USED; // Don't totally know what this is?
+		uint64_t psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);	
+		forwardVal = x86_inst->merge(DestReg, bits(psrc1, imm8, 0), dataSize);
+	    // still don't know what to do with this microop
         assert(0);
         // assert(inst->srcRegIdx(1).isIntReg());
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
@@ -2349,6 +2393,12 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
 
+/**<<<<<<< HEAD
+    DPRINTF(ConstProp, "ConstProp Forwarding ZExtI value %lx through register %i\n", DestReg, destReg.flatIndex());
+    DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), DestReg, type);
+    regCtx[destReg.flatIndex()].value = DestReg;
+=======
+*/
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
 
     regCtx[destReg.flatIndex()].value = forwardVal;

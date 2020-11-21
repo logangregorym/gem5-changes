@@ -179,7 +179,7 @@ class DefaultIEW
     void wakeDependents(DynInstPtr &inst);
 
     /** Wakes dependents with predicted result of instruction. */
-    void forwardPredictionToDependents(DynInstPtr &inst);
+    bool forwardPredictionToDependents(DynInstPtr &inst);
 
     /** Tells memory dependence unit that a memory instruction needs to be
      * rescheduled. It will re-execute once replayMemInst() is called.

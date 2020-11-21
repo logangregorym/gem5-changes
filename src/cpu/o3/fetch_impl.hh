@@ -1378,6 +1378,8 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                 staticInst->confidence = -1;
                 staticInst->predictedLoad = false;
             } else {
+                DPRINTF(LVP, "Fetch Predicted value for Inst with PC: %#x SeqNum[%d] Setting Value to: %#x Setting confidence to: %d: \n", 
+                              thisPC.instAddr(), instruction->seqNum, ret.predictedValue, ret.confidence);
                 staticInst->predictedValue = ret.predictedValue;
                 staticInst->confidence = ret.confidence;
                 staticInst->predictedLoad = true;

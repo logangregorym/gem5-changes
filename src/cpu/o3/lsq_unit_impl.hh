@@ -1158,11 +1158,13 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                         inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                         break;
                       case VecRegClass:
+                        assert(0); //we dont support them
                         // Should be okay to ignore, because if predicted, assertion in inst_queue would have failed
                         // value = cpu->readVecReg(dest_reg);
                         if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
                         break;
                       case VecElemClass:
+                        assert(0); //we dont support them
                         value = cpu->readVecElem(dest_reg);
                         DPRINTF(LVP, "Returning register value %llx to LVP i.e. %llx\n", value, cpu->readVecElem(dest_reg));
                         inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
@@ -1173,6 +1175,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                         inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                         break;
                       case MiscRegClass:
+                        assert(0);
                         // Should also be okay to ignore, won't be predicted
                         if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
                         break;
@@ -1182,12 +1185,25 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                 }
                 if (inst->lvMispred && inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource()) {
                     DPRINTF(LVP, "LSQUnit::writeback: OH NO! processPacketRecieved returned false :(\n");
+                    DPRINTF(LVP, "LSQUnit::executeInsts():: Missprediction for a trace prediction source!\n");
                     // cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
                     iewStage->loadPred->lastMisprediction = inst->memoryAccessEndCycle;
                     // Moved from commit
                     iewStage->squashDueToLoad(inst, inst, tid);
                 }
-
+                // we can have load instructions which are streamed from speculative cache and their values are forwaded speculativly
+                else if (inst->lvMispred && inst->isSpeculativlyForwarded()) 
+                {
+                    assert(!inst->isStreamedFromSpeculativeCache());
+                    DPRINTF(LVP, "LSQUnit::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
+                    DPRINTF(LVP, "LSQUnit::executeInsts():: Missprediction for a instruction which is not a trace prediction source!\n");
+                    DPRINTF(LVP, "LSQUnit::executeInsts():: IsStreamedFromSpeculativeCache? %d\n", inst->isStreamedFromSpeculativeCache());
+                    // cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
+                    iewStage->loadPred->lastMisprediction = inst->memoryAccessEndCycle;
+                    // Moved from commit
+                    iewStage->squashDueToLoad(inst, inst, tid);
+                    
+                }
                 // logic to update the trace confidences base on prediction result
                 if ( inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource())
                 {
