@@ -820,6 +820,22 @@ LTAGE::squash(ThreadID tid, void *bp_history)
 }
 
 bool
+LTAGE::lookupWithoutUpdate(ThreadID tid, Addr branch_pc)
+{
+    void *bp_history = NULL;
+    bool retval = predict(tid, branch_pc, true, bp_history);
+
+    delete (BranchInfo*)bp_history;
+
+    DPRINTF(LTage, "Lookup branch: %lx; predict:%d\n", branch_pc, retval);
+//    updateHistories(tid, branch_pc, retval, bp_history);
+//    assert(threadHistory[tid].gHist ==
+  //         &threadHistory[tid].globalHistory[threadHistory[tid].ptGhist]);
+
+    return retval;
+}
+
+bool
 LTAGE::lookup(ThreadID tid, Addr branch_pc, void* &bp_history)
 {
     bool retval = predict(tid, branch_pc, true, bp_history);
@@ -905,7 +921,7 @@ bool
 LTAGE::getConfidenceForSSO(Addr pc)
 {
     //if (branch_confidence.count(pc) > 0) {
-	 return branch_confidence[pc & 2047].read() > branchConfidenceThreshold;
+	 return branch_confidence[pc & 2047].read() >= branchConfidenceThreshold;
     //}
     return false;
 }

@@ -252,37 +252,31 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
         return true;
     }
 
+    std::string disas = decodedMicroOp->disassemble(pcAddr);
+
     // if it is a direct call or a jump, fold the branch (provided it is predicted taken)
     Addr target = pcAddr + decodedMacroOp->machInst.instSize;
-    if (std::string(decodedMicroOp->instMnem) == "CALL_NEAR_I" || std::string(decodedMicroOp->instMnem) == "JMP_I" || decodedMicroOp->isCondCtrl()) {
+    if (disas.find("CALL_NEAR_I") != std::string::npos || disas.find("JMP_I") != std::string::npos || decodedMicroOp->isCondCtrl()) {
         target = pcAddr + decodedMacroOp->machInst.instSize + decodedMacroOp->machInst.immediate;
     } 
 
     // not a taken branch -- advance normally
-    void *bpHistory = NULL;
-    bool predTaken = branchPred->lookup(0, pcAddr, bpHistory);
-    if (!(std::string(decodedMicroOp->instMnem) == "CALL_NEAR_I" || std::string(decodedMicroOp->instMnem) == "JMP_I") && !predTaken) {
+    bool predTaken = branchPred->lookupWithoutUpdate(0, pcAddr);
+    if (!(disas.find("CALL_NEAR_I") != std::string::npos || disas.find("JMP_I") != std::string::npos) && !predTaken) {
         target = pcAddr + decodedMacroOp->machInst.instSize;
     }
-
-    // delete history to prevent memory leak
-    branchPred->squash(0, bpHistory);
 
     // indirect branch -- lookup indirect predictor
     if (decodedMacroOp->machInst.opcode.op == 0xFF) {
         TheISA::PCState targetPC;
-        branchPred->iPred.lookup(pcAddr, branchPred->getGHR(0, bpHistory), targetPC, 0); // assuming tid = 0
+        branchPred->iPred.lookup(pcAddr, branchPred->getGHR(0, NULL), targetPC, 0); // assuming tid = 0
         target = targetPC.instAddr();
     }
-
-    // delete history to prevent memory leak
-    branchPred->squash(0, bpHistory);
 
     // pivot to jump target if it is found in the uop cache
     int idx = (target >> 5) & 0x1f;
     uint64_t tag = (target >> 10);
     for (int way = 0; way < 8; way++) {
-        DPRINTF(ConstProp, "Control Tracking: looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
         if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
             for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
                 if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
@@ -305,6 +299,9 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
         decodedMacroOp->deleteMicroOps();
         decodedMacroOp = NULL;
     }
+
+    DPRINTF(SuperOp, "Ending trace -- uop cache miss at branch target\n");
+    trace.addr.valid = false;
     return false;
 }
 

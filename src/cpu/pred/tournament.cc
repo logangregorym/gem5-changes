@@ -188,6 +188,47 @@ TournamentBP::btbUpdate(ThreadID tid, Addr branch_addr, void * &bp_history)
 }
 
 bool
+TournamentBP::lookupWithoutUpdate(ThreadID tid, Addr branch_addr)
+{
+    bool local_prediction;
+    unsigned local_history_idx;
+    unsigned local_predictor_idx;
+
+    bool global_prediction;
+    bool choice_prediction;
+
+    //Lookup in the local predictor to get its branch prediction
+    local_history_idx = calcLocHistIdx(branch_addr);
+    local_predictor_idx = localHistoryTable[local_history_idx]
+        & localPredictorMask;
+    local_prediction = localCtrs[local_predictor_idx].read() > localThreshold;
+
+    //Lookup in the global predictor to get its branch prediction
+    global_prediction = globalThreshold <
+      globalCtrs[globalHistory[tid] & globalHistoryMask].read();
+
+    //Lookup in the choice predictor to see which one to use
+    choice_prediction = choiceThreshold <
+      choiceCtrs[globalHistory[tid] & choiceHistoryMask].read();
+
+    // Speculative update of the global history and the
+    // selected local history.
+    if (choice_prediction) {
+        if (global_prediction) {
+            return true;
+        } else {
+            return false;
+        }
+    } else {
+        if (local_prediction) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
+
+bool
 TournamentBP::lookup(ThreadID tid, Addr branch_addr, void * &bp_history)
 {
     bool local_prediction;
@@ -371,7 +412,8 @@ TournamentBPParams::create()
 unsigned
 TournamentBP::getGHR(ThreadID tid, void *bp_history) const
 {
-    return static_cast<BPHistory *>(bp_history)->globalHistory;
+//    return static_cast<BPHistory *>(bp_history)->globalHistory;
+    return globalHistory[tid];
 }
 
 #ifdef DEBUG

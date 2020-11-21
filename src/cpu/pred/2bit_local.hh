@@ -75,6 +75,7 @@ class LocalBP : public BPredUnit
      * @param bp_history Pointer to any bp history state.
      * @return Whether or not the branch is taken.
      */
+    bool lookupWithoutUpdate(ThreadID tid, Addr branch_addr);
     bool lookup(ThreadID tid, Addr branch_addr, void * &bp_history);
 
     /**

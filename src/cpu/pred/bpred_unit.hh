@@ -139,6 +139,7 @@ class BPredUnit : public SimObject
      * has the branch predictor state associated with the lookup.
      * @return Whether the branch is taken or not taken.
      */
+    virtual bool lookupWithoutUpdate(ThreadID tid, Addr instPC) = 0;
     virtual bool lookup(ThreadID tid, Addr instPC, void * &bp_history) = 0;
 
      /**
