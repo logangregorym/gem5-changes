@@ -179,7 +179,7 @@ class DefaultIEW
     void wakeDependents(DynInstPtr &inst);
 
     /** Wakes dependents with predicted result of instruction. */
-    bool forwardPredictionToDependents(DynInstPtr &inst);
+    bool forwardLoadValuePredictionToDependents(DynInstPtr &inst);
 
     /** Tells memory dependence unit that a memory instruction needs to be
      * rescheduled. It will re-execute once replayMemInst() is called.
@@ -349,6 +349,7 @@ class DefaultIEW
     /** Skid buffer between rename and IEW. */
     std::queue<DynInstPtr> skidBuffer[Impl::MaxThreads];
 
+    public:
     /** Scoreboard pointer. */
     Scoreboard* scoreboard;
 

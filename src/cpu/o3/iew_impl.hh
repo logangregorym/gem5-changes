@@ -706,33 +706,29 @@ DefaultIEW<Impl>::wakeDependents(DynInstPtr &inst)
     instQueue.wakeDependents(inst);
 }
 
+
+// this method is only for forwarding load microops! We have a diffrent method for non-load microops
 template<class Impl>
 bool
-DefaultIEW<Impl>::forwardPredictionToDependents(DynInstPtr &inst)
+DefaultIEW<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
 {   
+    assert(inst->isLoad()); // just to make sure we are not using it by mistake!
+
     bool forwarded = false;
-    if (inst->isLoad())
+
+    forwarded = instQueue.forwardLoadValuePredictionToDependents(inst);
+    if (forwarded)
     {
-        forwarded = instQueue.forwardLoadValuePredictionToDependents(inst);
-        if (forwarded)
-        {
-            assert(inst->numDestRegs() == 1);
+            //assert(inst->numDestRegs() == 1); // We know that loads always have one dest reg
             scoreboard->setReg(inst->renamedDestRegIdx(0));
             DPRINTF(LVP, "Load Value Forwarded and Updated scoreboard for register %i.\n", inst->renamedDestRegIdx(0));
-        }
     }
     else 
     {
-        assert(0);
-        forwarded = instQueue.forwardNonLoadValuePredictionToDependents(inst);
-        if (forwarded)
-        {
-            for (int i = 0; i < inst->numDestRegs(); i++) {
-                scoreboard->setReg(inst->renamedDestRegIdx(i));
-                DPRINTF(LVP, "LVP: Updated scoreboard for register %i.\n", inst->renamedDestRegIdx(i));
-            }
-        }
+        DPRINTF(LVP, "Couldn't forward the predicted value for Load microop [sn:%i]\n", inst->seqNum);
     }
+
+    
 
     return forwarded;
     
@@ -1435,7 +1431,7 @@ DefaultIEW<Impl>::executeInsts()
                     if (inst->staticInst->confidence >= 5) {
                         if ( inst->getFault() == NoFault) {
                             DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
-                            forwardPredictionToDependents(inst);
+                            forwardLoadValuePredictionToDependents(inst);
                         }
                            
                     }

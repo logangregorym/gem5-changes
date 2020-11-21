@@ -292,9 +292,11 @@ class InstructionQueue
     /** Cache interface. */
     MemInterface *dcacheInterface;
 
+  public:
     /** Pointer to IEW stage. */
     IEW *iewStage;
 
+  private:
     /** The memory dependence unit, which tracks/predicts memory dependences
      *  between instructions.
      */
