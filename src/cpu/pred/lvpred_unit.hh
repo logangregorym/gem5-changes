@@ -10,11 +10,6 @@
 
 #include "base/statistics.hh"
 #include "base/types.hh"
-<<<<<<< HEAD
-// #include "cpu/base_dyn_inst.hh"
-=======
-//#include "cpu/base_dyn_inst.hh"
->>>>>>> 14882fbd81c19ed79b8b56bf6bb5ae9dc769dd16
 //#include "cpu/o3/dyn_inst.hh"
 //#include "cpu/o3/cpu.hh"
 #include "cpu/base.hh"
@@ -106,15 +101,7 @@ class LVPredUnit : public SimObject
      * cyclesElapsed = memoryAccessStartCycle - memoryAccessEndCycle
      */
     virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle) = 0;
-<<<<<<< HEAD
-=======
-    // overload for eves
-    //virtual bool processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
-    //uint64_t actual_value, ThreadID tid, uint64_t predictedValue, int8_t confidence,
-    //unsigned actual_latency, unsigned currentCycle, std::list<DynInstPtr>* instList) = 0;
-
->>>>>>> 14882fbd81c19ed79b8b56bf6bb5ae9dc769dd16
-    int8_t firstConst;
+   int8_t firstConst;
 
     bool dynamicThreshold;
 
