@@ -63,14 +63,9 @@ EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predi
 	  {
 	    // the hash and the data are both present
 	    U.predictedValue = LDATA[index].data;
-<<<<<<< HEAD
 	    int c = Vtage[U.GI[U.HitBank]].conf;
 	    cout << "Vtage[U.GI[" << U.HitBank << "]].conf = Vtage[" << U.GI[U.HitBank] << "].conf = " << c << endl;
 	    predvtage = ((Vtage[U.GI[U.HitBank]].conf >= 1 + MAXCONFID/2));
-=======
-	    //std::cout << "VTAGE: " << (uint64_t) Vtage[U.GI[U.HitBank]].conf << " >= " << MAXCONFID << "?\n";
-	    predvtage = ((Vtage[U.GI[U.HitBank]].conf >= MAXCONFID));
->>>>>>> b9397478af7fb2555df6a3044c36cb5baa6c5b67
 	  }
       }
   // cout << "U.predVtage is being set to " << predvtage << endl;
