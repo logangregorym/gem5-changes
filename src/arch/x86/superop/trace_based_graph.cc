@@ -557,6 +557,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     StaticInstPtr decodedMacroOp = NULL;
     bool newMacro = false;
     if (state == SpecTrace::OptimizationInProcess) {
+        DPRINTF(ConstProp, "Trace %i: Processing instruction at uop[%i][%i][%i]\n", currentTrace.id, idx, way, uop);
         if (!decoder->uopValidArray[idx][way] || (uop >= decoder->uopCountArray[idx][way])) {
             tracesWithInvalidHead++;
             DPRINTF(SuperOp, "Trace was evicted out of the micro-op cache before we could optimize it\n");
@@ -585,6 +586,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         currentTrace.instAddr = decoder->uopAddrArray[idx][way][uop];
         newMacro = (currentTrace.lastAddr.pcAddr != currentTrace.instAddr.pcAddr);
     } else if (state == SpecTrace::ReoptimizationInProcess) {
+        DPRINTF(ConstProp, "Trace %i: Processing instruction at spec[%i][%i][%i]\n", currentTrace.id, idx, way, uop);
         if (!decoder->speculativeValidArray[idx][way] || (uop >= decoder->speculativeCountArray[idx][way])) {
             tracesWithInvalidHead++;
             DPRINTF(SuperOp, "Trace was evicted out of the speculative cache before we could optimize it\n");
@@ -879,7 +881,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "mov");
     
-    if(inst->numSrcRegs() != 3) return false;
+    //if(inst->numSrcRegs() != 3) return false;
 
     if (inst->isCC() && (!usingCCTracking || !ccValid))
     {
@@ -982,7 +984,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     
 
     // Add (dataSize == 1 || dataSize == 2) has 3 sources and AddBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if (inst->numSrcRegs() > 3) return false;
+    if (inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1029,7 +1031,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 		
-        forwardVal = x86_inst->merge(DestReg, result = (psrc1+psrc2), dataSize);
+        forwardVal = x86_inst->merge(DestReg, psrc1+psrc2, dataSize);
     }
 
     if (usingCCTracking && inst->isCC())
@@ -1075,7 +1077,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     assert(type == "sub");
     
     // Sub (dataSize == 1 || dataSize == 2) has 3 sources and SubBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() > 3) return false;
+    if(inst->numSrcRegs() > 2) return false;
 
     // Subb and SubbBig are both inhereted from RegOp
     // For both src 0 and src 1 are the source operands
@@ -1120,7 +1122,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
         psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1-psrc2), dataSize);
+		forwardVal = x86_inst->merge(DestReg, psrc1-psrc2, dataSize);
     }
 
     if (usingCCTracking && inst->isCC())
@@ -1165,7 +1167,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     assert(type == "and");
     
     // And (dataSize == 1 || dataSize == 2) has 3 sources and AndBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() > 3) return false;
+    if(inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1210,7 +1212,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1&psrc2), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1&psrc2), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1256,7 +1258,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     assert(type == "or");
     
     // Or (dataSize == 1 || dataSize == 2) has 3 sources and OrBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() > 3) return false;
+    if(inst->numSrcRegs() > 2) return false;
     
     if (!usingCCTracking && inst->isCC())
     {
@@ -1300,7 +1302,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1|psrc2), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1|psrc2), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1346,7 +1348,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     assert(type == "xor");
     
     // Xor (dataSize == 1 || dataSize == 2) has 3 sources and XorBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if(inst->numSrcRegs() > 3) return false;
+    if(inst->numSrcRegs() > 2) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1398,7 +1400,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1|psrc2), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1|psrc2), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1444,11 +1446,11 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
     assert(type == "movi");
     
     // MovImm has 2 source registers for all datasize and MovFlagsImm has 7 sources
-    if(inst->numSrcRegs() != 2) return false;
+    //if(inst->numSrcRegs() != 2) return false;
 
-    if (!usingCCTracking && inst->isCC())
+    if (inst->isCC() && (!usingCCTracking || !ccValid))
     {
-        DPRINTF(ConstProp, "CC MOVI Inst! We can't propagate CC insts!\n");
+        DPRINTF(ConstProp, "CC Mov Inst! We can't propagate CC insts!\n");
         return false;
     }
 
@@ -1465,7 +1467,12 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
 
     uint64_t forwardVal = 0;
     uint8_t imm8 = inst_regop->imm8;
-    forwardVal = x86_inst->merge(forwardVal, imm8, dataSize);
+    uint16_t ext = inst->getExt();
+    if (!inst->isCC() || inst->checkCondition(PredccFlagBits | PredcfofBits | PreddfBit | PredecfBit | PredezfBit, ext)) {
+        forwardVal = x86_inst->merge(forwardVal, imm8, dataSize);
+    } else {
+        return true;
+    }
 
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
@@ -1485,7 +1492,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     
     
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() > 2) return false;
+    if(inst->numSrcRegs() > 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1531,7 +1538,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1 - imm8), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1 - imm8), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1576,7 +1583,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     assert(type == "addi");
     
     // AddImm (dataSize == 1 || dataSize == 2) has 2 sources and AddImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() > 2) return false;
+    if(inst->numSrcRegs() > 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1621,7 +1628,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1 + imm8), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1 + imm8), dataSize);
     }
     if (usingCCTracking && inst->isCC()) {
         uint16_t ext = inst->getExt();
@@ -1664,7 +1671,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     assert(type == "andi");
     
     // AndImm (dataSize == 1 || dataSize == 2) has 2 sources and AndImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() > 2) return false;
+    if(inst->numSrcRegs() > 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1706,7 +1713,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1 & imm8), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1 & imm8), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1752,7 +1759,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     assert(type == "ori");
     
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() > 2) return false;
+    if (inst->numSrcRegs() > 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1794,7 +1801,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1 | imm8), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1 | imm8), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1840,7 +1847,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     assert(type == "xori");
     
     // XorImm (dataSize == 1 || dataSize == 2) has 2 sources and XorImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() > 2) return false;
+    if(inst->numSrcRegs() > 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1883,7 +1890,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1 ^ imm8), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1 ^ imm8), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1929,7 +1936,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     assert(type == "slli");
     
     // SllImm (dataSize == 1 || dataSize == 2) has 2 sources and SllImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() > 2) return false;
+    if (inst->numSrcRegs() > 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2037,7 +2044,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     assert(type == "srli");
     
     // SrlImm (dataSize == 1 || dataSize == 2) has 2 sources and SrlImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() > 2) return false;
+    if (inst->numSrcRegs() > 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2144,7 +2151,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     assert(type == "sexti");
     
     // SextImm (dataSize == 1 || dataSize == 2) has 2 sources and SextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() > 2) return false;
+    if(inst->numSrcRegs() > 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2174,6 +2181,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     uint8_t imm8 = inst_regop->imm8;
 
     uint64_t psrc1;
+    int sign_bit;
     if (dataSize >= 4)
     {
         psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
@@ -2181,7 +2189,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
         IntReg val = psrc1;
         // Mask the bit position so that it wraps.
         int bitPos = imm8 & (dataSize * 8 - 1);
-        int sign_bit = bits(val, bitPos, bitPos);
+        sign_bit = bits(val, bitPos, bitPos);
         uint64_t maskVal = mask(bitPos+1);
         val = sign_bit ? (val | ~maskVal) : (val & maskVal);
         forwardVal = val & mask(dataSize * 8);
@@ -2196,7 +2204,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
 
 		IntReg val = psrc1;
 		int bitPos = imm8 & (dataSize * 8 - 1);
-		int sign_bit = bits(val, bitPos, bitPos);
+		sign_bit = bits(val, bitPos, bitPos);
 		uint64_t maskVal = mask(bitPos+1);
 
 		val = sign_bit ? (val | ~maskVal) : (val & maskVal);
@@ -2246,7 +2254,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     assert(type == "zexti");
 
     // ZextImm (dataSize == 1 || dataSize == 2) has 2 sources and ZextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if(inst->numSrcRegs() > 2) return false;
+    if(inst->numSrcRegs() > 1) return false;
 
     if (!usingCCTracking && inst->isCC())
     {
