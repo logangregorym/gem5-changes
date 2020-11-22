@@ -63,9 +63,12 @@ EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predi
 	  {
 	    // the hash and the data are both present
 	    U.predictedValue = LDATA[index].data;
+	    int c = Vtage[U.GI[U.HitBank]].conf;
+	    cout << "Vtage[U.GI[" << U.HitBank << "]].conf = Vtage[" << U.GI[U.HitBank] << "].conf = " << c << endl;
 	    predvtage = ((Vtage[U.GI[U.HitBank]].conf >= 1 + MAXCONFID/2));
 	  }
       }
+  // cout << "U.predVtage is being set to " << predvtage << endl;
   U.predVtage = predvtage;
 }
 
@@ -459,7 +462,7 @@ bool
 EvesLVP::VtageUpdateU (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
 {
 
-#define UPDATEU ((!U.prediction_result) && ((random () & ((1<<( LOWVAL + 2*NOTL1MISS  + (!inst->isLoad()) + FASTINST + 2*(inst->isInteger())*(inst->numDestRegs()<2)))-1)) == 0))
+#define UPDATEU ((!U.prediction_result) && ((random () & ((1<<( LOWVAL + 2*NOTL1MISS  + (!inst->isLoad()) + FASTINST + 2*(inst->isInteger())*(inst->numSrcRegs()<2)))-1)) == 0))
   // switch (U.INSTTYPE)
   //   {
   //   case aluInstClass:
@@ -569,6 +572,8 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 	      if (Vtage[index].conf < MAXCONFID)
 		if (vtageupdateconf (U, inst, actual_value, actual_latency))
 		  Vtage[index].conf++;
+		  int c = Vtage[index].conf;
+		  cout << "incremented Vtage[" << index << "].conf to " << c << endl;
 
 	      if (Vtage[index].u < MAXU)
 		if ((VtageUpdateU (U, inst, actual_value, actual_latency))
@@ -672,10 +677,14 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 
 		  Vtage[index].u = (Vtage[index].conf == MAXCONFID);
 		  Vtage[index].conf -= (MAXCONFID + 1) / 4;
+		  int c = Vtage[index].conf;
+		  cout << "decrementing Vtage[" << index << "].conf to " << c << endl;
 		}
 	      else
 		{
 		  Vtage[index].conf = 0;
+		  int c = Vtage[index].conf;
+		  cout << "resetting Vtage[" << index << "].conf to " << c << endl;
 		  Vtage[index].u = 0;
 		}
 
@@ -720,6 +729,8 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 		      {
 			Vtage[index].hashpt = HashData;
 			Vtage[index].conf = MAXCONFID / 2;	//set to 3  for faster warming to  high confidence 
+			int c = Vtage[index].conf;
+			cout << "fast-tracking Vtage[" << index << "].conf to " << c << endl;
 			Vtage[index].tag = U.GTAG[i];
 			ALL++;
 
@@ -748,9 +759,14 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 		      {
 			Vtage[index].hashpt = HashData;
 			Vtage[index].conf = MAXCONFID / 2;
-			if (inst->numDestRegs() == 0)
-			  if (inst->isInteger())
+			int c = Vtage[index].conf;
+			cout << "fast-tracking Vtage[" << index << "].conf to " << c << endl;
+			if (inst->numSrcRegs() == 0)
+			  if (inst->isInteger()) {
 			    Vtage[index].conf = MAXCONFID;
+			    int c = Vtage[index].conf;
+			    cout << "fast-tracking Vtage[" << index << "].conf to " << c << endl;
+			  }
 			Vtage[index].tag = U.GTAG[i];
 			ALL++;
 			break;
