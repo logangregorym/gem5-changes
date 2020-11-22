@@ -937,18 +937,14 @@ InstructionQueue<Impl>::scheduleReadyInsts()
                         bool forwarded = forwardNonLoadValuePredictionToDependents(issuing_inst);
                         if (forwarded)
                         {
-                            
-                            if (forwarded)
-                            {
-                                DPRINTF(LVP, "Non-Load: Waking dependencies of [sn:%i] early with prediction\n", issuing_inst->seqNum);
-                                iewStage->scoreboard->setReg(issuing_inst->renamedDestRegIdx(0));
-                                DPRINTF(LVP, "Non-Load: LVP: Updated scoreboard for register %i.\n", issuing_inst->renamedDestRegIdx(0));
-                                    
-                            }
-                            else 
-                            {
-                                DPRINTF(LVP, "Non-Load: Couldn't forward the predicted value for [sn:%i]\n", issuing_inst->seqNum);
-                            }
+                            DPRINTF(LVP, "Non-Load: Waking dependencies of [sn:%i] early with prediction\n", issuing_inst->seqNum);
+                            iewStage->scoreboard->setReg(issuing_inst->renamedDestRegIdx(0));
+                            DPRINTF(LVP, "Non-Load: LVP: Updated scoreboard for register %i.\n", issuing_inst->renamedDestRegIdx(0));
+                                
+                        }
+                        else 
+                        {
+                            DPRINTF(LVP, "Non-Load: Couldn't forward the predicted value for [sn:%i]\n", issuing_inst->seqNum);
                         }
                     }
 

@@ -995,6 +995,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     }
     else 
     {
+        idx = trace.head.idx;
         //baseWay = 10;
         DPRINTF(Decoder, "addUopToSpeculativeCache: Trace %d optimized head is not valid!\n", traceID);
     }
@@ -1072,7 +1073,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     unsigned evictWay = 8;
     for (int way = 0; way < 8; way++) {
         // check if we are processing the trace for first time optimization -- write to way in progress
-        if ((traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+        if ((traceConstructor->currentTrace.state == (SpecTrace::OptimizationInProcess || SpecTrace::ReoptimizationInProcess) &&
             traceConstructor->currentTrace.id != 0) && 
             (traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][way] ||
              traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
@@ -1237,21 +1238,12 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
 
 unsigned
 Decoder::isTraceAvailable(Addr addr, int64_t value, unsigned confidence) {
-    // Consider multiple candidate traces
-    int idx = (addr >> 5) & 0x1f;
-
     unsigned maxScore = 0;
     unsigned maxTraceID = 0;
-    for (int way = 0; way < 8; way++) {
-        if (speculativeValidArray[idx][way] && speculativeAddrArray[idx][way][0].pcAddr == addr && speculativePrevWayArray[idx][way] == 10) {
-
-            assert(traceConstructor->traceMap.find(speculativeTraceIDArray[idx][way]) != traceConstructor->traceMap.end());
-
-            SpecTrace trace = traceConstructor->traceMap[speculativeTraceIDArray[idx][way]];
-            DPRINTF(Decoder, "Checking Trace %i for at addr = %#x, speculativeAddrArray[%d][%d][0] = %#x, speculativeTraceIDArray[%d][%d] = %d\n", 
-                    trace.id, addr, idx, way, speculativeAddrArray[idx][way][0].pcAddr,  idx, way, speculativeTraceIDArray[idx][way]);
-
-            assert(speculativeTraceIDArray[idx][way] == trace.id);
+    for (auto it = traceConstructor->traceMap.begin(); it != traceConstructor->traceMap.end(); it++) {
+        SpecTrace trace = it->second;
+        if (trace.headAddr.pcAddr == addr) {
+            DPRINTF(Decoder, "Checking Trace %i for at addr = %#x\n", trace.id, addr);
 
             if (trace.state == SpecTrace::OptimizationInProcess || trace.state == SpecTrace::ReoptimizationInProcess ||
                 trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::QueuedForReoptimization) {

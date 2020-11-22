@@ -63,9 +63,14 @@ EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predi
 	  {
 	    // the hash and the data are both present
 	    U.predictedValue = LDATA[index].data;
+<<<<<<< HEAD
 	    int c = Vtage[U.GI[U.HitBank]].conf;
 	    cout << "Vtage[U.GI[" << U.HitBank << "]].conf = Vtage[" << U.GI[U.HitBank] << "].conf = " << c << endl;
 	    predvtage = ((Vtage[U.GI[U.HitBank]].conf >= 1 + MAXCONFID/2));
+=======
+	    //std::cout << "VTAGE: " << (uint64_t) Vtage[U.GI[U.HitBank]].conf << " >= " << MAXCONFID << "?\n";
+	    predvtage = ((Vtage[U.GI[U.HitBank]].conf >= MAXCONFID));
+>>>>>>> b9397478af7fb2555df6a3044c36cb5baa6c5b67
 	  }
       }
   // cout << "U.predVtage is being set to " << predvtage << endl;
@@ -121,12 +126,6 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & pred
 	  {
             //std::cout << "Confident stride!";
 	    int inflight = stored_inflight;
-	    // compute the number of inflight instances of the instruction
-	 //    for (uint64_t i = seq_commit + 1; i < seq_no; i++)
-	 //      {
-		// inflight += (Update[i & (MAXINFLIGHT - 1)].pc == pc);
-	 //      } 
-
 	    U.predictedValue =
 	      (uint64_t) ((int64_t) LastCommitedValue +
 			  ((inflight + 1) * ((int64_t) STR[STHIT].Stride)));
@@ -135,6 +134,7 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & pred
       }  //std::cout << std::endl;
   }
   U.predStride = predstride;
+  if (predstride) std::cout << "Confident stride!" << std::endl;
 }
 
 
@@ -164,9 +164,6 @@ assert(false);
   getPredVtage (pc.pc(), U, predicted_value);
 #endif
 // the two predictions are very rarely both high confidence; when they are pick the VTAGE prediction
-  U.prediction_result = U.predVtage || U.predStride;
-  // if (U.prediction_result) { cout << "FOUND ONE" << endl; }
-  // cout << "U.HitBank is " << U.HitBank << endl;
   return U; 
 }
 
@@ -448,6 +445,7 @@ EvesLVP::vtageupdateconf (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
   //   default:
   //     return (false);
   //   };
+  
   if (inst->isInteger() || inst->isFloating() || inst->isLoad() || inst->isStore()
     	|| isSlowALU(inst)) {  // TODO: make sure it's ok to just ignore undefInstClass
   	return (UPDATECONF);
@@ -759,10 +757,15 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 		      {
 			Vtage[index].hashpt = HashData;
 			Vtage[index].conf = MAXCONFID / 2;
+<<<<<<< HEAD
 			int c = Vtage[index].conf;
 			cout << "fast-tracking Vtage[" << index << "].conf to " << c << endl;
 			if (inst->numSrcRegs() == 0)
 			  if (inst->isInteger()) {
+=======
+			if (inst->numSrcRegs() == 0)
+			  if (inst->isInteger())
+>>>>>>> b9397478af7fb2555df6a3044c36cb5baa6c5b67
 			    Vtage[index].conf = MAXCONFID;
 			    int c = Vtage[index].conf;
 			    cout << "fast-tracking Vtage[" << index << "].conf to " << c << endl;
@@ -810,14 +813,13 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
 {
   // ForUpdate *U;
   // U = &Update[seq_no & (MAXINFLIGHT - 1)];
-	basicChosen++;  // what
 	LVPredUnit::lvpReturnValues U = LVPredUnit::lvpReturnValues(inst->predictedValue, inst->confidence);
 	U.predVtage = inst->predVtage;
 	U.predStride = inst->predStride;
 	//U.prediction_result = inst->prediction_result;
 	U.prediction_result = (U.predictedValue == actual_value);
 	
-        if (U.predVtage || U.predStride) {
+        if (U.predVtage || U.predStride) {  // if it was a "confident prediction"...
 	    if (U.predictedValue == actual_value) {
 		correctUsed++;
 	    } else {
@@ -843,7 +845,6 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
 	// cout << "Setting U.HitBank to inst value " << inst->HitBank << endl;
 	U.HitBank = inst->HitBank;
 
-        bool p = U.prediction_result;
   if (true) 
     {
 #ifdef LIMITSTUDY
@@ -859,9 +860,8 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
       //U.todo = 0;
    }
   seq_commit = stored_seq_no;  // this might cause big problems
-  
   // return true iff no misp occurred
-  return (!p || (actual_value == predictedValue));
+  return (U.prediction_result || !(U.predVtage || U.predStride));
 }
 
 

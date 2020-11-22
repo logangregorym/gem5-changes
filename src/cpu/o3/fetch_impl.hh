@@ -1354,7 +1354,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     // Make load value prediction if necessary
     // string opcode = instruction->getName();
     bool valuePredictable = instruction->isLoad() ; 
-    if (!instruction->isStore() && instruction->isInteger() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
+    if (!instruction->isStore() && instruction->isInteger() && !instruction->isFloating() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
         for (int i = 0; i < instruction->numDestRegs(); i++) {
             RegId destReg = instruction->destRegIdx(i);
             if (destReg.classValue() == IntRegClass && destReg.index() != 4) { // exclude stack and FP operations

@@ -76,7 +76,7 @@ class LVPredUnit : public SimObject
 	// eves specific stuff ahead
         bool predVtage = false;
         bool predStride = false;
-        bool prediction_result;  // is there a prediction result?
+        bool prediction_result;  // true iff the prediction was correct
 	uint64_t GTAG[9] = {0};
         uint64_t GI[9] = {0};  // these are snapshots of the VTAGE components
 	int TAGSTR[3] = {0};  // TODO: allow multiple sizes, but for now this is fine
