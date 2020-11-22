@@ -453,7 +453,7 @@ bool
 EvesLVP::VtageUpdateU (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
 {
 
-#define UPDATEU ((!U.prediction_result) && ((random () & ((1<<( LOWVAL + 2*NOTL1MISS  + (!inst->isLoad()) + FASTINST + 2*(inst->isInteger())*(inst->numDestRegs()<2)))-1)) == 0))
+#define UPDATEU ((!U.prediction_result) && ((random () & ((1<<( LOWVAL + 2*NOTL1MISS  + (!inst->isLoad()) + FASTINST + 2*(inst->isInteger())*(inst->numSrcRegs()<2)))-1)) == 0))
   // switch (U.INSTTYPE)
   //   {
   //   case aluInstClass:
@@ -742,7 +742,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 		      {
 			Vtage[index].hashpt = HashData;
 			Vtage[index].conf = MAXCONFID / 2;
-			if (inst->numDestRegs() == 0)
+			if (inst->numSrcRegs() == 0)
 			  if (inst->isInteger())
 			    Vtage[index].conf = MAXCONFID;
 			Vtage[index].tag = U.GTAG[i];
@@ -835,7 +835,6 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
       //U.todo = 0;
    }
   seq_commit = stored_seq_no;  // this might cause big problems
-  
   // return true iff no misp occurred
   return (U.prediction_result || !(U.predVtage || U.predStride));
 }
