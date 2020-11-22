@@ -1029,7 +1029,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 		
-        forwardVal = x86_inst->merge(DestReg, result = (psrc1+psrc2), dataSize);
+        forwardVal = x86_inst->merge(DestReg, (psrc1+psrc2), dataSize);
     }
 
     if (usingCCTracking && inst->isCC())
@@ -1120,7 +1120,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
         psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1-psrc2), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1-psrc2), dataSize);
     }
 
     if (usingCCTracking && inst->isCC())
@@ -1210,7 +1210,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1&psrc2), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1&psrc2), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1300,7 +1300,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1|psrc2), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1|psrc2), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1398,7 +1398,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1|psrc2), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1|psrc2), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1531,7 +1531,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1 - imm8), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1 - imm8), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1621,7 +1621,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1 + imm8), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1 + imm8), dataSize);
     }
     if (usingCCTracking && inst->isCC()) {
         uint16_t ext = inst->getExt();
@@ -1706,7 +1706,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
 		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1 & imm8), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1 & imm8), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1794,7 +1794,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1 | imm8), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1 | imm8), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -1883,7 +1883,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
-		forwardVal = x86_inst->merge(DestReg, result = (psrc1 ^ imm8), dataSize);
+		forwardVal = x86_inst->merge(DestReg, (psrc1 ^ imm8), dataSize);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -2172,7 +2172,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     uint64_t forwardVal = 0;
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
-
+	int sign_bit;
     uint64_t psrc1;
     if (dataSize >= 4)
     {
@@ -2181,7 +2181,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
         IntReg val = psrc1;
         // Mask the bit position so that it wraps.
         int bitPos = imm8 & (dataSize * 8 - 1);
-        int sign_bit = bits(val, bitPos, bitPos);
+        sign_bit = bits(val, bitPos, bitPos);
         uint64_t maskVal = mask(bitPos+1);
         val = sign_bit ? (val | ~maskVal) : (val & maskVal);
         forwardVal = val & mask(dataSize * 8);
@@ -2196,7 +2196,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
 
 		IntReg val = psrc1;
 		int bitPos = imm8 & (dataSize * 8 - 1);
-		int sign_bit = bits(val, bitPos, bitPos);
+		sign_bit = bits(val, bitPos, bitPos);
 		uint64_t maskVal = mask(bitPos+1);
 
 		val = sign_bit ? (val | ~maskVal) : (val & maskVal);
