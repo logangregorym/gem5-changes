@@ -1245,6 +1245,7 @@ Decoder::isTraceAvailable(Addr addr, int64_t value, unsigned confidence) {
     for (int way = 0; way < 8; way++) {
         if (speculativeValidArray[idx][way] && speculativeAddrArray[idx][way][0].pcAddr == addr && speculativePrevWayArray[idx][way] == 10) {
 
+//            std::cout << "isTraceAvailable: addr:" << addr << " at uop[" << idx << "][" << way << "][0]: Trace ID:" << speculativeTraceIDArray[idx][way] << "\n";
             assert(traceConstructor->traceMap.find(speculativeTraceIDArray[idx][way]) != traceConstructor->traceMap.end());
 
             SpecTrace trace = traceConstructor->traceMap[speculativeTraceIDArray[idx][way]];

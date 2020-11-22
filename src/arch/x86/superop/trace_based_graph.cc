@@ -986,12 +986,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     
 
     // Add (dataSize == 1 || dataSize == 2) has 3 sources and AddBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if (inst->numSrcRegs() > 2) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1089,12 +1084,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     assert(type == "sub");
     
     // Sub (dataSize == 1 || dataSize == 2) has 3 sources and SubBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if (inst->numSrcRegs() > 2) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     // Subb and SubbBig are both inhereted from RegOp
     // For both src 0 and src 1 are the source operands
@@ -1189,12 +1179,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     assert(type == "and");
     
     // And (dataSize == 1 || dataSize == 2) has 3 sources and AndBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if (inst->numSrcRegs() > 2) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1290,12 +1275,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     assert(type == "or");
     
     // Or (dataSize == 1 || dataSize == 2) has 3 sources and OrBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if (inst->numSrcRegs() > 2) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
     
     if (!usingCCTracking && inst->isCC())
     {
@@ -1390,12 +1370,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     assert(type == "xor");
     
     // Xor (dataSize == 1 || dataSize == 2) has 3 sources and XorBig (dataSize == 4 || dataSize == 8) has 2 sources
-    if (inst->numSrcRegs() > 2) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1544,12 +1519,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     
     
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() > 1) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1645,12 +1615,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     assert(type == "addi");
     
     // AddImm (dataSize == 1 || dataSize == 2) has 2 sources and AddImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() > 1) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1743,12 +1708,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     assert(type == "andi");
     
     // AndImm (dataSize == 1 || dataSize == 2) has 2 sources and AndImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() > 1) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1841,12 +1801,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     assert(type == "ori");
     
     // SubImm (dataSize == 1 || dataSize == 2) has 2 sources and SubImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() > 1) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -1939,12 +1894,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     assert(type == "xori");
     
     // XorImm (dataSize == 1 || dataSize == 2) has 2 sources and XorImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() > 1) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2038,12 +1988,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     assert(type == "slli");
     
     // SllImm (dataSize == 1 || dataSize == 2) has 2 sources and SllImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() > 1) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2156,12 +2101,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     assert(type == "srli");
     
     // SrlImm (dataSize == 1 || dataSize == 2) has 2 sources and SrlImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() > 1) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     if (!usingCCTracking && inst->isCC())
     {
@@ -2273,12 +2213,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     assert(type == "sexti");
     
     // SextImm (dataSize == 1 || dataSize == 2) has 2 sources and SextImmBig (dataSize == 4 || dataSize == 8) has 1 sources
-    if (inst->numSrcRegs() > 1) {
-        if (usingCCTracking && inst->isCC()) {
-            ccValid = false;
-        }
-        return false;
-    }
+    
 
     if (!usingCCTracking && inst->isCC())
     {
