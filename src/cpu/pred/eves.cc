@@ -61,7 +61,7 @@ EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predi
 	  {
 	    // the hash and the data are both present
 	    U.predictedValue = LDATA[index].data;
-	    predvtage = ((Vtage[U.GI[U.HitBank]].conf >= MAXCONFID));
+	    predvtage = ((Vtage[U.GI[U.HitBank]].conf >= 1 + MAXCONFID/2));
 	  }
       }
   U.predVtage = predvtage;
@@ -71,7 +71,6 @@ void
 EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predicted_value, uint64_t seq_no)
 {
   bool predstride = false;
-
   int B[NBWAYSTR];
   int TAG[NBWAYSTR];
   //uint64_t pc = pc;
@@ -107,15 +106,15 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & pred
 	}
     }
   U.STHIT = STHIT;
-  if (STHIT >= 0)
-    if (SafeStride >= 0)
+  if (STHIT >= 0) {
+    //std::cout << "STHIT >= 0... ";
+    if (true) // (SafeStride >= 0)
       {				// hit
-	uint64_t LastCommitedValue = STR[STHIT].LastValue;
-
-	if (STR[STHIT].conf >= MAXCONFIDSTR / 4)
-
-
+        uint64_t LastCommitedValue = STR[STHIT].LastValue;
+        //std::cout << (uint64_t) STR[STHIT].conf << " >= " << MAXCONFIDSTR / 4 << "?"; 
+	if (STR[STHIT].conf >= (MAXCONFIDSTR / 4))
 	  {
+            //std::cout << "Confident stride!";
 	    int inflight = stored_inflight;
 	    // compute the number of inflight instances of the instruction
 	 //    for (uint64_t i = seq_commit + 1; i < seq_no; i++)
@@ -128,7 +127,8 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & pred
 			  ((inflight + 1) * ((int64_t) STR[STHIT].Stride)));
 	    predstride = true;
 	  }
-      }
+      }  //std::cout << std::endl;
+  }
   U.predStride = predstride;
 }
 
@@ -148,6 +148,9 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
   U.predVtage = false;
   U.predStride = false;
 
+#ifndef PREDSTRIDE
+assert(false);
+#endif
 
 #ifdef PREDSTRIDE
   getPredStride (pc.pc(), U, predicted_value, stored_seq_no);
@@ -156,7 +159,6 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
   getPredVtage (pc.pc(), U, predicted_value);
 #endif
 // the two predictions are very rarely both high confidence; when they are pick the VTAGE prediction
-  U.prediction_result = U.predVtage || U.predStride;
   return U; 
 }
 
@@ -170,7 +172,7 @@ EvesLVP::strideupdateconf (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, u
 #define UPDATECONFSTR2 (((!U.prediction_result) || (U.predStride)) && ((random () & ((1 << (NOTLLCMISS + NOTL2MISS + NOTL1MISS + 2*MFASTINST  + 2*(!inst->isLoad()))) - 1)) == 0))
 #define UPDATECONFSTR1 (abs (stride >= 8) ? (UPDATECONFSTR2 || UPDATECONFSTR2) : (UPDATECONFSTR2))
 #define UPDATECONFSTR (abs (stride >= 64) ? (UPDATECONFSTR1 || UPDATECONFSTR1) : (UPDATECONFSTR1))
-  return (UPDATECONFSTR &
+        return (UPDATECONFSTR &
 	  ((abs (stride) > 1) || (!inst->isLoad()) //(U.INSTTYPE != loadInstClass)
 	   || ((stride == -1) & ((random () & 1) == 0))
 	   || ((stride == 1) & ((random () & 3) == 0))));
@@ -790,7 +792,8 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
 	LVPredUnit::lvpReturnValues U = LVPredUnit::lvpReturnValues(inst->predictedValue, inst->confidence);
 	U.predVtage = inst->predVtage;
 	U.predStride = inst->predStride;
-	U.prediction_result = inst->prediction_result;
+	//U.prediction_result = inst->prediction_result;
+	U.prediction_result = (U.predictedValue == actual_value);
 	
         if (U.predVtage || U.predStride) {
 	    if (U.predictedValue == actual_value) {
@@ -816,10 +819,6 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
 	}
 	U.STHIT = inst->STHIT;
 	U.HitBank = inst->HitBank;
-	// if (U == NULL) {
-	//     cout << "NULL U for " << inst->disassemble(actual_addr.pc()) << endl;
-        // }
-        // assert (U != NULL);
 
         bool p = U.prediction_result;
   if (true) 

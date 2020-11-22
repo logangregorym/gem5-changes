@@ -2181,7 +2181,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     uint8_t imm8 = inst_regop->imm8;
 	int sign_bit;
     uint64_t psrc1;
-    int sign_bit;
+    //int sign_bit;
     if (dataSize >= 4)
     {
         psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);

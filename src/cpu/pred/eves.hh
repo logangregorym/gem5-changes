@@ -186,7 +186,7 @@ private:
 
   #define  MAXTICK 1024
   int TICK;		//10 bits // for managing replacement on the VTAGE entries
-  int LastMispVT = 0;	//8 bits //for tracking the last misprediction on VTAGE
+  int LastMispVT = 128;	//8 bits //for tracking the last misprediction on VTAGE
 
 
    //index function for VTAGE (use the global path history): just a complex hash function
