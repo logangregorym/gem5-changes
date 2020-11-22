@@ -1414,11 +1414,13 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
         
     //     assert(0);
     // }
-
+	
 
     idx = traceConstructor->streamTrace.addr.idx;
     way = traceConstructor->streamTrace.addr.way;
     uop = traceConstructor->streamTrace.addr.uop;
+
+    thisPC._pc = speculativeAddrArray[idx][way][uop].pcAddr;
 
     StaticInstPtr curInst = speculativeCache[idx][way][uop];
     /// dump all the micropps in the way and then assert!

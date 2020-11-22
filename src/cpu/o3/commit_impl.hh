@@ -1337,7 +1337,13 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
 
     if (checkpointAtInstr == cur_pc &&
         (!head_inst->isMicroop() || head_inst->pcState().microPC() == 0)) {
-        exec_cnt++;
+	exec_cnt++;        
+	if ((uint64_t)cpu->thread[tid]->numInsts.value() >= 99999990 && 
+        (uint64_t)cpu->thread[tid]->numInsts.value() <= 100000000)
+    	{
+        	std::cout << std::dec << "Inst: " << (uint64_t)cpu->thread[tid]->numInsts.value() << 
+                    "PC: " << cur_pc << " exec_cnt: " << (uint64_t)exec_cnt.value() << std::endl << std::flush;
+    	}
         //cout << exec_cnt << ":" << head_inst->seqNum << ":" << checkpointAtBB << ":" << afterExecCnt << "\n";
         if ((uint64_t)exec_cnt.value() == afterExecCnt && afterExecCnt != 0) {
             exitSimLoop("simpoint reached", 0);
