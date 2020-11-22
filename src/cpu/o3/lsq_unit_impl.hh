@@ -1142,6 +1142,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                 DPRINTF(LVP, "Sending a load response to LVP from [sn:%i]\n", inst->seqNum);
                 ThreadID tid = inst->threadNumber;
                 DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence);
+		// cout << "load response for sn " << inst->seqNum << " has HitBank " << inst->staticInst->HitBank << endl;
                 for (int i=0; i<inst->numDestRegs(); i++) {
                     PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                     uint64_t value;

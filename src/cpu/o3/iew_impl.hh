@@ -1502,13 +1502,14 @@ DefaultIEW<Impl>::executeInsts()
 
                 // update LVP for every instruction 
                 string opcode = inst->getName();
-                if ((!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic)) { // isFloat()? isVector()? isCC()?
+                if ((!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic) && inst->staticInst->predictedLoad) { // isFloat()? isVector()? isCC()?
                     inst->memoryAccessStartCycle = cpu->numCycles.value();
                     inst->memoryAccessEndCycle = cpu->numCycles.value();
 		    //cout << "About to call eves on sn " << inst->seqNum << endl;
                     DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
                     ThreadID tid = inst->threadNumber;
-                    DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence);
+                    DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence); 
+		    // cout << "iew response for sn " << inst->seqNum << " has HitBank " << inst->staticInst->HitBank << endl;
                     for (int i=0; i<inst->numDestRegs(); i++) {
                     	PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                     	uint64_t value;

@@ -1400,6 +1400,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
 				instruction->staticInst->B[i] = ret.B[i];
 			}
 			instruction->staticInst->STHIT = ret.STHIT;
+			// cout << "Fetch received HitBank value " << ret.HitBank << "for sn " << instruction->seqNum << endl;
 			instruction->staticInst->HitBank = ret.HitBank;
 		    DPRINTF(LVP, "fetch predicted %x with confidence %i\n", ret.predictedValue, ret.confidence);
             if ((cpu->numCycles.value() - loadPred->lastMisprediction < loadPred->resetDelay) && loadPred->dynamicThreshold) {

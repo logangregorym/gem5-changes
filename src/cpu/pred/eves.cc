@@ -41,11 +41,13 @@ EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predi
   U.GTAG[0] = (pc ^ (pc >> 4) ^ (pc >> TAGWIDTH)) & ((1 << TAGWIDTH) - 1);
   U.GI[0] = PCindex;
   U.HitBank = -1;
+  // cout << "Setting U.HitBank to " << U.HitBank << " (-1)" << endl;
 
   for (int i = NHIST; i >= 0; i--)
     {
       if (Vtage[U.GI[i]].tag == U.GTAG[i])
 	{
+	  // cout << "Setting U.HitBank to i=" << i << endl;
 	  U.HitBank = i;
 	  break;
 	}
@@ -157,6 +159,8 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
 #endif
 // the two predictions are very rarely both high confidence; when they are pick the VTAGE prediction
   U.prediction_result = U.predVtage || U.predStride;
+  // if (U.prediction_result) { cout << "FOUND ONE" << endl; }
+  // cout << "U.HitBank is " << U.HitBank << endl;
   return U; 
 }
 
@@ -541,6 +545,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
   if (U.HitBank != -1)
     {
       // there was  an  hitting entry in VTAGE
+      // cout << "Accessing U.HitBank " << U.HitBank << " in U.GI" << endl;
       uint64_t index = U.GI[U.HitBank];
       // the entry may have dissappeared in the interval between the prediction and  the commit
 
@@ -815,6 +820,7 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
 		U.B[i] = inst->B[i];
 	}
 	U.STHIT = inst->STHIT;
+	// cout << "Setting U.HitBank to inst value " << inst->HitBank << endl;
 	U.HitBank = inst->HitBank;
 	// if (U == NULL) {
 	//     cout << "NULL U for " << inst->disassemble(actual_addr.pc()) << endl;
