@@ -2180,7 +2180,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
     uint64_t psrc1;
-    int sign_bit;
+    //int sign_bit;
     if (dataSize >= 4)
     {
         psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
