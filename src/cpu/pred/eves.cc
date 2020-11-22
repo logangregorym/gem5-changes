@@ -757,15 +757,8 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 		      {
 			Vtage[index].hashpt = HashData;
 			Vtage[index].conf = MAXCONFID / 2;
-<<<<<<< HEAD
-			int c = Vtage[index].conf;
-			cout << "fast-tracking Vtage[" << index << "].conf to " << c << endl;
-			if (inst->numSrcRegs() == 0)
-			  if (inst->isInteger()) {
-=======
 			if (inst->numSrcRegs() == 0)
 			  if (inst->isInteger())
->>>>>>> b9397478af7fb2555df6a3044c36cb5baa6c5b67
 			    Vtage[index].conf = MAXCONFID;
 			    int c = Vtage[index].conf;
 			    cout << "fast-tracking Vtage[" << index << "].conf to " << c << endl;
