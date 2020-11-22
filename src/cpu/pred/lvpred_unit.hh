@@ -11,6 +11,7 @@
 #include "base/statistics.hh"
 #include "base/types.hh"
 // #include "cpu/base_dyn_inst.hh"
+//#include "cpu/base_dyn_inst.hh"
 //#include "cpu/o3/dyn_inst.hh"
 //#include "cpu/o3/cpu.hh"
 #include "cpu/base.hh"
