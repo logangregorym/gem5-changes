@@ -10,6 +10,7 @@
 
 #include "base/statistics.hh"
 #include "base/types.hh"
+// #include "cpu/base_dyn_inst.hh"
 //#include "cpu/o3/dyn_inst.hh"
 //#include "cpu/o3/cpu.hh"
 #include "cpu/base.hh"
@@ -101,7 +102,7 @@ class LVPredUnit : public SimObject
      * cyclesElapsed = memoryAccessStartCycle - memoryAccessEndCycle
      */
     virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle) = 0;
-   int8_t firstConst;
+    int8_t firstConst;
 
     bool dynamicThreshold;
 
