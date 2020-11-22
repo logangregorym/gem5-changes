@@ -141,7 +141,7 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
 {
 	// TODO: function overloading review
 	// small TODO: verify that predicted_value really isn't ever used
-
+  lvLookups++;
   LVPredUnit::lvpReturnValues U = LVPredUnit::lvpReturnValues();
   uint64_t predicted_value = 0;
 
@@ -156,7 +156,7 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
   getPredVtage (pc.pc(), U, predicted_value);
 #endif
 // the two predictions are very rarely both high confidence; when they are pick the VTAGE prediction
-
+  U.prediction_result = U.predVtage || U.predStride;
   return U; 
 }
 
@@ -786,11 +786,26 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
 {
   // ForUpdate *U;
   // U = &Update[seq_no & (MAXINFLIGHT - 1)];
-	
+	basicChosen++;  // what
 	LVPredUnit::lvpReturnValues U = LVPredUnit::lvpReturnValues(inst->predictedValue, inst->confidence);
 	U.predVtage = inst->predVtage;
 	U.predStride = inst->predStride;
 	U.prediction_result = inst->prediction_result;
+	
+        if (U.predVtage || U.predStride) {
+	    if (U.predictedValue == actual_value) {
+		correctUsed++;
+	    } else {
+		incorrectUsed++;
+	    }
+        } else {
+	    if (U.predictedValue == actual_value) {
+		correctNotUsed++;
+	    } else {
+		incorrectNotUsed++;
+	    }
+	}
+
 	for (int i=0; i<9; i++) {
 		U.GTAG[i] = inst->GTAG[i];
 		U.GI[i] = inst->GI[i];
