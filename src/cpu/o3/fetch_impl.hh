@@ -1232,18 +1232,17 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             if (fromCommit->commitInfo[tid].squashDueToLVP)
             {
                 // activate speculative cache so we can fetch from it again
-                DPRINTF(Fetch, "memory order violation\n");
-                //decoder[tid]->setSpeculativeCacheActive(true);
-                
+                DPRINTF(Fetch, "memory order violation at PC %s\n", fromCommit->commitInfo[tid].pc);
+                decoder[tid]->setSpeculativeCacheActive(true);
+                decoder[tid]->traceConstructor->streamTrace.id = currentTraceID = fromCommit->commitInfo[tid].currentTraceID;
+                decoder[tid]->updateStreamTrace(currentTraceID, fromCommit->commitInfo[tid].pc); 
             }
             else {
                 DPRINTF(Fetch, "something else\n");
+                // This squash is not due to LVP missprediction, therefore always deactivate the spec$ and the fetch will handle re-activation
+                decoder[tid]->setSpeculativeCacheActive(false);
+                decoder[tid]->redirectDueToLVPSquashing = false;
             }
-            
-            // This squash is not due to LVP missprediction, therefore always deactivate the spec$ and the fetch will handle re-activation
-            decoder[tid]->setSpeculativeCacheActive(false);
-            decoder[tid]->redirectDueToLVPSquashing = false;
-
         }
 
         

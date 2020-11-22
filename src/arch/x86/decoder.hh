@@ -478,6 +478,7 @@ protected:
 	unsigned isTraceAvailable(Addr addr, int64_t value, unsigned confidence);
 
     StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
+    void updateStreamTrace(unsigned traceID, X86ISA::PCState &thisPC);
 
     void regStats();
 
