@@ -429,7 +429,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 
                 // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
                 currentTrace.prevNonEliminatedInst->setEndOfTrace();
-                
+                currentTrace.prevNonEliminatedInst->shrunkLength = currentTrace.shrunkLength;
                 if (!currentTrace.prevNonEliminatedInst->isControl()) { // control prevNonEliminatedInstructions already propagate live outs
                     for (int i=0; i<16; i++) { // 16 int registers
                         if (regCtx[i].valid && !regCtx[i].source) {

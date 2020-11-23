@@ -149,6 +149,8 @@ DefaultCommit<Impl>::DefaultCommit(O3CPU *_cpu, DerivO3CPUParams *params)
 
     checkpointAtInstr = params->checkpoint_at_instr;
     afterExecCnt = params->after_exec_cnt;
+
+    numMicroopsShrunken = 0;
 }
 
 template <class Impl>
@@ -1326,30 +1328,44 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     }
 
 
-    Addr cur_pc = head_inst->pcState().instAddr();
+    // Addr cur_pc = head_inst->pcState().instAddr();
 
-    if ((uint64_t)cpu->thread[tid]->numInsts.value() >= 99999990 && 
-        (uint64_t)cpu->thread[tid]->numInsts.value() <= 100000000)
+    // if ((uint64_t)cpu->thread[tid]->numInsts.value() >= 99999990 && 
+    //     (uint64_t)cpu->thread[tid]->numInsts.value() <= 100000000)
+    // {
+    //     std::cout << std::dec << "Inst: " << (uint64_t)cpu->thread[tid]->numInsts.value() << 
+    //                 "PC: " << cur_pc << " exec_cnt: " << (uint64_t)exec_cnt.value() << std::endl << std::flush;
+    // }
+
+    // if (checkpointAtInstr == cur_pc &&
+    //     (!head_inst->isMicroop() || head_inst->pcState().microPC() == 0)) {
+	// exec_cnt++;        
+	// if ((uint64_t)cpu->thread[tid]->numInsts.value() >= 99999990 && 
+    //     (uint64_t)cpu->thread[tid]->numInsts.value() <= 100000000)
+    // 	{
+    //     	std::cout << std::dec << "Inst: " << (uint64_t)cpu->thread[tid]->numInsts.value() << 
+    //                 "PC: " << cur_pc << " exec_cnt: " << (uint64_t)exec_cnt.value() << std::endl << std::flush;
+    // 	}
+    //     //cout << exec_cnt << ":" << head_inst->seqNum << ":" << checkpointAtBB << ":" << afterExecCnt << "\n";
+    //     if ((uint64_t)exec_cnt.value() == afterExecCnt && afterExecCnt != 0) {
+    //         exitSimLoop("simpoint reached", 0);
+    //     }
+    // }
+
+    if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
     {
-        std::cout << std::dec << "Inst: " << (uint64_t)cpu->thread[tid]->numInsts.value() << 
-                    "PC: " << cur_pc << " exec_cnt: " << (uint64_t)exec_cnt.value() << std::endl << std::flush;
-    }
+        if (head_inst->isStreamedFromSpeculativeCache() && head_inst->staticInst->isEndOfTrace())
+        {
 
-    if (checkpointAtInstr == cur_pc &&
-        (!head_inst->isMicroop() || head_inst->pcState().microPC() == 0)) {
-	exec_cnt++;        
-	if ((uint64_t)cpu->thread[tid]->numInsts.value() >= 99999990 && 
-        (uint64_t)cpu->thread[tid]->numInsts.value() <= 100000000)
-    	{
-        	std::cout << std::dec << "Inst: " << (uint64_t)cpu->thread[tid]->numInsts.value() << 
-                    "PC: " << cur_pc << " exec_cnt: " << (uint64_t)exec_cnt.value() << std::endl << std::flush;
-    	}
-        //cout << exec_cnt << ":" << head_inst->seqNum << ":" << checkpointAtBB << ":" << afterExecCnt << "\n";
-        if ((uint64_t)exec_cnt.value() == afterExecCnt && afterExecCnt != 0) {
+            numMicroopsShrunken += head_inst->staticInst->shrunkLength;
+        }
+
+        if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr)
+        {
             exitSimLoop("simpoint reached", 0);
         }
-    }
 
+    }
 
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->thread[tid]->numInsts.value() % 100000 == 0 &&

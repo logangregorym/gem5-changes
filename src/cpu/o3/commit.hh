@@ -364,6 +364,8 @@ class DefaultCommit
     /** ROB interface. */
     ROB *rob;
 
+    uint64_t numMicroopsShrunken = 0;
+
   private:
     /** Pointer to O3CPU. */
     O3CPU *cpu;
