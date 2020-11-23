@@ -1386,11 +1386,16 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
 
             LVPredUnit::lvpReturnValues ret;
             ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
-            instruction->staticInst->lvpData = &ret;
+            
+	    if (loadPred->lvpredType == "eves")
+	        loadPred->lvLookups++;
+
+	    instruction->staticInst->lvpData = &ret;
 			instruction->staticInst->predictedValue = ret.predictedValue;
 			instruction->staticInst->confidence = ret.confidence;
 			instruction->staticInst->predVtage = ret.predVtage;
 			instruction->staticInst->predStride = ret.predStride;
+			//if (instruction->staticInst->predStride) {std::cout << "Still confident...\n";}
 			instruction->staticInst->prediction_result = ret.prediction_result;
 			for (int i=0; i<9; i++) {
 				instruction->staticInst->GTAG[i] = ret.GTAG[i];

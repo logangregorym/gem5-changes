@@ -13,12 +13,12 @@ int seq_commit;
 #define NOTLLCMISS (actual_latency < 42)//150)
 #define NOTL2MISS (actual_latency < 42)//60)
 #define NOTL1MISS (actual_latency < 42)//12)
-#define FASTINST (actual_latency == 1)
+#define FASTINST (actual_latency <= 1)
 #define MFASTINST (actual_latency < 3)  // shouldn't need to change these last two
 // TODO: change these macros so they are consistent with gem5's Skylake delays.
 
 // constructor
-EvesLVP::EvesLVP(Params *params) : LVPredUnit(params) { }  // CHECK: will this work?
+EvesLVP::EvesLVP(Params *params) : LVPredUnit(params) { lvpredType = "eves"; }  // CHECK: will this work?
 
 bool isSlowALU (StaticInstPtr p) {
 	// mul and div instructions are the only slow alu insts
@@ -63,7 +63,6 @@ EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predi
 	  {
 	    // the hash and the data are both present
 	    U.predictedValue = LDATA[index].data;
-	    //std::cout << "VTAGE: " << (uint64_t) Vtage[U.GI[U.HitBank]].conf << " >= " << MAXCONFID << "?\n";
 	    predvtage = ((Vtage[U.GI[U.HitBank]].conf >= MAXCONFID));
 	  }
       }
@@ -117,7 +116,6 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & pred
         //std::cout << (uint64_t) STR[STHIT].conf << " >= " << MAXCONFIDSTR / 4 << "?"; 
 	if (STR[STHIT].conf >= (MAXCONFIDSTR / 4))
 	  {
-            //std::cout << "Confident stride!";
 	    int inflight = stored_inflight;
 	    U.predictedValue =
 	      (uint64_t) ((int64_t) LastCommitedValue +
@@ -127,7 +125,7 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & pred
       }  //std::cout << std::endl;
   }
   U.predStride = predstride;
-  if (predstride) std::cout << "Confident stride!" << std::endl;
+  //if (predstride) std::cout << "Confident stride!" << std::endl;
 }
 
 
@@ -139,7 +137,6 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
 {
 	// TODO: function overloading review
 	// small TODO: verify that predicted_value really isn't ever used
-  lvLookups++;
   LVPredUnit::lvpReturnValues U = LVPredUnit::lvpReturnValues();
   uint64_t predicted_value = 0;
 
@@ -147,7 +144,7 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
   U.predStride = false;
 
 #ifndef PREDSTRIDE
-assert(false);
+//assert(false);
 #endif
 
 #ifdef PREDSTRIDE
@@ -166,6 +163,7 @@ bool
 EvesLVP::strideupdateconf (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency,
 		  int stride)
 {
+return true;
 	// jer5ae note: no idea why updateconfstr1 and updateconfstr appear redundant...
 #define UPDATECONFSTR2 (((!U.prediction_result) || (U.predStride)) && ((random () & ((1 << (NOTLLCMISS + NOTL2MISS + NOTL1MISS + 2*MFASTINST  + 2*(!inst->isLoad()))) - 1)) == 0))
 #define UPDATECONFSTR1 (abs (stride >= 8) ? (UPDATECONFSTR2 || UPDATECONFSTR2) : (UPDATECONFSTR2))
@@ -482,6 +480,7 @@ EvesLVP::VtageUpdateU (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint6
 bool
 EvesLVP::VtageAllocateOrNot (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency, bool MedConf)
 {
+  return true;
   bool X = false;
 
 // TODO: this might need fine-tuning. Check with mypredictor.cc.
@@ -742,7 +741,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 		      {
 			Vtage[index].hashpt = HashData;
 			Vtage[index].conf = MAXCONFID / 2;
-			if (inst->numSrcRegs() == 0)
+			if (true)//inst->numSrcRegs() == 0)
 			  if (inst->isInteger())
 			    Vtage[index].conf = MAXCONFID;
 			Vtage[index].tag = U.GTAG[i];
@@ -791,7 +790,8 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
 	LVPredUnit::lvpReturnValues U = LVPredUnit::lvpReturnValues(inst->predictedValue, inst->confidence);
 	U.predVtage = inst->predVtage;
 	U.predStride = inst->predStride;
-	//U.prediction_result = inst->prediction_result;
+	//if (U.predStride) {std::cout << "LATE CONFIDENT!\n";}
+        //U.prediction_result = inst->prediction_result;
 	U.prediction_result = (U.predictedValue == actual_value);
 	
         if (U.predVtage || U.predStride) {  // if it was a "confident prediction"...
@@ -935,3 +935,16 @@ endPredictor ()
 }
 
 */
+
+void
+EvesLVP::updateGtables(Addr pc, Addr next_pc, bool branches)
+{
+return;
+// adding in the LastMispVT should be easy if this works
+    if (branches && (pc != next_pc - 4)) {
+    	for (int i = 7; i > 0; i--)
+	  gpath[i] = (gpath[i] << 1) ^ ((gpath[i - 1] >> 63) & 1);
+	gpath[0] = (gpath[0] << 1) ^ (pc >> 2);
+	gtargeth = (gtargeth << 1) ^ (next_pc >> 2);
+    }
+}
