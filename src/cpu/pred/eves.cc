@@ -612,8 +612,8 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 			      break;
 			    }
 			}
-		      if (!done)
-			cout << "In if not done, before random and 3" << endl;
+		    if (!done) cout << "In if not done, before random and 3" << endl;
+			
 			if ((random () & 3) == 0)
 			  {
 			    cout << "In the if block to set LDATA" << endl;

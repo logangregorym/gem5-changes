@@ -1609,6 +1609,23 @@ FullO3CPU<Impl>::instDone(ThreadID tid, DynInstPtr &inst)
     thread[tid]->numOps++;
     committedOps[tid]++;
 
+    if (fetch.decoder[tid]->isSuperOptimizationPresent)
+    {
+        if (inst->isStreamedFromSpeculativeCache() && inst->staticInst->isEndOfTrace())
+        {
+
+            commit.numMicroopsShrunken += inst->staticInst->shrunkLength;
+        }
+
+        if ((commit.numMicroopsShrunken + (uint64_t)thread[tid]->numOps.value()) >= commit.checkpointAtInstr && commit.checkpointAtInstr)
+        {
+            std::cout << "commit.numMicroopsShrunken: " <<  commit.numMicroopsShrunken << std::endl;
+            exitSimLoop("simpoint reached", 0);
+        }
+
+    }
+
+
     probeInstCommit(inst->staticInst);
 }
 
