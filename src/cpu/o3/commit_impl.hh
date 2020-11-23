@@ -1360,7 +1360,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             numMicroopsShrunken += head_inst->staticInst->shrunkLength;
         }
 
-        if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr)
+        if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr && checkpointAtInstr)
         {
             exitSimLoop("simpoint reached", 0);
         }
