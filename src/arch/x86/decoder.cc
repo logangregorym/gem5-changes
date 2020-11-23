@@ -1237,10 +1237,14 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
     return NULL;
 }
 
+// LVPredictor return int8_t confidence, if this confidence if less than zero then just return
 unsigned
-Decoder::isTraceAvailable(Addr addr, int64_t value, unsigned confidence) {
+Decoder::isTraceAvailable(Addr addr, int64_t value, int8_t confidence) {
     unsigned maxScore = 0;
     unsigned maxTraceID = 0;
+
+    if (confidence < 0) return 0;
+
     for (auto it = traceConstructor->traceMap.begin(); it != traceConstructor->traceMap.end(); it++) {
         SpecTrace trace = it->second;
         if (trace.headAddr.pcAddr == addr) {

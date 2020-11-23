@@ -1629,7 +1629,7 @@ DefaultIEW<Impl>::executeInsts()
             
             if ((!inst->isStreamedFromSpeculativeCache() || (inst->isControl() && inst->isLastMicroop())) && inst->mispredicted() && !loadNotExecuted) {
                 DPRINTF(IEW, "mismatch? target PC=%s, predicted PC=%s\n", tempPC, inst->readPredTarg());
-                std::cout << "mismatch? target PC=" << tempPC <<", predicted PC=" << inst->readPredTarg() << "\n";
+                //std::cout << "mismatch? target PC=" << tempPC <<", predicted PC=" << inst->readPredTarg() << "\n";
                 fetchRedirect[tid] = true;
 
                 DPRINTF(IEW, "Execute: Branch mispredict detected.\n");
@@ -1638,7 +1638,7 @@ DefaultIEW<Impl>::executeInsts()
                 DPRINTF(IEW, "Execute: Redirecting fetch to PC: %s.\n",
                         inst->pcState());
 
-                updateTraceBranchConfidence(inst, false);       
+                updateTraceBranchConfidence(inst, tempPC, false);       
                 // If incorrect, then signal the ROB that it must be squashed.
                 squashDueToBranch(inst, tid);
 
@@ -1944,7 +1944,7 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
                     inst->nextInstAddr());
             // If incorrect, then signal the ROB that it must be squashed.
             squashDueToBranch(inst, tid);
-            updateTraceBranchConfidence(inst, false);    
+            updateTraceBranchConfidence(inst, tempPC ,false);    
 
             if (inst->readPredTaken()) {
                 predictedTakenIncorrect++;
@@ -1957,11 +1957,11 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
 
 template <class Impl>
 void
-DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, bool predicted)
+DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState& tempPC, bool predicted)
 {
     ThreadID tid = inst->threadNumber;
 
-    TheISA::PCState tempPC = inst->pcState();
+    
 
     if (inst->isStreamedFromSpeculativeCache())
     {
@@ -1978,7 +1978,7 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, bool predicted)
             return;
         }
 
-        DPRINTF(LVP, "updateTraceBranchConfidence:: Updating trace %d cofidence level!\n", traceID);
+        DPRINTF(LVP, "updateTraceBranchConfidence:: TragetPC=%s Updating trace %d cofidence level!\n",tempPC.instAddr(), traceID);
 
         // missprediction
         if (!predicted) 

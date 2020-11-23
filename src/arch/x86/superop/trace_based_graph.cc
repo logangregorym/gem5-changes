@@ -41,8 +41,11 @@ void TraceBasedGraph::regStats()
         ;
 }
 
-void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, unsigned confidence, unsigned latency)
+void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, int8_t confidence, unsigned latency)
 {
+
+    assert(confidence >= 0);
+
     DPRINTF(SuperOp, "predictValue: addr=%#x:%x value=%#x confidence=%d latency=%d\n", addr, uopAddr, value, confidence, latency);
     
     /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
@@ -2524,7 +2527,7 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
                         currentTrace.controlSources[currentTrace.branchesFolded].confidence = 9;
                         currentTrace.controlSources[currentTrace.branchesFolded].valid = true;
                         currentTrace.controlSources[currentTrace.branchesFolded].value = target;
-                        
+
                         currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
                         return true;

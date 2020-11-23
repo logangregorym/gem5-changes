@@ -2143,6 +2143,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 {
                     if (isSuperOptimizationPresent && thisPC.upc() == 0) {
                         LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+                        
                         currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), ret.predictedValue, ret.confidence);
                     }
                     if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
