@@ -1603,6 +1603,9 @@ DefaultIEW<Impl>::executeInsts()
 
         updateExeInstStats(inst);
 
+	// if branch misprediction is detectable by this point, we should have a nextInstAddr()...
+	loadPred->updateGtables(inst->instAddr(), inst->nextInstAddr(), inst->isControl());
+
         // Check if branch prediction was correct, if not then we need
         // to tell commit to squash in flight instructions.  Only
         // handle this if there hasn't already been something that

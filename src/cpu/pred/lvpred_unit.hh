@@ -29,9 +29,8 @@ class LVPredUnit : public SimObject
   public:
     typedef LoadValuePredictorParams Params;
 
-    // used by EVES; put higher up for better compilation feedback
-    //std::list<RefCountingPtr<BaseO3DynInst<O3CPUImpl>>>* cpuInsts;
-
+    std::string lvpredType = "";
+    
     /**
      * Constructor for LVPredUnit base
      * @param params The params object with size information
@@ -45,6 +44,8 @@ class LVPredUnit : public SimObject
     virtual unsigned getConfidence(Addr addr) { return 0; }
 
     virtual unsigned getDelay(Addr addr) { return 0; }
+
+    virtual void updateGtables(Addr pc, Addr next_pc, bool branches) { };
 
     struct lvpReturnValues {
         lvpReturnValues(int64_t v, int8_t status, uint8_t predSource) {
@@ -148,8 +149,11 @@ class LVPredUnit : public SimObject
 
     uint32_t numThreads;
 
+    public:
     /** Stat for number of load value lookups. */
     Stats::Scalar lvLookups;
+    
+    protected:
     /** Stat for number of correct predictions used. */
     Stats::Scalar correctUsed;
     /** Stat for number of incorrect predictions used. */

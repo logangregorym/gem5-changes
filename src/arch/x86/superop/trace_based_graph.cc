@@ -429,7 +429,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 
                 // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
                 currentTrace.prevNonEliminatedInst->setEndOfTrace();
-                
+                currentTrace.prevNonEliminatedInst->shrunkLength = currentTrace.shrunkLength;
                 if (!currentTrace.prevNonEliminatedInst->isControl()) { // control prevNonEliminatedInstructions already propagate live outs
                     for (int i=0; i<16; i++) { // 16 int registers
                         if (regCtx[i].valid && !regCtx[i].source) {
@@ -801,10 +801,10 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
 
     // Rather than checking dests, check sources; if all sources, then all dests in trace
     bool allSrcsReady = true;
-    for (int i=0; i<trace.inst->numSrcRegs(); i++) {
+/*    for (int i=0; i<trace.inst->numSrcRegs(); i++) {
         RegId srcReg = trace.inst->srcRegIdx(i);
         allSrcsReady = allSrcsReady && regCtx[srcReg.flatIndex()].valid;
-    }
+    }*/
 
     string type = trace.inst->getName();
     isDeadCode = (type == "rdip") || (allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "slri" || type == "slli" || type == "sexti" || type == "zexti"));
@@ -2405,6 +2405,9 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
         return false;
     }
 
+    if (currentTrace.branchesFolded >= 2)
+        return false;
+
     uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
     uint16_t ext = inst->getExt();
@@ -2433,6 +2436,7 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
                         currentTrace.addr.way = way;
                         currentTrace.addr.uop = uop;
                         currentTrace.addr.valid = true;
+                        currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
                         return true;
                     }
@@ -2473,6 +2477,9 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
         return false;
     }
 
+    if (currentTrace.branchesFolded >= 2)
+        return false;
+
     uint64_t SrcReg1 = regCtx[src1].value;
     //uint64_t SrcReg2 = regCtx[src2].value;
     uint16_t ext = inst->getExt();
@@ -2502,6 +2509,7 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
                         currentTrace.addr.way = way;
                         currentTrace.addr.uop = uop;
                         currentTrace.addr.valid = true;
+                        currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
                         return true;
                     }
