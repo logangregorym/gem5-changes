@@ -126,7 +126,7 @@ class DefaultCommit
         OldestReady
     };
 
-  private:
+  public:
     /** Overall commit status. */
     CommitStatus _status;
     /** Next commit status, to be set at the end of the cycle. */
@@ -366,7 +366,7 @@ class DefaultCommit
 
     uint64_t numMicroopsShrunken = 0;
 
-  private:
+  public:
     /** Pointer to O3CPU. */
     O3CPU *cpu;
 

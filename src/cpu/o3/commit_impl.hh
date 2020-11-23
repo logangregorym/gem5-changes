@@ -1352,23 +1352,22 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     //     }
     // }
 
-    if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
-    {
-        if (head_inst->isStreamedFromSpeculativeCache() && head_inst->staticInst->isEndOfTrace())
-        {
+    // if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
+    // {
+    //     if (head_inst->isStreamedFromSpeculativeCache() && head_inst->staticInst->isEndOfTrace())
+    //     {
 
-            numMicroopsShrunken += head_inst->staticInst->shrunkLength;
-        }
+    //         numMicroopsShrunken += head_inst->staticInst->shrunkLength;
+    //     }
 
-        if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr && checkpointAtInstr)
-        {
-            exitSimLoop("simpoint reached", 0);
-        }
-
-    }
+    //     if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr)
+    //     {
+    //         exitSimLoop("simpoint reached", 0);
+    //     }
+    // }
 
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
-        (uint64_t)cpu->thread[tid]->numInsts.value() % 100000 == 0 &&
+        (uint64_t)cpu->committedInsts[tid].value() % 100000 == 0 &&
             !head_inst->isNop() &&
             !head_inst->isInstPrefetch() &&
             head_inst->isLastMicroop()
@@ -1386,7 +1385,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
 
             std::cout <<
             "--------------------START OF EPOCH----------------------------" <<
-            std::endl << std::dec << "NumOfInsts: " << cpu->thread[tid]->numInsts.value() <<
+            std::endl << std::dec << "NumOfInsts: " << (uint64_t)cpu->committedInsts[tid].value() <<
             std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   
 		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << std::endl;        
             for (int idx = 0; idx < 32; idx++){

@@ -1419,7 +1419,7 @@ DefaultIEW<Impl>::executeInsts()
 
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
-                if (false && cpu->fetch.decoder[tid]->isSuperOptimizationPresent && !inst->isStreamedFromSpeculativeCache())
+                if (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache())
                 {
                     assert(!inst->isSquashed());
                     
@@ -1603,8 +1603,8 @@ DefaultIEW<Impl>::executeInsts()
 
         updateExeInstStats(inst);
 
-	// if branch misprediction is detectable by this point, we should have a nextInstAddr()...
-	loadPred->updateGtables(inst->instAddr(), inst->nextInstAddr(), inst->isControl());
+        // if branch misprediction is detectable by this point, we should have a nextInstAddr()...
+        loadPred->updateGtables(inst->instAddr(), inst->nextInstAddr(), inst->isControl());
 
         // Check if branch prediction was correct, if not then we need
         // to tell commit to squash in flight instructions.  Only
@@ -1626,8 +1626,10 @@ DefaultIEW<Impl>::executeInsts()
 
             TheISA::PCState tempPC = inst->pcState();
             TheISA::advancePC(tempPC, inst->staticInst);
-            DPRINTF(IEW, "mismatch? target PC=%s, predicted PC=%s\n", tempPC, inst->readPredTarg());
+            
             if ((!inst->isStreamedFromSpeculativeCache() || (inst->isControl() && inst->isLastMicroop())) && inst->mispredicted() && !loadNotExecuted) {
+                DPRINTF(IEW, "mismatch? target PC=%s, predicted PC=%s\n", tempPC, inst->readPredTarg());
+                //std::cout << "mismatch? target PC=" << tempPC <<", predicted PC=" << inst->readPredTarg() << "\n";
                 fetchRedirect[tid] = true;
 
                 DPRINTF(IEW, "Execute: Branch mispredict detected.\n");
@@ -1635,6 +1637,8 @@ DefaultIEW<Impl>::executeInsts()
                         inst->readPredTarg());
                 DPRINTF(IEW, "Execute: Redirecting fetch to PC: %s.\n",
                         inst->pcState());
+
+                updateTraceBranchConfidence(inst, tempPC, false);       
                 // If incorrect, then signal the ROB that it must be squashed.
                 squashDueToBranch(inst, tid);
 
@@ -1940,6 +1944,7 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
                     inst->nextInstAddr());
             // If incorrect, then signal the ROB that it must be squashed.
             squashDueToBranch(inst, tid);
+            updateTraceBranchConfidence(inst, tempPC ,false);    
 
             if (inst->readPredTaken()) {
                 predictedTakenIncorrect++;
@@ -1949,6 +1954,70 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
         }
     }
 }
+
+template <class Impl>
+void
+DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState& tempPC, bool predicted)
+{
+    ThreadID tid = inst->threadNumber;
+
+    
+
+    if (inst->isStreamedFromSpeculativeCache())
+    {
+                
+        unsigned int traceID = inst->staticInst->traceID;
+        
+        // this should never be zero
+        assert(traceID);
+
+        // this trace may have been flushed therfore there is no need to update its confidence
+        if (cpu->fetch.decoder[tid]->traceConstructor->traceMap.find(traceID) == cpu->fetch.decoder[tid]->traceConstructor->traceMap.end())
+        {
+            DPRINTF(LVP, "DefaultIEW::executeInsts():: Couldn't find trace %d in traceMap! Is it flushed? \n", traceID);
+            return;
+        }
+
+        DPRINTF(LVP, "updateTraceBranchConfidence:: TragetPC=%s Updating trace %d cofidence level!\n",tempPC.instAddr(), traceID);
+
+        // missprediction
+        if (!predicted) 
+        {
+            for (size_t idx = 0; idx < 2; idx++)
+            {
+                if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].valid &&
+                    cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].value ==  tempPC.instAddr())
+                {
+                    if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence > 0 )
+                    {
+                        cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence--;
+                        DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction! Traget: %s Decreasing trace %d confidence! Confidence level is %d\n", 
+                        tempPC.instAddr(), traceID, cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence);
+                    }
+                }
+            }
+            
+        } 
+        //correct prediction
+        else 
+        {
+            for (size_t idx = 0; idx < 2; idx++)
+            {
+                if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].valid &&
+                    cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].value ==  tempPC.instAddr())
+                {
+                    if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence < 9 )
+                    {
+                        cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence++;
+                        DPRINTF(LVP, "DefaultIEW::executeInsts():: Correct! Increasing trace %d confidence! Confidence level is %d\n", traceID, 
+                            cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence);
+                    }
+                }
+            }
+        }       
+    } 
+}
+
 
 template <class Impl>
 void

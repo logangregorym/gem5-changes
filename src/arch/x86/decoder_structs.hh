@@ -116,6 +116,9 @@ struct SpecTrace
     // Number of branches folded
     unsigned branchesFolded;
 
+    // Control Prediction Sources (at most 2)
+    PredictionSource controlSources[2];
+
     enum State {
         Invalid,
         

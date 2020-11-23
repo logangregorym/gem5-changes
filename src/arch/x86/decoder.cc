@@ -1237,10 +1237,14 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
     return NULL;
 }
 
+// LVPredictor return int8_t confidence, if this confidence if less than zero then just return
 unsigned
-Decoder::isTraceAvailable(Addr addr, int64_t value, unsigned confidence) {
+Decoder::isTraceAvailable(Addr addr, int64_t value, int8_t confidence) {
     unsigned maxScore = 0;
     unsigned maxTraceID = 0;
+
+    if (confidence < 0) return 0;
+
     for (auto it = traceConstructor->traceMap.begin(); it != traceConstructor->traceMap.end(); it++) {
         SpecTrace trace = it->second;
         if (trace.headAddr.pcAddr == addr) {
@@ -1254,6 +1258,12 @@ Decoder::isTraceAvailable(Addr addr, int64_t value, unsigned confidence) {
 
             if (confidence >= 5 && value != trace.source[0].value) { // trace with incorrect value, move on to a different trace
                 continue;
+            }
+
+            if ((trace.controlSources[0].valid && trace.controlSources[0].confidence < 5) || 
+                (trace.controlSources[1].valid && trace.controlSources[1].confidence < 5 ))
+            {
+                    continue;
             }
 
             unsigned traceConfidence = minConfidence(trace.id);
@@ -1294,15 +1304,22 @@ Decoder::doSquash(Addr addr) {
             assert(traceConstructor->traceMap.find(speculativeTraceIDArray[idx][way]) != traceConstructor->traceMap.end());
 
             //SpecTrace trace = traceConstructor->traceMap[speculativeTraceIDArray[idx][way]];
-            for (int i=0; i<4; i++) {
+            for (int i=0; i<4; i++) 
+            {
                 if (traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].valid && 
-                    traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].addr.pcAddr == addr) {
-                    traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].confidence--;
-                    return;
+                    traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].addr.pcAddr == addr) 
+                {
+                    
+                    // Is there a limit on confidence? I'm assuming 0.
+                    if (traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].confidence > 0) 
+                    {
+                        traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].confidence--;
+                        return;
+                    }
                 }
+                // we might have gotten squashed at the middle of the trace
+                //traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[0].confidence--;
             }
-            // we might have gotten squashed at the middle of the trace
-            traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[0].confidence--;
         }
     }
 }
