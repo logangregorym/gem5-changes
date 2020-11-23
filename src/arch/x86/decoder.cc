@@ -987,7 +987,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     int lastWay = -1;
 
     int baseWay = 0;
-    //int waysVisited = 0;
+    int waysVisited = 0;
     if (trace.optimizedHead.valid) {
         idx = trace.optimizedHead.idx;
         baseWay = trace.optimizedHead.way;
@@ -1002,14 +1002,14 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
 
 
     /* Link list traversal traversal. */
-    for (int way = baseWay; way != 10  && numFullWays < 3; way = speculativeNextWayArray[idx][way]) {
+    for (int way = baseWay; way != 10  && numFullWays < 3 && waysVisited < 8; way = speculativeNextWayArray[idx][way]) {
         if (speculativeValidArray[idx][way] && speculativeTraceIDArray[idx][way] == traceID) {
             /* Check if this way can accommodate the uops that correspond
                  to this instruction. */
             int waySize = speculativeCountArray[idx][way];
             if (waySize == 6) {
                 lastWay = way;
-                //waysVisited++;
+                waysVisited++;
                 continue;
             }
             speculativeCountArray[idx][way]++;
@@ -1032,7 +1032,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
             }
             return true;
         }
-        //waysVisited++;
+        waysVisited++;
     }
 
     if (numFullWays >= 3) {
@@ -1073,7 +1073,8 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     unsigned evictWay = 8;
     for (int way = 0; way < 8; way++) {
         // check if we are processing the trace for first time optimization -- write to way in progress
-        if ((traceConstructor->currentTrace.state == (SpecTrace::OptimizationInProcess || SpecTrace::ReoptimizationInProcess) &&
+        if ((((traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) ||
+              (traceConstructor->currentTrace.state == SpecTrace::ReoptimizationInProcess)) &&
             traceConstructor->currentTrace.id != 0) && 
             (traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][way] ||
              traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
