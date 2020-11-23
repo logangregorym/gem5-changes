@@ -36,6 +36,7 @@ public:
   virtual bool processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
   uint64_t actual_value, ThreadID tid, uint64_t predictedValue, int8_t confidence,
   unsigned actual_latency, unsigned currentCycle);
+  virtual void updateGtables(Addr pc, Addr next_pc, bool branches);
 
 protected:
   void setUpTables(const Params *p) { };
