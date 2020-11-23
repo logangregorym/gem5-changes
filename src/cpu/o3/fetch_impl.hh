@@ -1222,7 +1222,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
                 DPRINTF(Fetch, "branch misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
                 decoder[tid]->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = false;
-                
+                currentTraceID = 0;
             }
 
         }
@@ -1242,6 +1242,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
                 // This squash is not due to LVP missprediction, therefore always deactivate the spec$ and the fetch will handle re-activation
                 decoder[tid]->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = false;
+                currentTraceID = 0;
             }
         }
 
@@ -1551,7 +1552,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
         //*****CHANGE START**********
         // check the speculative cache even before the microop cache
-        if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive()) {
+        if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive() && thisPC.upc() == 0) {
             LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
             currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), ret.predictedValue, ret.confidence);
             if (currentTraceID != 0 && decoder[tid]->redirectDueToLVPSquashing) {
@@ -1932,6 +1933,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             // here just break, at the end of fetch() function it will handel this automaticly  
                             // if the next instruction is a branch, this will handel that automaticly too. 
 
+                            currentTraceID = 0;
                             fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
                             Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
                             // fortunatly fetchBufferPC[tid] is updated somewhere else
@@ -1964,7 +1966,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                                 "fetch buffer is still valid!.\n", tid);
                             fetchBufferValid[tid] = false;
 
-                            
                             
                             fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
                             blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
@@ -2135,7 +2136,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 // whenever we need to fetch a new macroop check whether we can start fetching from speculative cahce
                 if (newMacro)
                 {
-                    if (isSuperOptimizationPresent) {
+                    if (isSuperOptimizationPresent && thisPC.upc() == 0) {
                         LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
                         currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), ret.predictedValue, ret.confidence);
                     }
