@@ -1222,7 +1222,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
                 DPRINTF(Fetch, "branch misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
                 decoder[tid]->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = false;
-                
+                currentTraceID = 0;
             }
 
         }
@@ -1242,6 +1242,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
                 // This squash is not due to LVP missprediction, therefore always deactivate the spec$ and the fetch will handle re-activation
                 decoder[tid]->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = false;
+                currentTraceID = 0;
             }
         }
 
@@ -1932,6 +1933,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             // here just break, at the end of fetch() function it will handel this automaticly  
                             // if the next instruction is a branch, this will handel that automaticly too. 
 
+                            currentTraceID = 0;
                             fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
                             Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
                             // fortunatly fetchBufferPC[tid] is updated somewhere else
@@ -1964,7 +1966,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                                 "fetch buffer is still valid!.\n", tid);
                             fetchBufferValid[tid] = false;
 
-                            
                             
                             fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
                             blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
