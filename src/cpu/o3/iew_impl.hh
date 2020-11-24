@@ -1508,7 +1508,6 @@ DefaultIEW<Impl>::executeInsts()
 		    //cout << "About to call eves on sn " << inst->seqNum << endl;
                     DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
                     ThreadID tid = inst->threadNumber;
-		    // cout << "Processing seqno " << inst->seqNum << ": confidence is " << (uint64_t) (inst->staticInst->confidence) << endl;
                     DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence); 
 		    // cout << "iew response for sn " << inst->seqNum << " has HitBank " << inst->staticInst->HitBank << endl;
                     for (int i=0; i<inst->numDestRegs(); i++) {
@@ -1639,7 +1638,8 @@ DefaultIEW<Impl>::executeInsts()
                 DPRINTF(IEW, "Execute: Redirecting fetch to PC: %s.\n",
                         inst->pcState());
 
-                updateTraceBranchConfidence(inst, tempPC, false);       
+                TheISA::PCState targetPC = inst->readPredTarg();
+                updateTraceBranchConfidence(inst, targetPC, false);       
                 // If incorrect, then signal the ROB that it must be squashed.
                 squashDueToBranch(inst, tid);
 
@@ -1670,7 +1670,7 @@ DefaultIEW<Impl>::executeInsts()
 
                 // Squash.
                 DPRINTF(LVP, "Starting mem order violation squash from %i\n", violator->seqNum);
-		squashDueToMemOrder(violator, tid);
+                squashDueToMemOrder(violator, tid);
 
                 ++memOrderViolationEvents;
             }
@@ -1690,6 +1690,9 @@ DefaultIEW<Impl>::executeInsts()
                         "already squashing\n");
 
                 ++memOrderViolationEvents;
+            } else {
+                TheISA::PCState targetPC = inst->readPredTarg();
+                updateTraceBranchConfidence(inst, targetPC, true);       
             }
         }
     }
@@ -1945,7 +1948,8 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
                     inst->nextInstAddr());
             // If incorrect, then signal the ROB that it must be squashed.
             squashDueToBranch(inst, tid);
-            updateTraceBranchConfidence(inst, tempPC ,false);    
+            TheISA::PCState targetPC = inst->readPredTarg();
+            updateTraceBranchConfidence(inst, targetPC ,false);    
 
             if (inst->readPredTaken()) {
                 predictedTakenIncorrect++;
@@ -1979,7 +1983,7 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
             return;
         }
 
-        DPRINTF(LVP, "updateTraceBranchConfidence:: TragetPC=%s Updating trace %d cofidence level!\n",tempPC.instAddr(), traceID);
+        DPRINTF(LVP, "updateTraceBranchConfidence:: TragetPC=%s Updating trace %d cofidence level!\n",tempPC, traceID);
 
         // missprediction
         if (!predicted) 
@@ -1993,7 +1997,7 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
                     {
                         cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence--;
                         DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction! Traget: %s Decreasing trace %d confidence! Confidence level is %d\n", 
-                        tempPC.instAddr(), traceID, cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence);
+                        tempPC, traceID, cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence);
                     }
                 }
             }

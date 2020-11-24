@@ -46,7 +46,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
 
     assert(confidence >= 0);
 
-    DPRINTF(SuperOp, "predictValue: addr=%#x:%x value=%#x confidence=%d latency=%d\n", addr, uopAddr, value, confidence, latency);
+    DPRINTF(SuperOp, "predictValue: addr=%#x:%x value=%#x confidence=%d latency=%d\n", addr, uopAddr, value, (unsigned) confidence, latency);
     
     /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
     int idx = (addr >> 5) & 0x1f;
@@ -82,7 +82,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                             it->second.source[numPredSources].valid = true;
                             it->second.source[numPredSources].addr = FullUopAddr(addr, uopAddr);
                             it->second.source[numPredSources].value = value;
-                            it->second.source[numPredSources].confidence = confidence;
+                            it->second.source[numPredSources].confidence = (unsigned) confidence;
                         }
                         return;
                     }
@@ -147,7 +147,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                 newTrace.source[i].valid = true;
                 newTrace.source[i].addr = FullUopAddr(addr, uopAddr);
                 newTrace.source[i].value = value;
-                newTrace.source[i].confidence = confidence;
+                newTrace.source[i].confidence = (unsigned) confidence;
                 newTrace.source[i].latency = latency;
                 newTrace.state = SpecTrace::QueuedForReoptimization;
                 newTrace.reoptId = traceId;
@@ -181,7 +181,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                     newTrace.source[0].valid = true;
                     newTrace.source[0].addr = FullUopAddr(addr, uopAddr);
                     newTrace.source[0].value = value;
-                    newTrace.source[0].confidence = confidence;
+                    newTrace.source[0].confidence = (unsigned) confidence;
                     newTrace.source[0].latency = latency;
                     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
                     newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
@@ -298,10 +298,12 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
                         decodedMacroOp = NULL;
                     }
                     DPRINTF(ConstProp, "Control Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
-                    
-                    trace.controlSources[trace.branchesFolded].confidence = 9;
-                    trace.controlSources[trace.branchesFolded].valid = true;
-                    trace.controlSources[trace.branchesFolded].value = target;
+                   
+                    if (!traceMap[trace.id].controlSources[trace.branchesFolded].valid) {
+                        traceMap[trace.id].controlSources[trace.branchesFolded].confidence = 9;
+                        traceMap[trace.id].controlSources[trace.branchesFolded].valid = true;
+                        traceMap[trace.id].controlSources[trace.branchesFolded].value = target;
+                    }
 
                     trace.branchesFolded++;
                     
