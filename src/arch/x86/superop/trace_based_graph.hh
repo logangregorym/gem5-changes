@@ -37,7 +37,7 @@ class TraceBasedGraph : public SimObject
     bool usingControlTracking = false;
     bool usingCCTracking = false;
 
-    void predictValue(Addr addr, unsigned uopAddr, int64_t value, unsigned confidence, unsigned latency);
+    void predictValue(Addr addr, unsigned uopAddr, int64_t value, int8_t confidence, unsigned latency);
 
     bool updateSpecTrace(SpecTrace &trace, bool& isDeadCode, bool propagated);
 

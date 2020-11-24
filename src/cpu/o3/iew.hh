@@ -254,6 +254,7 @@ class DefaultIEW
     void squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstWoken, ThreadID tid);
 
     void updateTraceConfidence(DynInstPtr &inst);
+    void updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState& tempPC, bool predicted);
 
   private:
     /** Sets Dispatch to blocked, and signals back to other stages to block. */

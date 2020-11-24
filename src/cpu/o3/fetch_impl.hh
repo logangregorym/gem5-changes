@@ -1393,9 +1393,10 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
 	    instruction->staticInst->lvpData = &ret;
 			instruction->staticInst->predictedValue = ret.predictedValue;
 			instruction->staticInst->confidence = ret.confidence;
+			// if (instruction->staticInst->confidence) {std::cout << "Confident prediction at seqno " << instruction->seqNum << endl;}
 			instruction->staticInst->predVtage = ret.predVtage;
 			instruction->staticInst->predStride = ret.predStride;
-			//if (instruction->staticInst->predStride) {std::cout << "Still confident...\n";}
+			// if (instruction->staticInst->predStride) {std::cout << "Still confident...\n";}
 			instruction->staticInst->prediction_result = ret.prediction_result;
 			for (int i=0; i<9; i++) {
 				instruction->staticInst->GTAG[i] = ret.GTAG[i];
@@ -2143,6 +2144,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 {
                     if (isSuperOptimizationPresent && thisPC.upc() == 0) {
                         LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+                        
                         currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), ret.predictedValue, ret.confidence);
                     }
                     if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 

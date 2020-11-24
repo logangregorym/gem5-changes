@@ -41,8 +41,11 @@ void TraceBasedGraph::regStats()
         ;
 }
 
-void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, unsigned confidence, unsigned latency)
+void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, int8_t confidence, unsigned latency)
 {
+
+    assert(confidence >= 0);
+
     DPRINTF(SuperOp, "predictValue: addr=%#x:%x value=%#x confidence=%d latency=%d\n", addr, uopAddr, value, confidence, latency);
     
     /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
@@ -226,7 +229,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
         return false;
 
     // don't fold more than 2 branches
-    if (trace.branchesFolded > 2)
+    if (trace.branchesFolded >= 2)
         return false;
 
     StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop]);
@@ -295,7 +298,13 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
                         decodedMacroOp = NULL;
                     }
                     DPRINTF(ConstProp, "Control Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+                    
+                    trace.controlSources[trace.branchesFolded].confidence = 9;
+                    trace.controlSources[trace.branchesFolded].valid = true;
+                    trace.controlSources[trace.branchesFolded].value = target;
+
                     trace.branchesFolded++;
+                    
                     return true;
                 }
             }
@@ -2436,6 +2445,11 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
                         currentTrace.addr.way = way;
                         currentTrace.addr.uop = uop;
                         currentTrace.addr.valid = true;
+
+                        currentTrace.controlSources[currentTrace.branchesFolded].confidence = 9;
+                        currentTrace.controlSources[currentTrace.branchesFolded].valid = true;
+                        currentTrace.controlSources[currentTrace.branchesFolded].value = target;
+
                         currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
                         return true;
@@ -2509,6 +2523,11 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
                         currentTrace.addr.way = way;
                         currentTrace.addr.uop = uop;
                         currentTrace.addr.valid = true;
+
+                        currentTrace.controlSources[currentTrace.branchesFolded].confidence = 9;
+                        currentTrace.controlSources[currentTrace.branchesFolded].valid = true;
+                        currentTrace.controlSources[currentTrace.branchesFolded].value = target;
+
                         currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
                         return true;

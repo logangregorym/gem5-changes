@@ -154,6 +154,7 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
   getPredVtage (pc.pc(), U, predicted_value);
 #endif
 // the two predictions are very rarely both high confidence; when they are pick the VTAGE prediction
+  U.confidence = 100*(U.predStride || U.predVtage);
   return U; 
 }
 
@@ -164,7 +165,6 @@ EvesLVP::strideupdateconf (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, u
 		  int stride)
 {
 return true;
-	// jer5ae note: no idea why updateconfstr1 and updateconfstr appear redundant...
 #define UPDATECONFSTR2 (((!U.prediction_result) || (U.predStride)) && ((random () & ((1 << (NOTLLCMISS + NOTL2MISS + NOTL1MISS + 2*MFASTINST  + 2*(!inst->isLoad()))) - 1)) == 0))
 #define UPDATECONFSTR1 (abs (stride >= 8) ? (UPDATECONFSTR2 || UPDATECONFSTR2) : (UPDATECONFSTR2))
 #define UPDATECONFSTR (abs (stride >= 64) ? (UPDATECONFSTR1 || UPDATECONFSTR1) : (UPDATECONFSTR1))
@@ -180,6 +180,7 @@ return true;
 bool
 EvesLVP::StrideAllocateOrNot (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
 {
+return true;
 #ifndef LIMITSTUDY
   bool X = false;
 #define LOGPBINVSTR 4
@@ -340,6 +341,7 @@ EvesLVP::UpdateStridePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, u
 	  // the target entry is not a stride candidate
 	  for (int i = 0; i < NBWAYSTR; i++)
 	    {
+	      // if (i == 0) cout << "Find something unconfident" << endl;
 	      STHIT = B[X];
 	      if (STR[STHIT].conf == 0)
 		{
@@ -359,6 +361,7 @@ EvesLVP::UpdateStridePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, u
 	  if (!done)
 	    for (int i = 0; i < NBWAYSTR; i++)
 	      {
+		// if (i == 0) cout << "Find something unuseful" << endl;
 		STHIT = B[X];
 		if (STR[STHIT].u == 0)
 		  {
@@ -376,7 +379,7 @@ EvesLVP::UpdateStridePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, u
 	      }
 //if unable to allocate: age some target entry
 	  if (!done)
-	    {
+	    {  // cout << "STILL NOT DONE?!" << endl;
 	      if ((random () &
 		   ((1 <<
 		     (2 + 2 * (STR[STHIT].conf > (MAXCONFIDSTR) / 8) +
@@ -794,7 +797,7 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
         //U.prediction_result = inst->prediction_result;
 	U.prediction_result = (U.predictedValue == actual_value);
 	
-        if (U.predVtage || U.predStride) {  // if it was a "confident prediction"...
+        if (confidence > 0) {  // if it was a "confident prediction"...
 	    if (U.predictedValue == actual_value) {
 		correctUsed++;
 	    } else {

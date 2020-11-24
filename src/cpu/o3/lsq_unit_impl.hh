@@ -1141,6 +1141,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                 inst->memoryAccessEndCycle = cpu->numCycles.value();
                 DPRINTF(LVP, "Sending a load response to LVP from [sn:%i]\n", inst->seqNum);
                 ThreadID tid = inst->threadNumber;
+		// cout << "Processing seqno " << inst->seqNum << ": confidence is " << (uint64_t) (inst->staticInst->confidence) << endl;
                 DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence);
 		// cout << "load response for sn " << inst->seqNum << " has HitBank " << inst->staticInst->HitBank << endl;
                 for (int i=0; i<inst->numDestRegs(); i++) {
