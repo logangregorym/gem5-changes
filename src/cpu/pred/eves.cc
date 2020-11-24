@@ -539,7 +539,6 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 			(actual_value >> 43) ^ (actual_value >> 52) ^
 			(actual_value >> 57)) & (BANKDATA - 1)) +
     3 * BANKDATA;
-
   bool ShouldWeAllocate = true;
   if (U.HitBank != -1)
     {
@@ -610,7 +609,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 			  {
 			    //data absent: let us try try to steal an entry
 			    int i = (((uint64_t) random ()) % 3);
-			    bool done = false;
+			    done = false;
 			    for (int j = 0; j < 3; j++)
 			      {
 				if ((LDATA[X[i]].u == 0))
@@ -653,7 +652,6 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 	  else
 	    {
 // misprediction: reset
-
 
 	      Vtage[index].hashpt = HashData;
 	      if ((Vtage[index].conf > MAXCONFID / 2)
@@ -800,6 +798,7 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
         if (confidence > 0) {  // if it was a "confident prediction"...
 	    if (U.predictedValue == actual_value) {
 		correctUsed++;
+		cyclesSaved += actual_latency;
 	    } else {
 		incorrectUsed++;
 	    }

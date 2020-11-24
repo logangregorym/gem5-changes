@@ -1368,7 +1368,6 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     //     {
     //         exitSimLoop("simpoint reached", 0);
     //     }
-
     // }
 
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
