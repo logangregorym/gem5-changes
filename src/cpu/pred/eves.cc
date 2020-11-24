@@ -154,7 +154,8 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
   getPredVtage (pc.pc(), U, predicted_value);
 #endif
 // the two predictions are very rarely both high confidence; when they are pick the VTAGE prediction
-  U.confidence = 100*(U.predStride || U.predVtage);
+  U.confidence = -1;
+  if (U.predStride || U.predVtage) U.confidence = 100;
   return U; 
 }
 
