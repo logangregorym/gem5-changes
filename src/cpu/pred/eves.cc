@@ -47,7 +47,7 @@ EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predi
     {
       if (Vtage[U.GI[i]].tag == U.GTAG[i])
 	{
-	  cout << "Setting U.HitBank to i=" << i << endl;
+	  // cout << "Setting U.HitBank to i=" << i << endl;
 	  U.HitBank = i;
 	  break;
 	}
@@ -66,7 +66,6 @@ EvesLVP::getPredVtage (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & predi
 	    predvtage = ((Vtage[U.GI[U.HitBank]].conf >= MAXCONFID));
 	  }
       }
-  cout << "U.predVtage is being set to " << predvtage << endl;
   U.predVtage = predvtage;
 }
 
@@ -110,11 +109,11 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & pred
     }
   U.STHIT = STHIT;
   if (STHIT >= 0) {
-    // std::cout << "STHIT >= 0... ";
+    //std::cout << "STHIT >= 0... ";
     if (true) // (SafeStride >= 0)
       {				// hit
         uint64_t LastCommitedValue = STR[STHIT].LastValue;
-        // std::cout << (uint64_t) STR[STHIT].conf << " >= " << MAXCONFIDSTR / 4 << "?"; 
+        //std::cout << (uint64_t) STR[STHIT].conf << " >= " << MAXCONFIDSTR / 4 << "?"; 
 	if (STR[STHIT].conf >= (MAXCONFIDSTR / 4))
 	  {
 	    int inflight = stored_inflight;
@@ -123,7 +122,7 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & pred
 			  ((inflight + 1) * ((int64_t) STR[STHIT].Stride)));
 	    predstride = true;
 	  }
-      }  // std::cout << std::endl;
+      }  //std::cout << std::endl;
   }
   U.predStride = predstride;
   //if (predstride) std::cout << "Confident stride!" << std::endl;
@@ -155,6 +154,7 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
   getPredVtage (pc.pc(), U, predicted_value);
 #endif
 // the two predictions are very rarely both high confidence; when they are pick the VTAGE prediction
+  U.confidence = 100*(U.predStride || U.predVtage);
   return U; 
 }
 
@@ -165,7 +165,6 @@ EvesLVP::strideupdateconf (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, u
 		  int stride)
 {
 return true;
-	// jer5ae note: no idea why updateconfstr1 and updateconfstr appear redundant...
 #define UPDATECONFSTR2 (((!U.prediction_result) || (U.predStride)) && ((random () & ((1 << (NOTLLCMISS + NOTL2MISS + NOTL1MISS + 2*MFASTINST  + 2*(!inst->isLoad()))) - 1)) == 0))
 #define UPDATECONFSTR1 (abs (stride >= 8) ? (UPDATECONFSTR2 || UPDATECONFSTR2) : (UPDATECONFSTR2))
 #define UPDATECONFSTR (abs (stride >= 64) ? (UPDATECONFSTR1 || UPDATECONFSTR1) : (UPDATECONFSTR1))
@@ -181,6 +180,7 @@ return true;
 bool
 EvesLVP::StrideAllocateOrNot (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, uint64_t actual_value, int actual_latency)
 {
+return true;
 #ifndef LIMITSTUDY
   bool X = false;
 #define LOGPBINVSTR 4
@@ -341,6 +341,7 @@ EvesLVP::UpdateStridePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, u
 	  // the target entry is not a stride candidate
 	  for (int i = 0; i < NBWAYSTR; i++)
 	    {
+	      // if (i == 0) cout << "Find something unconfident" << endl;
 	      STHIT = B[X];
 	      if (STR[STHIT].conf == 0)
 		{
@@ -360,6 +361,7 @@ EvesLVP::UpdateStridePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, u
 	  if (!done)
 	    for (int i = 0; i < NBWAYSTR; i++)
 	      {
+		// if (i == 0) cout << "Find something unuseful" << endl;
 		STHIT = B[X];
 		if (STR[STHIT].u == 0)
 		  {
@@ -377,7 +379,7 @@ EvesLVP::UpdateStridePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, u
 	      }
 //if unable to allocate: age some target entry
 	  if (!done)
-	    {
+	    {  // cout << "STILL NOT DONE?!" << endl;
 	      if ((random () &
 		   ((1 <<
 		     (2 + 2 * (STR[STHIT].conf > (MAXCONFIDSTR) / 8) +
@@ -537,7 +539,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 			(actual_value >> 43) ^ (actual_value >> 52) ^
 			(actual_value >> 57)) & (BANKDATA - 1)) +
     3 * BANKDATA;
-  cout << BANKDATA << endl;
+
   bool ShouldWeAllocate = true;
   if (U.HitBank != -1)
     {
@@ -551,28 +553,19 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 	{
 	  //  update the prediction
 	  uint64_t indindex = Vtage[index].hashpt;
-	  cout << "Comparing indindex " << indindex << " to HashData " << HashData << " for returned value " << actual_value << endl;
 	  ShouldWeAllocate =
 	    ((indindex >= 3 * BANKDATA) & (indindex != HashData))
 	    || ((indindex < 3 * BANKDATA) &
 		(LDATA[indindex].data != actual_value));
-	  bool first_half = ((indindex >= 3 * BANKDATA) & (indindex != HashData));
-	  bool second_half = ((indindex < 3 * BANKDATA) & (LDATA[indindex].data != actual_value));
-	  cout << "Should we allocate is " << ShouldWeAllocate << " bc first half is " << first_half << " and second half is " << second_half << endl;
 	  if (!ShouldWeAllocate)
 	    {
 	      // the predicted result is satisfactory: either a good hash without data, or a pointer on the correct data
 	      ShouldWeAllocate = false;
 
-	      if (Vtage[index].conf < MAXCONFID) {
-		if (vtageupdateconf (U, inst, actual_value, actual_latency)) {
-		  int c = Vtage[index].conf;
-		  cout << "Vtage[" << index << "].conf was " << c << endl;
+	      if (Vtage[index].conf < MAXCONFID)
+		if (vtageupdateconf (U, inst, actual_value, actual_latency))
 		  Vtage[index].conf++;
-		  c = Vtage[index].conf;
-		  cout << "incremented Vtage[" << index << "].conf to " << c << endl;
-		}
-	      }
+
 	      if (Vtage[index].u < MAXU)
 		if ((VtageUpdateU (U, inst, actual_value, actual_latency))
 		    || (Vtage[index].conf == MAXCONFID))
@@ -582,6 +575,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 		if (LDATA[indindex].u < 3)
 		  if (Vtage[index].conf == MAXCONFID)
 		    LDATA[indindex].u++;
+
 
 	      if (indindex >= 3 * BANKDATA)
 		{
@@ -606,17 +600,14 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 			  if (LDATA[X[i]].data == actual_value)
 			    {
 			      //the data is already present
-			      cout << "Setting Vtage[" << index << "].hashpt to " << X[i] << endl;
 			      Vtage[index].hashpt = X[i];
 			      done = true;
 			      break;
 			    }
 			}
-		    if (!done) cout << "In if not done, before random and 3" << endl;
-			
+		      if (!done)
 			if ((random () & 3) == 0)
 			  {
-			    cout << "In the if block to set LDATA" << endl;
 			    //data absent: let us try try to steal an entry
 			    int i = (((uint64_t) random ()) % 3);
 			    bool done = false;
@@ -625,9 +616,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 				if ((LDATA[X[i]].u == 0))
 				  {
 				    LDATA[X[i]].data = actual_value;
-				    cout << "Setting LDATA[" << X[i] << "] to " << actual_value << endl;
 				    LDATA[X[i]].u = 1;
-				    cout << "Setting Vtage[" << index << "].hashpt to " << endl;
 				    Vtage[index].hashpt = X[i];
 				    done = true;
 				    break;
@@ -636,18 +625,16 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 				i = i % 3;
 
 			      }
-			    if (inst->isLoad()) {
+			    if (inst->isLoad())
 			      if (!done)
 				{
 				  if ((LDATA[X[i]].u == 0))
 				    {
-				      cout << "Setting LDATA[" << X[i] << "] to " << actual_value;
 				      LDATA[X[i]].data = actual_value;
 				      LDATA[X[i]].u = 1;
-				      cout << "Setting Vtage[" << index << "].hashpt to " << X[i] << endl;
 				      Vtage[index].hashpt = X[i];
 				    }
-				  } else {
+				  else
 #ifdef K8
 				  if ((random () & 31) == 0)
 #else
@@ -667,7 +654,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 	    {
 // misprediction: reset
 
-	      cout << "Setting Vtage[" << index << "].hashpt to " << HashData << endl;
+
 	      Vtage[index].hashpt = HashData;
 	      if ((Vtage[index].conf > MAXCONFID / 2)
 		  || ((Vtage[index].conf == MAXCONFID / 2) &
@@ -681,14 +668,10 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 
 		  Vtage[index].u = (Vtage[index].conf == MAXCONFID);
 		  Vtage[index].conf -= (MAXCONFID + 1) / 4;
-		  int c = Vtage[index].conf;
-		  cout << "decrementing Vtage[" << index << "].conf to " << c << endl;
 		}
 	      else
 		{
 		  Vtage[index].conf = 0;
-		  int c = Vtage[index].conf;
-		  cout << "resetting Vtage[" << index << "].conf to " << c << endl;
 		  Vtage[index].u = 0;
 		}
 
@@ -701,8 +684,6 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
     if (ShouldWeAllocate)
       {
 // avoid allocating too often
-	bool allorno = VtageAllocateOrNot (U, inst, actual_value, actual_latency, MedConf);
-	cout << "VtageAllocateOrNot is " << allorno << endl;
 	if (VtageAllocateOrNot (U, inst, actual_value, actual_latency, MedConf))
 	  {
 	    int ALL = 0;
@@ -733,11 +714,8 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 				(random () & MAXCONFID))))
 //slightly favors the entries with real confidence
 		      {
-			cout << "Setting Vtage[" << index << "].hashpt to " << HashData << endl;
 			Vtage[index].hashpt = HashData;
 			Vtage[index].conf = MAXCONFID / 2;	//set to 3  for faster warming to  high confidence 
-			int c = Vtage[index].conf;
-			cout << "fast-tracking Vtage[" << index << "].conf to " << c << endl;
 			Vtage[index].tag = U.GTAG[i];
 			ALL++;
 
@@ -764,20 +742,16 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 			    || (Vtage[index].conf <=
 				(random () & MAXCONFID))))
 		      {
-			cout << "Setting Vtage[" << index << "].hashpt to " << HashData << endl;
 			Vtage[index].hashpt = HashData;
 			Vtage[index].conf = MAXCONFID / 2;
-			if (true) {//inst->numSrcRegs() == 0)
-			  if (inst->isInteger()) {
+			if (true)//inst->numSrcRegs() == 0)
+			  if (inst->isInteger())
 			    Vtage[index].conf = MAXCONFID;
-			    int c = Vtage[index].conf;
-			    cout << "fast-tracking Vtage[" << index << "].conf to " << c << endl;
-			  }
-			  Vtage[index].tag = U.GTAG[i];
-			  ALL++;
-			  break;
-		        }
-		      } else
+			Vtage[index].tag = U.GTAG[i];
+			ALL++;
+			break;
+		      }
+		    else
 		      {
 			NA++;
 		      }
@@ -802,7 +776,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 	  }
 
       }
-   }
+
 
 }
 
@@ -816,8 +790,6 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
 {
   // ForUpdate *U;
   // U = &Update[seq_no & (MAXINFLIGHT - 1)];
-  	unsigned con = confidence;
-	cout << "Predicted " << predictedValue << " with confidence " << con << "..." << endl;
 	LVPredUnit::lvpReturnValues U = LVPredUnit::lvpReturnValues(inst->predictedValue, inst->confidence);
 	U.predVtage = inst->predVtage;
 	U.predStride = inst->predStride;
@@ -825,7 +797,7 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
         //U.prediction_result = inst->prediction_result;
 	U.prediction_result = (U.predictedValue == actual_value);
 	
-        if (U.predVtage || U.predStride) {  // if it was a "confident prediction"...
+        if (confidence > 0) {  // if it was a "confident prediction"...
 	    if (U.predictedValue == actual_value) {
 		correctUsed++;
 	    } else {
