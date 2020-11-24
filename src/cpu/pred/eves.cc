@@ -617,7 +617,7 @@ EvesLVP::UpdateVtagePred (LVPredUnit::lvpReturnValues& U, StaticInstPtr inst, ui
 			    // cout << "In the if block to set LDATA" << endl;
 			    //data absent: let us try try to steal an entry
 			    int i = (((uint64_t) random ()) % 3);
-			    bool done = false;
+			    done = false;
 			    for (int j = 0; j < 3; j++)
 			      {
 				if ((LDATA[X[i]].u == 0))
