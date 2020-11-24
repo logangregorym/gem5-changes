@@ -792,6 +792,7 @@ Decoder::updateLRUBitsSpeculative(int idx, int way)
 bool
 Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, unsigned cycleAdded, ThreadID tid)
 {
+    DPRINTF(Decoder, "Trying to update microop in the microop cache for %#x with %i uops.\n", addr, numUops);
     if (numUops > 6) {
         DPRINTF(Decoder, "More than 6 microops: Could not update microop in the microop cache: %#x.\n", addr);
         return false;
@@ -814,16 +815,22 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     }
     /* Trace traversal is circular, rather than linear. */
     for (int way = baseWay; waysVisited < 8 && numFullWays < 3; way = (way + 1) % 8) {
-        if (!uopFullArray[idx][way] && uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+        /*if (uopFullArray[idx][way]) {
+            DPRINTF(Decoder, "uop[[%i][%i] is full\n", idx, way);
+            numFullWays++;
+        } else*/ if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
             /* Check if this way can accommodate the uops that correspond
                  to this instruction. */
             int waySize = uopCountArray[idx][way];
+            DPRINTF(Decoder, "uop[[%i][%i] has %i uops\n", idx, way, waySize);
             if ((waySize + numUops) > 6) {
                 lastWay = way;
-                uopFullArray[idx][way] = true;
+                //uopFullArray[idx][way] = true;
                 numFullWays++;
+                waysVisited++;
                 continue;
             }
+
             uopCountArray[idx][way] += numUops;
             unsigned uopAddr = 0;
             for (int uop = waySize; uop < (waySize + numUops); uop++) {
@@ -837,6 +844,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             uopCacheUpdates += numUops;
             return true;
         }
+        DPRINTF(Decoder, "uop[[%i][%i] has valid bit %i and has a tag %x that does not match with %x\n", idx, way, uopValidArray[idx][way], uopTagArray[idx][way], tag);
         waysVisited++;
     }
 
@@ -846,6 +854,23 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         DPRINTF(Decoder, "Could not accomodate 32 byte region: Could not update microop in the microop cache: %#x tag:%#x idx:%#x. Affected PCs:\n", addr, tag, idx);
         for (int way = 0; way < 8; way++) {
             if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+                if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+                    (traceConstructor->currentTrace.head.way == way || 
+                     way == uopNextWayArray[idx][traceConstructor->currentTrace.head.way] ||
+                     way == uopPrevWayArray[idx][traceConstructor->currentTrace.head.way] ||
+                     traceConstructor->currentTrace.head.way == uopNextWayArray[idx][way] ||
+                     traceConstructor->currentTrace.head.way == uopPrevWayArray[idx][way])) {
+                    return false;
+                }
+                if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+                    traceConstructor->currentTrace.addr.valid &&
+                    (traceConstructor->currentTrace.addr.way == way || 
+                     way == uopNextWayArray[idx][traceConstructor->currentTrace.addr.way] ||
+                     way == uopPrevWayArray[idx][traceConstructor->currentTrace.addr.way] ||
+                     traceConstructor->currentTrace.addr.way == uopNextWayArray[idx][way] ||
+                     traceConstructor->currentTrace.addr.way == uopPrevWayArray[idx][way])) {
+                    return false;
+                }
                 for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
                     // DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][way][uop], true);
                     DPRINTF(ConstProp, "Decoder is invalidating way %i, so removing uop[%i][%i][%i]\n", way, idx, way, uop);
@@ -875,7 +900,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             }
             uopCountArray[idx][way] = numUops;
             uopValidArray[idx][way] = true;
-            uopFullArray[idx][way] = false;
+            //uopFullArray[idx][way] = false;
             uopTagArray[idx][way] = tag;
             DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, way, tag);
             for (int uop = 0; uop < numUops; uop++) {
@@ -894,12 +919,27 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     /* There aren't any unused ways. Evict the LRU way. */
     unsigned lruWay = 8;
     unsigned evictWay = 8;
+
+    if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
+        DPRINTF(Decoder, "Trace being superoptimized has its head at uop[%i][%i][%i] and is currently optimizing uop[%i][%i][%i]\n", traceConstructor->currentTrace.head.idx, traceConstructor->currentTrace.head.way, traceConstructor->currentTrace.head.uop, traceConstructor->currentTrace.addr.idx, traceConstructor->currentTrace.addr.way, traceConstructor->currentTrace.addr.uop);
+    }
     for (int way = 0; way < 8; way++) {
         // check if we are processing the trace for first time optimization -- read from way in progress
         if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
             (traceConstructor->currentTrace.head.way == way || 
+             way == uopNextWayArray[idx][traceConstructor->currentTrace.head.way] ||
+             way == uopPrevWayArray[idx][traceConstructor->currentTrace.head.way] ||
              traceConstructor->currentTrace.head.way == uopNextWayArray[idx][way] ||
              traceConstructor->currentTrace.head.way == uopPrevWayArray[idx][way])) {
+            continue;
+        }
+        if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+            traceConstructor->currentTrace.addr.valid &&
+            (traceConstructor->currentTrace.addr.way == way || 
+             way == uopNextWayArray[idx][traceConstructor->currentTrace.addr.way] ||
+             way == uopPrevWayArray[idx][traceConstructor->currentTrace.addr.way] ||
+             traceConstructor->currentTrace.addr.way == uopNextWayArray[idx][way] ||
+             traceConstructor->currentTrace.addr.way == uopPrevWayArray[idx][way])) {
             continue;
         }
         if (uopLRUArray[idx][way] < lruWay) {
@@ -932,7 +972,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         }
         uopCountArray[idx][evictWay] = numUops;
         uopValidArray[idx][evictWay] = true;
-        uopFullArray[idx][evictWay] = false;
+        //uopFullArray[idx][evictWay] = false;
         uopTagArray[idx][evictWay] = tag;
         DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, evictWay, tag);
         for (int uop = 0; uop < numUops; uop++) {
@@ -1563,7 +1603,9 @@ Decoder::decode(PCState &nextPC, unsigned cycleAdded, ThreadID tid)
         } else if (si->isMacroop()) {
             numFusedMicroops = si->getNumMicroops();
         }
-        updateUopInUopCache(si->machInst, nextPC.instAddr(), numFusedMicroops, emi.instSize, cycleAdded, tid);
+        if (!isHitInUopCache(nextPC.instAddr())) {
+            updateUopInUopCache(si->machInst, nextPC.instAddr(), numFusedMicroops, emi.instSize, cycleAdded, tid);
+        }
     }
 
     return si;
