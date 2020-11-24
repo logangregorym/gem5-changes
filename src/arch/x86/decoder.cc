@@ -1501,9 +1501,15 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
         predict_taken = traceConstructor->branchPred->lookupWithoutUpdate(0, instAddr.pcAddr);
     }
 
-    assert(curInst->macroOp);
-    thisPC.size(curInst->macroOp->getMacroopSize());
-    thisPC._npc = thisPC._pc + curInst->macroOp->getMacroopSize();
+    int macroSize;
+    if (!curInst->macroOp) {
+	// cout << curInst->disassemble(instAddr.pcAddr) << endl;
+	macroSize = curInst->getMacroopSize();
+    } else {
+	macroSize = curInst->macroOp->getMacroopSize();
+    }
+    thisPC.size(macroSize);
+    thisPC._npc = thisPC._pc + macroSize;
     thisPC._nupc = thisPC._upc + 1;
 
     traceConstructor->advanceTrace(traceConstructor->streamTrace);
@@ -1524,7 +1530,7 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
         nextPC.valid = true;
     } else {
         /* Assuming a trace always ends at the last micro-op of a macro-op. */
-        nextPC._pc += curInst->macroOp->getMacroopSize();
+        nextPC._pc += macroSize;
         nextPC._npc = nextPC._pc + 1;
         nextPC.size(0);
         nextPC._upc = 0;
