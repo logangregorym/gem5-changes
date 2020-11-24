@@ -2448,9 +2448,6 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
                         currentTrace.addr.uop = uop;
                         currentTrace.addr.valid = true;
 
-                        currentTrace.controlSources[currentTrace.branchesFolded].confidence = 9;
-                        currentTrace.controlSources[currentTrace.branchesFolded].valid = true;
-                        currentTrace.controlSources[currentTrace.branchesFolded].value = target;
 
                         currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
@@ -2526,9 +2523,6 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
                         currentTrace.addr.uop = uop;
                         currentTrace.addr.valid = true;
 
-                        currentTrace.controlSources[currentTrace.branchesFolded].confidence = 9;
-                        currentTrace.controlSources[currentTrace.branchesFolded].valid = true;
-                        currentTrace.controlSources[currentTrace.branchesFolded].value = target;
 
                         currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
