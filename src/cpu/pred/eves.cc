@@ -798,6 +798,7 @@ EvesLVP::processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
         if (confidence > 0) {  // if it was a "confident prediction"...
 	    if (U.predictedValue == actual_value) {
 		correctUsed++;
+		cyclesSaved += actual_latency;
 	    } else {
 		incorrectUsed++;
 	    }
