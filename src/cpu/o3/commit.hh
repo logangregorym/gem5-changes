@@ -364,7 +364,8 @@ class DefaultCommit
     /** ROB interface. */
     ROB *rob;
 
-    uint64_t numMicroopsShrunken = 0;
+    int64_t numMicroopsShrunken = 0;
+    bool traceStatUpdate = false;
 
   public:
     /** Pointer to O3CPU. */
@@ -496,6 +497,9 @@ class DefaultCommit
     Stats::Scalar branchMispredicts;
     /** Distribution of the number of committed instructions each cycle. */
     Stats::Distribution numCommittedDist;
+    
+    Stats::Distribution numInvokedTracesDist;
+    std::map<unsigned int , std::pair<uint64_t,uint64_t>> trace_dist;
 
     /** Total number of instructions committed. */
     Stats::Vector instsCommitted;

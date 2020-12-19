@@ -568,6 +568,8 @@ class DefaultFetch
     Stats::Scalar uopCacheHitInsts;
     Stats::Scalar uopCacheMissOps;
     Stats::Scalar uopCacheHitOps;
+    Stats::Scalar specCacheMissOps;
+    Stats::Scalar specCacheHitOps;
     /** Stat for total number of fetched instructions. */
     Stats::Scalar fetchedInsts;
     /** Stat for total number of fetched uops. */
@@ -626,6 +628,7 @@ class DefaultFetch
     /** Micro-op cache hit rate. */
     Stats::Formula uopCacheHitRate;
     Stats::Formula uopCacheInstHitRate;
+    Stats::Formula specCacheHitRate;
     Stats::Vector statFetchMicro;
 
     Stats::Scalar directCtrlBranchesFetched;

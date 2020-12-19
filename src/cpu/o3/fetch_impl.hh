@@ -222,6 +222,16 @@ DefaultFetch<Impl>::regStats()
         .desc("Number of misses (ops) in the micro-op cache")
         .prereq(uopCacheMissOps);
 
+    specCacheHitOps
+        .name(name() + ".specCacheHitOps")
+        .desc("Number of hits (ops) in the spec cache")
+        .prereq(specCacheHitOps);
+
+    specCacheMissOps
+        .name(name() + ".specCacheMissOps")
+        .desc("Number of misses (ops) in the spec cache")
+        .prereq(specCacheMissOps);
+
     fetchedInsts
         .name(name() + ".Insts")
         .desc("Number of instructions fetch has processed")
@@ -362,6 +372,12 @@ DefaultFetch<Impl>::regStats()
         .desc("Uop Cache Hit Rate")
         .precision(6);
     uopCacheHitRate = uopCacheHitOps/(uopCacheHitOps + uopCacheMissOps);
+
+    specCacheHitRate
+        .name(name() + ".specCacheHitRate")
+        .desc("Spec Cache Hit Rate")
+        .precision(6);
+    specCacheHitRate = specCacheHitOps/(specCacheHitOps + specCacheMissOps);
 
     uopCacheInstHitRate
         .name(name() + ".uopCacheInstHitrate")
@@ -1351,6 +1367,13 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     instruction->setASID(tid);
 
     instruction->setThreadState(cpu->thread[tid]);
+
+
+    if (staticInst->isStreamedFromSpeculativeCache()) {
+        ++specCacheHitOps;
+    } else {
+        ++specCacheMissOps;
+    }
 
     // Make load value prediction if necessary
     // string opcode = instruction->getName();

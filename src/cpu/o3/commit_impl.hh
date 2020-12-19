@@ -151,6 +151,7 @@ DefaultCommit<Impl>::DefaultCommit(O3CPU *_cpu, DerivO3CPUParams *params)
     afterExecCnt = params->after_exec_cnt;
 
     numMicroopsShrunken = 0;
+    traceStatUpdate = false;
 }
 
 template <class Impl>
@@ -194,6 +195,13 @@ DefaultCommit<Impl>::regStats()
         .init(0,commitWidth,1)
         .name(name() + ".committed_per_cycle")
         .desc("Number of insts commited each cycle")
+        .flags(Stats::pdf)
+        ;
+    
+    numInvokedTracesDist
+        .init(0,100,1)
+        .name(name() + ".invoked_traces")
+        .desc("Number of traces invoked")
         .flags(Stats::pdf)
         ;
 
@@ -1328,47 +1336,63 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     }
 
 
-    // Addr cur_pc = head_inst->pcState().instAddr();
 
-    // if ((uint64_t)cpu->thread[tid]->numInsts.value() >= 99999990 && 
-    //     (uint64_t)cpu->thread[tid]->numInsts.value() <= 100000000)
-    // {
-    //     std::cout << std::dec << "Inst: " << (uint64_t)cpu->thread[tid]->numInsts.value() << 
-    //                 "PC: " << cur_pc << " exec_cnt: " << (uint64_t)exec_cnt.value() << std::endl << std::flush;
-    // }
-
-    // if (checkpointAtInstr == cur_pc &&
-    //     (!head_inst->isMicroop() || head_inst->pcState().microPC() == 0)) {
-	// exec_cnt++;        
-	// if ((uint64_t)cpu->thread[tid]->numInsts.value() >= 99999990 && 
-    //     (uint64_t)cpu->thread[tid]->numInsts.value() <= 100000000)
-    // 	{
-    //     	std::cout << std::dec << "Inst: " << (uint64_t)cpu->thread[tid]->numInsts.value() << 
-    //                 "PC: " << cur_pc << " exec_cnt: " << (uint64_t)exec_cnt.value() << std::endl << std::flush;
-    // 	}
-    //     //cout << exec_cnt << ":" << head_inst->seqNum << ":" << checkpointAtBB << ":" << afterExecCnt << "\n";
-    //     if ((uint64_t)exec_cnt.value() == afterExecCnt && afterExecCnt != 0) {
-    //         exitSimLoop("simpoint reached", 0);
-    //     }
-    // }
-
-    // if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
-    // {
-    //     if (head_inst->isStreamedFromSpeculativeCache() && head_inst->staticInst->isEndOfTrace())
-    //     {
-
-    //         numMicroopsShrunken += head_inst->staticInst->shrunkLength;
-    //     }
-
-        if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr && checkpointAtInstr)
+        if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
         {
+            if (head_inst->isStreamedFromSpeculativeCache() && head_inst->staticInst->isEndOfTrace())
+            {
+                unsigned int TraceID = head_inst->staticInst->traceID;
+                assert(TraceID);
+                
+                // assert(cpu->fetch.decoder[tid]->traceConstructor->traceMap.find(TraceID) != cpu->fetch.decoder[tid]->traceConstructor->traceMap.end());
+
+
+                
+                int64_t shrinkage = head_inst->staticInst->traceLength - head_inst->staticInst->shrunkLength;
+                
+                warn_if(shrinkage == 0, "TraceID %d has shrinkage of 0!", TraceID);
+                assert(shrinkage > 0);
+                
+
+                if (trace_dist.find(TraceID) == trace_dist.end())
+                {
+                    trace_dist[TraceID] = std::make_pair(1, (uint64_t)shrinkage);
+                }
+                else 
+                {
+                    trace_dist[TraceID].first++;
+                }
+
+
+                numMicroopsShrunken += shrinkage;
+            
+            }
+        }
+
+
+        if (((uint64_t)numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr && checkpointAtInstr)
+        {
+            // before exiting simpoint update the trace stats
+            // for some unknown reason this functions is called multiple times. That's why we need to update the state variable
+            if (!traceStatUpdate)
+            {
+                // for (auto &item: trace_dist)
+                // {
+                //     numInvokedTracesDist.sample(item.second);
+                // }
+
+                std::cout << "Trace Hotness Distribution: \n";
+                for (auto &item: trace_dist)
+                {
+                    std::cout << std::dec << item.first << " " << item.second.first << " " << item.second.second << std::endl;
+                }
+
+                traceStatUpdate = true;
+            } 
+
             exitSimLoop("simpoint reached", 0);
         }
-    //     if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr)
-    //     {
-    //         exitSimLoop("simpoint reached", 0);
-    //     }
-    // }
+
 
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->committedInsts[tid].value() % 100000 == 0 &&
