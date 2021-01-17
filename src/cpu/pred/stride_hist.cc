@@ -40,6 +40,13 @@ void StrideHistLVP::setUpTables(const Params *params)
     }
 }
 
+
+// bool StrideHistLVP::makePredictionForTraceGenStage(Addr loadAddr, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
+// {
+//     return false;
+// }
+
+
 LVPredUnit::lvpReturnValues StrideHistLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle)
 {
 //    DPRINTF(LVP, "Inst %s called LVP makePrediction\n", inst->disassemble(pc.instAddr()));

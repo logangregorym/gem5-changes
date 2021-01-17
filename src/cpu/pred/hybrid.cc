@@ -74,6 +74,11 @@ void HybridLVP::setUpTables3P(const Params *params)
     }
 }
 
+// bool HybridLVP::makePredictionForTraceGenStage(Addr loadAddr, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
+// {
+//     return false;
+// }
+
 LVPredUnit::lvpReturnValues HybridLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle)
 {
 //    DPRINTF(LVP, "Inst %s called LVP makePrediction\n", inst->disassemble(pc.instAddr()));

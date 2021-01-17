@@ -377,7 +377,7 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
 
     // select cache to dump from
     if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
-        Addr pcAddr = decoder->uopAddrArray[idx][way][uop].pcAddr;
+        // Addr pcAddr = decoder->uopAddrArray[idx][way][uop].pcAddr;
         Addr uopAddr = decoder->uopAddrArray[idx][way][uop].uopAddr;
         StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
         StaticInstPtr decodedMicroOp = decodedMacroOp;
@@ -385,17 +385,24 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
             decodedMicroOp = decodedMacroOp->fetchMicroop(uopAddr);
             decodedMicroOp->macroOp = decodedMacroOp;
         }
-        DPRINTF(SuperOp, "%p:%i -- uop[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));    
+        // LVPredUnit::lvpReturnValues ret;
+        // loadPred->makePredictionForTraceGenStage(pcAddr, 0, ret);
+        // DPRINTF(SuperOp, "%p:%i -- uop[%i][%i][%i]{%d}{%#x} -- %s\n", pcAddr, uopAddr, idx, way, uop, ret.confidence, ret.predictedValue, decodedMicroOp->disassemble(pcAddr));    
 
+
+        
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
 			decodedMacroOp = NULL;
 		}
     } else {
-        Addr pcAddr = decoder->speculativeAddrArray[idx][way][uop].pcAddr;
-        Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
+        // Addr pcAddr = decoder->speculativeAddrArray[idx][way][uop].pcAddr;
+        // Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
         StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
-        DPRINTF(SuperOp, "%p:%i -- spec[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));    
+
+        // LVPredUnit::lvpReturnValues ret;
+        // loadPred->makePredictionForTraceGenStage(pcAddr, 0, ret);
+        // DPRINTF(SuperOp, "%p:%i -- spec[%i][%i][%i]{%d}{%#x} -- %s\n", pcAddr, uopAddr, idx, way, uop, ret.confidence, ret.predictedValue, decodedMicroOp->disassemble(pcAddr));    
 		for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
 			// LAYNE : TODO : print predicted inputs (checking syntax)
 			if (decodedMicroOp->sourcesPredicted[i]) {
@@ -743,6 +750,15 @@ bool TraceBasedGraph::generateNextTraceInst() {
         } else {
             DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
         }
+
+        // if we can't propagate, consult with lvp to see if we can do a high confidence prediction, 
+        // and then do a propgation
+        // if (!propagated)
+        // {
+        //     LVPredUnit::lvpReturnValues ret;
+        //     loadPred->makePredictionForTraceGenStage(currentTrace.instAddr.pcAddr, 0, ret);
+        //     DPRINTF(ConstProp, "Instruction value is not propagated! Counsulting with LVP! Confidence: %d Value: %#x\n", ret.confidence, ret.predictedValue);
+        // }
 
         bool isDeadCode = false;
         if (!folded) {

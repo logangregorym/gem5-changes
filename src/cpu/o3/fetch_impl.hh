@@ -162,7 +162,7 @@ DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
     }
 
     branchPred = params->branchPred;
-    loadPred = params->loadPred;
+    loadPred = params->loadPred; assert(loadPred);
     //loadPred->cpuInsts = &(cpu->instList);
 
     // constantLoads = vector<Addr>(constantBufferSize, 0);
@@ -1050,16 +1050,6 @@ template <class Impl>
 void
 DefaultFetch<Impl>::tick()
 {
-    /*
-    DPRINTF(SuperOp, "Cycle:%i Frequency:%i Cycle mod Freq:%i Value:%i\n", (int) cpu->numCycles.value(), dumpFrequency, (int) cpu->numCycles.value() % dumpFrequency, (int) cpu->numCycles.value() % dumpFrequency == 0);
-    if ((int) cpu->numCycles.value() % dumpFrequency == 0) {
-        DPRINTF(SuperOp, "Dump for cycle %i\n", cpu->numCycles.value());
-        decoder[tid]->dumpMicroopCache();
-        DPRINTF(SuperOp, "\n");
-        dumpConstantBuffer();
-        DPRINTF(SuperOp, "\n\n\n");
-    }
-    */
     
 
     list<ThreadID>::iterator threads = activeThreads->begin();
@@ -1170,12 +1160,15 @@ DefaultFetch<Impl>::tick()
     // Reset the number of the instruction we've fetched.
     numInst = 0;
 
-   for (int tid = 0; tid < numThreads; tid++) {
-      decoder[tid]->traceConstructor->generateNextTraceInst(); // was depTracker->simplifyGraph
-      if ((((int) cpu->numCycles.value()) % 128) == 0) {
-          decoder[tid]->tickAllHotnessCounters();
-      }
-   }
+    if (isSuperOptimizationPresent)
+    {
+        for (int tid = 0; tid < numThreads; tid++) {
+            decoder[tid]->traceConstructor->generateNextTraceInst(); // was depTracker->simplifyGraph
+            if ((((int) cpu->numCycles.value()) % 128) == 0) {
+                decoder[tid]->tickAllHotnessCounters();
+            }
+        }
+    }
 }
 
 template <class Impl>
@@ -1377,7 +1370,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
 
     // Make load value prediction if necessary
     // string opcode = instruction->getName();
-    bool valuePredictable = instruction->isLoad() ; 
+    bool valuePredictable = instruction->isLoad() && !instruction->isFloating(); 
     if (!instruction->isStore() && instruction->isInteger() && !instruction->isFloating() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
         for (int i = 0; i < instruction->numDestRegs(); i++) {
             RegId destReg = instruction->destRegIdx(i);
@@ -1399,7 +1392,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
             instruction->cycleFetched = cpu->numCycles.value();
             loadPred->stored_seq_no = seq;
 	    
-	    int inflight_count = 0;
+	        int inflight_count = 0;
             for (const DynInstPtr& cpuInst : cpu->instList) {
                 if (cpuInst->instAddr() == thisPC.pc()) {
                     inflight_count += 1;
@@ -1410,10 +1403,10 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
             LVPredUnit::lvpReturnValues ret;
             ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
             
-	    if (loadPred->lvpredType == "eves")
-	        loadPred->lvLookups++;
+            if (loadPred->lvpredType == "eves")
+                loadPred->lvLookups++;
 
-	    instruction->staticInst->lvpData = &ret;
+	        //instruction->staticInst->lvpData = &ret;
 			instruction->staticInst->predictedValue = ret.predictedValue;
 			instruction->staticInst->confidence = ret.confidence;
 			// if (instruction->staticInst->confidence) {std::cout << "Confident prediction at seqno " << instruction->seqNum << endl;}

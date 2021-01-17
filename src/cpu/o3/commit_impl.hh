@@ -1394,6 +1394,39 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         }
 
 
+    // if ((uint64_t)cpu->committedInsts[tid].value() % 10000 == 0 &&
+    //         !head_inst->isNop() &&
+    //         !head_inst->isInstPrefetch() &&
+    //         head_inst->isLastMicroop()
+    //        )
+    // {   
+    //     for (int idx = 0; idx < 32; idx++){
+    //         for (int way = 0; way < 8; way++) {
+    //             std::cout << std::dec << cpu->fetch.decoder[tid]->uopHotnessArray[idx][way].read() << " " ;
+    //         }
+    //         std::cout << std::endl;
+    //     }
+    //     std::cout << std::endl;          
+    // }
+
+
+    if ((uint64_t)cpu->committedInsts[tid].value() % 1000000 == 0 &&
+            !head_inst->isNop() &&
+            !head_inst->isInstPrefetch() &&
+            head_inst->isLastMicroop()
+           )
+    {  
+        for (size_t idx = 0; idx < 32; idx++)
+        {
+            for (auto &elem : cpu->fetch.decoder[tid]->hotTracesDistributions[idx])
+            {
+                std::cout << std::hex << elem.first << " " << std::dec << elem.second << " " << cpu->fetch.decoder[tid]->hotTracesUopDistributions[idx][elem.first] << " ";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << "------------------------------------------------------" << std::endl;
+    }
+
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->committedInsts[tid].value() % 100000 == 0 &&
             !head_inst->isNop() &&

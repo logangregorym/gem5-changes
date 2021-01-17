@@ -38,6 +38,11 @@ void ThreePeriodLVP::setUpTables(const Params *params)
     }
 }
 
+// bool ThreePeriodLVP::makePredictionForTraceGenStage(Addr loadAddr, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
+// {
+//     return false;
+// }
+
 LVPredUnit::lvpReturnValues ThreePeriodLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle)
 {
 //    DPRINTF(LVP, "Inst %s called LVP makePrediction\n", inst->disassemble(pc.instAddr()));

@@ -129,6 +129,11 @@ EvesLVP::getPredStride (Addr pc, LVPredUnit::lvpReturnValues& U, uint64_t & pred
 }
 
 
+// bool EvesLVP::makePredictionForTraceGenStage(Addr loadAddr, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
+// {
+//     return false;
+// }
+
 //bool
 LVPredUnit::lvpReturnValues
 //getPrediction (uint64_t seq_no, uint64_t pc, uint8_t piece,

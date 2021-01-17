@@ -1419,7 +1419,7 @@ DefaultIEW<Impl>::executeInsts()
 
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
-                if (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache())
+                if (false && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache()))
                 {
                     assert(!inst->isSquashed());
                     
@@ -1502,14 +1502,14 @@ DefaultIEW<Impl>::executeInsts()
 
                 // update LVP for every instruction 
                 string opcode = inst->getName();
-                if ((!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic) && inst->staticInst->predictedLoad) { // isFloat()? isVector()? isCC()?
+                if (false && (!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic) && inst->staticInst->predictedLoad) { // isFloat()? isVector()? isCC()?
                     inst->memoryAccessStartCycle = cpu->numCycles.value();
                     inst->memoryAccessEndCycle = cpu->numCycles.value();
-		    //cout << "About to call eves on sn " << inst->seqNum << endl;
+		
                     DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
                     ThreadID tid = inst->threadNumber;
                     DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence); 
-		    // cout << "iew response for sn " << inst->seqNum << " has HitBank " << inst->staticInst->HitBank << endl;
+	
                     for (int i=0; i<inst->numDestRegs(); i++) {
                     	PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                     	uint64_t value;
@@ -1517,7 +1517,12 @@ DefaultIEW<Impl>::executeInsts()
 			                // Note: changed memoryAccessStartCycle to cycleFetched in all these
                           case IntRegClass:
                             value = cpu->readIntReg(dest_reg);
+                            
                             DPRINTF(LVP, "IntRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
+                            // gathering some statics
+
+                            //cpu->fetch.decoder[tid]->insertReturnedValueIntoUopCacheStatics(inst->pcState(), value, inst->staticInst->predictedValue);
+                            
                             inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                             break;
                           case FloatRegClass:

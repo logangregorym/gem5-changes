@@ -35,6 +35,12 @@ void BasicLVP::setUpTables(const Params *params)
     }
 }
 
+// bool BasicLVP::makePredictionForTraceGenStage(Addr loadAddr, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
+// {
+    
+//     return false;
+// }
+
 LVPredUnit::lvpReturnValues BasicLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle)
 {
 //    DPRINTF(LVP, "Inst %s called LVP makePrediction\n", inst->disassemble(pc.instAddr()));

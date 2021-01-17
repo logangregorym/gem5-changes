@@ -22,4 +22,99 @@ Checking for C header file linux/kvm.h... (cached) yes
 Checking for C header file linux/if_tun.h... (cached) yes
 Checking size of struct kvm_xsave ... (cached) yes
 Checking for member exclude_host in struct perf_event_attr...(cached) yes
-scons: Build interrupted.
+Checking whether __i386__ is declared... (cached) no
+Checking whether __x86_64__ is declared... (cached) yes
+Building in /u/as3mx/gem5-changes/build/X86
+Using saved variables file /u/as3mx/gem5-changes/build/variables/X86
+scons: done reading SConscript files.
+scons: Building targets ...
+ [     CXX] X86/cpu/pred/lvpred_unit.cc -> .o
+ [     CXX] X86/cpu/pred/basic_lvpred.cc -> .o
+ [     CXX] X86/cpu/pred/stride_hist.cc -> .o
+ [     CXX] X86/cpu/pred/three_period.cc -> .o
+ [     CXX] X86/cpu/pred/empty_lvp.cc -> .o
+ [     CXX] X86/cpu/pred/fa3p.cc -> .o
+ [     CXX] X86/cpu/pred/eves.cc -> .o
+ [     CXX] X86/cpu/simple/probes/simpoint.cc -> .o
+ [     CXX] X86/mem/abstract_mem.cc -> .o
+ [     CXX] X86/mem/fs_translating_port_proxy.cc -> .o
+In file included from build/X86/arch/x86/decoder.hh:42:0,
+                 from build/X86/arch/decoder.hh:1,
+                 from build/X86/cpu/o3/fetch.hh:49,
+                 from build/X86/cpu/base.hh:61,
+                 from build/X86/cpu/pred/lvpred_unit.hh:17,
+                 from build/X86/cpu/pred/basic_lvpred.hh:14,
+                 from build/X86/cpu/pred/lvpred_unit.cc:5:
+build/X86/arch/x86/superop/trace_based_graph.hh:74:5: error: 'LVPredUnit' does not name a type
+     LVPredUnit *loadPred;
+     ^~~~~~~~~~
+In file included from build/X86/arch/x86/decoder.hh:42:0,
+                 from build/X86/arch/decoder.hh:1,
+                 from build/X86/cpu/o3/fetch.hh:49,
+                 from build/X86/cpu/base.hh:61,
+                 from build/X86/cpu/pred/lvpred_unit.hh:17,
+                 from build/X86/cpu/pred/basic_lvpred.hh:14,
+                 from build/X86/cpu/pred/basic_lvpred.cc:8:
+build/X86/arch/x86/superop/trace_based_graph.hh:74:5: error: 'LVPredUnit' does not name a type
+     LVPredUnit *loadPred;
+     ^~~~~~~~~~
+In file included from build/X86/arch/x86/decoder.hh:42:0,
+                 from build/X86/arch/decoder.hh:1,
+                 from build/X86/cpu/o3/fetch.hh:49,
+                 from build/X86/cpu/base.hh:61,
+                 from build/X86/cpu/pred/lvpred_unit.hh:17,
+                 from build/X86/cpu/pred/eves.hh:23,
+                 from build/X86/cpu/pred/eves.cc:5:
+build/X86/arch/x86/superop/trace_based_graph.hh:74:5: error: 'LVPredUnit' does not name a type
+     LVPredUnit *loadPred;
+     ^~~~~~~~~~
+In file included from build/X86/arch/x86/decoder.hh:42:0,
+                 from build/X86/arch/decoder.hh:1,
+                 from build/X86/cpu/o3/fetch.hh:49,
+                 from build/X86/cpu/base.hh:61,
+                 from build/X86/cpu/pred/lvpred_unit.hh:17,
+                 from build/X86/cpu/pred/stride_hist.hh:15,
+                 from build/X86/cpu/pred/stride_hist.cc:8:
+build/X86/arch/x86/superop/trace_based_graph.hh:74:5: error: 'LVPredUnit' does not name a type
+     LVPredUnit *loadPred;
+     ^~~~~~~~~~
+In file included from build/X86/arch/x86/decoder.hh:42:0,
+                 from build/X86/arch/decoder.hh:1,
+                 from build/X86/cpu/o3/fetch.hh:49,
+                 from build/X86/cpu/base.hh:61,
+                 from build/X86/cpu/pred/lvpred_unit.hh:17,
+                 from build/X86/cpu/pred/fa3p.hh:15,
+                 from build/X86/cpu/pred/fa3p.cc:8:
+build/X86/arch/x86/superop/trace_based_graph.hh:74:5: error: 'LVPredUnit' does not name a type
+     LVPredUnit *loadPred;
+     ^~~~~~~~~~
+In file included from build/X86/arch/x86/decoder.hh:42:0,
+                 from build/X86/arch/decoder.hh:1,
+                 from build/X86/cpu/o3/fetch.hh:49,
+                 from build/X86/cpu/base.hh:61,
+                 from build/X86/cpu/pred/lvpred_unit.hh:17,
+                 from build/X86/cpu/pred/three_period.hh:15,
+                 from build/X86/cpu/pred/three_period.cc:8:
+build/X86/arch/x86/superop/trace_based_graph.hh:74:5: error: 'LVPredUnit' does not name a type
+     LVPredUnit *loadPred;
+     ^~~~~~~~~~
+In file included from build/X86/arch/x86/decoder.hh:42:0,
+                 from build/X86/arch/decoder.hh:1,
+                 from build/X86/cpu/o3/fetch.hh:49,
+                 from build/X86/cpu/base.hh:61,
+                 from build/X86/cpu/pred/lvpred_unit.hh:17,
+                 from build/X86/cpu/pred/empty_lvp.hh:8,
+                 from build/X86/cpu/pred/empty_lvp.cc:5:
+build/X86/arch/x86/superop/trace_based_graph.hh:74:5: error: 'LVPredUnit' does not name a type
+     LVPredUnit *loadPred;
+     ^~~~~~~~~~
+ [     CXX] X86/arch/x86/superop/trace_based_graph.cc -> .o
+scons: *** [build/X86/cpu/pred/basic_lvpred.o] Error 1
+ [     CXX] X86/cpu/simple/atomic.cc -> .o
+scons: *** [build/X86/cpu/pred/eves.o] Error 1
+scons: *** [build/X86/cpu/pred/fa3p.o] Error 1
+scons: *** [build/X86/cpu/pred/lvpred_unit.o] Error 1
+scons: *** [build/X86/cpu/pred/stride_hist.o] Error 1
+scons: *** [build/X86/cpu/pred/empty_lvp.o] Error 1
+scons: *** [build/X86/cpu/pred/three_period.o] Error 1
+scons: building terminated because of errors.

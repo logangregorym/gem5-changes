@@ -24,6 +24,7 @@ class StrideHistLVP : public LVPredUnit
     StrideHistLVP(Params* params);
 
     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle);
+    //virtual bool makePredictionForTraceGenStage(Addr loadAddr, ThreadID tid , lvpReturnValues& ret);
 
     virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle);
 
