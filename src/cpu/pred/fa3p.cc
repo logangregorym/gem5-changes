@@ -64,12 +64,12 @@ unsigned FA3P::getDelay(TheISA::PCState pc) {
     return 0;
 }
 
-bool FA3P::makePredictionForTraceGenStage(TheISA::PCState pc, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
+bool FA3P::makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
 {
-    assert(0);
+    //assert(0);
 
-    int16_t upc = (int16_t)pc.microPC();
-    Addr addr = pc.instAddr();
+    // int16_t upc = (int16_t)pc.microPC();
+    // Addr addr = pc.instAddr();
     //predictor &threadPred = threadPredictors[tid];
 
     //LVTEntry *addressInfo = NULL;
@@ -78,6 +78,7 @@ bool FA3P::makePredictionForTraceGenStage(TheISA::PCState pc, ThreadID tid , LVP
     for (idx = 0; idx  < tableEntries; idx++) {
         if (predictor.LVT[idx].valid && predictor.LVT[idx].tag == addr && predictor.LVT[idx].micropc == upc) {
             foundAddress = true;
+            break;
         }
     }
 
@@ -92,24 +93,23 @@ bool FA3P::makePredictionForTraceGenStage(TheISA::PCState pc, ThreadID tid , LVP
     uint8_t choice = predictor.choice[predictor.LVT[idx].history.read()];
     DPRINTF(LVP, "Choice %i selected for address %x based on history %x\n", choice, addr, predictor.LVT[idx].history.read());
     uint64_t value;
-    int8_t status;
+    int8_t confidence;
     if (choice == 1 && predictor.LVT[idx].val1.valid) {
         value = predictor.LVT[idx].val1.value;
-        status = predictor.LVT[idx].confidence.read();
+        confidence = predictor.LVT[idx].confidence.read();
     } else if (choice == 2 && predictor.LVT[idx].val2.valid) {
         value = predictor.LVT[idx].val2.value;
-        status = predictor.LVT[idx].confidence.read();
+        confidence = predictor.LVT[idx].confidence.read();
     } else if (choice == 3 && predictor.LVT[idx].val3.valid) {
         value = predictor.LVT[idx].val3.value;
-        status = predictor.LVT[idx].confidence.read();
+        confidence = predictor.LVT[idx].confidence.read();
     } else {
-        value = 0;
-        status = -1;
+        return false;
     }
     DPRINTF(LVP, "Value for address %x is %llx\n", addr, value);
-    DPRINTF(LVP, "Status for address %x is %i\n", addr, status - firstConst);
+    DPRINTF(LVP, "confidence for address %x is %i\n", addr, confidence /*- firstConst*/);
 
-    ret = LVPredUnit::lvpReturnValues(value, status - firstConst, getDelay(pc));
+    ret = LVPredUnit::lvpReturnValues(value, confidence /*- firstConst*/, predictor.LVT[idx].averageCycles);
 
     return true;
 
@@ -392,7 +392,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
             unsigned c1 = predictor.LVT[idx].val1.count.read();
             unsigned c2 = predictor.LVT[idx].val2.count.read();
             unsigned c3 = predictor.LVT[idx].val3.count.read();
-            if ((c1 <= 0) && (c1 <= c2) && (c1 <= c3)) {
+            if ((c1 == 0) && (c1 <= c2) && (c1 <= c3)) {
                 // Evicting val1
                 DPRINTF(FA3P, "processPacketRecieved: Evicting VAL1 for entry %d!\n", idx);
                 predictor.LVT[idx].val1.value = responseVal;
@@ -400,7 +400,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
                 predictor.LVT[idx].val1.count.increment();
                 predictor.LVT[idx].val1.valid = true;
                 predictor.LVT[idx].history.update(1);
-            } else if ((c2 <= 0) && (c2 <= c1) && (c2 <= c3)) {
+            } else if ((c2 == 0) && (c2 <= c1) && (c2 <= c3)) {
                 // Evicting val2
                 DPRINTF(FA3P, "processPacketRecieved: Evicting VAL2 for entry %d!\n", idx);
                 predictor.LVT[idx].val2.value = responseVal;
@@ -408,7 +408,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
                 predictor.LVT[idx].val2.count.increment();
                 predictor.LVT[idx].val2.valid = true;
                 predictor.LVT[idx].history.update(2);
-            } else if ((c3 <= 0) && (c3 <= c1) && (c3 <= c2)) {
+            } else if ((c3 == 0) && (c3 <= c1) && (c3 <= c2)) {
                 // Evicting val3
                 DPRINTF(FA3P, "processPacketRecieved: Evicting VAL3 for entry %d!\n", idx);
                 predictor.LVT[idx].val3.value = responseVal;

@@ -125,7 +125,7 @@ class Decoder
     int uopCountArray[32][8];
     int uopLRUArray[32][8];
     bool uopFullArray[32][8];
-    std::map<uint64_t, std::map<uint64_t, std::vector<uint64_t>>> valueDistribution[32][8];
+    std::map<uint64_t, std::map<uint64_t, std::map<uint64_t , uint64_t>>> valueDistribution;
     BigSatCounter uopHotnessArray[32][8];
     std::map<uint64_t, std::map<uint64_t, uint64_t>> hotTracesDistributions;
     std::map<uint64_t, std::map<uint64_t, uint64_t>> hotTracesUopDistributions;

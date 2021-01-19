@@ -126,6 +126,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool endOfTrace;
     bool isStreamedFromSpecCache;
     bool isPredictionSource;
+    bool isStreamedFromUopCache;
+    bool isUopCacheHotTrace;
 
   public:
 
@@ -219,7 +221,11 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isEndOfTrace() { return endOfTrace; }
     void setEndOfTrace() { endOfTrace = true; }
     bool isStreamedFromSpeculativeCache() const {return isStreamedFromSpecCache;}
+    bool isStreamedFromUOpCache() const {return isStreamedFromUopCache;}
+    bool isUOpCacheHotTrace() const {return isUopCacheHotTrace;}
     void setStreamedFromSpeculativeCache(bool state)      {isStreamedFromSpecCache = state;}
+    void setStreamedFromUOpCache(bool state)  {isStreamedFromUopCache = state;}
+    void setUOpCacheHotTrace(bool state ) {isUopCacheHotTrace = state;}
 
     /// Operation class.  Used to select appropriate function unit in issue.
     OpClass opClass()     const { return _opClass; }
@@ -287,14 +293,16 @@ class StaticInst : public RefCounted, public StaticInstFlags
           _numFPDestRegs(0), _numIntDestRegs(0), _numCCDestRegs(0),
           _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
-    { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkLength = 0; traceLength = 0;}
+    { endOfTrace = false; isStreamedFromSpecCache = false;     isStreamedFromUopCache = false;
+     isUopCacheHotTrace = false; isPredictionSource = false; traceID = 0; shrunkLength = 0; traceLength = 0;}
 
     StaticInst(const char *_mnemonic, ExtMachInst _machInst, OpClass __opClass)
 	: _opClass(__opClass), _numSrcRegs(0), _numDestRegs(0),
 	  _numFPDestRegs(0), _numIntDestRegs(0), _numCCDestRegs(0),
 	  _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
-    { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkLength = 0; traceLength = 0; }
+    { endOfTrace = false; isStreamedFromSpecCache = false; isStreamedFromUopCache = false;
+     isUopCacheHotTrace = false; isPredictionSource = false; traceID = 0; shrunkLength = 0; traceLength = 0; }
 
   public:
     virtual ~StaticInst();

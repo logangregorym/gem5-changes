@@ -1369,9 +1369,8 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     }
 
     // Make load value prediction if necessary
-    // string opcode = instruction->getName();
-    bool valuePredictable = instruction->isLoad() && !instruction->isFloating(); 
-    if (!instruction->isStore() && instruction->isInteger() && !instruction->isFloating() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
+    bool valuePredictable = instruction->isLoad() && !instruction->isVector() && !instruction->isFloating() /*&& !instruction->isCC()*/ && instruction->isStreamedFromUOpCache(); 
+    if (!instruction->isStore() && instruction->isInteger() /*&& !instruction->isCC()*/ && !instruction->isFloating() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
         for (int i = 0; i < instruction->numDestRegs(); i++) {
             RegId destReg = instruction->destRegIdx(i);
             if (destReg.classValue() == IntRegClass && destReg.index() != 4) { // exclude stack and FP operations
@@ -1380,15 +1379,21 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
             }
         }
     }
-    //valuePredictable  = valuePredictable && staticInst->getName() != "limm" && staticInst->getName() != "movi"; 
+
+    
+    
+    // don't pullote predictor with instructions that we already know thier values
+    if (instruction->getName() == "rdip" || instruction->getName() == "limm") valuePredictable = false;
+
     uint64_t value;
     unsigned confidence, latency;
-    if (valuePredictable && 
+    if (valuePredictable && instruction->isStreamedFromUOpCache() &&
         !(staticInst->isStreamedFromSpeculativeCache() &&
-          decoder[tid]->traceConstructor->isPredictionSource(decoder[tid]->traceConstructor->traceMap[currentTraceID], FullUopAddr(thisPC.instAddr(), thisPC.upc()), value, confidence, latency))) {
-        // don't check against new prediction is the instruction is part of a spec trace
-        if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
-            DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);
+          decoder[tid]->traceConstructor->isPredictionSource(decoder[tid]->traceConstructor->traceMap[currentTraceID], FullUopAddr(thisPC.instAddr(), thisPC.upc()), value, confidence, latency))) 
+    {
+
+            // don't check against new prediction is the instruction is part of a spec trace
+            DPRINTF(LVP, "MakePrediction called by inst [sn:%i] from fetch!\n", seq);
             instruction->cycleFetched = cpu->numCycles.value();
             loadPred->stored_seq_no = seq;
 	    
@@ -1429,7 +1434,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
             if ((cpu->numCycles.value() - loadPred->lastMisprediction < loadPred->resetDelay) && loadPred->dynamicThreshold) {
                 DPRINTF(LVP, "Misprediction occured %i cycles ago, setting confidence to -1\n", cpu->numCycles.value() - loadPred->lastMisprediction);
                 staticInst->predictedValue = ret.predictedValue;
-                staticInst->confidence = -1;
+                staticInst->confidence = 0;
                 staticInst->predictedLoad = false;
             } else {
                 DPRINTF(LVP, "Fetch Predicted value for Inst with PC: %#x SeqNum[%d] Setting Value to: %#x Setting confidence to: %d: \n", 
@@ -1440,6 +1445,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
             } 
 
             if (staticInst->confidence >= 5) {
+                //if (!instruction->isLoad()) std::cout << "YAY! We have a load with confidence higher than 5! SeqNum[" << instruction->seqNum << "]: " << instruction->staticInst->disassemble(thisPC.instAddr()) << std::endl;
                 if (instruction->isMacroop()) {
                     assert(!instruction->staticInst->isMacroop());
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
@@ -1453,7 +1459,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                     }
                 }
             }
-        }
+        
     }
 
     DPRINTF(Fetch, "[tid:%i]: Instruction PC %#x (%d) created "

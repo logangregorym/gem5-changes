@@ -93,7 +93,7 @@ class LVPredUnit : public SimObject
      * Does lookUpLVPT and lookUpLCT and stores results in instruction itself
      */
     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle) = 0;
-    virtual bool makePredictionForTraceGenStage(TheISA::PCState pc, ThreadID tid , lvpReturnValues& ret) {
+    virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret) {
         panic("makePredictionForTraceGenStage is not implemented for the used load value predictor!\n");
         return false;
     }

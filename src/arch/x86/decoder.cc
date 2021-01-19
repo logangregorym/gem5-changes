@@ -950,7 +950,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     }
 
     // get some statics for evicted ways
-    /*
+    
     if (evictWay != 8)
     {
         uint64_t uop_count = 0 ; uint64_t hotness_count = 0; uint64_t num_times_invoked = 0; 
@@ -987,69 +987,90 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         if (num_times_invoked > 1000)
         {
             std::cout << "Evicting: " << std::endl;
+            std::map<Addr,StaticInstPtr> macros;
             for (size_t w = 0; w < 8; w++)
             {
                 if (uopValidArray[idx][w] && uopTagArray[idx][w] == uopTagArray[idx][evictWay])
                 {
-                    
-                    for (size_t u = 0; u < uopCountArray[idx][w]; u++)
-                    {
-                      
-
-                        LVPredUnit::lvpReturnValues ret;
-                        if (traceConstructor->loadPred->makePredictionForTraceGenStage(uopAddrArray[idx][w][u].pcAddr, 0, ret))
-                        {   
-                            std::cout << std::hex  << "["<< uopAddrArray[idx][w][u].pcAddr << "]("  <<std::dec<< num_times_invoked << ")(" << (int)ret.confidence << ") ";
-                        }
-                                
-                        else 
-                            std::cout << std::hex  << "["<< uopAddrArray[idx][w][u].pcAddr << "](" << std::dec << num_times_invoked << "){" << "N/A" << "} ";
-            
-
-                    }
-                    std::cout << std::endl; 
-
-
-                    std::cout  << "******************************************************************************" << std::endl;
                     Addr baseAddr = uopAddrArray[idx][w][0].pcAddr; 
                     StaticInstPtr macro = decode(uopCache[idx][w][0], baseAddr);
-                    std::cout  << std::hex << baseAddr << " " << std::dec <<  macro->disassemble(baseAddr) << std::endl;
+                    macros[baseAddr] = macro;
                     for (size_t u = 0; u < uopCountArray[idx][w]; u++)
                     {
                         
                         if (baseAddr != uopAddrArray[idx][w][u].pcAddr) 
                         {
-                                baseAddr = uopAddrArray[idx][w][u].pcAddr;
-
-                                StaticInstPtr macro = decode(uopCache[idx][w][u], baseAddr);
-                                std::cout  << std::hex << baseAddr << " " << std::dec <<  macro->disassemble(baseAddr) << std::endl;
-                                
+                            baseAddr = uopAddrArray[idx][w][u].pcAddr;
+                            StaticInstPtr macro = decode(uopCache[idx][w][u], baseAddr);
+                            macros[baseAddr] = macro;
                         }
                     }
-                    std::cout  << "------------------------------------------------------------------------------" << std::endl;
-
-
-                    for (auto const &macro : valueDistribution[idx][w])
-                    {
-                        std::cout << std::hex  << "Addr: " << macro.first << std::endl;
-                        for (auto const &micro : macro.second)
-                        {
-                            std::cout << std::dec  << "upc: " << micro.first << std::endl;
-                            for (size_t v = 0; v < micro.second.size(); v++)
-                            {
-                                std::cout << std::hex  << micro.second[v] << " ";
-                            }
-                            std::cout << std::endl;
-                        }
-                        std::cout << std::endl;
-                    }
-                    std::cout << std::endl;
-                    std::cout  << "******************************************************************************" << std::endl;
-
-                    valueDistribution[idx][w].clear();
+                    
                     
                 }
             }
+
+
+            std::cout  << "******************************* TRACE START " << std::hex << macros.begin()->first <<  " ***************************************" << std::endl;
+            for (auto const &elem: macros)
+            {       
+                if (elem.second->isMacroop())
+                {
+                    for (uint16_t idx = 0; idx < elem.second->getNumMicroops(); idx++)
+                    {
+
+                        // create value report
+                        std::string values_string = "[";
+                        if (valueDistribution.find(elem.first) != valueDistribution.end())
+                        {
+                            if (valueDistribution[elem.first].find(idx) != valueDistribution[elem.first].end())
+                            {
+                                if (valueDistribution[elem.first][idx].size() >= 10) 
+                                {
+                                    values_string += "> 10";
+                                }
+                                else 
+                                {
+                                    for (auto const &val : valueDistribution[elem.first][idx])
+                                    {
+                                        values_string +=  std::to_string(val.first) + ":" + std::to_string(val.second) + "| ";
+                                    }
+                                }
+                            }
+                        }
+                        values_string += "]";
+
+                        StaticInstPtr micro = elem.second->fetchMicroop((MicroPC)idx);
+                        std::cout  << std::hex  << "[" << elem.first << "] [ " << std::dec <<  micro->disassemble(elem.first) << " ] ";
+                        LVPredUnit::lvpReturnValues ret;
+                        if (traceConstructor->loadPred->makePredictionForTraceGenStage(elem.first, idx, 0, ret))
+                        {   
+                            std::cout << std::hex  << "[" << std::dec<< num_times_invoked << "][" << (int)ret.confidence << "] " << values_string << std::endl;
+                        }      
+                        else 
+                        {
+                            std::cout << std::hex  << "[" << std::dec<< num_times_invoked << "][" << "N/A" << "] " << values_string <<  std::endl;
+                        }
+
+                    }
+                }
+                else 
+                {
+                    std::cout  << std::hex  << "[" << elem.first << "] [ " << std::dec <<  elem.second->disassemble(elem.first) << " ] " << std::endl;
+                }
+
+                if (valueDistribution.find(elem.first) != valueDistribution.end())
+                {
+                    valueDistribution.erase(elem.first);
+                }
+                    
+            } 
+            for (auto const &elem: macros)
+            {    
+                if (elem.second->isMacroop()) elem.second->deleteMicroOps();
+            }  
+
+            std::cout  << "***************************** TRACE END " << std::hex << macros.rbegin()->first <<  " ***********************************" << std::endl;
             
         }
 
@@ -1065,7 +1086,9 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         }
 
     }
-    */
+    
+
+
     if (evictWay != 8) {
         /* Invalidate all prior content. */
         DPRINTF(Decoder, "Evicting microop in the microop cache: tag:%#x idx:%d way:%d.\n Affected PCs:\n", tag, idx, evictWay);
@@ -1143,7 +1166,14 @@ Decoder::insertReturnedValueIntoUopCacheStatics( PCState pc, uint64_t returnedVa
         if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
             for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
                 if (uopAddrArray[idx][way][uop].pcAddr == addr) {
-                    valueDistribution[idx][way][addr][upc].push_back(returnedValue);
+                    if (valueDistribution[addr][upc].find(returnedValue) == valueDistribution[addr][upc].end())
+                    {
+                        valueDistribution[addr][upc][returnedValue] = 1;
+                    }
+                    else 
+                    {
+                        valueDistribution[addr][upc][returnedValue]++;
+                    }
                     return;
                 }
             }
@@ -1692,8 +1722,30 @@ StaticInstPtr
 Decoder::decode(PCState &nextPC, unsigned cycleAdded, ThreadID tid)
 {
     if (isUopCachePresent && isUopCacheActive() && isHitInUopCache(nextPC.instAddr())) {
-      DPRINTF(Decoder, "Fetching microop from the microop cache: %s.\n", nextPC);
-      return fetchUopFromUopCache(nextPC.instAddr(), nextPC);
+        DPRINTF(Decoder, "Fetching microop from the microop cache: %s.\n", nextPC);
+      
+        StaticInstPtr si = fetchUopFromUopCache(nextPC.instAddr(), nextPC);
+
+        //if (si->isNop()) return si;
+
+        //panic_if(!si->isMacroop(), "%s\n", si->disassemble(nextPC.instAddr()));
+
+        if (si->isMacroop())
+        {
+            // set all the microops in this macro as fetched from uop cache
+            for (uint16_t idx = 0; idx < si->getNumMicroops(); idx++)
+            {
+                StaticInstPtr micro = si->fetchMicroop((MicroPC)idx);
+                micro->setStreamedFromUOpCache(true);
+            }
+        }
+        else 
+        {
+            si->setStreamedFromUOpCache(true);
+        }
+             
+
+        return si;
     }
 
     if (!instDone)

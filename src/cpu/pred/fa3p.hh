@@ -29,7 +29,7 @@ class FA3P : public LVPredUnit
     virtual unsigned getDelay(TheISA::PCState pc);
 
     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle);
-    virtual bool makePredictionForTraceGenStage(TheISA::PCState pc, ThreadID tid , lvpReturnValues& ret);
+    virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret);
 
     virtual uint64_t getValuePredicted(TheISA::PCState pc);
 

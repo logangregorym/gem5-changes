@@ -1137,7 +1137,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
 
              inst->completeAcc(pkt);
 
-            if (inst->isLoad()) {
+            if (inst->isLoad() && !inst->isFloating() && !inst->isVector() && (inst->isStreamedFromUOpCache() || inst->isStreamedFromSpeculativeCache() || inst->isSpeculativlyForwarded() || inst->isTracePredictionSource())) {
                 inst->memoryAccessEndCycle = cpu->numCycles.value();
                 DPRINTF(LVP, "Sending a load response to LVP from [sn:%i]\n", inst->seqNum);
                 ThreadID tid = inst->threadNumber;
@@ -1146,41 +1146,22 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                     PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                     uint64_t value;
                     switch (dest_reg->classValue()) {
-			            // Note: changed "memoryAccessStartCycle" to "cycleFetched" in all these
                       case IntRegClass:
                         value = cpu->readIntReg(dest_reg);
+                        // gathering some statics
+                        cpu->fetch.decoder[tid]->insertReturnedValueIntoUopCacheStatics(inst->pcState(), value, inst->staticInst->predictedValue);
                         DPRINTF(LVP, "Returning IntRegClass register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
                         inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                         break;
+
                       case FloatRegClass:
-                        assert(0);
-                        value = cpu->readFloatRegBits(dest_reg);
-                        DPRINTF(LVP, "Returning FloatRegClass register value %llx to LVP i.e. %llx\n", value, cpu->readFloatReg(dest_reg));
-                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
-                        break;
                       case VecRegClass:
-                        assert(0); //we dont support them
-                        if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
-                        break;
                       case VecElemClass:
-                        assert(0); //we dont support them
-                        value = cpu->readVecElem(dest_reg);
-                        DPRINTF(LVP, "Returning VecElemClass register value %llx to LVP i.e. %llx\n", value, cpu->readVecElem(dest_reg));
-                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
-                        break;
                       case CCRegClass:
-                        assert(0);
-                        value = cpu->readCCReg(dest_reg);
-                        DPRINTF(LVP, "Returning CCRegClass register value %llx to LVP i.e. %llx\n", value, cpu->readCCReg(dest_reg));
-                        inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
-                        break;
                       case MiscRegClass:
-                        assert(0);
-                        // Should also be okay to ignore, won't be predicted
-                        if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
                         break;
                       default:
-                        panic("Unknown register class: %d", (int)dest_reg->classValue());
+                        panic("Unsupported Register Class: %d", (int)dest_reg->classValue());
                     }
                 }
                 if (inst->lvMispred && inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource()) {
