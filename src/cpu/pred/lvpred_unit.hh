@@ -48,14 +48,14 @@ class LVPredUnit : public SimObject
     virtual void updateGtables(Addr pc, Addr next_pc, bool branches) { };
 
     struct lvpReturnValues {
-        lvpReturnValues(int64_t v, int8_t status, uint8_t predSource) {
+        lvpReturnValues(int64_t v, unsigned status, uint8_t predSource) {
             this->predictedValue = v;
             this->confidence = status;
             this->latency = 0;
             this->predSource = predSource;
         }
 
-        lvpReturnValues(int64_t v, int8_t status) {
+        lvpReturnValues(int64_t v, unsigned status) {
             this->predictedValue = v;
             this->confidence = status;
             this->latency = 0;
@@ -70,7 +70,7 @@ class LVPredUnit : public SimObject
         }
 
         uint64_t predictedValue;
-        int8_t confidence;
+        unsigned confidence;
         unsigned latency;
         uint8_t predSource;
 
@@ -78,11 +78,11 @@ class LVPredUnit : public SimObject
         bool predVtage = false;
         bool predStride = false;
         bool prediction_result;  // true iff the prediction was correct
-	uint64_t GTAG[9] = {0};
+	    uint64_t GTAG[9] = {0};
         uint64_t GI[9] = {0};  // these are snapshots of the VTAGE components
-	int TAGSTR[3] = {0};  // TODO: allow multiple sizes, but for now this is fine
+	    int TAGSTR[3] = {0};  // TODO: allow multiple sizes, but for now this is fine
         int B[3] = {0};
-	int STHIT;
+	    int STHIT;
         int HitBank;
     };
 

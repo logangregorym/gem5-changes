@@ -1160,13 +1160,13 @@ DefaultFetch<Impl>::tick()
     // Reset the number of the instruction we've fetched.
     numInst = 0;
 
-    if (isSuperOptimizationPresent)
+    if (false && isSuperOptimizationPresent)
     {
         for (int tid = 0; tid < numThreads; tid++) {
             decoder[tid]->traceConstructor->generateNextTraceInst(); // was depTracker->simplifyGraph
-            if ((((int) cpu->numCycles.value()) % 128) == 0) {
-                decoder[tid]->tickAllHotnessCounters();
-            }
+            // if ((((int) cpu->numCycles.value()) % 128) == 0) {
+            //     decoder[tid]->tickAllHotnessCounters();
+            // }
         }
     }
 }
@@ -1369,7 +1369,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     }
 
     // Make load value prediction if necessary
-    bool valuePredictable = instruction->isLoad() && !instruction->isVector() && !instruction->isFloating() /*&& !instruction->isCC()*/ && instruction->isStreamedFromUOpCache(); 
+    bool valuePredictable = instruction->isLoad() && !instruction->isVector() && !instruction->isFloating() /*&& !instruction->isCC()*/ && instruction->isStreamedFromUOpCache() /*&& instruction->isUOpCacheHotTrace()*/; 
     if (!instruction->isStore() && instruction->isInteger() /*&& !instruction->isCC()*/ && !instruction->isFloating() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
         for (int i = 0; i < instruction->numDestRegs(); i++) {
             RegId destReg = instruction->destRegIdx(i);
@@ -1383,13 +1383,12 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     
     
     // don't pullote predictor with instructions that we already know thier values
-    if (instruction->getName() == "rdip" || instruction->getName() == "limm") valuePredictable = false;
+    if (instruction->getName() == "rdip" || instruction->getName() == "limm" ||  instruction->getName() == "movi") valuePredictable = false;
 
     uint64_t value;
     unsigned confidence, latency;
-    if (valuePredictable && instruction->isStreamedFromUOpCache() &&
-        !(staticInst->isStreamedFromSpeculativeCache() &&
-          decoder[tid]->traceConstructor->isPredictionSource(decoder[tid]->traceConstructor->traceMap[currentTraceID], FullUopAddr(thisPC.instAddr(), thisPC.upc()), value, confidence, latency))) 
+    if (valuePredictable && instruction->isStreamedFromUOpCache() && /*instruction->isUOpCacheHotTrace() &&*/ 
+        !(staticInst->isStreamedFromSpeculativeCache() && decoder[tid]->traceConstructor->isPredictionSource(decoder[tid]->traceConstructor->traceMap[currentTraceID], FullUopAddr(thisPC.instAddr(), thisPC.upc()), value, confidence, latency))) 
     {
 
             // don't check against new prediction is the instruction is part of a spec trace
@@ -1444,20 +1443,8 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                 staticInst->predictedLoad = true;
             } 
 
-            if (staticInst->confidence >= 5) {
-                //if (!instruction->isLoad()) std::cout << "YAY! We have a load with confidence higher than 5! SeqNum[" << instruction->seqNum << "]: " << instruction->staticInst->disassemble(thisPC.instAddr()) << std::endl;
-                if (instruction->isMacroop()) {
-                    assert(!instruction->staticInst->isMacroop());
-                    for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
-                        if (decoder[tid]->isSuperOptimizationPresent) {
-                            decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), uop, ret.predictedValue, ret.confidence, ret.latency);
-                        }
-                    }
-                } else {
-                    if (decoder[tid]->isSuperOptimizationPresent) {
-                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), 0, ret.predictedValue, ret.confidence, ret.latency);
-                    }
-                }
+            if (staticInst->confidence >= 5 && staticInst->isUOpCacheHotTrace()) {
+                decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), thisPC.upc(), ret.predictedValue, ret.confidence, ret.latency);
             }
         
     }
@@ -1580,9 +1567,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
         //*****CHANGE START**********
         // check the speculative cache even before the microop cache
-        if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive() && thisPC.upc() == 0) {
-            LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
-            currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), ret.predictedValue, ret.confidence);
+        if (false && isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive() && thisPC.upc() == 0) {
+
+            // consult with LVP to better decide about which trace to
+            //LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+            currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), 0, 0/*ret.predictedValue, ret.confidence*/);
             if (currentTraceID != 0 && decoder[tid]->redirectDueToLVPSquashing) {
                 DPRINTF(Fetch, "A trace is available but due to a previous LVP missprediction squash we can't fetch from spec$! Available TraceID is %i.\n", currentTraceID);
             }
@@ -1594,8 +1583,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             {
                 DPRINTF(Fetch, "No trace is Avaialble at this PC.\n", currentTraceID);
             }
+
         }
-        if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive())
+        if (false && isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive())
         {
             DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
             // Speculative Cache is already enabled, continue fetchinf from it
@@ -1606,7 +1596,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             decoder[tid]->setUopCacheActive(false);
             //fetchBufferValid[tid] = false;
         }
-        else if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
+        else if (false && isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
         {
         
             DPRINTF(Fetch, "Setting speculative cache active at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
@@ -1811,7 +1801,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 bool newMacro = false, fused = false;
 
                 //*****CHANGE START**********
-                if (isSuperOptimizationPresent && inSpeculativeCache) {
+                if (false && isSuperOptimizationPresent && inSpeculativeCache) {
                         bool predict_taken = false;
                         // fetch next microop and also update the nextPC, so we can decide whether there is
                         // TODO: fetchBufferPC[tid] ?
@@ -2165,9 +2155,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 if (newMacro)
                 {
                     if (isSuperOptimizationPresent && thisPC.upc() == 0) {
-                        LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
-                        
-                        currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), ret.predictedValue, ret.confidence);
+                        //LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+                        currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), 0, 0 /* ret.predictedValue, ret.confidence*/);
                     }
                     if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
                     {

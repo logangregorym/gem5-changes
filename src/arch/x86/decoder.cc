@@ -1428,16 +1428,40 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
             for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
                 if (uopAddrArray[idx][way][uop].pcAddr == addr) {
                     updateLRUBits(idx, way);
+
                     if (uopHotnessArray[idx][way].read() > 7) {
                         hotnessGreaterThanSeven++;
                     } else {
                         hotnessLessThanSeven++;
                     }
+
+
                     uopHotnessArray[idx][way].increment();
                     ExtMachInst emi = uopCache[idx][way][uop];
                     nextPC.size(emi.instSize);
                     nextPC.npc(nextPC.pc() + emi.instSize);
-                    return decode(emi, addr);
+
+
+                    StaticInstPtr si = decode(emi, addr);
+
+                    if (uopHotnessArray[idx][way].read() > 7)
+                    {
+                        if (si->isMacroop())
+                        {
+                            // set all the microops in this macro as fetched from uop cache
+                            for (uint16_t idx = 0; idx < si->getNumMicroops(); idx++)
+                            {
+                                StaticInstPtr micro = si->fetchMicroop((MicroPC)idx);
+                                micro->setUOpCacheHotTrace(true);
+                            }
+                        }
+                        else 
+                        {
+                            si->setUOpCacheHotTrace(true);
+                        }
+                    }
+
+                    return si;
                 }
             }
         }
@@ -1452,7 +1476,14 @@ Decoder::isTraceAvailable(Addr addr, int64_t value, int8_t confidence) {
     unsigned maxScore = 0;
     unsigned maxTraceID = 0;
 
-    if (confidence < 0) return 0;
+    // all cofidence numbers are from 0 to 31 i.e., 0 is the lowest and 31 is the highest
+    assert(confidence >= 0);
+    //if (confidence == 0) return 0;
+
+
+    //TODO: Counsult with LVP when returning a trace ID 
+    // just check all the prediction sources to have the same predicted value as now
+    // we may have same trces with different values for the source predictions
 
     for (auto it = traceConstructor->traceMap.begin(); it != traceConstructor->traceMap.end(); it++) {
         SpecTrace trace = it->second;
@@ -1465,9 +1496,10 @@ Decoder::isTraceAvailable(Addr addr, int64_t value, int8_t confidence) {
                 continue;
             }
 
-            if (confidence >= 5 && value != trace.source[0].value) { // trace with incorrect value, move on to a different trace
-                continue;
-            }
+            // TODO: Change this logic here
+            // if (confidence >= 5 && value != trace.source[0].value) { // trace with incorrect value, move on to a different trace
+            //     continue;
+            // }
 
             if ((trace.controlSources[0].valid && trace.controlSources[0].confidence < 5) || 
                 (trace.controlSources[1].valid && trace.controlSources[1].confidence < 5 ))
@@ -1725,10 +1757,6 @@ Decoder::decode(PCState &nextPC, unsigned cycleAdded, ThreadID tid)
         DPRINTF(Decoder, "Fetching microop from the microop cache: %s.\n", nextPC);
       
         StaticInstPtr si = fetchUopFromUopCache(nextPC.instAddr(), nextPC);
-
-        //if (si->isNop()) return si;
-
-        //panic_if(!si->isMacroop(), "%s\n", si->disassemble(nextPC.instAddr()));
 
         if (si->isMacroop())
         {

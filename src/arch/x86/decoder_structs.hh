@@ -88,6 +88,11 @@ struct SpecTrace
 
     // address of the head of the trace
     FullUopAddr headAddr;
+    
+    // address of trace head
+    Addr traceHeadAddr;
+    Addr traceEndAddr;
+
 
     // (idx, way, uop) of head of the trace
     FullCacheIdx head;
@@ -119,6 +124,12 @@ struct SpecTrace
     // Control Prediction Sources (at most 2)
     PredictionSource controlSources[2];
 
+    // Originial Trace in Uop/Spec cache
+    std::map<Addr, std::map<uint16_t, StaticInstPtr>> originalTrace;
+
+    // Ways in Uop/Spec cache that holds the original trace
+    std::vector<uint64_t> uopCacheWays;
+
     enum State {
         Invalid,
         
@@ -140,14 +151,17 @@ struct SpecTrace
     // Trace Satte
     State state;
 
-    // Prediction Sources (at most 4)
-    PredictionSource source[4];
+    // Prediction Sources (at most 8)
+    PredictionSource source[8];
 
     // Trace Length
-    unsigned length;
+    uint64_t length;
+
+    // Trace Hotness
+    uint64_t hotness;
 
     // Shrunk length
-    unsigned shrunkLength;
+    uint64_t shrunkLength;
 
     // ID of the trace being re-optimized in case this is a re-optimization
     unsigned int reoptId;
@@ -166,6 +180,11 @@ struct SpecTrace
         inst = NULL;
         prevNonEliminatedInst = NULL;
         branchesFolded = 0;
+        originalTrace.clear();
+        uopCacheWays.clear();
+        hotness = 0;
+        traceHeadAddr = 0;
+        traceEndAddr = 0;
     }
 };
 #endif // __ARCH_X86_DECODER_STRUCTS__

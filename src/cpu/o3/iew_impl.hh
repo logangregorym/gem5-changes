@@ -1503,7 +1503,7 @@ DefaultIEW<Impl>::executeInsts()
                 // update LVP for every instruction 
                 string opcode = inst->getName();
                 if (!inst->isStore() && inst->isInteger() && !inst->isVector()  /*&& !inst->isCC()*/ && !inst->isFloating() && inst->staticInst->predictedLoad && 
-                    (inst->isStreamedFromUOpCache() || inst->isStreamedFromSpeculativeCache() || inst->isSpeculativlyForwarded() || inst->isTracePredictionSource()) && loadPred->predictingArithmetic) { 
+                    ((inst->isStreamedFromUOpCache() /*&& inst->isUOpCacheHotTrace()*/) || inst->isStreamedFromSpeculativeCache() || inst->isSpeculativlyForwarded() || inst->isTracePredictionSource()) && loadPred->predictingArithmetic) { 
                     
                     
                     inst->memoryAccessStartCycle = cpu->numCycles.value();

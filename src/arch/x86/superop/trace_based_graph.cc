@@ -41,177 +41,219 @@ void TraceBasedGraph::regStats()
         ;
 }
 
-void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, int8_t confidence, unsigned latency)
+void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, unsigned confidence, unsigned latency)
 {
 
-    assert(confidence >= 0);
+    assert(confidence <= 31);
 
-    DPRINTF(SuperOp, "predictValue: addr=%#x:%x value=%#x confidence=%d latency=%d\n", addr, uopAddr, value, (unsigned) confidence, latency);
+    DPRINTF(SuperOp, "predictValue: addr=%#x:%x value=%#x confidence=%d latency=%d\n", addr, uopAddr, value, confidence, latency);
     
-    /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
     int idx = (addr >> 5) & 0x1f;
-    for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
-        //SpecTrace trace = it->second;
-        int numPredSources = 0;
-        for (int i=0; i<4; i++, numPredSources++) {
-            /* Do we already consider this as a prediction source? */
-            if (it->second.source[i].valid && 
-                it->second.source[i].addr == FullUopAddr(addr, uopAddr) &&
-                it->second.source[i].value == value) 
-            {
-                DPRINTF(SuperOp, "Trace Map already holds a trace for this prediction source! addr = %#x uopAddr = %d  value = %#x  confidence = %d\n", 
-                                  addr, uopAddr, it->second.source[i].value, it->second.source[i].confidence);
-                
-                return;
-            }
-        }
-        if (it->second.state != SpecTrace::QueuedForFirstTimeOptimization && it->second.state != SpecTrace::QueuedForReoptimization) {
-            continue;
-        }
-        if (idx != it->second.head.idx) {
-            continue;
-        }
-        DPRINTF(SuperOp, "Incoming trace request has the same index as trace %i already in queue\n", it->second.id);
-        int numWays = 0;
-        for (int way = it->second.head.way; way != 10 && numWays < 8; way = decoder->uopNextWayArray[idx][way]) {
-            if (decoder->uopValidArray[idx][way]) {
-                DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", idx, way, decoder->uopCountArray[idx][way]);
-                for (int uop = it->second.head.uop; uop < decoder->uopCountArray[idx][way]; uop++) {
-                    if (decoder->uopAddrArray[idx][it->second.head.way][uop] == FullUopAddr(addr, uopAddr)) {
-                        if (numPredSources < 4) {
-                            it->second.source[numPredSources].valid = true;
-                            it->second.source[numPredSources].addr = FullUopAddr(addr, uopAddr);
-                            it->second.source[numPredSources].value = value;
-                            it->second.source[numPredSources].confidence = (unsigned) confidence;
+    uint64_t tag = (addr >> 10);
+
+
+    SpecTrace newTrace;
+
+    // lets find the trace that this prediction belongs to
+    uint64_t _max_hotness = 0;
+    // capture the trace from uop cache
+    for (uint64_t way=0; way < 8; way++) {
+        DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", idx, way, decoder->uopCountArray[idx][way]);
+        if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag)
+        {
+            if (decoder->uopHotnessArray[idx][way].read() > _max_hotness) 
+                _max_hotness = decoder->uopHotnessArray[idx][way].read();
+            
+            // store which ways hold this trace in the uop cache. This will be used to cehck if the trace is still availble in the UopCache during the superoptimization
+            newTrace.uopCacheWays.push_back(way);
+
+            for (size_t u = 0; u < decoder->uopCountArray[idx][way]; u++)
+            {   
+                Addr baseAddr = decoder->uopAddrArray[idx][way][u].pcAddr; 
+                if (newTrace.originalTrace.find(baseAddr) == newTrace.originalTrace.end())
+                {
+                    StaticInstPtr macro = decoder->decode(decoder->uopCache[idx][way][u], baseAddr);
+
+                    if (macro->isMacroop())
+                    {
+                        for (uint32_t t = 0; t < macro->getNumMicroops(); t++)
+                        {
+                            newTrace.originalTrace[baseAddr][t] = macro->fetchMicroop((MicroPC)t);
                         }
-                        return;
+                    }
+                    else 
+                    {
+                        // Does this mean only one microop?
+                        newTrace.originalTrace[baseAddr][0] = macro;
                     }
                 }
             }
-            numWays++;
         }
+            
     }
 
-    unsigned int traceId = 0; 
-    bool reopt = true;
-    int spec_way = -1;
-    int spec_uop = -1;
-    for (int way=0; way<8; way++) {
-        if (decoder->speculativeValidArray[idx][way])
-        {
-            for (int uop=0; uop<6; uop++) {
-                if (decoder->speculativeAddrArray[idx][way][uop].pcAddr == addr &&
-                    decoder->speculativeAddrArray[idx][way][uop].uopAddr == uopAddr) {
-                    traceId = decoder->speculativeTraceIDArray[idx][way];
-                    spec_way = way;
-                    spec_uop = uop;
-                    break;
-                } 
-            }
-            if (traceId) {
-                assert(traceMap.find(traceId) != traceMap.end());
-                for (int i=0; i<4; i++) {
-                    /* Do we already consider this as a prediction source? */
-                    if (traceMap[traceId].source[i].valid && 
-                        traceMap[traceId].source[i].addr == FullUopAddr(addr, uopAddr) && 
-                        traceMap[traceId].source[i].value == value) 
-                    {
-                        DPRINTF(SuperOp, "Speculative Cache already holds a trace for this prediction source! addr = %#x uopAddr = %d value = %#x  confidence = %d\n", 
-                                        addr, uopAddr, traceMap[traceId].source[i].value, traceMap[traceId].source[i].confidence);
+    assert(!newTrace.originalTrace.empty());
+    assert(!newTrace.uopCacheWays.empty());
 
-                        reopt = false;
-                        break;
-                    }
-                }
+    // dump captured trace
+    uint64_t length = 0;
+    DPRINTF(SuperOp,"Trace in the Uop Cahce:\n");
+    for (auto const &lv1: newTrace.originalTrace)
+    {
+        length += lv1.second.size();
+        for (auto const &lv2: lv1.second)
+        {
+            DPRINTF(SuperOp, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second->disassemble(lv1.first));
+        }
+    }
+    newTrace.length = length;
+    newTrace.hotness = _max_hotness;
+    // before adding it to the queue, check if profitable -- we prefer long hot traces
+    if (newTrace.hotness < 7 || newTrace.length < 4) { // TODO: revisit: pretty low bar
+        DPRINTF(SuperOp, "Rejecting trace request to optimize trace\n", idx);
+        DPRINTF(SuperOp, "hotness:%i length=%i\n", newTrace.hotness, newTrace.length);
+        DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
+        return;
+    }
+
+    // find head of the original trace in the microop cache
+    for (auto const &elem: newTrace.uopCacheWays)
+    {
+        assert(decoder->uopValidArray[idx][elem] && decoder->uopTagArray[idx][elem] == tag);
+
+        for (size_t u = 0; u < decoder->uopCountArray[idx][elem]; u++)
+        {
+            if (decoder->uopAddrArray[idx][elem][u].pcAddr == newTrace.originalTrace.begin()->first)
+            {
+                newTrace.head = FullCacheIdx(idx, elem, u);
                 break;
             }
         }
+
     }
 
-    // if an already optimized trace has low confidence, it is time to phase it out
-    if (traceId && reopt) {
-        DPRINTF(SuperOp, "Trace %i exists for this prediction source! addr = %#x uopAddr = %d\n", traceId, addr, uopAddr);
-        assert(traceMap.find(traceId) != traceMap.end());
-        for (int i=0; i<4; i++) {
-            /* Have we exhausted all prediction sources? If not, we can further compact this trace.    */
-            if (!traceMap[traceId].source[i].valid) {
-                
-                //assert(0); // Haven't seen any reoptimize yet! 
-                SpecTrace newTrace;
-                
-                for (int j=0; j<4; j++) {
-                    if (traceMap[traceId].source[j].valid) {
-                        newTrace.source[j] = traceMap[traceId].source[j];
-                    }
-                }
-                newTrace.source[i].valid = true;
-                newTrace.source[i].addr = FullUopAddr(addr, uopAddr);
-                newTrace.source[i].value = value;
-                newTrace.source[i].confidence = (unsigned) confidence;
-                newTrace.source[i].latency = latency;
-                newTrace.state = SpecTrace::QueuedForReoptimization;
-                newTrace.reoptId = traceId;
+    // sometimes the head is different than the first prediction source  
+    // uop: the slot number which holds the first microop for the head instruction
+    // uopAddr: the uop at which the prediction source is
 
-                unsigned length = computeLength(newTrace);
-                if (length < 4) { // TODO: revisit: pretty low bar
-                    DPRINTF(SuperOp, "Rejecting trace request to re-optimize trace at uop[%i][%i][%i]\n", idx, spec_way, spec_uop);
-                    DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
-                    DPRINTF(SuperOp, "length=%i\n", length);
-                    return;
-                }
-                newTrace.head = newTrace.addr = traceMap[traceId].optimizedHead;
-                newTrace.headAddr = traceMap[traceId].headAddr;
-                newTrace.id = SpecTrace::traceIDCounter++;
-                traceMap[newTrace.id] = newTrace;
-                traceQueue.push(newTrace);
-                DPRINTF(SuperOp, "Queueing up new trace request %i to reoptimize trace %i at spec[%i][%i][%i]\n", newTrace.id, newTrace.reoptId,
-                                    newTrace.addr.idx, newTrace.addr.way, newTrace.addr.uop);
-                return;
+    // we always know that the head of a trace is the first microop in the macroop
+    newTrace.headAddr = FullUopAddr(newTrace.originalTrace.begin()->first, 0); 
+    newTrace.end = FullUopAddr(newTrace.originalTrace.rbegin()->first, newTrace.originalTrace.rbegin()->second.size()-1);
+
+    newTrace.traceHeadAddr = newTrace.originalTrace.begin()->first;
+    newTrace.traceEndAddr = newTrace.originalTrace.rbegin()->first;
+    DPRINTF(SuperOp, "Trace HeadAddress: %#x Trace EndAddress: %#x\n", newTrace.traceHeadAddr, newTrace.traceEndAddr);
+    newTrace.instAddr = FullUopAddr(0, 0); 
+    
+
+    
+    int numFoundTraces = 0;
+    int numTracesWithSamePredSourcesVal = 0;
+    int numTracesWithDifferentPredSourcesVal = 0;
+    /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
+    for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
+
+        // if trace head address or end address are not the same then it's not the same trace
+        if ((newTrace.traceHeadAddr != it->second.traceHeadAddr) || (newTrace.traceEndAddr != it->second.traceEndAddr)) {
+            continue;
+        }
+
+        numFoundTraces++;
+        // if we are here then it means that both head and end addresses are the same 
+        // now let's check if we can find any prediction source with the same address and value
+        // In two cases we have different traces:
+        // 1) it->second.source[i].addr == FullUopAddr(addr, uopAddr) && it->second.source[i].value != value
+        // 2)
+
+        int numValidPredSources = 0;
+        int numWithSamePredSourcesVal = 0;
+        int numWithDifferentPredSourcesVal = 0;
+        for (int i=0; i<8; i++) {
+
+            if (it->second.source[i].valid)
+            {
+                numValidPredSources++;
+            }
+            /* Do we already consider this as a prediction source? */
+            if (it->second.source[i].valid && 
+                it->second.source[i].addr == FullUopAddr(addr, uopAddr) &&
+                it->second.source[i].value != value) 
+            {
+                
+                DPRINTF(SuperOp, "Trace Map already holds a trace for this head and end addresses but the predicted value is different! HeadAddr = %#x EndAddr = %#x Trace Predicted Value: %#x New Predicted Value: %#x\n", 
+                                  it->second.traceHeadAddr, it->second.traceEndAddr, it->second.source[i].value, value);
+
+                numTracesWithDifferentPredSourcesVal++;
+                numWithDifferentPredSourcesVal++;
+            }
+            else if (it->second.source[i].valid && 
+                it->second.source[i].addr == FullUopAddr(addr, uopAddr) &&
+                it->second.source[i].value == value) 
+            {
+                DPRINTF(SuperOp, "Trace Map already holds a trace for this head and end addresses and the predicted value is the same as before! HeadAddr = %#x EndAddr = %#x Trace Predicted Value: %#x New Predicted Value: %#x\n", 
+                                  it->second.traceHeadAddr, it->second.traceEndAddr, it->second.source[i].value, value);
+                
+                numTracesWithSamePredSourcesVal++;
+                numWithSamePredSourcesVal++;
             }
         }
-    } else {
-        for (int way=0; way<8; way++) {
-            DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", idx, way, decoder->uopCountArray[idx][way]);
-            for (int uop=0; uop<decoder->uopCountArray[idx][way]; uop++) {
-                if (decoder->uopValidArray[idx][way] && 
-                    decoder->uopAddrArray[idx][way][uop].pcAddr == addr && 
-                    decoder->uopAddrArray[idx][way][uop].uopAddr == uopAddr) 
-                {
-                    SpecTrace newTrace;
-                    newTrace.source[0].valid = true;
-                    newTrace.source[0].addr = FullUopAddr(addr, uopAddr);
-                    newTrace.source[0].value = value;
-                    newTrace.source[0].confidence = (unsigned) confidence;
-                    newTrace.source[0].latency = latency;
-                    newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
-                    newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
-                    newTrace.headAddr = FullUopAddr(addr, uopAddr);
-                    newTrace.instAddr = FullUopAddr(0, 0);
 
-                    // before adding it to the queue, check if profitable -- we prefer long hot traces
-                    unsigned hotness = decoder->uopHotnessArray[idx][way].read();
-                    unsigned length = computeLength(newTrace);
-                    if (hotness < 7 || length < 4) { // TODO: revisit: pretty low bar
-                        DPRINTF(SuperOp, "Rejecting trace request to optimize trace at uop[%i][%i][%i]\n", idx, way, uop);
-                        DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
-                        DPRINTF(SuperOp, "hotness:%i length=%i\n", hotness, length);
-                        return;
-                    }
+        // sanity checks
+        assert(numValidPredSources);
+        assert(numWithSamePredSourcesVal <= 1);
+        assert(numWithDifferentPredSourcesVal <= 1);
 
-                    newTrace.id = SpecTrace::traceIDCounter++;
-                    traceMap[newTrace.id] = newTrace;
-                    traceQueue.push(newTrace);
-                    DPRINTF(SuperOp, "Queueing up new trace request %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, idx, way, uop);
-                    DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
-                    DPRINTF(SuperOp, "hotness:%i length=%i\n", hotness, length);
-                    return;
-                }
-            }
+        if (it->second.state == SpecTrace::Complete && numWithSamePredSourcesVal == 0 && numWithDifferentPredSourcesVal == 0)
+        {
+            numTracesWithDifferentPredSourcesVal++;
         }
+
     }
+
+    DPRINTF(SuperOp, "numFoundTraces: %d, numTracesWithSamePredSourcesVal: %d,  numTracesWithDifferentPredSourcesVal: %d\n", numFoundTraces, numTracesWithSamePredSourcesVal, numTracesWithDifferentPredSourcesVal);
+    bool isNewTrace = false;
+    if (numFoundTraces == 0)
+    {
+        isNewTrace = true;
+    }
+    else if (numFoundTraces > 0 && numTracesWithSamePredSourcesVal > 0 )
+    {   
+        isNewTrace = false;
+    } 
+    else if (numFoundTraces > 0 &&  numTracesWithSamePredSourcesVal == 0 && numTracesWithDifferentPredSourcesVal > 0)
+    {   
+        isNewTrace = true;
+    }
+    else if (numFoundTraces > 0 && numTracesWithSamePredSourcesVal == 0 && numTracesWithDifferentPredSourcesVal == 0)
+    {   
+        isNewTrace = false;
+    }
+      
+    if (!isNewTrace) return;
+
+    // capture the prediction source
+    newTrace.source[0].valid = true;
+    newTrace.source[0].addr = FullUopAddr(addr, uopAddr);
+    newTrace.source[0].value = value;
+    newTrace.source[0].confidence = (unsigned) confidence;
+    newTrace.source[0].latency = latency;
+    newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
+
+
+    newTrace.id = SpecTrace::traceIDCounter++;
+    traceMap[newTrace.id] = newTrace;
+    traceQueue.push(newTrace);
+    DPRINTF(SuperOp, "Queueing up new trace request %i!\n", newTrace.id);
+    DPRINTF(SuperOp, "hotness:%i length=%i\n", newTrace.hotness, newTrace.length);
+    DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n",  newTrace.source[0].addr.pcAddr,  newTrace.source[0].addr.uopAddr, newTrace.source[0].value);
+
+
+    return;
+
 }
 
 bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency) {
+    assert(0);
     for (int i=0; i<4; i++) {
         if (trace.source[i].valid && trace.source[i].addr == addr) {
             value = trace.source[i].value;
@@ -224,6 +266,7 @@ bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uin
 }
 
 bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
+    assert(0);
     // don't do this for re-optimizations
     if (trace.state != SpecTrace::QueuedForFirstTimeOptimization && trace.state != SpecTrace::OptimizationInProcess)
         return false;
@@ -324,6 +367,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
 }
 
 void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
+    assert(0);
     if (!usingControlTracking || !advanceIfControlTransfer(trace)) {
         trace.addr.uop++;
         trace.addr.valid = false;
@@ -366,6 +410,7 @@ void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
 }
 
 void TraceBasedGraph::dumpTrace(SpecTrace trace) {
+    assert(0);
     // not a valid trace
     if (!trace.addr.valid) {
         return;
@@ -421,6 +466,7 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
 }
 
 unsigned TraceBasedGraph::computeLength(SpecTrace trace) {
+    assert(0);
     if (!trace.addr.valid) {
         return 0;
     }
@@ -431,6 +477,7 @@ unsigned TraceBasedGraph::computeLength(SpecTrace trace) {
 }
 
 bool TraceBasedGraph::generateNextTraceInst() {
+    assert(0);
     if (!currentTrace.addr.valid) { 
         // Finalize old trace
         if (currentTrace.state != SpecTrace::Complete && currentTrace.state != SpecTrace::Evicted) {
@@ -824,6 +871,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 }
 
 bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool propagated) {
+    assert(0);
     // IMPORTANT NOTE: This is written assuming the trace will be traversed in order, and so the register map will be accurate for the current point in the trace
     trace.length++;
 

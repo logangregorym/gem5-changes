@@ -1137,7 +1137,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
 
              inst->completeAcc(pkt);
 
-            if (inst->isLoad() && !inst->isFloating() && !inst->isVector() && (inst->isStreamedFromUOpCache() || inst->isStreamedFromSpeculativeCache() || inst->isSpeculativlyForwarded() || inst->isTracePredictionSource())) {
+            if (inst->isLoad() && !inst->isFloating() && !inst->isVector() && ((inst->isStreamedFromUOpCache()/* && inst->isUOpCacheHotTrace()*/) || inst->isStreamedFromSpeculativeCache() || inst->isSpeculativlyForwarded() || inst->isTracePredictionSource())) {
                 inst->memoryAccessEndCycle = cpu->numCycles.value();
                 DPRINTF(LVP, "Sending a load response to LVP from [sn:%i]\n", inst->seqNum);
                 ThreadID tid = inst->threadNumber;
