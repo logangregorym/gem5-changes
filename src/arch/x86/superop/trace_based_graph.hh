@@ -31,6 +31,7 @@ class LVPredUnit;
 class TraceBasedGraph : public SimObject
 {
     public:
+    typedef std::map<unsigned, SpecTrace> TraceMap;
     // Constructor
     TraceBasedGraph(TraceBasedGraphParams *p);
 
@@ -46,15 +47,27 @@ class TraceBasedGraph : public SimObject
     bool isPredictionSource(SpecTrace& trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency);
 
     bool generateNextTraceInst();
+    bool generateNextSuperOptimizedTraceInst();
+    bool selectNextTraceForsuperOptimization();
+    void finalizeSuperOptimizedTrace();
+    bool isTraceEvictedFromUopCache(SpecTrace::OriginalTrace &trace);
+    bool advanceTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp);
+    bool isPredictionSource(TraceMap::iterator& _trace_it, uint64_t &value, uint64_t &confidence, uint64_t &latency);
+    bool updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp, bool &isDeadCode , bool propagated);
+    bool advanceIfControlTransfer(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp);
 
     // Trace ID to map
-    map<unsigned, SpecTrace> traceMap;
+    TraceMap traceMap;
 
     // Outstanding trace requests
     queue<SpecTrace> traceQueue;
+    std::queue<uint64_t> candidateTraceQueue;
 
     // Current trace being optimized
     SpecTrace currentTrace;
+
+    // Trace ID of current trace that is being optimized
+    uint64_t currentTraceIDGettingSuperOptimized = 0;
 
     // Current trace being streamed
     SpecTrace streamTrace;

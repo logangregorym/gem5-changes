@@ -1160,13 +1160,27 @@ DefaultFetch<Impl>::tick()
     // Reset the number of the instruction we've fetched.
     numInst = 0;
 
-    if (false && isSuperOptimizationPresent)
+    if (isSuperOptimizationPresent)
     {
-        for (int tid = 0; tid < numThreads; tid++) {
-            decoder[tid]->traceConstructor->generateNextTraceInst(); // was depTracker->simplifyGraph
-            // if ((((int) cpu->numCycles.value()) % 128) == 0) {
-            //     decoder[tid]->tickAllHotnessCounters();
-            // }
+        for (int tid = 0; tid < numThreads; tid++) 
+        {
+
+            // try to pick a trace for super-optimization
+            if (decoder[tid]->traceConstructor->currentTraceIDGettingSuperOptimized == 0)
+            {
+                decoder[tid]->traceConstructor->selectNextTraceForsuperOptimization();
+            }
+            else 
+            {
+                // continue super-optimizing the current trace
+                if (decoder[tid]->traceConstructor->generateNextSuperOptimizedTraceInst())
+                {
+                    // if the trace is evicted or completed finalize it
+                    decoder[tid]->traceConstructor->finalizeSuperOptimizedTrace();
+                }
+
+            }
+            
         }
     }
 }
@@ -1386,9 +1400,10 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     if (instruction->getName() == "rdip" || instruction->getName() == "limm" ||  instruction->getName() == "movi") valuePredictable = false;
 
     uint64_t value;
-    unsigned confidence, latency;
+    uint64_t confidence, latency;
+    auto _trace_it = decoder[tid]->traceConstructor->traceMap.find(currentTraceID);
     if (valuePredictable && instruction->isStreamedFromUOpCache() && /*instruction->isUOpCacheHotTrace() &&*/ 
-        !(staticInst->isStreamedFromSpeculativeCache() && decoder[tid]->traceConstructor->isPredictionSource(decoder[tid]->traceConstructor->traceMap[currentTraceID], FullUopAddr(thisPC.instAddr(), thisPC.upc()), value, confidence, latency))) 
+        !(staticInst->isStreamedFromSpeculativeCache() && decoder[tid]->traceConstructor->isPredictionSource(_trace_it, value, confidence, latency))) 
     {
 
             // don't check against new prediction is the instruction is part of a spec trace

@@ -1647,7 +1647,7 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
 
         traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
         DPRINTF(Decoder, "Trace %d ought to be triggered with shrinkage %d:\n", traceConstructor->streamTrace.id, (traceConstructor->streamTrace.length - traceConstructor->streamTrace.shrunkLength));
-        traceConstructor->dumpTrace(traceConstructor->streamTrace);
+        //traceConstructor->dumpTrace(traceConstructor->streamTrace);
 
         int _idx = traceConstructor->streamTrace.addr.idx;
         int _way = traceConstructor->streamTrace.addr.way;
@@ -1713,7 +1713,7 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
     thisPC._npc = thisPC._pc + macroSize;
     thisPC._nupc = thisPC._upc + 1;
 
-    traceConstructor->advanceTrace(traceConstructor->streamTrace);
+    //traceConstructor->advanceTrace(traceConstructor->streamTrace);
     if (traceConstructor->streamTrace.addr.valid) {
         idx = traceConstructor->streamTrace.addr.idx;
         way = traceConstructor->streamTrace.addr.way;
@@ -1725,7 +1725,7 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
 
         /* Leverage advanceTrace's control tracking feature to set these. */
         SpecTrace trace = traceConstructor->streamTrace;
-        traceConstructor->advanceTrace(trace);
+        //traceConstructor->advanceTrace(trace);
         nextPC._npc = speculativeAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].pcAddr;
         nextPC._nupc = speculativeAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].uopAddr;
         nextPC.valid = true;

@@ -7,9 +7,9 @@
 
 struct FullUopAddr {
 	Addr pcAddr;
-	unsigned uopAddr;
+	uint16_t uopAddr;
 
-	FullUopAddr(Addr p, unsigned u) {
+	FullUopAddr(Addr p, uint16_t u) {
 		pcAddr = p;
 		uopAddr = u;
 	}
@@ -65,8 +65,8 @@ struct PredictionSource
     bool valid;
     bool isBranch;
     uint64_t value;
-    unsigned confidence;
-    unsigned latency;
+    uint64_t confidence;
+    uint64_t latency;
 
     PredictionSource() {valid = false; isBranch = false;}
 };
@@ -80,17 +80,75 @@ struct RegisterContext {
     RegisterContext() {value = 0; valid = false; source = false;}
 };
 
+struct OriginalMicroop {
+    StaticInstPtr microop; 
+    Addr tag;
+    Addr idx;
+    Addr way;
+
+    OriginalMicroop ()
+    {
+        this->microop = NULL;
+        tag = 0;
+        idx = 0;
+        way = 0;
+       
+    };
+
+    OriginalMicroop (StaticInstPtr _microop, Addr _tag, Addr _idx, Addr _way)
+    {
+        this->microop = _microop;
+        tag = _tag;
+        idx = _idx;
+        way = _way;
+    
+    };
+};
+
+struct SuperOptimizedMicroop {
+    StaticInstPtr microop; 
+    Addr tag;
+    Addr idx;
+    Addr way;
+    bool compacted;
+
+    SuperOptimizedMicroop ()
+    {
+        this->microop = NULL;
+        tag = 0;
+        idx = 0;
+        way = 0;
+        compacted = false; // is the microop is compacted?
+    };
+
+    SuperOptimizedMicroop (StaticInstPtr _microop, Addr _tag, Addr _idx, Addr _way, bool _compacted)
+    {
+        this->microop = _microop;
+        tag = _tag;
+        idx = _idx;
+        way = _way;
+        compacted = _compacted;
+    };
+};
+
 // Speculative Trace
 struct SpecTrace
 {
+
+    typedef std::map<Addr, std::map<uint16_t, OriginalMicroop>>         OriginalTrace;
+    typedef std::map<Addr, std::map<uint16_t, SuperOptimizedMicroop>>   SuperOptimizedTrace;
     // Trace ID
-    unsigned int id;
+    uint64_t id;
 
     // address of the head of the trace
     FullUopAddr headAddr;
+    // address of the last instruction in the trace
+    FullUopAddr endAddr;
     
-    // address of trace head
+    // head address of trace 
     Addr traceHeadAddr;
+
+    // end address of trace
     Addr traceEndAddr;
 
 
@@ -115,8 +173,7 @@ struct SpecTrace
     // previous non-eliminated instruction
     StaticInstPtr prevNonEliminatedInst;
 
-    // address of the last instruction in the trace
-    FullUopAddr end;
+
 
     // Number of branches folded
     unsigned branchesFolded;
@@ -125,10 +182,16 @@ struct SpecTrace
     PredictionSource controlSources[2];
 
     // Originial Trace in Uop/Spec cache
-    std::map<Addr, std::map<uint16_t, StaticInstPtr>> originalTrace;
+    OriginalTrace originalTrace;
 
     // Ways in Uop/Spec cache that holds the original trace
-    std::vector<uint64_t> uopCacheWays;
+    //std::vector<uint64_t> originalTraceCacheWays;
+
+    // SuperOptimized Trace
+    SuperOptimizedTrace superOptimizedTrace;
+
+    // Ways in Uop/Spec cache that holds the super optimized trace
+    //std::vector<uint64_t> superOptmizedTraceCacheWays;
 
     enum State {
         Invalid,
@@ -167,9 +230,10 @@ struct SpecTrace
     unsigned int reoptId;
 
     // Counter to assign trace IDs
-    static unsigned traceIDCounter;
+    static uint64_t traceIDCounter;
 
     SpecTrace() {
+
         id = 0;
         reoptId = 0;
         state = Invalid;
@@ -181,10 +245,31 @@ struct SpecTrace
         prevNonEliminatedInst = NULL;
         branchesFolded = 0;
         originalTrace.clear();
-        uopCacheWays.clear();
         hotness = 0;
         traceHeadAddr = 0;
         traceEndAddr = 0;
+        superOptimizedTrace.clear();
+
+
+    }
+
+    void reset()
+    {
+        id = 0;
+        reoptId = 0;
+        state = Invalid;
+        length = 0;
+        shrunkLength = 0;
+        head = FullCacheIdx();
+        addr = FullCacheIdx();
+        inst = NULL;
+        prevNonEliminatedInst = NULL;
+        branchesFolded = 0;
+        originalTrace.clear();
+        hotness = 0;
+        traceHeadAddr = 0;
+        traceEndAddr = 0;
+        superOptimizedTrace.clear();
     }
 };
 #endif // __ARCH_X86_DECODER_STRUCTS__

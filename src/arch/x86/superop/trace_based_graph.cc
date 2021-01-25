@@ -18,9 +18,12 @@ using namespace std;
 
 
 
-unsigned SpecTrace::traceIDCounter = 1;
+uint64_t SpecTrace::traceIDCounter = 1;
+
+
 
 TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking), usingCCTracking(p->usingCCTracking) {
+    currentTraceIDGettingSuperOptimized = 0;
     DPRINTF(SuperOp, "Control tracking: %i\n", usingControlTracking);
     DPRINTF(SuperOp, "CC tracking: %i\n", usingCCTracking);
 }
@@ -39,6 +42,133 @@ void TraceBasedGraph::regStats()
         .name("system.switch_cpus.decode.superop.traceConstructor.tracesWithInvalidHead")
         .desc("# of traces whose first inst wasn't found in the uop cache")
         ;
+}
+
+bool TraceBasedGraph::advanceIfControlTransfer(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp)
+{
+    return true;
+}
+
+
+bool TraceBasedGraph::advanceTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp)
+{
+    // macro and micro address of _decodedMicroOp
+    Addr macro_addr = _trace_it->second.headAddr.pcAddr;
+    uint16_t micro_addr = _trace_it->second.headAddr.uopAddr; micro_addr = micro_addr;
+
+    if (!usingControlTracking || !advanceIfControlTransfer(_trace_it, _decodedMicroOp)) 
+    {
+        if (_decodedMicroOp->isMacroop())
+        {
+            if (_decodedMicroOp->isLastMicroop())
+            {
+                auto macro_it = _trace_it->second.originalTrace.find(macro_addr);
+                macro_it++;
+                if (macro_it != _trace_it->second.originalTrace.end())
+                {
+                    _trace_it->second.headAddr.pcAddr   = macro_it->first;
+                    _trace_it->second.headAddr.uopAddr  = 0; 
+                    return false;
+                }
+                else 
+                {
+                    // end of original trace
+                    return true;
+                }      
+                    
+            }
+            else 
+            {
+                _trace_it->second.headAddr.uopAddr++;
+                return false;
+            }
+        }
+        else 
+        {
+            auto macro_it = _trace_it->second.originalTrace.find(macro_addr);
+            macro_it++;
+            if (macro_it != _trace_it->second.originalTrace.end())
+            {
+                _trace_it->second.headAddr.pcAddr   = macro_it->first;
+                _trace_it->second.headAddr.uopAddr  = 0; 
+                return false;
+            }
+            else 
+            {
+                // end of original trace
+                return true;
+            }      
+            
+        }
+
+    }
+
+    // we should never be here
+    assert(0);
+    return false;
+
+}
+
+bool TraceBasedGraph::isPredictionSource(TraceMap::iterator& _trace_it, uint64_t &value, uint64_t &confidence, uint64_t &latency) {
+
+    if (_trace_it == traceMap.end()) return false;
+    // macro and micro address of _decodedMicroOp
+    Addr macro_addr = _trace_it->second.headAddr.pcAddr;
+    uint16_t micro_addr = _trace_it->second.headAddr.uopAddr;
+
+    for (int i=0; i<8; i++) {
+        if (_trace_it->second.source[i].valid && _trace_it->second.source[i].addr == FullUopAddr(macro_addr, micro_addr)) {
+            value = _trace_it->second.source[i].value;
+            confidence = _trace_it->second.source[i].confidence;
+            latency = _trace_it->second.source[i].latency;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TraceBasedGraph::isTraceEvictedFromUopCache(SpecTrace::OriginalTrace &trace)
+{
+    // State sanity check
+    assert(currentTraceIDGettingSuperOptimized);
+    auto trace_it = traceMap.find(currentTraceIDGettingSuperOptimized);
+    assert(trace_it != traceMap.end());
+    assert((trace_it->second.state == SpecTrace::OptimizationInProcess) || (trace_it->second.state == SpecTrace::QueuedForFirstTimeOptimization));
+        
+    // check for trace availablity in microop cache
+    bool isTraceStillAvailable = true;
+    for (auto const &addr : trace)
+    {
+        bool found = false;   
+        Addr _t_tag = addr.second.begin()->second.tag;
+        Addr _t_way = addr.second.begin()->second.way;
+        Addr _t_idx = addr.second.begin()->second.idx;
+
+        if (!decoder->uopValidArray[_t_idx][_t_way] || (decoder->uopTagArray[_t_idx][_t_way] != _t_tag))
+        {
+            isTraceStillAvailable = false;
+            break;
+        }
+
+        for (size_t u = 0; u < decoder->uopCountArray[_t_idx][_t_way]; u++)
+        {   
+            
+            if (addr.first == decoder->uopAddrArray[_t_idx][_t_way][u].pcAddr)
+            {   
+                found = true;
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            isTraceStillAvailable = false;
+            break;              
+        }
+                
+    }
+
+    return isTraceStillAvailable;
 }
 
 void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, unsigned confidence, unsigned latency)
@@ -64,27 +194,34 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
             if (decoder->uopHotnessArray[idx][way].read() > _max_hotness) 
                 _max_hotness = decoder->uopHotnessArray[idx][way].read();
             
-            // store which ways hold this trace in the uop cache. This will be used to cehck if the trace is still availble in the UopCache during the superoptimization
-            newTrace.uopCacheWays.push_back(way);
 
             for (size_t u = 0; u < decoder->uopCountArray[idx][way]; u++)
             {   
                 Addr baseAddr = decoder->uopAddrArray[idx][way][u].pcAddr; 
                 if (newTrace.originalTrace.find(baseAddr) == newTrace.originalTrace.end())
                 {
-                    StaticInstPtr macro = decoder->decode(decoder->uopCache[idx][way][u], baseAddr);
+                    StaticInstPtr original_macro = decoder->decode(decoder->uopCache[idx][way][u], baseAddr);
+                    StaticInstPtr super_macro = decoder->decode(decoder->uopCache[idx][way][u], baseAddr);
 
-                    if (macro->isMacroop())
+                    if (original_macro->isMacroop())
                     {
-                        for (uint32_t t = 0; t < macro->getNumMicroops(); t++)
+                        for (uint32_t t = 0; t < original_macro->getNumMicroops(); t++)
                         {
-                            newTrace.originalTrace[baseAddr][t] = macro->fetchMicroop((MicroPC)t);
+                            StaticInstPtr orig_si = original_macro->fetchMicroop((MicroPC)t);
+                            orig_si->macroOp = original_macro;
+                            newTrace.originalTrace[baseAddr][t] = OriginalMicroop(orig_si , tag, idx, way);
+
+                            StaticInstPtr super_si = super_macro->fetchMicroop((MicroPC)t);
+                            super_si->macroOp = super_macro;
+                            newTrace.superOptimizedTrace[baseAddr][t] = SuperOptimizedMicroop(super_si , 0 , 0 ,0 , false);                            
                         }
                     }
                     else 
                     {
                         // Does this mean only one microop?
-                        newTrace.originalTrace[baseAddr][0] = macro;
+                        // no need to set macroOp
+                        newTrace.originalTrace[baseAddr][0] = OriginalMicroop(original_macro , tag, idx, way);
+                        newTrace.superOptimizedTrace[baseAddr][0] = SuperOptimizedMicroop(super_macro, 0 , 0 ,0 , false);
                     }
                 }
             }
@@ -93,7 +230,7 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
     }
 
     assert(!newTrace.originalTrace.empty());
-    assert(!newTrace.uopCacheWays.empty());
+    //assert(!newTrace.originalTraceCacheWays.empty());
 
     // dump captured trace
     uint64_t length = 0;
@@ -103,7 +240,7 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
         length += lv1.second.size();
         for (auto const &lv2: lv1.second)
         {
-            DPRINTF(SuperOp, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second->disassemble(lv1.first));
+            DPRINTF(SuperOp, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second.microop->disassemble(lv1.first));
         }
     }
     newTrace.length = length;
@@ -117,20 +254,22 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
     }
 
     // find head of the original trace in the microop cache
-    for (auto const &elem: newTrace.uopCacheWays)
+    Addr _t_tag = newTrace.originalTrace.begin()->second.begin()->second.tag;
+    Addr _t_way = newTrace.originalTrace.begin()->second.begin()->second.way;
+    Addr _t_idx = newTrace.originalTrace.begin()->second.begin()->second.idx;
+    assert( _t_tag == decoder->uopTagArray[_t_idx][_t_way] && decoder->uopValidArray[_t_idx][_t_way]);
+    for (size_t u = 0; u < decoder->uopCountArray[_t_idx][_t_way]; u++)
     {
-        assert(decoder->uopValidArray[idx][elem] && decoder->uopTagArray[idx][elem] == tag);
-
-        for (size_t u = 0; u < decoder->uopCountArray[idx][elem]; u++)
+        if (decoder->uopAddrArray[_t_idx][_t_way][u].pcAddr == newTrace.originalTrace.begin()->first)
         {
-            if (decoder->uopAddrArray[idx][elem][u].pcAddr == newTrace.originalTrace.begin()->first)
-            {
-                newTrace.head = FullCacheIdx(idx, elem, u);
-                break;
-            }
+            newTrace.head = FullCacheIdx(_t_idx, _t_way, u);
+            DPRINTF(SuperOp, "Trace Head Uop in Cache: UopCache[%d][%d][%d]\n", newTrace.head.idx, newTrace.head.way, newTrace.head.uop);
+            break;
         }
-
     }
+
+    
+    
 
     // sometimes the head is different than the first prediction source  
     // uop: the slot number which holds the first microop for the head instruction
@@ -138,7 +277,7 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
 
     // we always know that the head of a trace is the first microop in the macroop
     newTrace.headAddr = FullUopAddr(newTrace.originalTrace.begin()->first, 0); 
-    newTrace.end = FullUopAddr(newTrace.originalTrace.rbegin()->first, newTrace.originalTrace.rbegin()->second.size()-1);
+    newTrace.endAddr = FullUopAddr(newTrace.originalTrace.rbegin()->first, newTrace.originalTrace.rbegin()->second.size()-1);
 
     newTrace.traceHeadAddr = newTrace.originalTrace.begin()->first;
     newTrace.traceEndAddr = newTrace.originalTrace.rbegin()->first;
@@ -240,9 +379,11 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
 
 
+
+
     newTrace.id = SpecTrace::traceIDCounter++;
     traceMap[newTrace.id] = newTrace;
-    traceQueue.push(newTrace);
+    candidateTraceQueue.push(newTrace.id);
     DPRINTF(SuperOp, "Queueing up new trace request %i!\n", newTrace.id);
     DPRINTF(SuperOp, "hotness:%i length=%i\n", newTrace.hotness, newTrace.length);
     DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n",  newTrace.source[0].addr.pcAddr,  newTrace.source[0].addr.uopAddr, newTrace.source[0].value);
@@ -252,19 +393,567 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
 
 }
 
-bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency) {
+
+bool TraceBasedGraph::selectNextTraceForsuperOptimization()
+{
+    // this function should never called when a trace in currently getting superoptimized
+    assert(currentTraceIDGettingSuperOptimized == 0);
+
+    if (candidateTraceQueue.empty())
+    {
+        DPRINTF(SuperOp, "No Trace is available for super optimization!\n");
+        return false;
+    }
+
+    // Pop a new trace from the queue, start at top
+    while(!candidateTraceQueue.empty()) {
+            
+        assert(candidateTraceQueue.front());
+
+        currentTraceIDGettingSuperOptimized = candidateTraceQueue.front();
+        auto trace_it = traceMap.find(currentTraceIDGettingSuperOptimized);
+
+        assert(trace_it != traceMap.end());
+
+        
+        bool isTraceStillAvailable = isTraceEvictedFromUopCache(trace_it->second.originalTrace);
+
+        // if the trace is evicted don't start the optimization. Simply just go for the next trace
+        if (!isTraceStillAvailable)
+        {
+            DPRINTF(SuperOp, "Trace %i is evicted before we could process it.\n", trace_it->second.id);
+            // remove it from traceMap
+            DPRINTF(Decoder, "Removing traceID: %d (reoptID: %d) from Trace Map because of eviction!.\n", trace_it->second.id );
+            traceMap.erase(trace_it);
+            candidateTraceQueue.pop();
+            tracesPoppedFromQueue++;
+            currentTraceIDGettingSuperOptimized = 0;
+
+        }
+        else 
+        {
+            // if the trace is available assign it to currentTrace for optimization and break 
+            candidateTraceQueue.pop();
+            tracesPoppedFromQueue++;
+
+            assert(currentTraceIDGettingSuperOptimized);
+            assert(currentTraceIDGettingSuperOptimized == trace_it->second.id);
+            assert(trace_it->second.state == SpecTrace::QueuedForFirstTimeOptimization);
+            assert(!trace_it->second.originalTrace.empty());
+            DPRINTF(SuperOp, "Trace %i is available and selected for super optimization!.\n", trace_it->second.id);
+
+            // Change the trace status
+            trace_it->second.state  = SpecTrace::OptimizationInProcess;
+            return true;
+        }       
+
+    };
+
+    // in case we can't find a valid trace to super optimize
+    if (currentTraceIDGettingSuperOptimized == 0)
+    {
+        DPRINTF(SuperOp, "All the traces were evicted therefore nothing to do optmize!\n");
+        return false;
+    }
+
+    // we should never reach here!
     assert(0);
-    for (int i=0; i<4; i++) {
-        if (trace.source[i].valid && trace.source[i].addr == addr) {
-            value = trace.source[i].value;
-            confidence = trace.source[i].confidence;
-            latency = trace.source[i].latency;
+    return false;
+
+    
+}
+
+
+void TraceBasedGraph::finalizeSuperOptimizedTrace()
+{
+    // State sanity check
+    assert(currentTraceIDGettingSuperOptimized);
+    auto trace_it = traceMap.find(currentTraceIDGettingSuperOptimized);
+    assert(trace_it != traceMap.end());
+    assert(trace_it->second.state == SpecTrace::Complete || trace_it->second.state == SpecTrace::Evicted);
+
+    if (trace_it->second.state == SpecTrace::Evicted)
+    {
+        // trace was removed from uop cache before we were able to super optmize it
+        // remove it
+        traceMap.erase(trace_it);
+        currentTraceIDGettingSuperOptimized = 0;
+        return;
+
+    }
+
+    DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", trace_it->second.id, trace_it->second.length, trace_it->second.shrunkLength);
+    DPRINTF(SuperOp, "Before optimization: \n");
+    DPRINTF(SuperOp,"Trace in the Uop Cache:\n");
+    for (auto const &lv1: trace_it->second.originalTrace)
+    {
+        for (auto const &lv2: lv1.second)
+        {
+            DPRINTF(SuperOp, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second.microop->disassemble(lv1.first));
+        }
+    }
+
+    // TODO: Sanity check to make sure that trace is in spec cache
+    
+    DPRINTF(SuperOp, "After optimization: \n");
+    DPRINTF(SuperOp,"Trace in the Spec Cache:\n");
+    for (auto const &lv1: trace_it->second.superOptimizedTrace)
+    {
+        for (auto const &lv2: lv1.second)
+        {
+            if (!lv2.second.compacted)
+            {
+                DPRINTF(SuperOp, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second.microop->disassemble(lv1.first));
+            }
+                
+        }
+    }
+            
+
+    // Set the prevNonEliminatedInst here! it will be used to propagate the live outs and also as the end of trace
+    [&] {
+        for (auto addr_it = trace_it->second.superOptimizedTrace.rbegin(); addr_it != trace_it->second.superOptimizedTrace.rend(); addr_it++)
+        {
+            for (auto micro_it = addr_it->second.rbegin(); micro_it != addr_it->second.rend(); micro_it++)
+            {
+                if (!micro_it->second.compacted)
+                {
+                    trace_it->second.prevNonEliminatedInst = micro_it->second.microop;
+                    return;
+                }
+            }
+
+        }
+    }();
+    // mark end of trace and propagate live outs
+    DPRINTF(SuperOp, "End of Trace at %s!\n", trace_it->second.prevNonEliminatedInst->getName());
+                
+    // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
+    trace_it->second.prevNonEliminatedInst->setEndOfTrace();
+    trace_it->second.prevNonEliminatedInst->shrunkLength = trace_it->second.shrunkLength;
+    trace_it->second.prevNonEliminatedInst->traceLength = trace_it->second.length;
+    if (!trace_it->second.prevNonEliminatedInst->isControl()) { // control prevNonEliminatedInstructions already propagate live outs
+        for (int i=0; i<16; i++) { // 16 int registers
+            if (regCtx[i].valid && !regCtx[i].source) {
+                trace_it->second.prevNonEliminatedInst->liveOut[trace_it->second.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
+                trace_it->second.prevNonEliminatedInst->liveOutPredicted[trace_it->second.prevNonEliminatedInst->numDestRegs()] = true;
+                trace_it->second.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
+                trace_it->second.prevNonEliminatedInst->_numIntDestRegs++;
+            }
+        }
+        if (ccValid) {
+            trace_it->second.prevNonEliminatedInst->liveOut[trace_it->second.prevNonEliminatedInst->numDestRegs()] = PredccFlagBits;
+            trace_it->second.prevNonEliminatedInst->liveOutPredicted[trace_it->second.prevNonEliminatedInst->numDestRegs()] = true;
+            trace_it->second.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
+            trace_it->second.prevNonEliminatedInst->liveOut[trace_it->second.prevNonEliminatedInst->numDestRegs()] = PredcfofBits;
+            trace_it->second.prevNonEliminatedInst->liveOutPredicted[trace_it->second.prevNonEliminatedInst->numDestRegs()] = true;
+            trace_it->second.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
+            trace_it->second.prevNonEliminatedInst->liveOut[trace_it->second.prevNonEliminatedInst->numDestRegs()] = PreddfBit;
+            trace_it->second.prevNonEliminatedInst->liveOutPredicted[trace_it->second.prevNonEliminatedInst->numDestRegs()] = true;
+            trace_it->second.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_DF));
+            trace_it->second.prevNonEliminatedInst->liveOut[trace_it->second.prevNonEliminatedInst->numDestRegs()] = PredecfBit;
+            trace_it->second.prevNonEliminatedInst->liveOutPredicted[trace_it->second.prevNonEliminatedInst->numDestRegs()] = true;
+            trace_it->second.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ECF));
+            trace_it->second.prevNonEliminatedInst->liveOut[trace_it->second.prevNonEliminatedInst->numDestRegs()] = PredezfBit;
+            trace_it->second.prevNonEliminatedInst->liveOutPredicted[trace_it->second.prevNonEliminatedInst->numDestRegs()] = true;
+            trace_it->second.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_EZF));
+            trace_it->second.prevNonEliminatedInst->_numCCDestRegs += 5;
+        }
+    }
+    
+    //trace_it->second.addr = trace_it->second.optimizedHead;
+                
+    DPRINTF(SuperOp, "Live Outs:\n");
+    for (int i=0; i<16; i++) {
+        if (regCtx[i].valid && !regCtx[i].source)
+            DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
+    }
+    if (ccValid) {
+        DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
+        DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
+        DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
+        DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
+        DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
+    } 
+    else 
+    {
+        DPRINTF(SuperOp, "No live out CC\n");
+    }
+    for (int i=0; i<8; i++) 
+    {
+        DPRINTF(SuperOp, "Prediction Source %i\n", i);
+        if (trace_it->second.source[i].valid) {
+            DPRINTF(SuperOp, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i\n",
+                                    trace_it->second.source[i].addr.pcAddr,  trace_it->second.source[i].addr.uopAddr,
+                                    trace_it->second.source[i].value, trace_it->second.source[i].confidence,
+                                    trace_it->second.source[i].latency);
+        }
+    }
+
+        
+    
+    /* Clear Reg Context Block. */
+    for (int i=0; i<38; i++) {
+        regCtx[i].valid = regCtx[i].source = ccValid = false;
+        PredccFlagBits = PredcfofBits = PreddfBit = PredecfBit = PredezfBit = 0;
+    }
+
+}
+
+
+bool TraceBasedGraph::updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp, bool &isDeadCode , bool propagated) {
+
+    // macro and micro address of _decodedMicroOp
+    Addr macro_addr = _trace_it->second.headAddr.pcAddr;
+    uint16_t micro_addr = _trace_it->second.headAddr.uopAddr;
+
+    // Rather than checking dests, check sources; if all sources, then all dests in trace
+    bool allSrcsReady = true;
+/*    for (int i=0; i<trace.inst->numSrcRegs(); i++) {
+        RegId srcReg = trace.inst->srcRegIdx(i);
+        allSrcsReady = allSrcsReady && regCtx[srcReg.flatIndex()].valid;
+    }*/
+
+    string type = _decodedMicroOp->getName();
+    isDeadCode =    (type == "rdip") || 
+                    (allSrcsReady && 
+                    (type == "mov" || 
+                    type == "movi" || 
+                    type == "limm" || 
+                    type == "add" || 
+                    type == "addi" || 
+                    type == "sub" || 
+                    type == "subi" || 
+                    type == "and" || 
+                    type == "andi" || 
+                    type == "or" || 
+                    type == "ori" || 
+                    type == "xor" || 
+                    type == "xori" || 
+                    type == "slri" || 
+                    type == "slli" || 
+                    type == "sexti" || 
+                    type == "zexti"));
+
+    // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC
+    uint64_t value;
+    uint64_t confidence;
+    uint64_t latency;
+    bool isPredSource = isPredictionSource(_trace_it, value, confidence, latency) && type != "limm" && type != "movi" && type != "rdip";
+    isDeadCode &= (propagated && !isPredSource && !((!usingCCTracking && _decodedMicroOp->isCC()) || _decodedMicroOp->isReturn()));
+
+    DPRINTF(ConstProp, "isDeadCode:%d propagated:%d isPredSource:%d CC:%d Return:%d\n", isDeadCode, propagated, isPredSource, (!usingCCTracking && _decodedMicroOp->isCC()), _decodedMicroOp->isReturn());
+    if (allSrcsReady && (!usingCCTracking && _decodedMicroOp->isCC()))
+    {
+        DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not a dead code as it's a CC inst!\n", macro_addr, micro_addr);
+    }
+    else if (allSrcsReady && !propagated)
+    {
+        DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not a dead code as its data size is less than 4/8 bytes!\n", macro_addr, micro_addr);
+    }
+
+    // Inst will never already be in this trace, single pass
+    if (isDeadCode) {
+        DPRINTF(ConstProp, "Dead code at %#x:%#x\n", macro_addr, micro_addr);
+        DPRINTF(Decoder, "Skipping microop update in the speculative cache\n");
+        return true;
+    }
+
+    // TODO! add spec cache logic
+    //bool updateSuccessful = decoder->addUopToSpeculativeCache( trace, isPredSource);
+    bool updateSuccessful = true;
+    _trace_it->second.shrunkLength++;
+
+    // Step 3b: Mark all predicted values on the StaticInst -- don't do this for prediction sources
+    if (!isPredSource) {
+        for (int i=0; i<_decodedMicroOp->numSrcRegs(); i++) {
+            unsigned srcIdx = _decodedMicroOp->srcRegIdx(i).flatIndex();
+            DPRINTF(ConstProp, "ConstProp: Examining register %i\n", srcIdx);
+            if (regCtx[srcIdx].valid && _decodedMicroOp->srcRegIdx(i).classValue() == IntRegClass) {
+                DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, macro_addr, micro_addr);
+                DPRINTF(ConstProp, "ConstProp: Setting _decodedMicroOp sourcePrediction to %#x\n", regCtx[srcIdx].value);
+                _decodedMicroOp->sourcePredictions[i] = regCtx[srcIdx].value;
+                _decodedMicroOp->sourcesPredicted[i] = true;
+            }
+        }
+
+        // update live outs
+        for (int i=0; i < _decodedMicroOp->numDestRegs(); i++) {
+            RegId destReg = _decodedMicroOp->destRegIdx(i);
+            if (destReg.classValue() == IntRegClass) {
+                regCtx[destReg.flatIndex()].valid = false;
+            }
+        }
+    }
+
+    return updateSuccessful;
+}
+
+bool TraceBasedGraph::generateNextSuperOptimizedTraceInst() {
+
+    // State sanity check
+    assert(currentTraceIDGettingSuperOptimized);
+    auto trace_it = traceMap.find(currentTraceIDGettingSuperOptimized);
+    assert(trace_it != traceMap.end());
+    assert(trace_it->second.state == SpecTrace::OptimizationInProcess);
+
+    DPRINTF(SuperOp, "Optimizing trace %i\n", trace_it->second.id);
+    
+
+
+    StaticInstPtr decodedOriginalMicroOp = NULL;
+    StaticInstPtr decodedSuperMicroop = NULL;
+    // Check trace availablity in uop cache
+    if (isTraceEvictedFromUopCache(trace_it->second.originalTrace)) 
+    {
+        tracesWithInvalidHead++;
+        DPRINTF(SuperOp, "Trace was evicted out of the micro-op cache before we could optimize it\n");
+        // set state to evicted in the traceMap
+        trace_it->second.state = SpecTrace::Evicted;
+        // return true to signal that optimization is done for this trace
+        return true;
+    }
+        
+    Addr macro_addr = trace_it->second.headAddr.pcAddr;
+    uint16_t micro_addr = trace_it->second.headAddr.uopAddr;
+    assert(trace_it->second.originalTrace.find(macro_addr) != trace_it->second.originalTrace.end());
+    assert(trace_it->second.originalTrace[macro_addr].find(micro_addr) != trace_it->second.originalTrace[macro_addr].end());    
+    decodedOriginalMicroOp = trace_it->second.originalTrace[macro_addr][micro_addr].microop;
+    decodedSuperMicroop = trace_it->second.superOptimizedTrace[macro_addr][micro_addr].microop;
+    DPRINTF(ConstProp, "Trace %i: Processing instruction [%#x][%d][%s]\n", currentTraceIDGettingSuperOptimized, macro_addr, micro_addr, decodedOriginalMicroOp->disassemble(macro_addr));
+
+    if (decodedOriginalMicroOp->getName() == "NOP" || decodedOriginalMicroOp->getName() == "fault" || decodedOriginalMicroOp->getName() == "popcnt_Gv_Ev") 
+    {
+        // trace_it->second.length++;
+        trace_it->second.superOptimizedTrace[macro_addr][micro_addr].compacted = true;
+        bool isEndOfTrace = advanceTrace(trace_it, decodedOriginalMicroOp);    
+        if (isEndOfTrace) 
+        {
+            trace_it->second.state = SpecTrace::Complete;
             return true;
         }
     }
+
+        
+    bool newMacro = (micro_addr == 0);
+    
+
+
+    if (newMacro) {
+        /* Clear Micro Registers in Reg Context Block. */
+        for (int i=16; i<38; i++) {
+            regCtx[i].valid = regCtx[i].source = false;
+        }
+    }
+
+    bool updateSuccessful = false;
+
+    // Any inst in a trace may be a prediction source
+    uint64_t value = 0;
+    uint64_t confidence = 0;
+    uint64_t latency = 0;
+    string type = decodedSuperMicroop->getName();
+    if (type != "rdip" && type != "limm" && type != "movi" && isPredictionSource(trace_it, value, confidence, latency)) {
+        // Step 1: Get predicted value from LVP
+        // Step 2: Determine dest register(s)
+        // Step 3: Annotate dest register entries with that value
+        // Step 4: Add inst to speculative trace
+        for (int i = 0; i < decodedSuperMicroop->numDestRegs(); i++) {
+            RegId destReg = decodedSuperMicroop->destRegIdx(i);
+            if (destReg.classValue() == IntRegClass) {
+				DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), value, type);
+                regCtx[destReg.flatIndex()].value = decodedSuperMicroop->predictedValue = value;
+                regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].source = decodedSuperMicroop->predictedLoad = true;
+                decodedSuperMicroop->confidence = confidence;
+            }
+        }
+
+        bool isDeadCode = false;
+        updateSuccessful = updateSpecTrace(trace_it, decodedSuperMicroop, isDeadCode, false);
+        assert(updateSuccessful);
+        //TODO: update way, idx, tag later! 
+        trace_it->second.superOptimizedTrace[macro_addr][micro_addr].compacted = false;
+
+        // source predictions never get eliminated
+        if (isDeadCode)
+        {
+            panic("Prediction Source is a dead code?!");
+        }
+
+    } else {
+
+        bool propagated = false;
+        bool folded = false;
+        // Propagate predicted values
+        if (type == "mov") {
+            DPRINTF(ConstProp, "Found a MOV at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateMov(decodedSuperMicroop);
+        } else if (type == "rdip") {
+            DPRINTF(ConstProp, "Found an RDIP at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            RegId destReg = decodedSuperMicroop->destRegIdx(0);
+            assert(decodedSuperMicroop->macroOp);
+            regCtx[destReg.flatIndex()].value = macro_addr + decodedSuperMicroop->macroOp->getMacroopSize();
+            regCtx[destReg.flatIndex()].valid = propagated = true;
+            DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", regCtx[destReg.flatIndex()].value, destReg.flatIndex());
+        } else if (type == "wrip") {
+            // TODO! add this logic
+            //DPRINTF(ConstProp, "Found a WRIP branch at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            //propagated = folded = propagateWrip(decodedSuperMicroop);
+        } else if (type == "wripi") {
+            // TODO! add this logic
+            //DPRINTF(ConstProp, "Found a WRIPI branch at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            //propagated = folded = propagateWripI(decodedSuperMicroop);
+        } else if (decodedSuperMicroop->isControl()) {
+            // TODO! add this logic
+            // printf("Control instruction of type %s\n", type);
+            // TODO: check for stopping condition or predicted target
+        } else if (type == "movi") {
+            DPRINTF(ConstProp, "Found a MOVI at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateMovI(decodedSuperMicroop);
+        } else if (type == "and") {
+            DPRINTF(ConstProp, "Found an AND at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateAnd(decodedSuperMicroop);
+        } else if (type == "add") {
+            DPRINTF(ConstProp, "Found an ADD at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateAdd(decodedSuperMicroop);
+        } else if (type == "sub") {
+            DPRINTF(ConstProp, "Found a SUB at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateSub(decodedSuperMicroop);
+        } else if (type == "xor") {
+            DPRINTF(ConstProp, "Found an XOR at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateXor(decodedSuperMicroop);
+        } else if (type == "or") {
+            DPRINTF(ConstProp, "Found an OR at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateOr(decodedSuperMicroop);
+        } else if (type == "subi") {
+            DPRINTF(ConstProp, "Found a SUBI at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateSubI(decodedSuperMicroop);
+        } else if (type == "addi") {
+            DPRINTF(ConstProp, "Found an ADDI at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateAddI(decodedSuperMicroop);
+        } else if (type == "slli") {
+            DPRINTF(ConstProp, "Found a SLLI at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateSllI(decodedSuperMicroop);
+        } else if (type == "srli") {
+            DPRINTF(ConstProp, "Found a SRLI at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateSrlI(decodedSuperMicroop);
+        } else if (type == "lea") {
+            DPRINTF(ConstProp, "Type is LEA");
+            // Requires multiple ALU operations to propagate, not using
+        } else if (type == "sexti") {
+            // Implementation has multiple ALU operations, but this is not required by the nature of the operation
+            DPRINTF(ConstProp, "Found a SEXTI at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateSExtI(decodedSuperMicroop);
+        } else if (type == "zexti") {
+            // Implementation has multiple ALU operations, but this is not required by the nature of the operation
+            DPRINTF(ConstProp, "Found a ZEXTI at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateZExtI(decodedSuperMicroop);
+        } else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
+            DPRINTF(ConstProp, "Type is MUL1S, MUL1U, MULEL, or MULEH\n");
+            // TODO: two dest regs with different values? maybe too complex arithmetic?
+        } else if (type == "limm") {
+            DPRINTF(ConstProp, "Found a LIMM at [%#x][%i], compacting...\n", macro_addr, micro_addr);
+            propagated = propagateLimm(decodedSuperMicroop);
+        } else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
+            DPRINTF(ConstProp, "Type    is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
+            // TODO: add control registers to graph?
+        } else if (type == "rdtsc" || type == "rdval") {
+            DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
+            // TODO: determine whether direct register file access needs to be handled differently?
+        } else if (type == "panic" || type == "CPUID") {
+            DPRINTF(ConstProp, "Type is PANIC or CPUID\n");
+            // TODO: possibly remove, what is purpose?
+        } else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp") {
+            DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, or CALL_FAR_MP\n");
+            // TODO: cannot remove
+        } else {
+            DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
+        }
+
+
+        // TODO: what to do for folded?!
+        bool isDeadCode = false;
+        if (!folded) {
+            updateSuccessful = updateSpecTrace(trace_it, decodedSuperMicroop, isDeadCode, propagated);
+            assert(updateSuccessful);
+            
+        }
+
+        if (propagated)
+        {
+            trace_it->second.superOptimizedTrace[macro_addr][micro_addr].compacted = true;
+        }
+        else 
+        {
+            trace_it->second.superOptimizedTrace[macro_addr][micro_addr].compacted = false;
+        }
+
+        
+    }
+
+
+
+    // Propagate live outs at the end of each control instruction
+    if (decodedSuperMicroop->isControl() && updateSuccessful) {
+        for (int i=0; i<16; i++) { // 16 int registers
+            if (regCtx[i].valid && !regCtx[i].source) {
+                decodedSuperMicroop->liveOut[decodedSuperMicroop->numDestRegs()] = regCtx[i].value;
+                decodedSuperMicroop->liveOutPredicted[decodedSuperMicroop->numDestRegs()] = true;
+                decodedSuperMicroop->addDestReg(RegId(IntRegClass, i));
+                decodedSuperMicroop->_numIntDestRegs++;
+            }
+        }
+        if (ccValid) {
+            decodedSuperMicroop->liveOut[decodedSuperMicroop->numDestRegs()] = PredccFlagBits;
+            decodedSuperMicroop->liveOutPredicted[decodedSuperMicroop->numDestRegs()] = true;
+            decodedSuperMicroop->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
+            decodedSuperMicroop->liveOut[decodedSuperMicroop->numDestRegs()] = PredcfofBits;
+            decodedSuperMicroop->liveOutPredicted[decodedSuperMicroop->numDestRegs()] = true;
+            decodedSuperMicroop->addDestReg(RegId(CCRegClass, CCREG_CFOF));
+            decodedSuperMicroop->liveOut[decodedSuperMicroop->numDestRegs()] = PreddfBit;
+            decodedSuperMicroop->liveOutPredicted[decodedSuperMicroop->numDestRegs()] = true;
+            decodedSuperMicroop->addDestReg(RegId(CCRegClass, CCREG_DF));
+            decodedSuperMicroop->liveOut[decodedSuperMicroop->numDestRegs()] = PredecfBit;
+            decodedSuperMicroop->liveOutPredicted[decodedSuperMicroop->numDestRegs()] = true;
+            decodedSuperMicroop->addDestReg(RegId(CCRegClass, CCREG_ECF));
+            decodedSuperMicroop->liveOut[decodedSuperMicroop->numDestRegs()] = PredezfBit;
+            decodedSuperMicroop->liveOutPredicted[decodedSuperMicroop->numDestRegs()] = true;
+            decodedSuperMicroop->addDestReg(RegId(CCRegClass, CCREG_EZF));
+            decodedSuperMicroop->_numCCDestRegs += 5;
+        }
+    }
+    DPRINTF(SuperOp, "Live Outs:\n");
+    for (int i=0; i<16; i++) {
+        if (regCtx[i].valid && !regCtx[i].source)
+            DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
+    }
+    if (ccValid) {
+        DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
+        DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
+        DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
+        DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
+        DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
+    } else {
+        DPRINTF(SuperOp, "No live out CC\n");
+    }
+
+    assert(updateSuccessful);
+    bool isEndOfTrace;
+    // Simulate a stall if update to speculative cache wasn't successful
+    if (updateSuccessful) {
+        isEndOfTrace = advanceTrace(trace_it, decodedOriginalMicroOp);
+    }
+
+    if (isEndOfTrace) 
+    {
+        trace_it->second.state = SpecTrace::Complete;
+        return true;
+    }
+
     return false;
 }
 
+/*
 bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     assert(0);
     // don't do this for re-optimizations
@@ -408,551 +1097,7 @@ void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
         }
     }
 }
-
-void TraceBasedGraph::dumpTrace(SpecTrace trace) {
-    assert(0);
-    // not a valid trace
-    if (!trace.addr.valid) {
-        return;
-    }
-
-    int idx = trace.addr.idx;
-    int way = trace.addr.way;
-    int uop = trace.addr.uop;
-
-    // select cache to dump from
-    if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
-        // Addr pcAddr = decoder->uopAddrArray[idx][way][uop].pcAddr;
-        Addr uopAddr = decoder->uopAddrArray[idx][way][uop].uopAddr;
-        StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        StaticInstPtr decodedMicroOp = decodedMacroOp;
-        if (decodedMacroOp->isMacroop()) {
-            decodedMicroOp = decodedMacroOp->fetchMicroop(uopAddr);
-            decodedMicroOp->macroOp = decodedMacroOp;
-        }
-        // LVPredUnit::lvpReturnValues ret;
-        // loadPred->makePredictionForTraceGenStage(pcAddr, 0, ret);
-        // DPRINTF(SuperOp, "%p:%i -- uop[%i][%i][%i]{%d}{%#x} -- %s\n", pcAddr, uopAddr, idx, way, uop, ret.confidence, ret.predictedValue, decodedMicroOp->disassemble(pcAddr));    
-
-
-        
-        if (decodedMacroOp->isMacroop()) { 
-			decodedMacroOp->deleteMicroOps();
-			decodedMacroOp = NULL;
-		}
-    } else {
-        // Addr pcAddr = decoder->speculativeAddrArray[idx][way][uop].pcAddr;
-        // Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
-        StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
-
-        // LVPredUnit::lvpReturnValues ret;
-        // loadPred->makePredictionForTraceGenStage(pcAddr, 0, ret);
-        // DPRINTF(SuperOp, "%p:%i -- spec[%i][%i][%i]{%d}{%#x} -- %s\n", pcAddr, uopAddr, idx, way, uop, ret.confidence, ret.predictedValue, decodedMicroOp->disassemble(pcAddr));    
-		for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
-			// LAYNE : TODO : print predicted inputs (checking syntax)
-			if (decodedMicroOp->sourcesPredicted[i]) {
-				DPRINTF(SuperOp, "\tSource for register %i predicted as %x\n", decodedMicroOp->srcRegIdx(i), decodedMicroOp->sourcePredictions[i]);
-			}
-		}
-		for (int i=0; i<decodedMicroOp->numDestRegs(); i++) {
-			if (decodedMicroOp->liveOutPredicted[i]) {
-				DPRINTF(SuperOp, "\tLive out for register %i predicted as %x\n", decodedMicroOp->destRegIdx(i), decodedMicroOp->liveOut[i]);
-			}
-		}
-    }
-
-    advanceTrace(trace);
-    dumpTrace(trace);
-}
-
-unsigned TraceBasedGraph::computeLength(SpecTrace trace) {
-    assert(0);
-    if (!trace.addr.valid) {
-        return 0;
-    }
-
-    advanceTrace(trace);
-
-    return (1 + computeLength(trace));
-}
-
-bool TraceBasedGraph::generateNextTraceInst() {
-    assert(0);
-    if (!currentTrace.addr.valid) { 
-        // Finalize old trace
-        if (currentTrace.state != SpecTrace::Complete && currentTrace.state != SpecTrace::Evicted) {
-            DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
-            DPRINTF(SuperOp, "Before optimization: \n");
-            currentTrace.addr = currentTrace.head;
-            dumpTrace(currentTrace);
-            DPRINTF(SuperOp, "After optimization: \n");
-            int idx = currentTrace.head.idx;
-            int way = currentTrace.optimizedHead.way;
-            if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
-                // mark end of trace and propagate live outs
-                DPRINTF(SuperOp, "End of Trace at %s!\n", currentTrace.prevNonEliminatedInst->getName());
-                
-                // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
-                currentTrace.prevNonEliminatedInst->setEndOfTrace();
-                currentTrace.prevNonEliminatedInst->shrunkLength = currentTrace.shrunkLength;
-                currentTrace.prevNonEliminatedInst->traceLength = currentTrace.length;
-                if (!currentTrace.prevNonEliminatedInst->isControl()) { // control prevNonEliminatedInstructions already propagate live outs
-                    for (int i=0; i<16; i++) { // 16 int registers
-                        if (regCtx[i].valid && !regCtx[i].source) {
-                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
-                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
-                            currentTrace.prevNonEliminatedInst->_numIntDestRegs++;
-                        }
-                    }
-                    if (ccValid) {
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredccFlagBits;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredcfofBits;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PreddfBit;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_DF));
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredecfBit;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ECF));
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredezfBit;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_EZF));
-                        currentTrace.prevNonEliminatedInst->_numCCDestRegs += 5;
-                    }
-                }
-                currentTrace.addr = currentTrace.optimizedHead;
-                currentTrace.state = SpecTrace::Complete;
-                traceMap[currentTrace.id] = currentTrace;
-                dumpTrace(currentTrace);
-                DPRINTF(SuperOp, "Live Outs:\n");
-                for (int i=0; i<16; i++) {
-                    if (regCtx[i].valid && !regCtx[i].source)
-                        DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
-                }
-                if (ccValid) {
-                    DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
-                    DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
-                    DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
-                    DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
-                    DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
-                } else {
-                    DPRINTF(SuperOp, "No live out CC\n");
-                }
-                for (int i=0; i<4; i++) {
-                    DPRINTF(SuperOp, "Prediction Source %i\n", i);
-                    if (currentTrace.source[i].valid) {
-                        // set the predecitions sources in spec$
-
-                        DPRINTF(SuperOp, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i\n",
-                                    currentTrace.source[i].addr.pcAddr,  currentTrace.source[i].addr.uopAddr,
-                                    currentTrace.source[i].value, currentTrace.source[i].confidence,
-                                    currentTrace.source[i].latency);
-                    }
-                }
-            }
-        }
-
-        // Pop a new trace from the queue, start at top
-        do {
-            if (traceQueue.empty()) {
-                currentTrace.addr.valid = false;
-                currentTrace.id = 0;
-                return false; 
-            }
-
-            currentTrace = traceQueue.front();
-            traceQueue.pop();
-            tracesPoppedFromQueue++;
-
-            assert(currentTrace.id);
-
-            int idx = currentTrace.addr.idx;
-            int way = currentTrace.addr.way;
-            int uop = currentTrace.addr.uop;
-            if (!(currentTrace.state == SpecTrace::QueuedForFirstTimeOptimization &&
-                  decoder->uopValidArray[idx][way] &&
-                  decoder->uopAddrArray[idx][way][uop] == currentTrace.headAddr) &&
-                !(currentTrace.state == SpecTrace::QueuedForReoptimization &&
-                  decoder->speculativeValidArray[idx][way] &&
-                  decoder->speculativeAddrArray[idx][way][uop] == currentTrace.headAddr)) 
-            {
-                DPRINTF(SuperOp, "Trace %i at (%i,%i,%i) evicted before we could process it.\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
-                currentTrace.addr.valid = false;
-                currentTrace.state = SpecTrace::Evicted;
-                
-
-                // remove it from traceMap
-                DPRINTF(Decoder, "Removing traceID: %d (reoptID: %d) from Trace Map because of eviction!.\n", currentTrace.id, currentTrace.reoptId );
-                assert(traceMap.find(currentTrace.id) != traceMap.end());
-                traceMap.erase(currentTrace.id);
-
-                currentTrace.id = 0;
-                
-            }
-        } while (!currentTrace.addr.valid);
-
-        DPRINTF(SuperOp, "Optimizing trace %i at (%i,%i,%i)\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
-        dumpTrace(currentTrace);
-
-        if (currentTrace.state == SpecTrace::QueuedForFirstTimeOptimization) {
-            currentTrace.state = SpecTrace::OptimizationInProcess;
-        } else if (currentTrace.state == SpecTrace::QueuedForReoptimization) {
-            currentTrace.state = SpecTrace::ReoptimizationInProcess;
-        }
-
-        /* Clear Reg Context Block. */
-        for (int i=0; i<38; i++) {
-            regCtx[i].valid = regCtx[i].source = ccValid = false;
-            PredccFlagBits = PredcfofBits = PreddfBit = PredecfBit = PredezfBit = 0;
-        }
-    } else { 
-        assert(currentTrace.state == SpecTrace::OptimizationInProcess || currentTrace.state == SpecTrace::ReoptimizationInProcess);
-    }
-
-    if (!currentTrace.addr.valid) { return false; } // no traces in queue to pop
-
-    int idx = currentTrace.addr.idx;
-    int way = currentTrace.addr.way;
-    int uop = currentTrace.addr.uop;
-    SpecTrace::State state = currentTrace.state;
-
-    StaticInstPtr decodedMacroOp = NULL;
-    bool newMacro = false;
-    if (state == SpecTrace::OptimizationInProcess) {
-        DPRINTF(ConstProp, "Trace %i: Processing instruction at uop[%i][%i][%i]\n", currentTrace.id, idx, way, uop);
-        if (!decoder->uopValidArray[idx][way] || (uop >= decoder->uopCountArray[idx][way])) {
-            tracesWithInvalidHead++;
-            DPRINTF(SuperOp, "Trace was evicted out of the micro-op cache before we could optimize it\n");
-            currentTrace.addr.valid = false;
-            return false;
-        }
-        decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-        if (decodedMacroOp->getName() == "NOP" || decodedMacroOp->getName() == "fault" || decodedMacroOp->getName() == "popcnt_Gv_Ev") {
-            currentTrace.length++;
-            advanceTrace(currentTrace);
-            return true;
-        }
-        if (decodedMacroOp->isMacroop()) {
-            StaticInstPtr inst = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
-            if (inst->getName() == "NOP" || inst->getName() == "fault" || inst->getName() == "popcnt_Gv_Ev") {
-                currentTrace.length++;
-                advanceTrace(currentTrace);
-                return true;
-            }
-            currentTrace.inst = inst;
-            currentTrace.inst->macroOp = decodedMacroOp;
-        } else {
-            currentTrace.inst = decodedMacroOp;
-        }
-        currentTrace.lastAddr = currentTrace.instAddr;
-        currentTrace.instAddr = decoder->uopAddrArray[idx][way][uop];
-        newMacro = (currentTrace.lastAddr.pcAddr != currentTrace.instAddr.pcAddr);
-    } else if (state == SpecTrace::ReoptimizationInProcess) {
-        DPRINTF(ConstProp, "Trace %i: Processing instruction at spec[%i][%i][%i]\n", currentTrace.id, idx, way, uop);
-        if (!decoder->speculativeValidArray[idx][way] || (uop >= decoder->speculativeCountArray[idx][way])) {
-            tracesWithInvalidHead++;
-            DPRINTF(SuperOp, "Trace was evicted out of the speculative cache before we could optimize it\n");
-            currentTrace.addr.valid = false;
-            return false;
-        }
-        decodedMacroOp = decoder->decodeInst(decoder->speculativeCache[idx][way][uop]->macroOp->machInst);
-        if (decodedMacroOp->isMacroop()) {
-            currentTrace.inst = decodedMacroOp->fetchMicroop(decoder->speculativeAddrArray[idx][way][uop].uopAddr);
-            currentTrace.inst->macroOp = decodedMacroOp;
-        }
-        currentTrace.lastAddr = currentTrace.instAddr;
-        currentTrace.instAddr = decoder->speculativeAddrArray[idx][way][uop];
-        newMacro = (currentTrace.lastAddr.pcAddr != currentTrace.instAddr.pcAddr);
-    }
-    decodedMacroOp = NULL;
-
-    if (newMacro) {
-        /* Clear Micro Registers in Reg Context Block. */
-        for (int i=16; i<38; i++) {
-            regCtx[i].valid = regCtx[i].source = false;
-        }
-    }
-
-    bool updateSuccessful = false;
-
-    // Any inst in a trace may be a prediction source
-    DPRINTF(ConstProp, "Trace %i: Processing instruction: %p:%i -- %s\n", currentTrace.id, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
-    uint64_t value = 0;
-    unsigned confidence = 0;
-    unsigned latency;
-    string type = currentTrace.inst->getName();
-    if (type != "rdip" && type != "limm" && type != "movi" && isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) {
-        // Step 1: Get predicted value from LVP
-        // Step 2: Determine dest register(s)
-        // Step 3: Annotate dest register entries with that value
-        // Step 4: Add inst to speculative trace
-        for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
-            RegId destReg = currentTrace.inst->destRegIdx(i);
-            if (destReg.classValue() == IntRegClass) {
-				DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), value, type);
-                regCtx[destReg.flatIndex()].value = currentTrace.inst->predictedValue = value;
-                regCtx[destReg.flatIndex()].valid = regCtx[destReg.flatIndex()].source = currentTrace.inst->predictedLoad = true;
-                currentTrace.inst->confidence = confidence;
-            }
-        }
-        bool isDeadCode = false;
-        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
-        
-        // source predictions never get eliminated
-        if (!isDeadCode)
-        {
-            currentTrace.prevNonEliminatedInst = currentTrace.inst;
-        }
-        else 
-        {
-            panic("Prediction Source is a dead code?!");
-        }
-
-    } else {
-
-        bool propagated = false;
-        bool folded = false;
-        // Propagate predicted values
-        if (type == "mov") {
-            DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateMov(currentTrace.inst);
-        } else if (type == "rdip") {
-            DPRINTF(ConstProp, "Found an RDIP at [%i][%i][%i], compacting...\n", idx, way, uop);
-            RegId destReg = currentTrace.inst->destRegIdx(0);
-            regCtx[destReg.flatIndex()].value = currentTrace.instAddr.pcAddr + currentTrace.inst->macroOp->getMacroopSize();
-            regCtx[destReg.flatIndex()].valid = propagated = true;
-            DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", regCtx[destReg.flatIndex()].value, destReg.flatIndex());
-        } else if (type == "wrip") {
-            DPRINTF(ConstProp, "Found a WRIP branch at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = folded = propagateWrip(currentTrace.inst);
-        } else if (type == "wripi") {
-            DPRINTF(ConstProp, "Found a WRIPI branch at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = folded = propagateWripI(currentTrace.inst);
-        } else if (currentTrace.inst->isControl()) {
-            // printf("Control instruction of type %s\n", type);
-            // TODO: check for stopping condition or predicted target
-        } else if (type == "movi") {
-            DPRINTF(ConstProp, "Found a MOVI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateMovI(currentTrace.inst);
-        } else if (type == "and") {
-            DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateAnd(currentTrace.inst);
-        } else if (type == "add") {
-            DPRINTF(ConstProp, "Found an ADD at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateAdd(currentTrace.inst);
-        } else if (type == "sub") {
-            DPRINTF(ConstProp, "Found a SUB at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateSub(currentTrace.inst);
-        } else if (type == "xor") {
-            DPRINTF(ConstProp, "Found an XOR at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateXor(currentTrace.inst);
-        } else if (type == "or") {
-            DPRINTF(ConstProp, "Found an OR at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateOr(currentTrace.inst);
-        } else if (type == "subi") {
-            DPRINTF(ConstProp, "Found a SUBI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateSubI(currentTrace.inst);
-        } else if (type == "addi") {
-            DPRINTF(ConstProp, "Found an ADDI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateAddI(currentTrace.inst);
-        } else if (type == "slli") {
-            DPRINTF(ConstProp, "Found a SLLI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateSllI(currentTrace.inst);
-        } else if (type == "srli") {
-            DPRINTF(ConstProp, "Found a SRLI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateSrlI(currentTrace.inst);
-        } else if (type == "lea") {
-            DPRINTF(ConstProp, "Type is LEA");
-            // Requires multiple ALU operations to propagate, not using
-        } else if (type == "sexti") {
-            // Implementation has multiple ALU operations, but this is not required by the nature of the operation
-            DPRINTF(ConstProp, "Found a SEXTI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateSExtI(currentTrace.inst);
-        } else if (type == "zexti") {
-            // Implementation has multiple ALU operations, but this is not required by the nature of the operation
-            DPRINTF(ConstProp, "Found a ZEXTI at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateZExtI(currentTrace.inst);
-        } else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
-            DPRINTF(ConstProp, "Type is MUL1S, MUL1U, MULEL, or MULEH\n");
-            // TODO: two dest regs with different values? maybe too complex arithmetic?
-        } else if (type == "limm") {
-            DPRINTF(ConstProp, "Found a LIMM at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateLimm(currentTrace.inst);
-        } else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
-            DPRINTF(ConstProp, "Type    is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
-            // TODO: add control registers to graph?
-        } else if (type == "rdtsc" || type == "rdval") {
-            DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
-            // TODO: determine whether direct register file access needs to be handled differently?
-        } else if (type == "panic" || type == "CPUID") {
-            DPRINTF(ConstProp, "Type is PANIC or CPUID\n");
-            // TODO: possibly remove, what is purpose?
-        } else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp") {
-            DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, or CALL_FAR_MP\n");
-            // TODO: cannot remove
-        } else {
-            DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
-        }
-
-        // if we can't propagate, consult with lvp to see if we can do a high confidence prediction, 
-        // and then do a propgation
-        // if (!propagated)
-        // {
-        //     LVPredUnit::lvpReturnValues ret;
-        //     loadPred->makePredictionForTraceGenStage(currentTrace.instAddr.pcAddr, 0, ret);
-        //     DPRINTF(ConstProp, "Instruction value is not propagated! Counsulting with LVP! Confidence: %d Value: %#x\n", ret.confidence, ret.predictedValue);
-        // }
-
-        bool isDeadCode = false;
-        if (!folded) {
-            updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, propagated);
-        }
-        // if it's not a dead code, then update the last non-eliminated microop of the specTrace
-        if (!isDeadCode && !folded)
-        {
-            currentTrace.prevNonEliminatedInst = currentTrace.inst;
-        }
-    }
-
-    // Simulate a stall if update to speculative cache wasn't successful
-    if (updateSuccessful) {
-        advanceTrace(currentTrace);
-    }
-
-    // Propagate live outs at the end of each control instruction
-    if (currentTrace.inst->isControl() && updateSuccessful) {
-        for (int i=0; i<16; i++) { // 16 int registers
-            if (regCtx[i].valid && !regCtx[i].source) {
-                currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
-                currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
-                currentTrace.inst->addDestReg(RegId(IntRegClass, i));
-                currentTrace.inst->_numIntDestRegs++;
-            }
-        }
-        if (ccValid) {
-            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = PredccFlagBits;
-            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
-            currentTrace.inst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
-            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = PredcfofBits;
-            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
-            currentTrace.inst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
-            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = PreddfBit;
-            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
-            currentTrace.inst->addDestReg(RegId(CCRegClass, CCREG_DF));
-            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = PredecfBit;
-            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
-            currentTrace.inst->addDestReg(RegId(CCRegClass, CCREG_ECF));
-            currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = PredezfBit;
-            currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
-            currentTrace.inst->addDestReg(RegId(CCRegClass, CCREG_EZF));
-            currentTrace.inst->_numCCDestRegs += 5;
-        }
-    }
-    DPRINTF(SuperOp, "Live Outs:\n");
-    for (int i=0; i<16; i++) {
-        if (regCtx[i].valid && !regCtx[i].source)
-            DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
-    }
-    if (ccValid) {
-        DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
-        DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
-        DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
-        DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
-        DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
-    } else {
-        DPRINTF(SuperOp, "No live out CC\n");
-    }
-
-    return true;
-}
-
-bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool propagated) {
-    assert(0);
-    // IMPORTANT NOTE: This is written assuming the trace will be traversed in order, and so the register map will be accurate for the current point in the trace
-    trace.length++;
-
-    // Rather than checking dests, check sources; if all sources, then all dests in trace
-    bool allSrcsReady = true;
-/*    for (int i=0; i<trace.inst->numSrcRegs(); i++) {
-        RegId srcReg = trace.inst->srcRegIdx(i);
-        allSrcsReady = allSrcsReady && regCtx[srcReg.flatIndex()].valid;
-    }*/
-
-    string type = trace.inst->getName();
-    isDeadCode = (type == "rdip") || (allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "slri" || type == "slli" || type == "sexti" || type == "zexti"));
-
-    // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC
-    uint64_t value;
-    unsigned confidence;
-    unsigned latency;
-    bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) && type != "limm" && type != "movi" && type != "rdip";
-    isDeadCode &= (propagated && !isPredSource && !((!usingCCTracking && trace.inst->isCC()) || trace.inst->isReturn()));
-
-    DPRINTF(ConstProp, "isDeadCode:%d propagated:%d isPredSource:%d CC:%d Return:%d\n", isDeadCode, propagated, isPredSource, (!usingCCTracking && trace.inst->isCC()), trace.inst->isReturn());
-    if (allSrcsReady && (!usingCCTracking && trace.inst->isCC()))
-    {
-        DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not a dead code as it's a CC inst!\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
-    }
-    else if (allSrcsReady && !propagated)
-    {
-        DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not a dead code as its data size is less than 4/8 bytes!\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
-    }
-
-    // Inst will never already be in this trace, single pass
-    if (isDeadCode) {
-        DPRINTF(ConstProp, "Dead code at %#x:%#x\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
-        DPRINTF(Decoder, "Skipping microop update in the speculative cache\n");
-        return true;
-    }
-
-    bool updateSuccessful = decoder->addUopToSpeculativeCache( trace, isPredSource);
-    trace.shrunkLength++;
-
-    // Step 3b: Mark all predicted values on the StaticInst -- don't do this for prediction sources
-    if (!isPredSource) {
-        for (int i=0; i<trace.inst->numSrcRegs(); i++) {
-            unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
-            DPRINTF(ConstProp, "ConstProp: Examining register %i\n", srcIdx);
-            if (regCtx[srcIdx].valid && trace.inst->srcRegIdx(i).classValue() == IntRegClass) {
-                DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
-                DPRINTF(ConstProp, "ConstProp: Setting trace.inst sourcePrediction to %#x\n", regCtx[srcIdx].value);
-                trace.inst->sourcePredictions[i] = regCtx[srcIdx].value;
-                trace.inst->sourcesPredicted[i] = true;
-            }
-        }
-
-        // update live outs
-        for (int i=0; i<trace.inst->numDestRegs(); i++) {
-            RegId destReg = trace.inst->destRegIdx(i);
-            if (destReg.classValue() == IntRegClass) {
-                regCtx[destReg.flatIndex()].valid = false;
-            }
-        }
-    }
-
-    // Update head of the optimized trace
-    if (!trace.optimizedHead.valid) {
-        DPRINTF(Decoder, "updateSpecTrace: Trace %d optimized head is not valid!\n", trace.id);
-        trace.optimizedHead.idx = trace.head.idx; 
-        trace.optimizedHead.uop = 0;
-        for (int way=0; way<8; way++) {
-            int idx = trace.head.idx;
-            if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == trace.id) {
-                DPRINTF(Decoder, "updateSpecTrace: Trace %d optimized head way is updated to %d!\n", trace.id, way);
-                trace.optimizedHead.way = way;
-                trace.optimizedHead.valid = true;
-                break;
-            }
-        }
-    }
-
-    return updateSuccessful;
-}
-
+*/
 bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "mov");
@@ -2459,6 +2604,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
 }
 
 bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
+    assert(0);
     string type = inst->getName();
     assert(type == "wrip");
 
@@ -2534,6 +2680,7 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
 }
 
 bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
+    assert(0);
     string type = inst->getName();
     assert(type == "wripi");
 
