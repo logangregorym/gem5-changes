@@ -50,7 +50,7 @@ class TraceBasedGraph : public SimObject
     bool generateNextSuperOptimizedTraceInst();
     bool selectNextTraceForsuperOptimization();
     void finalizeSuperOptimizedTrace();
-    bool isTraceEvictedFromUopCache(SpecTrace::OriginalTrace &trace);
+    bool isTraceStillAvailableInUopCache(SpecTrace::OriginalTrace &trace);
     bool advanceTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp);
     bool isPredictionSource(TraceMap::iterator& _trace_it, uint64_t &value, uint64_t &confidence, uint64_t &latency);
     bool updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp, bool &isDeadCode , bool propagated);

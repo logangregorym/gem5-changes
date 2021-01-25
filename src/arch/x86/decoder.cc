@@ -1632,6 +1632,7 @@ Decoder::maxLatency(unsigned traceId) {
 // In case of a folded branch, nextPC and predict_taken should be set by the function
 StaticInstPtr 
 Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken) {
+    assert(0);
     int idx = traceConstructor->traceMap[traceID].addr.idx;
     int way = traceConstructor->traceMap[traceID].addr.way;
     int uop = traceConstructor->traceMap[traceID].addr.uop;

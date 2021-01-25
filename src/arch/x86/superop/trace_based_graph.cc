@@ -52,56 +52,52 @@ bool TraceBasedGraph::advanceIfControlTransfer(TraceMap::iterator& _trace_it, St
 
 bool TraceBasedGraph::advanceTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp)
 {
+
+    // State sanity check
+    assert(currentTraceIDGettingSuperOptimized);
+    auto trace_it = traceMap.find(currentTraceIDGettingSuperOptimized);
+    assert(trace_it != traceMap.end());
+    assert((trace_it->second.state == SpecTrace::OptimizationInProcess));
+    assert(_trace_it->second.id == currentTraceIDGettingSuperOptimized);
+
     // macro and micro address of _decodedMicroOp
     Addr macro_addr = _trace_it->second.headAddr.pcAddr;
-    uint16_t micro_addr = _trace_it->second.headAddr.uopAddr; micro_addr = micro_addr;
+    uint16_t micro_addr = _trace_it->second.headAddr.uopAddr; 
+
+    assert(_trace_it->second.originalTrace.find(macro_addr) != _trace_it->second.originalTrace.end());
 
     if (!usingControlTracking || !advanceIfControlTransfer(_trace_it, _decodedMicroOp)) 
     {
-        if (_decodedMicroOp->isMacroop())
+
+        // first check whether we can find next microop for the same macroop
+        if (_trace_it->second.originalTrace[macro_addr].find(micro_addr + 1) != _trace_it->second.originalTrace[macro_addr].end())
         {
-            if (_decodedMicroOp->isLastMicroop())
-            {
-                auto macro_it = _trace_it->second.originalTrace.find(macro_addr);
-                macro_it++;
-                if (macro_it != _trace_it->second.originalTrace.end())
-                {
-                    _trace_it->second.headAddr.pcAddr   = macro_it->first;
-                    _trace_it->second.headAddr.uopAddr  = 0; 
-                    return false;
-                }
-                else 
-                {
-                    // end of original trace
-                    return true;
-                }      
-                    
-            }
-            else 
-            {
-                _trace_it->second.headAddr.uopAddr++;
-                return false;
-            }
+            // there is still a microop to fetch from the same macroop
+            _trace_it->second.headAddr.uopAddr++;
+            DPRINTF(SuperOp, "Advancing trace %d to [%#x][%d]\n", currentTraceIDGettingSuperOptimized, _trace_it->second.headAddr.pcAddr, _trace_it->second.headAddr.uopAddr);
+            return false;
         }
         else 
         {
+            // there is no next microop. advance to the next macroop
             auto macro_it = _trace_it->second.originalTrace.find(macro_addr);
             macro_it++;
             if (macro_it != _trace_it->second.originalTrace.end())
             {
                 _trace_it->second.headAddr.pcAddr   = macro_it->first;
                 _trace_it->second.headAddr.uopAddr  = 0; 
+                DPRINTF(SuperOp, "Advancing trace %d to [%#x][%d]\n", currentTraceIDGettingSuperOptimized, _trace_it->second.headAddr.pcAddr, _trace_it->second.headAddr.uopAddr);
                 return false;
             }
             else 
             {
                 // end of original trace
+                DPRINTF(SuperOp, "End of trace %d at [%#x][%d]\n", currentTraceIDGettingSuperOptimized, _trace_it->second.headAddr.pcAddr, _trace_it->second.headAddr.uopAddr);
                 return true;
             }      
-            
         }
 
-    }
+    }    
 
     // we should never be here
     assert(0);
@@ -127,7 +123,7 @@ bool TraceBasedGraph::isPredictionSource(TraceMap::iterator& _trace_it, uint64_t
     return false;
 }
 
-bool TraceBasedGraph::isTraceEvictedFromUopCache(SpecTrace::OriginalTrace &trace)
+bool TraceBasedGraph::isTraceStillAvailableInUopCache(SpecTrace::OriginalTrace &trace)
 {
     // State sanity check
     assert(currentTraceIDGettingSuperOptimized);
@@ -416,7 +412,7 @@ bool TraceBasedGraph::selectNextTraceForsuperOptimization()
         assert(trace_it != traceMap.end());
 
         
-        bool isTraceStillAvailable = isTraceEvictedFromUopCache(trace_it->second.originalTrace);
+        bool isTraceStillAvailable = isTraceStillAvailableInUopCache(trace_it->second.originalTrace);
 
         // if the trace is evicted don't start the optimization. Simply just go for the next trace
         if (!isTraceStillAvailable)
@@ -598,6 +594,9 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
         PredccFlagBits = PredcfofBits = PreddfBit = PredecfBit = PredezfBit = 0;
     }
 
+    // set currentTraceIDGettingSuperOptimized
+    currentTraceIDGettingSuperOptimized = 0;
+
 }
 
 
@@ -696,6 +695,7 @@ bool TraceBasedGraph::generateNextSuperOptimizedTraceInst() {
     auto trace_it = traceMap.find(currentTraceIDGettingSuperOptimized);
     assert(trace_it != traceMap.end());
     assert(trace_it->second.state == SpecTrace::OptimizationInProcess);
+    assert(trace_it->second.id == currentTraceIDGettingSuperOptimized);
 
     DPRINTF(SuperOp, "Optimizing trace %i\n", trace_it->second.id);
     
@@ -704,7 +704,7 @@ bool TraceBasedGraph::generateNextSuperOptimizedTraceInst() {
     StaticInstPtr decodedOriginalMicroOp = NULL;
     StaticInstPtr decodedSuperMicroop = NULL;
     // Check trace availablity in uop cache
-    if (isTraceEvictedFromUopCache(trace_it->second.originalTrace)) 
+    if (!isTraceStillAvailableInUopCache(trace_it->second.originalTrace)) 
     {
         tracesWithInvalidHead++;
         DPRINTF(SuperOp, "Trace was evicted out of the micro-op cache before we could optimize it\n");
