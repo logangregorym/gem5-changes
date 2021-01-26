@@ -33,3 +33,6 @@ Import('*')
 SimObject('TraceBasedGraph.py')
 
 Source('trace_based_graph.cc')
+
+
+DebugFlag('TraceGen')

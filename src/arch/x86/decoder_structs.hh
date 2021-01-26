@@ -82,6 +82,7 @@ struct RegisterContext {
 
 struct OriginalMicroop {
     StaticInstPtr microop; 
+    StaticInstPtr macroop;
     Addr tag;
     Addr idx;
     Addr way;
@@ -89,24 +90,27 @@ struct OriginalMicroop {
     OriginalMicroop ()
     {
         this->microop = NULL;
-        tag = 0;
-        idx = 0;
-        way = 0;
+        this->macroop = NULL;
+        this->tag = 0;
+        this->idx = 0;
+        this->way = 0;
        
     };
 
-    OriginalMicroop (StaticInstPtr _microop, Addr _tag, Addr _idx, Addr _way)
+    OriginalMicroop (StaticInstPtr _microop, StaticInstPtr _macroop, Addr _tag, Addr _idx, Addr _way)
     {
         this->microop = _microop;
-        tag = _tag;
-        idx = _idx;
-        way = _way;
+        this->macroop = _macroop;
+        this->tag = _tag;
+        this->idx = _idx;
+        this->way = _way;
     
     };
 };
 
 struct SuperOptimizedMicroop {
     StaticInstPtr microop; 
+    StaticInstPtr macroop;
     Addr tag;
     Addr idx;
     Addr way;
@@ -115,19 +119,21 @@ struct SuperOptimizedMicroop {
     SuperOptimizedMicroop ()
     {
         this->microop = NULL;
-        tag = 0;
-        idx = 0;
-        way = 0;
-        compacted = false; // is the microop is compacted?
+        this->macroop = NULL;
+        this->tag = 0;
+        this->idx = 0;
+        this->way = 0;
+        this->compacted = false; // is the microop is compacted?
     };
 
-    SuperOptimizedMicroop (StaticInstPtr _microop, Addr _tag, Addr _idx, Addr _way, bool _compacted)
+    SuperOptimizedMicroop (StaticInstPtr _microop, StaticInstPtr _macroop, Addr _tag, Addr _idx, Addr _way, bool _compacted)
     {
         this->microop = _microop;
-        tag = _tag;
-        idx = _idx;
-        way = _way;
-        compacted = _compacted;
+        this->macroop = _macroop;
+        this->tag = _tag;
+        this->idx = _idx;
+        this->way = _way;
+        this->compacted = _compacted;
     };
 };
 
@@ -140,16 +146,27 @@ struct SpecTrace
     // Trace ID
     uint64_t id;
 
-    // address of the head of the trace
+    // address of the head of the original trace
     FullUopAddr headAddr;
-    // address of the last instruction in the trace
+    // address of the last instruction in the original trace
     FullUopAddr endAddr;
-    
+
+    // address of the head of the original trace
+    FullUopAddr superHeadAddr;
+    // address of the last instruction in the original trace
+    FullUopAddr superEndAddr;
+
     // head address of trace 
     Addr traceHeadAddr;
 
     // end address of trace
     Addr traceEndAddr;
+
+    // head address of trace 
+    Addr superTraceHeadAddr;
+
+    // end address of trace
+    Addr superTraceEndAddr;
 
 
     // (idx, way, uop) of head of the trace
@@ -253,6 +270,27 @@ struct SpecTrace
 
     }
 
+    ~SpecTrace() {
+
+        id = 0;
+        reoptId = 0;
+        state = Invalid;
+        length = 0;
+        shrunkLength = 0;
+        head = FullCacheIdx();
+        addr = FullCacheIdx();
+        inst = NULL;
+        prevNonEliminatedInst = NULL;
+        branchesFolded = 0;
+        
+        hotness = 0;
+        traceHeadAddr = 0;
+        traceEndAddr = 0;
+
+        superOptimizedTrace.clear();
+        originalTrace.clear();
+    }
+
     void reset()
     {
         id = 0;
@@ -265,10 +303,10 @@ struct SpecTrace
         inst = NULL;
         prevNonEliminatedInst = NULL;
         branchesFolded = 0;
-        originalTrace.clear();
         hotness = 0;
         traceHeadAddr = 0;
-        traceEndAddr = 0;
+        traceEndAddr = 0;        
+        originalTrace.clear();
         superOptimizedTrace.clear();
     }
 };

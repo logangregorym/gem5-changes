@@ -1149,7 +1149,7 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                       case IntRegClass:
                         value = cpu->readIntReg(dest_reg);
                         // gathering some statics
-                        cpu->fetch.decoder[tid]->insertReturnedValueIntoUopCacheStatics(inst->pcState(), value, inst->staticInst->predictedValue);
+                        //cpu->fetch.decoder[tid]->insertReturnedValueIntoUopCacheStatics(inst->pcState(), value, inst->staticInst->predictedValue);
                         DPRINTF(LVP, "Returning IntRegClass register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
                         inst->lvMispred = inst->lvMispred || !iewStage->loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                         break;

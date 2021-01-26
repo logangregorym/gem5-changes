@@ -1337,7 +1337,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
 
 
 
-        if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
+        if ( cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
         {
             if (head_inst->isStreamedFromSpeculativeCache() && head_inst->staticInst->isEndOfTrace())
             {
@@ -1370,7 +1370,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         }
 
 
-        if (((uint64_t)numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr && checkpointAtInstr)
+        if ((((uint64_t)numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr && checkpointAtInstr))
         {
             // before exiting simpoint update the trace stats
             // for some unknown reason this functions is called multiple times. That's why we need to update the state variable
@@ -1381,11 +1381,11 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
                 //     numInvokedTracesDist.sample(item.second);
                 // }
 
-                std::cout << "Trace Hotness Distribution: \n";
-                for (auto &item: trace_dist)
-                {
-                    std::cout << std::dec << item.first << " " << item.second.first << " " << item.second.second << std::endl;
-                }
+                // std::cout << "Trace Hotness Distribution: \n";
+                // for (auto &item: trace_dist)
+                // {
+                //     std::cout << std::dec << item.first << " " << item.second.first << " " << item.second.second << std::endl;
+                // }
 
                 traceStatUpdate = true;
             } 
@@ -1394,26 +1394,11 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         }
 
 
-    // if ((uint64_t)cpu->committedInsts[tid].value() % 10000 == 0 &&
-    //         !head_inst->isNop() &&
-    //         !head_inst->isInstPrefetch() &&
-    //         head_inst->isLastMicroop()
-    //        )
-    // {   
-    //     for (int idx = 0; idx < 32; idx++){
-    //         for (int way = 0; way < 8; way++) {
-    //             std::cout << std::dec << cpu->fetch.decoder[tid]->uopHotnessArray[idx][way].read() << " " ;
-    //         }
-    //         std::cout << std::endl;
-    //     }
-    //     std::cout << std::endl;          
-    // }
 
-
-    if ((uint64_t)cpu->committedInsts[tid].value() % 1000000 == 0 &&
+    if (false && ((uint64_t)cpu->committedInsts[tid].value() % 1000000 == 0 &&
             !head_inst->isNop() &&
             !head_inst->isInstPrefetch() &&
-            head_inst->isLastMicroop()
+            head_inst->isLastMicroop())
            )
     {  
         for (size_t idx = 0; idx < 32; idx++)
@@ -1427,67 +1412,66 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         std::cout << "------------------------------------------------------" << std::endl;
     }
 
-    if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
+    if ((cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->committedInsts[tid].value() % 100000 == 0 &&
             !head_inst->isNop() &&
             !head_inst->isInstPrefetch() &&
-            head_inst->isLastMicroop()
+            head_inst->isLastMicroop())
            )
     {   
-            bool pass = true;
-            std::map<unsigned int,unsigned int> spec_count;
-            for (int idx = 0; idx < 32; idx++) {
-                for (int way = 0; way < 8; way++) {
-                    if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
-                        spec_count[cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way]] = 0;
-                    }
-                }
-            }
+            // bool pass = true;
+            // std::map<unsigned int,unsigned int> spec_count;
+            // for (int idx = 0; idx < 32; idx++) {
+            //     for (int way = 0; way < 8; way++) {
+            //         if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
+            //             spec_count[cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way]] = 0;
+            //         }
+            //     }
+            // }
 
-            std::cout <<
-            "--------------------START OF EPOCH----------------------------" <<
+            std::cout << "--------------------START OF EPOCH----------------------------" <<
             std::endl << std::dec << "NumOfInsts: " << (uint64_t)cpu->committedInsts[tid].value() <<
-            std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   
-		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << std::endl;        
-            for (int idx = 0; idx < 32; idx++){
-                std::cout << "Idx " << idx  << " : " ;
-                for (int way = 0; way < 8; way++) {
+            std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   std::endl;     
+		    // std::endl << std::dec << "spec_count Size: " << spec_count.size() << std::endl;        
+            // for (int idx = 0; idx < 32; idx++){
+            //     std::cout << "Idx " << idx  << " : " ;
+            //     for (int way = 0; way < 8; way++) {
                     
-                    if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
-                        pass &= true; 
-                        std::cout << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
-                   }
-                    else if (cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] != 0)
-                    {
-                        std::cout << "{" << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << "} (" << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
-                        pass &= false; 
-                    }
-                    else 
-                    {
-                        std::cout  << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
-                        pass &= true; 
-                    }
-                }
-                std::cout << std::endl;
-            }
-            std::cout << std::endl;  
-            assert(pass);
+            //         if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
+            //             pass &= true; 
+            //             std::cout << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
+            //        }
+            //         else if (cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] != 0)
+            //         {
+            //             std::cout << "{" << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << "} (" << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
+            //             pass &= false; 
+            //         }
+            //         else 
+            //         {
+            //             std::cout  << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
+            //             pass &= true; 
+            //         }
+            //     }
+            //     std::cout << std::endl;
+            // }
+            // std::cout << std::endl;  
+            // assert(pass);
             
-            pass = true;
-            for (auto &it : cpu->fetch.decoder[tid]->traceConstructor->traceMap)
-            {
-                if (spec_count.find(it.first) == spec_count.end() && it.second.state == SpecTrace::Complete)
-                {   
-                    std::cout << "Can't find trace " << it.first << " in spec$ but it is present in trace map and its state is complete!\n";
-                    pass &= false;   
-                }
-                else if (spec_count.find(it.first) == spec_count.end() && it.second.state != SpecTrace::Complete)
-                {
-                    std::cout << "Can't find trace " << it.first << " in spec$ but it is present in trace map and its state is " << it.second.state << "\n";
-                    //pass &= false; 
-                }
-            }
-            assert(pass);
+            // pass = true;
+            // for (auto &it : cpu->fetch.decoder[tid]->traceConstructor->traceMap)
+            // {
+            //     if (spec_count.find(it.first) == spec_count.end() && it.second.state == SpecTrace::Complete)
+            //     {   
+            //         std::cout << "Can't find trace " << it.first << " in spec$ but it is present in trace map and its state is complete!\n";
+            //         pass &= false;   
+            //     }
+            //     else if (spec_count.find(it.first) == spec_count.end() && it.second.state != SpecTrace::Complete)
+            //     {
+            //         std::cout << "Can't find trace " << it.first << " in spec$ but it is present in trace map and its state is " << it.second.state << "\n";
+            //         //pass &= false; 
+            //     }
+            // }
+            // assert(pass);
             
 
     }

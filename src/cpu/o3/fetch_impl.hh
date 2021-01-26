@@ -2167,7 +2167,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                 //*****CHANGE START**********
                 // whenever we need to fetch a new macroop check whether we can start fetching from speculative cahce
-                if (newMacro)
+                if (false && newMacro)
                 {
                     if (isSuperOptimizationPresent && thisPC.upc() == 0) {
                         //LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());

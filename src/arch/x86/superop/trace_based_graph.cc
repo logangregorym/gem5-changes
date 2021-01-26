@@ -11,6 +11,7 @@
 #include "base/types.hh"
 #include "debug/SuperOp.hh"
 #include "debug/ConstProp.hh"
+#include "debug/TraceGen.hh"
 #include "cpu/reg_class.hh"
 
 using namespace X86ISA;
@@ -167,7 +168,7 @@ bool TraceBasedGraph::isTraceStillAvailableInUopCache(SpecTrace::OriginalTrace &
     return isTraceStillAvailable;
 }
 
-void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, unsigned confidence, unsigned latency)
+void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, uint64_t confidence, unsigned latency)
 {
 
     assert(confidence <= 31);
@@ -205,19 +206,19 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
                         {
                             StaticInstPtr orig_si = original_macro->fetchMicroop((MicroPC)t);
                             orig_si->macroOp = original_macro;
-                            newTrace.originalTrace[baseAddr][t] = OriginalMicroop(orig_si , tag, idx, way);
+                            newTrace.originalTrace[baseAddr][t] = OriginalMicroop(orig_si ,original_macro, tag, idx, way);
 
                             StaticInstPtr super_si = super_macro->fetchMicroop((MicroPC)t);
                             super_si->macroOp = super_macro;
-                            newTrace.superOptimizedTrace[baseAddr][t] = SuperOptimizedMicroop(super_si , 0 , 0 ,0 , false);                            
+                            newTrace.superOptimizedTrace[baseAddr][t] = SuperOptimizedMicroop(super_si ,super_macro, 0 , 0 ,0 , false);                            
                         }
                     }
                     else 
                     {
                         // Does this mean only one microop?
                         // no need to set macroOp
-                        newTrace.originalTrace[baseAddr][0] = OriginalMicroop(original_macro , tag, idx, way);
-                        newTrace.superOptimizedTrace[baseAddr][0] = SuperOptimizedMicroop(super_macro, 0 , 0 ,0 , false);
+                        newTrace.originalTrace[baseAddr][0] = OriginalMicroop(original_macro ,original_macro, tag, idx, way);
+                        newTrace.superOptimizedTrace[baseAddr][0] = SuperOptimizedMicroop(super_macro, super_macro, 0 , 0 ,0 , false);
                     }
                 }
             }
@@ -226,11 +227,11 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
     }
 
     assert(!newTrace.originalTrace.empty());
-    //assert(!newTrace.originalTraceCacheWays.empty());
+  
 
     // dump captured trace
     uint64_t length = 0;
-    DPRINTF(SuperOp,"Trace in the Uop Cahce:\n");
+    DPRINTF(SuperOp,"Trace in the Uop Cache:\n");
     for (auto const &lv1: newTrace.originalTrace)
     {
         length += lv1.second.size();
@@ -248,6 +249,7 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
         DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
         return;
     }
+
 
     // find head of the original trace in the microop cache
     Addr _t_tag = newTrace.originalTrace.begin()->second.begin()->second.tag;
@@ -364,20 +366,65 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
         isNewTrace = false;
     }
       
-    if (!isNewTrace) return;
+    if (!isNewTrace) 
+    {
+        for (auto &lv1: newTrace.originalTrace)
+        {
+            if (lv1.second[0].macroop->isMacroop())
+            {
+                lv1.second[0].macroop->deleteMicroOps(); 
+            }  
+        }
+        
+        return;
+    }
+
+
 
     // capture the prediction source
     newTrace.source[0].valid = true;
     newTrace.source[0].addr = FullUopAddr(addr, uopAddr);
     newTrace.source[0].value = value;
-    newTrace.source[0].confidence = (unsigned) confidence;
+    newTrace.source[0].confidence = confidence;
     newTrace.source[0].latency = latency;
-    newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
+    
+
+    // for all the microops in the trace do a prediction (uop to 7 predictopn sources can be added in addition to original prediction)
+    uint64_t pred_source_idx = 1;
+    for (auto const& lv1: newTrace.originalTrace)
+    {
+        for (auto const & lv2: lv1.second)
+        {
+                
+                // don't predcit for the first prediction source
+                if (FullUopAddr(addr, uopAddr) == FullUopAddr(lv1.first, lv2.first )) continue;
 
 
+                LVPredUnit::lvpReturnValues ret;
+                if (loadPred->makePredictionForTraceGenStage(lv1.first, lv2.first , 0, ret))
+                {   
+                    if (ret.confidence >= 5){
 
+                        newTrace.source[pred_source_idx].valid = true;
+                        newTrace.source[pred_source_idx].addr = FullUopAddr(lv1.first, lv2.first);
+                        newTrace.source[pred_source_idx].value = ret.predictedValue;
+                        newTrace.source[pred_source_idx].confidence = ret.confidence;
+                        newTrace.source[pred_source_idx].latency = ret.latency;
+                        DPRINTF(SuperOp, "Added prediction source: %#x:%i=%#x Confidence: %#x\n",  newTrace.source[pred_source_idx].addr.pcAddr,  newTrace.source[pred_source_idx].addr.uopAddr, newTrace.source[pred_source_idx].value, newTrace.source[pred_source_idx].confidence);
 
+                        pred_source_idx++;
+                        if (pred_source_idx == 8) break;
+                    }
+                }      
+                
+        }
+        if (pred_source_idx == 8) break;
+    }
+    
+    
+    
     newTrace.id = SpecTrace::traceIDCounter++;
+    newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
     traceMap[newTrace.id] = newTrace;
     candidateTraceQueue.push(newTrace.id);
     DPRINTF(SuperOp, "Queueing up new trace request %i!\n", newTrace.id);
@@ -420,6 +467,8 @@ bool TraceBasedGraph::selectNextTraceForsuperOptimization()
             DPRINTF(SuperOp, "Trace %i is evicted before we could process it.\n", trace_it->second.id);
             // remove it from traceMap
             DPRINTF(Decoder, "Removing traceID: %d (reoptID: %d) from Trace Map because of eviction!.\n", trace_it->second.id );
+            // remove all allocated microops
+            //trace_it->second.reset();
             traceMap.erase(trace_it);
             candidateTraceQueue.pop();
             tracesPoppedFromQueue++;
@@ -448,7 +497,7 @@ bool TraceBasedGraph::selectNextTraceForsuperOptimization()
     // in case we can't find a valid trace to super optimize
     if (currentTraceIDGettingSuperOptimized == 0)
     {
-        DPRINTF(SuperOp, "All the traces were evicted therefore nothing to do optmize!\n");
+        DPRINTF(SuperOp, "All the traces were evicted therefore nothing to optimize!\n");
         return false;
     }
 
@@ -462,6 +511,7 @@ bool TraceBasedGraph::selectNextTraceForsuperOptimization()
 
 void TraceBasedGraph::finalizeSuperOptimizedTrace()
 {
+    #define STDOUT_DUMP_TRACE 1
     // State sanity check
     assert(currentTraceIDGettingSuperOptimized);
     auto trace_it = traceMap.find(currentTraceIDGettingSuperOptimized);
@@ -472,6 +522,8 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
     {
         // trace was removed from uop cache before we were able to super optmize it
         // remove it
+        // remove all allocated microops
+        //trace_it->second.reset();
         traceMap.erase(trace_it);
         currentTraceIDGettingSuperOptimized = 0;
         return;
@@ -504,7 +556,23 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
                 
         }
     }
-            
+
+    // set the first and last instructions in super optimized trace
+    [&] {
+        for (auto addr_it = trace_it->second.superOptimizedTrace.begin(); addr_it != trace_it->second.superOptimizedTrace.end(); addr_it++)
+        {
+            for (auto micro_it = addr_it->second.begin(); micro_it != addr_it->second.end(); micro_it++)
+            {
+                if (!micro_it->second.compacted)
+                {
+                    trace_it->second.superHeadAddr = FullUopAddr(addr_it->first,micro_it->first);
+                    return;
+                }
+            }
+
+        }
+    }();
+
 
     // Set the prevNonEliminatedInst here! it will be used to propagate the live outs and also as the end of trace
     [&] {
@@ -515,6 +583,7 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
                 if (!micro_it->second.compacted)
                 {
                     trace_it->second.prevNonEliminatedInst = micro_it->second.microop;
+                    trace_it->second.superEndAddr = FullUopAddr(addr_it->first,micro_it->first);
                     return;
                 }
             }
@@ -557,7 +626,6 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
         }
     }
     
-    //trace_it->second.addr = trace_it->second.optimizedHead;
                 
     DPRINTF(SuperOp, "Live Outs:\n");
     for (int i=0; i<16; i++) {
@@ -596,6 +664,64 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
 
     // set currentTraceIDGettingSuperOptimized
     currentTraceIDGettingSuperOptimized = 0;
+
+
+
+
+    DPRINTF(TraceGen,"#########################################################################################################################################\n");
+    DPRINTF(TraceGen,"******************************* ORIGINAL TRACE START [%#x][%d] ***************************************\n",  trace_it->second.traceHeadAddr, 0) ;
+    for (auto const &lv1: trace_it->second.originalTrace)
+    {
+            for (auto const &lv2: lv1.second)
+            {
+                DPRINTF(TraceGen, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second.microop->disassemble(lv1.first));
+            }
+    }
+    DPRINTF(TraceGen, "-------------------------------- ORIGINAL TRACE END [%#x][%d] -----------------------------------------\n",  trace_it->second.endAddr.pcAddr, trace_it->second.endAddr.uopAddr) ;
+    // assert(trace_it->second.traceHeadAddr == trace_it->second.endAddr.pcAddr);
+    DPRINTF(TraceGen,"-------------------------------- SUPEROPTIMIZED TRACE START [%#x][%d] -----------------------------------------\n",  trace_it->second.superHeadAddr.pcAddr,  trace_it->second.superHeadAddr.uopAddr) ;
+    for (auto const &lv1: trace_it->second.superOptimizedTrace)
+    {
+        for (auto const &lv2: lv1.second)
+        {
+                if (!lv2.second.compacted)
+                {
+                    DPRINTF(TraceGen, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second.microop->disassemble(lv1.first));
+                }
+                    
+        }
+    }
+    DPRINTF(TraceGen, "Trace %i with actual length %i, shrunk to length %i\n", trace_it->second.id, trace_it->second.length, trace_it->second.shrunkLength);
+    DPRINTF(TraceGen, "Live Outs:\n");
+    for (int i=0; i<16; i++) {
+            if (regCtx[i].valid && !regCtx[i].source)
+                DPRINTF(TraceGen, "reg[%i]=%#x\n", i, regCtx[i].value);
+    }
+    if (ccValid) {
+            DPRINTF(TraceGen, "PredccFlagBits: %#x\n", PredccFlagBits);
+            DPRINTF(TraceGen, "PredcfofBits: %#x\n", PredcfofBits);
+            DPRINTF(TraceGen, "PreddfBit: %#x\n", PreddfBit);
+            DPRINTF(TraceGen, "PredecfBit: %#x\n", PredecfBit);
+            DPRINTF(TraceGen, "PredezfBit: %#x\n", PredezfBit);
+    } 
+    else 
+    {
+            DPRINTF(TraceGen, "No live out CC\n");
+    }
+    for (int i=0; i<8; i++) 
+    {
+            DPRINTF(TraceGen, "Prediction Source %i\n", i);
+            if (trace_it->second.source[i].valid) {
+                DPRINTF(TraceGen, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i\n",
+                                        trace_it->second.source[i].addr.pcAddr,  trace_it->second.source[i].addr.uopAddr,
+                                        trace_it->second.source[i].value, trace_it->second.source[i].confidence,
+                                        trace_it->second.source[i].latency);
+            }
+    }
+
+    DPRINTF(TraceGen, "******************************* SUPEROPTIMIZED TRACE END [%#x][%d] ***************************************\n",  trace_it->second.superEndAddr.pcAddr, trace_it->second.superEndAddr.uopAddr) ;
+    DPRINTF(TraceGen,"#########################################################################################################################################\n");
+    
 
 }
 
@@ -722,7 +848,7 @@ bool TraceBasedGraph::generateNextSuperOptimizedTraceInst() {
     decodedSuperMicroop = trace_it->second.superOptimizedTrace[macro_addr][micro_addr].microop;
     DPRINTF(ConstProp, "Trace %i: Processing instruction [%#x][%d][%s]\n", currentTraceIDGettingSuperOptimized, macro_addr, micro_addr, decodedOriginalMicroOp->disassemble(macro_addr));
 
-    if (decodedOriginalMicroOp->getName() == "NOP" || decodedOriginalMicroOp->getName() == "fault" || decodedOriginalMicroOp->getName() == "popcnt_Gv_Ev") 
+    if (decodedOriginalMicroOp->getName() == "NOP" /*|| decodedOriginalMicroOp->getName() == "fault" || decodedOriginalMicroOp->getName() == "popcnt_Gv_Ev"*/) 
     {
         // trace_it->second.length++;
         trace_it->second.superOptimizedTrace[macro_addr][micro_addr].compacted = true;
@@ -732,6 +858,7 @@ bool TraceBasedGraph::generateNextSuperOptimizedTraceInst() {
             trace_it->second.state = SpecTrace::Complete;
             return true;
         }
+        return false;
     }
 
         
@@ -1055,48 +1182,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     return false;
 }
 
-void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
-    assert(0);
-    if (!usingControlTracking || !advanceIfControlTransfer(trace)) {
-        trace.addr.uop++;
-        trace.addr.valid = false;
-        // select cache to advance from
-        if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
-            FullUopAddr prevAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop-1];
-            FullUopAddr nextAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop];
-            
-            if (prevAddr.pcAddr == nextAddr.pcAddr) {
-                trace.addr.valid = true;
-            } else {
-                nextAddr.pcAddr = prevAddr.pcAddr + decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop-1].instSize;
-                if (trace.addr.idx != ((nextAddr.pcAddr >> 5) & 0x1f)) { // we have exhausted all ways
-                    return;
-                }
-                uint64_t tag = (nextAddr.pcAddr >> 10);
-                for (int way = 0; way < 8; way++) {
-                    if (decoder->uopValidArray[trace.addr.idx][way] && decoder->uopTagArray[trace.addr.idx][way] == tag) {
-                        for (int uop = 0; uop < decoder->uopCountArray[trace.addr.idx][way]; uop++) {
-                            if (decoder->uopAddrArray[trace.addr.idx][way][uop].pcAddr == nextAddr.pcAddr) {
-                                trace.addr.way = way;
-                                trace.addr.uop = uop;
-                                trace.addr.valid = true;
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            if (trace.addr.uop < decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]) {
-                trace.addr.valid = true;
-            } else if (decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
-                trace.addr.uop = 0;
-                trace.addr.way = decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way];
-                trace.addr.valid = true;
-            }
-        }
-    }
-}
+
 */
 bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     string type = inst->getName();

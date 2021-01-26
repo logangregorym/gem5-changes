@@ -66,11 +66,7 @@ unsigned FA3P::getDelay(TheISA::PCState pc) {
 
 bool FA3P::makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
 {
-    //assert(0);
 
-    // int16_t upc = (int16_t)pc.microPC();
-    // Addr addr = pc.instAddr();
-    //predictor &threadPred = threadPredictors[tid];
 
     //LVTEntry *addressInfo = NULL;
     bool foundAddress = false;
@@ -107,9 +103,9 @@ bool FA3P::makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid 
         return false;
     }
     DPRINTF(LVP, "Value for address %x is %llx\n", addr, value);
-    DPRINTF(LVP, "confidence for address %x is %i\n", addr, confidence /*- firstConst*/);
+    DPRINTF(LVP, "confidence for address %x is %i\n", addr, confidence);
 
-    ret = LVPredUnit::lvpReturnValues(value, confidence /*- firstConst*/, predictor.LVT[idx].averageCycles);
+    ret = LVPredUnit::lvpReturnValues(value, confidence , predictor.LVT[idx].averageCycles);
 
     return true;
 

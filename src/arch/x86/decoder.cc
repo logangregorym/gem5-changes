@@ -855,23 +855,23 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         DPRINTF(Decoder, "Could not accomodate 32 byte region: Could not update microop in the microop cache: %#x tag:%#x idx:%#x. Affected PCs:\n", addr, tag, idx);
         for (int way = 0; way < 8; way++) {
             if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
-                if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
-                    (traceConstructor->currentTrace.head.way == way || 
-                     way == uopNextWayArray[idx][traceConstructor->currentTrace.head.way] ||
-                     way == uopPrevWayArray[idx][traceConstructor->currentTrace.head.way] ||
-                     traceConstructor->currentTrace.head.way == uopNextWayArray[idx][way] ||
-                     traceConstructor->currentTrace.head.way == uopPrevWayArray[idx][way])) {
-                    return false;
-                }
-                if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
-                    traceConstructor->currentTrace.addr.valid &&
-                    (traceConstructor->currentTrace.addr.way == way || 
-                     way == uopNextWayArray[idx][traceConstructor->currentTrace.addr.way] ||
-                     way == uopPrevWayArray[idx][traceConstructor->currentTrace.addr.way] ||
-                     traceConstructor->currentTrace.addr.way == uopNextWayArray[idx][way] ||
-                     traceConstructor->currentTrace.addr.way == uopPrevWayArray[idx][way])) {
-                    return false;
-                }
+                // if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+                //     (traceConstructor->currentTrace.head.way == way || 
+                //      way == uopNextWayArray[idx][traceConstructor->currentTrace.head.way] ||
+                //      way == uopPrevWayArray[idx][traceConstructor->currentTrace.head.way] ||
+                //      traceConstructor->currentTrace.head.way == uopNextWayArray[idx][way] ||
+                //      traceConstructor->currentTrace.head.way == uopPrevWayArray[idx][way])) {
+                //     return false;
+                // }
+                // if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+                //     traceConstructor->currentTrace.addr.valid &&
+                //     (traceConstructor->currentTrace.addr.way == way || 
+                //      way == uopNextWayArray[idx][traceConstructor->currentTrace.addr.way] ||
+                //      way == uopPrevWayArray[idx][traceConstructor->currentTrace.addr.way] ||
+                //      traceConstructor->currentTrace.addr.way == uopNextWayArray[idx][way] ||
+                //      traceConstructor->currentTrace.addr.way == uopPrevWayArray[idx][way])) {
+                //     return false;
+                // }
                 for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
                     // DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][way][uop], true);
                     DPRINTF(ConstProp, "Decoder is invalidating way %i, so removing uop[%i][%i][%i]\n", way, idx, way, uop);
@@ -921,28 +921,28 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     unsigned lruWay = 8;
     unsigned evictWay = 8;
 
-    if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
-        DPRINTF(Decoder, "Trace being superoptimized has its head at uop[%i][%i][%i] and is currently optimizing uop[%i][%i][%i]\n", traceConstructor->currentTrace.head.idx, traceConstructor->currentTrace.head.way, traceConstructor->currentTrace.head.uop, traceConstructor->currentTrace.addr.idx, traceConstructor->currentTrace.addr.way, traceConstructor->currentTrace.addr.uop);
-    }
+    // if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
+    //     DPRINTF(Decoder, "Trace being superoptimized has its head at uop[%i][%i][%i] and is currently optimizing uop[%i][%i][%i]\n", traceConstructor->currentTrace.head.idx, traceConstructor->currentTrace.head.way, traceConstructor->currentTrace.head.uop, traceConstructor->currentTrace.addr.idx, traceConstructor->currentTrace.addr.way, traceConstructor->currentTrace.addr.uop);
+    // }
     for (int way = 0; way < 8; way++) {
         // check if we are processing the trace for first time optimization -- read from way in progress
-        if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
-            (traceConstructor->currentTrace.head.way == way || 
-             way == uopNextWayArray[idx][traceConstructor->currentTrace.head.way] ||
-             way == uopPrevWayArray[idx][traceConstructor->currentTrace.head.way] ||
-             traceConstructor->currentTrace.head.way == uopNextWayArray[idx][way] ||
-             traceConstructor->currentTrace.head.way == uopPrevWayArray[idx][way])) {
-            continue;
-        }
-        if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
-            traceConstructor->currentTrace.addr.valid &&
-            (traceConstructor->currentTrace.addr.way == way || 
-             way == uopNextWayArray[idx][traceConstructor->currentTrace.addr.way] ||
-             way == uopPrevWayArray[idx][traceConstructor->currentTrace.addr.way] ||
-             traceConstructor->currentTrace.addr.way == uopNextWayArray[idx][way] ||
-             traceConstructor->currentTrace.addr.way == uopPrevWayArray[idx][way])) {
-            continue;
-        }
+        // if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+        //     (traceConstructor->currentTrace.head.way == way || 
+        //      way == uopNextWayArray[idx][traceConstructor->currentTrace.head.way] ||
+        //      way == uopPrevWayArray[idx][traceConstructor->currentTrace.head.way] ||
+        //      traceConstructor->currentTrace.head.way == uopNextWayArray[idx][way] ||
+        //      traceConstructor->currentTrace.head.way == uopPrevWayArray[idx][way])) {
+        //     continue;
+        // }
+        // if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+        //     traceConstructor->currentTrace.addr.valid &&
+        //     (traceConstructor->currentTrace.addr.way == way || 
+        //      way == uopNextWayArray[idx][traceConstructor->currentTrace.addr.way] ||
+        //      way == uopPrevWayArray[idx][traceConstructor->currentTrace.addr.way] ||
+        //      traceConstructor->currentTrace.addr.way == uopNextWayArray[idx][way] ||
+        //      traceConstructor->currentTrace.addr.way == uopPrevWayArray[idx][way])) {
+        //     continue;
+        // }
         if (uopLRUArray[idx][way] < lruWay) {
             lruWay = uopLRUArray[idx][way];
             evictWay = way;
@@ -950,7 +950,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     }
 
     // get some statics for evicted ways
-    
+    /*
     if (evictWay != 8)
     {
         uint64_t uop_count = 0 ; uint64_t hotness_count = 0; uint64_t num_times_invoked = 0; 
@@ -1086,7 +1086,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         }
 
     }
-    
+    */
 
 
     if (evictWay != 8) {
@@ -1135,6 +1135,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
 
 void
 Decoder::updateStreamTrace(unsigned traceID, X86ISA::PCState &thisPC) {
+    assert(0);
     traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
     int idx = traceConstructor->streamTrace.optimizedHead.idx;
     int baseWay = traceConstructor->streamTrace.optimizedHead.way;
@@ -1158,6 +1159,7 @@ Decoder::updateStreamTrace(unsigned traceID, X86ISA::PCState &thisPC) {
 void 
 Decoder::insertReturnedValueIntoUopCacheStatics( PCState pc, uint64_t returnedValue, uint64_t predictedValue)
 {
+    assert(0);
     Addr addr = pc.instAddr();
     uint16_t upc = pc.microPC();
     int idx = (addr >> 5) & 0x1f;
@@ -1184,7 +1186,7 @@ Decoder::insertReturnedValueIntoUopCacheStatics( PCState pc, uint64_t returnedVa
 bool
 Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
 
-   
+    assert(0);
     StaticInstPtr inst =  trace.inst;
     Addr addr = trace.instAddr.pcAddr;
     unsigned uop = trace.instAddr.uopAddr; 
@@ -1473,6 +1475,7 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
 // LVPredictor return int8_t confidence, if this confidence if less than zero then just return
 unsigned
 Decoder::isTraceAvailable(Addr addr, int64_t value, int8_t confidence) {
+    assert(0);
     unsigned maxScore = 0;
     unsigned maxTraceID = 0;
 
