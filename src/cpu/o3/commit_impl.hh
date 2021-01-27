@@ -1428,10 +1428,20 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             //         }
             //     }
             // }
-
+            
+            int numOfCompletedTraces = 0;
+            for (auto const& elem : cpu->fetch.decoder[tid]->traceConstructor->traceMap)
+            {
+                if (elem.second.state == SpecTrace::Complete)
+                {
+                    numOfCompletedTraces++;
+                }
+            }  
             std::cout << "--------------------START OF EPOCH----------------------------" <<
             std::endl << std::dec << "NumOfInsts: " << (uint64_t)cpu->committedInsts[tid].value() <<
-            std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   std::endl;     
+            std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<  " numOfCompletedTraces: " << numOfCompletedTraces <<  std::endl;  
+
+             
 		    // std::endl << std::dec << "spec_count Size: " << spec_count.size() << std::endl;        
             // for (int idx = 0; idx < 32; idx++){
             //     std::cout << "Idx " << idx  << " : " ;

@@ -511,13 +511,14 @@ bool TraceBasedGraph::selectNextTraceForsuperOptimization()
 
 void TraceBasedGraph::finalizeSuperOptimizedTrace()
 {
-    #define STDOUT_DUMP_TRACE 1
+
     // State sanity check
     assert(currentTraceIDGettingSuperOptimized);
     auto trace_it = traceMap.find(currentTraceIDGettingSuperOptimized);
     assert(trace_it != traceMap.end());
     assert(trace_it->second.state == SpecTrace::Complete || trace_it->second.state == SpecTrace::Evicted);
 
+    // don't delete this!
     if (trace_it->second.state == SpecTrace::Evicted)
     {
         // trace was removed from uop cache before we were able to super optmize it
@@ -529,6 +530,9 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
         return;
 
     }
+
+    //TODO: Reject to insert the trace into the spec cache if shrinkage is not enough!
+    
 
     DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", trace_it->second.id, trace_it->second.length, trace_it->second.shrunkLength);
     DPRINTF(SuperOp, "Before optimization: \n");
@@ -666,6 +670,17 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
     currentTraceIDGettingSuperOptimized = 0;
 
 
+    // insert it into the Spec Cache
+    std::vector<uint64_t> removedTraces; removedTraces.clear();
+    bool updateSuccesfull = decoder->specCache->addToSpeculativeCache(trace_it->second.traceHeadAddr, trace_it->second.id, trace_it->second.shrunkLength, removedTraces);
+    assert(updateSuccesfull);
+
+    // remove all the evictedc traces from spec cache
+    for (auto const& elem: removedTraces)
+    {
+        assert(traceMap.find(elem) != traceMap.end());
+        traceMap.erase(elem);
+    }
 
 
     DPRINTF(TraceGen,"#########################################################################################################################################\n");

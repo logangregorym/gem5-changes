@@ -1586,7 +1586,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
             // consult with LVP to better decide about which trace to
             //LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
-            currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), 0, 0/*ret.predictedValue, ret.confidence*/);
+            currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr());
             if (currentTraceID != 0 && decoder[tid]->redirectDueToLVPSquashing) {
                 DPRINTF(Fetch, "A trace is available but due to a previous LVP missprediction squash we can't fetch from spec$! Available TraceID is %i.\n", currentTraceID);
             }
@@ -2171,7 +2171,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 {
                     if (isSuperOptimizationPresent && thisPC.upc() == 0) {
                         //LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
-                        currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr(), 0, 0 /* ret.predictedValue, ret.confidence*/);
+                        currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr());
                     }
                     if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
                     {

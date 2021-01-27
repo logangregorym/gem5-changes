@@ -109,6 +109,11 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
             assert(0);
         }
     }
+
+    // creat a specualtive cache
+    specCache = new SpeculativeUopCache(32,8);
+
+
 }
 
 Decoder::State
@@ -1473,67 +1478,101 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
 }
 
 // LVPredictor return int8_t confidence, if this confidence if less than zero then just return
-unsigned
-Decoder::isTraceAvailable(Addr addr, int64_t value, int8_t confidence) {
-    assert(0);
-    unsigned maxScore = 0;
-    unsigned maxTraceID = 0;
+uint64_t
+Decoder::isTraceAvailable(Addr headAddr) {
+    
+    std::vector<uint64_t> highConfidentTraces;
+   
+    std::vector<uint64_t> traces;
+    specCache->findAllTracesInSpeculativeCache(headAddr, traces);
+    if (traces.empty()) 
+    {
+        DPRINTF(Decoder, "isTraceAvailable: no trace is found for head address %#x\n", headAddr);
+        return 0;
+    }
 
-    // all cofidence numbers are from 0 to 31 i.e., 0 is the lowest and 31 is the highest
-    assert(confidence >= 0);
-    //if (confidence == 0) return 0;
-
-
-    //TODO: Counsult with LVP when returning a trace ID 
+    
+    //TODO: 
     // just check all the prediction sources to have the same predicted value as now
     // we may have same trces with different values for the source predictions
+    for (auto const &traceID : traces)
+    {
+        assert(traceConstructor->traceMap.find(traceID) != traceConstructor->traceMap.end());
+        auto trace_it = traceConstructor->traceMap.find(traceID);
+        assert(trace_it->second.id == traceID);
+        assert(trace_it->second.traceHeadAddr == headAddr);
+        assert(trace_it->second.state == SpecTrace::Complete);
+        DPRINTF(Decoder, "Checking Trace %i at head addr = %#x\n",traceID, headAddr);
 
-    for (auto it = traceConstructor->traceMap.begin(); it != traceConstructor->traceMap.end(); it++) {
-        SpecTrace trace = it->second;
-        if (trace.headAddr.pcAddr == addr) {
-            DPRINTF(Decoder, "Checking Trace %i for at addr = %#x\n", trace.id, addr);
-
-            if (trace.state == SpecTrace::OptimizationInProcess || trace.state == SpecTrace::ReoptimizationInProcess ||
-                trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::QueuedForReoptimization) {
-                DPRINTF(Decoder, "Trace %i is still being processed (state:%d)\n", trace.id, trace.state);
-                continue;
-            }
-
-            // TODO: Change this logic here
-            // if (confidence >= 5 && value != trace.source[0].value) { // trace with incorrect value, move on to a different trace
-            //     continue;
-            // }
-
-            if ((trace.controlSources[0].valid && trace.controlSources[0].confidence < 5) || 
-                (trace.controlSources[1].valid && trace.controlSources[1].confidence < 5 ))
+        // Counsult with LVP when returning a trace ID 
+        // just check all the prediction sources to have the same predicted value as now
+        // we may have same trces with different values for the source predictions
+        int numOfValidPredictionSources = 0;
+        int numOfSameValuePredictionsources = 0;
+        for (int i=0; i<8; i++) 
+        {
+            if (trace_it->second.source[i].valid)
             {
-                    continue;
+                numOfValidPredictionSources++;
+                LVPredUnit::lvpReturnValues ret;
+                Addr pcAddr = trace_it->second.source[i].addr.pcAddr;
+                uint16_t uopAddr = trace_it->second.source[i].addr.uopAddr;
+                uint64_t value = trace_it->second.source[i].value;
+                uint64_t confidence  = trace_it->second.source[i].confidence;
+                if (traceConstructor->loadPred->makePredictionForTraceGenStage(pcAddr, uopAddr, 0, ret))
+                {   
+                        if (ret.confidence >= 5 && ret.predictedValue == value){
+                            DPRINTF(SuperOp, "Prediction source has the same value and has a high confidence: Addr: %#x:%i, Value: %#x, Trace Confidence: %d, Current Confidence: %d\n",  pcAddr,  uopAddr, value, confidence, ret.confidence);
+                            numOfSameValuePredictionsources++;
+                        }
+                        else 
+                        {
+                            DPRINTF(SuperOp, "Prediction source doesn't have the same value or has a low confidence: Addr: %#x:%i, Value: %#x, Trace Confidence: %d, Current Confidence: %d\n",  pcAddr,  uopAddr, value, confidence, ret.confidence);
+                        }
+                }      
             }
 
-            unsigned traceConfidence = minConfidence(trace.id);
-            unsigned latency = maxLatency(trace.id);
-            unsigned shrinkage = trace.length - trace.shrunkLength;
-            DPRINTF(Decoder, "confidence=%i, latency=%i, shrinkage=%i\n", confidence, latency, shrinkage);
-            if (traceConfidence < 5) { // low confidence, move on the the next trace at this index
-                continue;
-            }
+        }
 
-            // taking product because we want the highest confidence, latency, and shrinkage
-            // we don't include hotness here as that is considered while generating a trace
-            unsigned score = traceConfidence * shrinkage * (latency + 1);
-            if (score > maxScore) {
-                maxScore = score; // Select this trace
-                maxTraceID = trace.id; 
-            }
+        // this is a very high confidence trace!
+        if (numOfSameValuePredictionsources == numOfValidPredictionSources)
+        {
+            highConfidentTraces.push_back(traceID);
+        }
+
+    }
+
+
+    if (highConfidentTraces.empty()) 
+    {
+        DPRINTF(Decoder, "isTraceAvailable: %d traces is/are found for head address %#x but none of them had a high score\n", traces.size(), headAddr);
+        return 0;
+    }
+    else if (highConfidentTraces.size() == 1)
+    {
+        assert(highConfidentTraces[0]);
+        DPRINTF(Decoder, "isTraceAvailable returning trace %i! Original trace size: %d SuperOptimized trace size: %d\n", 
+                        highConfidentTraces[0], 
+                        traceConstructor->traceMap.find(highConfidentTraces[0])->second.length, 
+                        traceConstructor->traceMap.find(highConfidentTraces[0])->second.shrunkLength);
+        
+    }
+
+    uint64_t finalTraceID = highConfidentTraces[0]; assert(finalTraceID);
+    uint64_t finalTraceShrinkage = traceConstructor->traceMap.find(finalTraceID)->second.shrunkLength;
+    for (size_t i = 1; i < highConfidentTraces.size(); i++)
+    {
+        if (traceConstructor->traceMap.find(highConfidentTraces[i])->second.shrunkLength > finalTraceShrinkage)
+        {
+            finalTraceShrinkage = traceConstructor->traceMap.find(highConfidentTraces[i])->second.shrunkLength;
+            finalTraceID = highConfidentTraces[i];
         }
     }
+    
 
-    if (maxTraceID) {
-        DPRINTF(Decoder, "isTraceAvailable returning trace %i\n", maxTraceID);
-    } else {
-        DPRINTF(Decoder, "isTraceAvailable: no traces found\n");
-    }
-    return maxTraceID;
+    DPRINTF(Decoder, "isTraceAvailable returning trace %i\n", finalTraceID);
+    
+    return finalTraceID;
 }
 
 void

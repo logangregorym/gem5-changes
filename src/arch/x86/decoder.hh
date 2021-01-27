@@ -160,6 +160,7 @@ class Decoder
 	}
 
     BaseCPU *cpu;
+    SpeculativeUopCache * specCache;
     void setCPU(BaseCPU * newCPU, ThreadID tid=0);
    // vector<ArrayDependencyTracker::DependGraphEntry> victimCache;
    // vector<ExtMachInst> victimEMIs;
@@ -481,7 +482,7 @@ protected:
 	// Interface for fetch!
     // tells fetch stage that if a speculative trace is availble for this PC
     // LVPredictor return int8_t confidence, if this confidence if less than zero then just return
-	unsigned isTraceAvailable(Addr addr, int64_t value, int8_t confidence);
+	uint64_t isTraceAvailable(Addr addr);
 
     StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
     void updateStreamTrace(unsigned traceID, X86ISA::PCState &thisPC);
