@@ -336,8 +336,8 @@ class SpeculativeUopCache
                 this->traceHeadAddr = _traceHeadAddr;
             }
         };
-                          // TraceID   NumWaysOccupied     LRU, TraceHeadAddr
-        typedef std::map <uint64_t,          std::pair<uint64_t, SpecCacheEntity>> SpecCacheSets;
+                          // TraceID             NumWaysOccupied     LRU, TraceHeadAddr
+        typedef std::map <uint64_t,     std::pair<uint64_t,          SpecCacheEntity       >> SpecCacheSets;
 
         
 
@@ -372,7 +372,7 @@ class SpeculativeUopCache
             uint64_t setIdx = (_traceHeadAddr >> 5) & (SetBitsMask);
             assert(setIdx < NumSets);
             
-            for (auto &s : specCacheSets[setIdx])
+            for (auto const& s : specCacheSets[setIdx])
             {
                 if (s.second.second.traceHeadAddr == _traceHeadAddr)
                 {
@@ -383,7 +383,7 @@ class SpeculativeUopCache
 
         }
 
-        bool addToSpeculativeCache(Addr _traceHeadAddr, uint64_t _traceID, uint64_t _numOfMicroops, std::vector<uint64_t>& _removedTraces)
+        bool addToSpeculativeCache(Addr _traceHeadAddr, uint64_t _traceID, uint64_t _numOfMicroops, std::vector<uint64_t>& _evictedTraces)
         {
             assert(_numOfMicroops <= 18 && _numOfMicroops > 0);
             uint64_t numWaysToAccomodate = (_numOfMicroops <= 6) ? 1 : (_numOfMicroops <= 12 ? 2 : 3);
@@ -427,7 +427,7 @@ class SpeculativeUopCache
 
                     // remove the LRU trace
                     specCacheSets[setIdx].erase(_trace_id);
-                    _removedTraces.push_back(_trace_id);
+                    _evictedTraces.push_back(_trace_id);
                     numOccupiedWays -= _waysOccupied;
                     assert(numOccupiedWays >= 1);
                     if (numWaysToAccomodate + numOccupiedWays <= NumWays)

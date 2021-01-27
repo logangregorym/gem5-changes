@@ -468,7 +468,7 @@ bool TraceBasedGraph::selectNextTraceForsuperOptimization()
             // remove it from traceMap
             DPRINTF(Decoder, "Removing traceID: %d (reoptID: %d) from Trace Map because of eviction!.\n", trace_it->second.id );
             // remove all allocated microops
-            //trace_it->second.reset();
+            //TODO: DELETE ALL MICROOPS IN BOTH ORIGINAL AND SUPEROPTMIZED MAPS
             traceMap.erase(trace_it);
             candidateTraceQueue.pop();
             tracesPoppedFromQueue++;
@@ -524,7 +524,7 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
         // trace was removed from uop cache before we were able to super optmize it
         // remove it
         // remove all allocated microops
-        //trace_it->second.reset();
+        //TODO: DELETE ALL MICROOPS IN BOTH ORIGINAL AND SUPEROPTMIZED MAPS
         traceMap.erase(trace_it);
         currentTraceIDGettingSuperOptimized = 0;
         return;
@@ -671,12 +671,12 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
 
 
     // insert it into the Spec Cache
-    std::vector<uint64_t> removedTraces; removedTraces.clear();
-    bool updateSuccesfull = decoder->specCache->addToSpeculativeCache(trace_it->second.traceHeadAddr, trace_it->second.id, trace_it->second.shrunkLength, removedTraces);
+    std::vector<uint64_t> evictedTraces; evictedTraces.clear();
+    bool updateSuccesfull = decoder->specCache->addToSpeculativeCache(trace_it->second.traceHeadAddr, trace_it->second.id, trace_it->second.shrunkLength, evictedTraces);
     assert(updateSuccesfull);
 
     // remove all the evictedc traces from spec cache
-    for (auto const& elem: removedTraces)
+    for (auto const& elem: evictedTraces)
     {
         assert(traceMap.find(elem) != traceMap.end());
         traceMap.erase(elem);
