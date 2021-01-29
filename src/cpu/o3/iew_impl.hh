@@ -1502,10 +1502,10 @@ DefaultIEW<Impl>::executeInsts()
 
                 // update LVP for every instruction 
                 string opcode = inst->getName();
-                if (!inst->isStore() && inst->isInteger() && !inst->isVector()  /*&& !inst->isCC()*/ && !inst->isFloating() && inst->staticInst->predictedLoad && 
+                if (!inst->isStore() && inst->isInteger() && !inst->isVector()  /*&& !inst->isCC()*/ && !inst->isFloating() &&  inst->staticInst->predictedLoad &&  
                     (inst->isStreamedFromUOpCache() || inst->isStreamedFromSpeculativeCache() || inst->isSpeculativlyForwarded() || inst->isTracePredictionSource()) && loadPred->predictingArithmetic) { 
                     
-                    
+
                     inst->memoryAccessStartCycle = cpu->numCycles.value();
                     inst->memoryAccessEndCycle = cpu->numCycles.value();
 
@@ -1524,19 +1524,45 @@ DefaultIEW<Impl>::executeInsts()
                             DPRINTF(LVP, "IntRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
 
                             // gathering some statics
-                            cpu->fetch.decoder[tid]->insertReturnedValueIntoUopCacheStatics(inst->pcState(), value, inst->staticInst->predictedValue);
+                           // cpu->fetch.decoder[tid]->insertReturnedValueIntoUopCacheStatics(inst->pcState(), value, inst->staticInst->predictedValue);
                             
                             inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                             break;
                             
-                          case CCRegClass:
                           case FloatRegClass:
+                            assert(0);
+                            value = cpu->readFloatRegBits(dest_reg);
+                            DPRINTF(LVP, "FloatRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readFloatReg(dest_reg));
+                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                            break;
+
                       	  case VecRegClass:
+                            assert(0);
+                            // Should be okay to ignore, because if predicted, assertion in inst_queue would have failed
+                            // value = cpu->readVecReg(dest_reg);
+                            if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
+                            break;
+
                       	  case VecElemClass:
+                            assert(0);
+                            value = cpu->readVecElem(dest_reg);
+                            DPRINTF(LVP, "VecElemClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readVecElem(dest_reg));
+                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                            break;
+
+                      	  case CCRegClass:
+                            value = cpu->readCCReg(dest_reg);
+                            DPRINTF(LVP, "CCRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readCCReg(dest_reg));
+                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                            break;
                       	  case MiscRegClass:
+
+                            //assert(0);
+                            // Should also be okay to ignore, won't be predicted
+                            if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
                             break;
                      	  default:
-                            panic("Unsupported Register Class: %d", (int)dest_reg->classValue());
+                            panic("Unknown register class: %d", (int)dest_reg->classValue());
                    	    }
                     }
                     // TODO: Just squash when we actually have used the predicted value whether in super optimizer or LVP

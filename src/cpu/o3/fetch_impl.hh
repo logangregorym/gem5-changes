@@ -1444,20 +1444,13 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                 staticInst->predictedLoad = true;
             } 
 
-            if (staticInst->confidence >= 5) {
+            if (staticInst->confidence >= 5 && staticInst->isUOpCacheHotTrace()) {
                 //if (!instruction->isLoad()) std::cout << "YAY! We have a load with confidence higher than 5! SeqNum[" << instruction->seqNum << "]: " << instruction->staticInst->disassemble(thisPC.instAddr()) << std::endl;
-                if (instruction->isMacroop()) {
-                    assert(!instruction->staticInst->isMacroop());
-                    for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
-                        if (decoder[tid]->isSuperOptimizationPresent) {
-                            decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), uop, ret.predictedValue, ret.confidence, ret.latency);
-                        }
-                    }
-                } else {
-                    if (decoder[tid]->isSuperOptimizationPresent) {
-                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), 0, ret.predictedValue, ret.confidence, ret.latency);
-                    }
+                
+                if (decoder[tid]->isSuperOptimizationPresent) {
+                    decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), thisPC.upc(), ret.predictedValue, ret.confidence, ret.latency);
                 }
+                
             }
         
     }

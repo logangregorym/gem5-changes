@@ -136,7 +136,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
             /* Have we exhausted all prediction sources? If not, we can further compact this trace.    */
             if (!traceMap[traceId].source[i].valid) {
                 
-                //assert(0); // Haven't seen any reoptimize yet! 
+                assert(0); // Haven't seen any reoptimize yet! 
                 SpecTrace newTrace;
                 
                 for (int j=0; j<4; j++) {
@@ -166,16 +166,19 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                 traceQueue.push(newTrace);
                 DPRINTF(SuperOp, "Queueing up new trace request %i to reoptimize trace %i at spec[%i][%i][%i]\n", newTrace.id, newTrace.reoptId,
                                     newTrace.addr.idx, newTrace.addr.way, newTrace.addr.uop);
+                
                 return;
             }
         }
     } else {
+
+        // if the uopAddr != 0 then we need to align it to the first microop of the macroop
         for (int way=0; way<8; way++) {
             DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", idx, way, decoder->uopCountArray[idx][way]);
             for (int uop=0; uop<decoder->uopCountArray[idx][way]; uop++) {
                 if (decoder->uopValidArray[idx][way] && 
                     decoder->uopAddrArray[idx][way][uop].pcAddr == addr && 
-                    decoder->uopAddrArray[idx][way][uop].uopAddr == uopAddr) 
+                    decoder->uopAddrArray[idx][way][uop].uopAddr == 0/*uopAddr*/) 
                 {
                     SpecTrace newTrace;
                     newTrace.source[0].valid = true;
@@ -185,7 +188,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                     newTrace.source[0].latency = latency;
                     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
                     newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
-                    newTrace.headAddr = FullUopAddr(addr, uopAddr);
+                    newTrace.headAddr = FullUopAddr(addr, 0 /*uopAddr*/);
                     newTrace.instAddr = FullUopAddr(0, 0);
 
                     // before adding it to the queue, check if profitable -- we prefer long hot traces
@@ -202,7 +205,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                     traceMap[newTrace.id] = newTrace;
                     traceQueue.push(newTrace);
                     DPRINTF(SuperOp, "Queueing up new trace request %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, idx, way, uop);
-                    DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
+                    DPRINTF(SuperOp, "Trace Head Address %#x:%d Prediction source: %#x:%i=%#x\n", addr, 0, addr, uopAddr, value);
                     DPRINTF(SuperOp, "hotness:%i length=%i\n", hotness, length);
                     return;
                 }
@@ -602,9 +605,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.inst = decodedMacroOp;
         }
         currentTrace.lastAddr = currentTrace.instAddr;
-        currentTrace.instAddr = decoder->uopAddrArray[idx][way][uop];
+        currentTrace.instAddr = decoder->uopAddrArray[idx][way][uop]; // this is the original (pc,upc) 
         newMacro = (currentTrace.lastAddr.pcAddr != currentTrace.instAddr.pcAddr);
     } else if (state == SpecTrace::ReoptimizationInProcess) {
+        assert(0);
         DPRINTF(ConstProp, "Trace %i: Processing instruction at spec[%i][%i][%i]\n", currentTrace.id, idx, way, uop);
         if (!decoder->speculativeValidArray[idx][way] || (uop >= decoder->speculativeCountArray[idx][way])) {
             tracesWithInvalidHead++;
@@ -653,6 +657,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
         }
         bool isDeadCode = false;
+        // this will be used to check for missprediction
+        currentTrace.inst->originalMicroPC = (uint16_t)currentTrace.instAddr.uopAddr;
         updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
         
         // source predictions never get eliminated

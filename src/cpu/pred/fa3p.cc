@@ -64,6 +64,7 @@ unsigned FA3P::getDelay(TheISA::PCState pc) {
     return 0;
 }
 
+// this function should only be called for instructions coming from uop cache
 bool FA3P::makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
 {
     //assert(0);
@@ -268,8 +269,13 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
 bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
 {
     assert(inst);
+    assert(inst->predictedLoad);
+    if (inst->isStreamedFromSpeculativeCache() && inst->predictedLoad) assert((inst->originalMicroPC != UINT16_MAX));
+    else assert((inst->originalMicroPC == UINT16_MAX));
+
+    
     Addr addr = pc.instAddr();
-    int16_t upc = (int16_t)pc.microPC(); 
+    int16_t upc = inst->isStreamedFromSpeculativeCache() ? inst->originalMicroPC : (int16_t)pc.microPC(); 
 	// New stats time
 	if (inst->isLoad()) {
 		finishedLoads++;

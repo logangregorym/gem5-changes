@@ -294,7 +294,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
           _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
     { endOfTrace = false; isStreamedFromSpecCache = false;     isStreamedFromUopCache = false;
-     isUopCacheHotTrace = false; isPredictionSource = false; traceID = 0; shrunkLength = 0; traceLength = 0;}
+     isUopCacheHotTrace = false; isPredictionSource = false; traceID = 0; shrunkLength = 0; traceLength = 0; originalMicroPC = UINT16_MAX;}
 
     StaticInst(const char *_mnemonic, ExtMachInst _machInst, OpClass __opClass)
 	: _opClass(__opClass), _numSrcRegs(0), _numDestRegs(0),
@@ -302,7 +302,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
 	  _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
     { endOfTrace = false; isStreamedFromSpecCache = false; isStreamedFromUopCache = false;
-     isUopCacheHotTrace = false; isPredictionSource = false; traceID = 0; shrunkLength = 0; traceLength = 0; }
+     isUopCacheHotTrace = false; isPredictionSource = false; traceID = 0; shrunkLength = 0; traceLength = 0; originalMicroPC = UINT16_MAX;}
 
   public:
     virtual ~StaticInst();
@@ -419,6 +419,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     unsigned int traceID  = 0;
     uint64_t shrunkLength = 0;
     uint64_t traceLength = 0;
+    uint16_t originalMicroPC = UINT16_MAX;
 
     // Annotate predicted inputs here
     uint64_t sourcePredictions[38] = {0};

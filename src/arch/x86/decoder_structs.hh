@@ -67,7 +67,6 @@ struct PredictionSource
     uint64_t value;
     unsigned confidence;
     unsigned latency;
-
     PredictionSource() {valid = false; isBranch = false;}
 };
 
