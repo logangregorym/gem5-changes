@@ -128,6 +128,33 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
         }
     }
 
+    // find head of trace in uop cache
+    // this will reduce the overheda of switching between uop and spec cache
+    std::map<Addr,StaticInstPtr> macros;
+    Addr traceheadAddrinUopCache = 0;
+    uint64_t tag = (addr >> 10);
+    for (size_t w = 0; w < 8; w++)
+    {
+        if (decoder->uopValidArray[idx][w] && decoder->uopTagArray[idx][w] == tag)
+        {
+            Addr baseAddr = decoder->uopAddrArray[idx][w][0].pcAddr; 
+            macros[baseAddr] = NULL;
+            for (size_t u = 0; u < decoder->uopCountArray[idx][w]; u++)
+            {
+                        
+                if (baseAddr != decoder->uopAddrArray[idx][w][u].pcAddr) 
+                {
+                    baseAddr = decoder->uopAddrArray[idx][w][u].pcAddr;
+                    macros[baseAddr] = NULL;
+                }
+            }                    
+                    
+        }
+    }
+    traceheadAddrinUopCache = macros.begin()->first;
+    assert(traceheadAddrinUopCache);
+
+
     // if an already optimized trace has low confidence, it is time to phase it out
     if (traceId && reopt) {
         DPRINTF(SuperOp, "Trace %i exists for this prediction source! addr = %#x uopAddr = %d\n", traceId, addr, uopAddr);
@@ -136,7 +163,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
             /* Have we exhausted all prediction sources? If not, we can further compact this trace.    */
             if (!traceMap[traceId].source[i].valid) {
                 
-                assert(0); // Haven't seen any reoptimize yet! 
+                //assert(0); // Haven't seen any reoptimize yet! 
                 SpecTrace newTrace;
                 
                 for (int j=0; j<4; j++) {
@@ -177,18 +204,18 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
             DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", idx, way, decoder->uopCountArray[idx][way]);
             for (int uop=0; uop<decoder->uopCountArray[idx][way]; uop++) {
                 if (decoder->uopValidArray[idx][way] && 
-                    decoder->uopAddrArray[idx][way][uop].pcAddr == addr && 
+                    decoder->uopAddrArray[idx][way][uop].pcAddr == traceheadAddrinUopCache/*addr*/ && 
                     decoder->uopAddrArray[idx][way][uop].uopAddr == 0/*uopAddr*/) 
                 {
                     SpecTrace newTrace;
                     newTrace.source[0].valid = true;
-                    newTrace.source[0].addr = FullUopAddr(addr, uopAddr);
+                    newTrace.source[0].addr = FullUopAddr(addr, uopAddr);  // this is the head os prediction source
                     newTrace.source[0].value = value;
                     newTrace.source[0].confidence = (unsigned) confidence;
                     newTrace.source[0].latency = latency;
                     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
                     newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
-                    newTrace.headAddr = FullUopAddr(addr, 0 /*uopAddr*/);
+                    newTrace.headAddr = FullUopAddr(traceheadAddrinUopCache, 0 /*add, uopAddr*/);  // this is the address of the first instruction in the trace
                     newTrace.instAddr = FullUopAddr(0, 0);
 
                     // before adding it to the queue, check if profitable -- we prefer long hot traces
@@ -608,7 +635,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         currentTrace.instAddr = decoder->uopAddrArray[idx][way][uop]; // this is the original (pc,upc) 
         newMacro = (currentTrace.lastAddr.pcAddr != currentTrace.instAddr.pcAddr);
     } else if (state == SpecTrace::ReoptimizationInProcess) {
-        assert(0);
+        //assert(0);
         DPRINTF(ConstProp, "Trace %i: Processing instruction at spec[%i][%i][%i]\n", currentTrace.id, idx, way, uop);
         if (!decoder->speculativeValidArray[idx][way] || (uop >= decoder->speculativeCountArray[idx][way])) {
             tracesWithInvalidHead++;
