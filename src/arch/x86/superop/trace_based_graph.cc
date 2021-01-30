@@ -380,7 +380,7 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
 
     // select cache to dump from
     if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
-        // Addr pcAddr = decoder->uopAddrArray[idx][way][uop].pcAddr;
+        Addr pcAddr = decoder->uopAddrArray[idx][way][uop].pcAddr;
         Addr uopAddr = decoder->uopAddrArray[idx][way][uop].uopAddr;
         StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
         StaticInstPtr decodedMicroOp = decodedMacroOp;
@@ -389,8 +389,8 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
             decodedMicroOp->macroOp = decodedMacroOp;
         }
         // LVPredUnit::lvpReturnValues ret;
-        // loadPred->makePredictionForTraceGenStage(pcAddr, 0, ret);
-        // DPRINTF(SuperOp, "%p:%i -- uop[%i][%i][%i]{%d}{%#x} -- %s\n", pcAddr, uopAddr, idx, way, uop, ret.confidence, ret.predictedValue, decodedMicroOp->disassemble(pcAddr));    
+        // loadPred->makePredictionForTraceGenStage(decoder->uopAddrArray[idx][way][uop].pcAddr, decoder->uopAddrArray[idx][way][uop].uopAddr, 0, ret);
+        DPRINTF(SuperOp, "%p:%i -- uop[%i][%i][%i]{N/A}{N/A} -- %s\n", pcAddr, uopAddr, idx, way, uop, /*ret.confidence, ret.predictedValue,*/ decodedMicroOp->disassemble(pcAddr));    
 
 
         
@@ -399,13 +399,13 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
 			decodedMacroOp = NULL;
 		}
     } else {
-        // Addr pcAddr = decoder->speculativeAddrArray[idx][way][uop].pcAddr;
-        // Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
+        Addr pcAddr = decoder->speculativeAddrArray[idx][way][uop].pcAddr;
+        Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
         StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
 
         // LVPredUnit::lvpReturnValues ret;
         // loadPred->makePredictionForTraceGenStage(pcAddr, 0, ret);
-        // DPRINTF(SuperOp, "%p:%i -- spec[%i][%i][%i]{%d}{%#x} -- %s\n", pcAddr, uopAddr, idx, way, uop, ret.confidence, ret.predictedValue, decodedMicroOp->disassemble(pcAddr));    
+        DPRINTF(SuperOp, "%p:%i -- spec[%i][%i][%i]{N/A}{N/A} -- %s\n", pcAddr, uopAddr, idx, way, uop, /*ret.confidence, ret.predictedValue,*/ decodedMicroOp->disassemble(pcAddr));    
 		for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
 			// LAYNE : TODO : print predicted inputs (checking syntax)
 			if (decodedMicroOp->sourcesPredicted[i]) {
