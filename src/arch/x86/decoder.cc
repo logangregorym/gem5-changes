@@ -950,7 +950,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     }
 
     // get some statics for evicted ways
-    
+    /*
     if (evictWay != 8)
     {
         uint64_t uop_count = 0 ; uint64_t hotness_count = 0; uint64_t num_times_invoked = 0; 
@@ -1086,7 +1086,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         }
 
     }
-    
+    */
 
 
     if (evictWay != 8) {

@@ -241,6 +241,44 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
     }
 }
 
+
+bool TraceBasedGraph::isFoldingPossible(SpecTrace& trace)
+{   
+    bool isFoldingAvaible = false;
+    int numValidPredictionsSources = 0;
+    for (int i=0; i<4; i++) {
+        if (trace.source[i].valid) {
+            numValidPredictionsSources++;
+            LVPredUnit::lvpReturnValues current_ret;
+            if (loadPred->makePredictionForTraceGenStage(trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, 0, current_ret))
+            {
+                uint64_t source_value = trace.source[i].value;
+                uint64_t soruce_confidence = trace.source[i].confidence;   soruce_confidence = soruce_confidence;
+
+                // current confidence should be higher than 5 and have the same value
+                if ((current_ret.confidence >= 5/*soruce_confidence*/) && (source_value == current_ret.predictedValue))
+                {
+                    isFoldingAvaible = true;
+                }
+                else 
+                {
+                    return false;
+                }
+            }
+            else 
+            {
+                return false;
+            }
+
+                        
+        }
+    }
+
+    // there is no enough space for adding additional prediction soruces
+    if (numValidPredictionsSources == 4) return false;
+    return isFoldingAvaible;
+}
+
 bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency) {
     for (int i=0; i<4; i++) {
         if (trace.source[i].valid && trace.source[i].addr == addr) {
@@ -665,9 +703,67 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
     // Any inst in a trace may be a prediction source
     DPRINTF(ConstProp, "Trace %i: Processing instruction: %p:%i -- %s\n", currentTrace.id, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
+
     uint64_t value = 0;
     unsigned confidence = 0;
-    unsigned latency;
+    unsigned latency = 0;
+
+
+    // FOLDING LOGIC --- START
+    // first check to see if there is already a prediction for this instruction or not
+    bool isFoldingAvaible = false;
+    LVPredUnit::lvpReturnValues ret;
+    if (true && !isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency))
+    {
+        // Consult with lvp to see if we can do a high confidence prediction without update for this instruction
+        if (loadPred->makePredictionForTraceGenStage(currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, 0, ret))
+        {
+            
+            if (ret.confidence >= 5)
+            {
+                DPRINTF(ConstProp, "Counsulted with LVP and there is a possible load folding oppurtunity! Confidence: %d Value: %#x\n", ret.confidence, ret.predictedValue);
+                // now we need to make sure that the predictor returns the same values for other valid prediction sources. This is because all the prediction sources should have the same value 
+                // otherwise they will result in many squashing scenarios
+                if (isFoldingPossible(currentTrace))   isFoldingAvaible = true;          
+
+            }
+            else 
+            {
+                DPRINTF(ConstProp, "Counsulted with LVP and prediction confidence is low! Confidence: %d Value: %#x\n", ret.confidence, ret.predictedValue);
+            }
+        }
+        else 
+        {
+            DPRINTF(ConstProp, "Can't make any prediction for this instruction!\n", ret.confidence, ret.predictedValue);
+        }
+        
+        
+    }
+
+    // if foidng is avaialbe, then add it to the predictions sources
+    if (isFoldingAvaible)
+    {
+        int  numPredictionsSources = 0;
+        for (numPredictionsSources = 0; numPredictionsSources < 4; numPredictionsSources++) {
+            if (currentTrace.source[numPredictionsSources].valid) 
+            {
+                continue;
+            }
+            else 
+            {
+                currentTrace.source[numPredictionsSources].valid = true;
+                currentTrace.source[numPredictionsSources].addr = FullUopAddr(currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);  // this is the head os prediction source
+                currentTrace.source[numPredictionsSources].value = ret.predictedValue;
+                currentTrace.source[numPredictionsSources].confidence = (unsigned) ret.confidence;
+                currentTrace.source[numPredictionsSources].latency = ret.latency;
+                break;
+            }
+        }
+        assert(numPredictionsSources < 4);
+    }
+    //FOLDING LOGIC --- END
+
+
     string type = currentTrace.inst->getName();
     if (type != "rdip" && type != "limm" && type != "movi" && isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) {
         // Step 1: Get predicted value from LVP
@@ -784,14 +880,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
         }
 
-        // if we can't propagate, consult with lvp to see if we can do a high confidence prediction, 
-        // and then do a propgation
-        // if (!propagated)
-        // {
-        //     LVPredUnit::lvpReturnValues ret;
-        //     loadPred->makePredictionForTraceGenStage(currentTrace.instAddr.pcAddr, 0, ret);
-        //     DPRINTF(ConstProp, "Instruction value is not propagated! Counsulting with LVP! Confidence: %d Value: %#x\n", ret.confidence, ret.predictedValue);
-        // }
+
 
         bool isDeadCode = false;
         if (!folded) {
