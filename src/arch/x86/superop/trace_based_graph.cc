@@ -175,7 +175,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
             for (int uop=0; uop<decoder->uopCountArray[idx][way]; uop++) {
                 if (decoder->uopValidArray[idx][way] && 
                     decoder->uopAddrArray[idx][way][uop].pcAddr == addr && 
-                    decoder->uopAddrArray[idx][way][uop].uopAddr == uopAddr) 
+                    decoder->uopAddrArray[idx][way][uop].uopAddr == 0) 
                 {
                     SpecTrace newTrace;
                     newTrace.source[0].valid = true;
@@ -184,7 +184,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                     newTrace.source[0].confidence = confidence;
                     newTrace.source[0].latency = latency;
                     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
-                    newTrace.head = newTrace.addr = FullCacheIdx(idx, way, 0);
+                    newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
                     newTrace.headAddr = FullUopAddr(addr, 0);
                     newTrace.instAddr = FullUopAddr(0, 0);
 
@@ -192,7 +192,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                     unsigned hotness = decoder->uopHotnessArray[idx][way].read();
                     unsigned length = computeLength(newTrace);
                     if (hotness < 7 || length < 4) { // TODO: revisit: pretty low bar
-                        DPRINTF(SuperOp, "Rejecting trace request to optimize trace at uop[%i][%i][%i]\n", idx, way, 0);
+                        DPRINTF(SuperOp, "Rejecting trace request to optimize trace at uop[%i][%i][%i]\n", idx, way, uop);
                         DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
                         DPRINTF(SuperOp, "hotness:%i length=%i\n", hotness, length);
                         return;
@@ -201,7 +201,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                     newTrace.id = SpecTrace::traceIDCounter++;
                     traceMap[newTrace.id] = newTrace;
                     traceQueue.push(newTrace);
-                    DPRINTF(SuperOp, "Queueing up new trace request %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, idx, way, 0);
+                    DPRINTF(SuperOp, "Queueing up new trace request %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, idx, way, uop);
                     DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
                     DPRINTF(SuperOp, "hotness:%i length=%i\n", hotness, length);
                     return;

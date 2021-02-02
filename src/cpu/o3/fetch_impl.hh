@@ -1423,7 +1423,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                 staticInst->predictedLoad = true;
             } 
 
-            if (staticInst->confidence >= 5) {
+            if (staticInst->confidence >= 15) {
                 if (instruction->isMacroop()) {
                     assert(!instruction->staticInst->isMacroop());
                     for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
