@@ -24,13 +24,13 @@ class FA3P : public LVPredUnit
 
     FA3P(Params* params);
 
-    virtual unsigned getConfidence(Addr addr);
+    virtual unsigned getConfidence(TheISA::PCState pc);
 
-    virtual unsigned getDelay(Addr addr);
+    virtual unsigned getDelay(TheISA::PCState pc);
 
     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle);
 
-    virtual uint64_t getValuePredicted(Addr addr);
+    virtual uint64_t getValuePredicted(TheISA::PCState pc);
 
     virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle);
 
@@ -60,6 +60,7 @@ class FA3P : public LVPredUnit
             this->history = history;
             this->confidence = confidence;
             this->tag = 0;
+            this->microtag = 0;
             this->lastUsed = 0;
         }
 
@@ -70,6 +71,7 @@ class FA3P : public LVPredUnit
             this->history = History();
             this->confidence = BigSatCounter();
             this->tag = 0;
+            this->microtag = 0;
             this->lastUsed = 0;
         }
 
@@ -79,6 +81,7 @@ class FA3P : public LVPredUnit
         History history;
         BigSatCounter confidence;
         uint64_t tag;
+        uint8_t microtag;
         unsigned lastUsed;
 	unsigned numUses = 0;
 	unsigned averageCycles = 0;

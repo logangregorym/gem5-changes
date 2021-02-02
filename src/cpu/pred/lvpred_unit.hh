@@ -41,9 +41,9 @@ class LVPredUnit : public SimObject
     /** Registers statistics. */
     void regStats();
 
-    virtual unsigned getConfidence(Addr addr) { return 0; }
+    virtual unsigned getConfidence(TheISA::PCState pc) { return 0; }
 
-    virtual unsigned getDelay(Addr addr) { return 0; }
+    virtual unsigned getDelay(TheISA::PCState pc) { return 0; }
 
     virtual void updateGtables(Addr pc, Addr next_pc, bool branches) { };
 
@@ -97,7 +97,7 @@ class LVPredUnit : public SimObject
     //virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle, std::list<DynInstPtr>* cpuInsts) = 0;
 
 
-    virtual uint64_t getValuePredicted(Addr addr) { panic("getValuePredicted not implemented for this type of value predictor\n"); }
+    virtual uint64_t getValuePredicted(TheISA::PCState pc) { panic("getValuePredicted not implemented for this type of value predictor\n"); }
 
     /**
      * Called when a value is returned from memory.

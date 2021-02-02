@@ -1433,7 +1433,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                     }
                 } else {
                     if (decoder[tid]->isSuperOptimizationPresent) {
-                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), 0, ret.predictedValue, ret.confidence, ret.latency);
+                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), thisPC.upc(), ret.predictedValue, ret.confidence, ret.latency);
                     }
                 }
             }

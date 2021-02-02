@@ -39,18 +39,18 @@ void FA3P::setUpTables(const Params *params)
     }
 }
 
-unsigned FA3P::getConfidence(Addr addr) {
+unsigned FA3P::getConfidence(TheISA::PCState pc) {
     for (int i=0; i < tableEntries; i++) {
-        if (threadPredictors[0].LVT[i].tag == addr) {
+        if (threadPredictors[0].LVT[i].tag == pc.instAddr() && threadPredictors[0].LVT[i].microtag == pc.upc()) {
             return threadPredictors[0].LVT[i].confidence.read() - firstConst;
         }
     }
     return 0;
 }
 
-unsigned FA3P::getDelay(Addr addr) {
+unsigned FA3P::getDelay(TheISA::PCState pc) {
     for (int i=0; i < tableEntries; i++) {
-        if (threadPredictors[0].LVT[i].tag == addr) {
+        if (threadPredictors[0].LVT[i].tag == pc.instAddr() && threadPredictors[0].LVT[i].microtag == pc.upc()) {
             return threadPredictors[0].LVT[i].averageCycles;
         }
     }
@@ -68,12 +68,13 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
     LVTEntry *addressInfo = NULL;
     bool foundAddress = false;
     for (int i=0; i < tableEntries; i++) {
-        if (threadPred.LVT[i].tag == loadAddr) {
+        if (threadPred.LVT[i].tag == loadAddr && threadPred.LVT[i].microtag == pc.upc()) {
             addressInfo = &threadPred.LVT[i];
             foundAddress = true;
         }
         else if (threadPred.LVT[i].tag == 0) {
             threadPred.LVT[i].tag = loadAddr;
+            threadPred.LVT[i].microtag = pc.upc();
             addressInfo = &threadPred.LVT[i];
             foundAddress = true;
         }
@@ -90,6 +91,7 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
         LRU->history.reset();
         LRU->confidence.reset();
         LRU->tag = loadAddr;
+        LRU->microtag = pc.upc();
         addressInfo = LRU;
     }
 
@@ -118,19 +120,21 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
     return LVPredUnit::lvpReturnValues(value, status - firstConst, getDelay(loadAddr));
 }
 
-uint64_t FA3P::getValuePredicted(Addr loadAddr) 
+uint64_t FA3P::getValuePredicted(TheISA::PCState pc) 
 {
     predictor &threadPred = threadPredictors[0]; // Assuming single-threaded for now
 
+    Addr loadAddr = pc.instAddr();
     LVTEntry *addressInfo = NULL;
     bool foundAddress = false;
     for (int i=0; i < tableEntries; i++) {
-        if (threadPred.LVT[i].tag == loadAddr) {
+        if (threadPred.LVT[i].tag == loadAddr && threadPred.LVT[i].microtag == pc.upc()) {
             addressInfo = &threadPred.LVT[i];
             foundAddress = true;
         }
         else if (threadPred.LVT[i].tag == 0) {
             threadPred.LVT[i].tag = loadAddr;
+            threadPred.LVT[i].microtag = pc.upc();
             addressInfo = &threadPred.LVT[i];
             foundAddress = true;
         }
@@ -191,11 +195,11 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
     LVTEntry *addressInfo = NULL;
     bool foundAddress = false;
     for (int i=0; i < tableEntries; i++) {
-        if (threadPred.LVT[i].tag == loadAddr) {
+        if (threadPred.LVT[i].tag == loadAddr && threadPred.LVT[i].microtag == pc.upc()) {
             addressInfo = &threadPred.LVT[i];
             foundAddress = true;
-	    addressInfo->averageCycles = ((addressInfo->averageCycles * addressInfo->numUses) + cyclesElapsed + 1)/(addressInfo->numUses + 1);
-	    addressInfo->numUses++;
+            addressInfo->averageCycles = ((addressInfo->averageCycles * addressInfo->numUses) + cyclesElapsed + 1)/(addressInfo->numUses + 1);
+            addressInfo->numUses++;
         }
     }
 
