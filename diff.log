@@ -1,0 +1,987 @@
+diff --git a/src/arch/x86/decoder.cc b/src/arch/x86/decoder.cc
+index 57ee45a..adf7780 100755
+--- a/src/arch/x86/decoder.cc
++++ b/src/arch/x86/decoder.cc
+@@ -103,6 +103,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
+             traceConstructor = params->traceConstructor;
+             traceConstructor->decoder = this;
+             traceConstructor->branchPred = params->branchPred;
++            traceConstructor->loadPred = params->loadPred;
+         } else {
+             // CPUO3 without depTracker?!
+             assert(0);
+@@ -1296,7 +1297,39 @@ Decoder::isTraceAvailable(Addr addr, int64_t value, int8_t confidence) {
+                 continue;
+             }
+ 
+-            if (confidence >= 5 && value != trace.source[0].value) { // trace with incorrect value, move on to a different trace
++            int numValidPredSources = 0; int numNotFoundPredSources = 0; int numMatchedPredSources = 0;
++            for (int i = 0; i < 4; i++)
++            {
++                if (trace.source[i].valid)
++                {
++                    numValidPredSources++;
++                    LVPredUnit::lvpReturnValues ret;
++                    if (traceConstructor->loadPred->makePredictionForTraceGenStage(trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, 0 , ret))
++                    {
++                        if (trace.source[i].value == ret.predictedValue && ret.confidence >= 5)
++                        {
++                            DPRINTF(Decoder, "Found the prediction source with address of %#x:%d in the predictor and the values match! Confidence is %d! trace.source[i].value = %#x ret.predictedValue = %#x\n", 
++                                              trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, ret.confidence, trace.source[i].value, ret.predictedValue );
++                            numMatchedPredSources++;
++                        }
++                        else 
++                        {
++                            DPRINTF(Decoder, "Found the prediction source with address of %#x:%d in the predictor but the values dont match or the confidence is low! trace.source[i].value = %#x ret.predictedValue = %#x ret.confidence = %d\n", 
++                                              trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, trace.source[i].value, ret.predictedValue, ret.confidence);
++                        }
++                    }
++                    else 
++                    {
++                        DPRINTF(Decoder, "Can't find prediction source with address of %#x:%d in the predictor!\n", trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr);
++                        numNotFoundPredSources++;
++                    }
++                    
++                }
++            }
++
++
++            if (numMatchedPredSources != numValidPredSources) { // trace with incorrect value, move on to a different trace
++                DPRINTF(Decoder, "The predicted value of some of the prediction sources in Trace %d are not consistent with the current state of predictor! numValidPredSources = %d numMatchedPredSources = %d\n", trace.id, numValidPredSources, numMatchedPredSources);
+                 continue;
+             }
+ 
+diff --git a/src/arch/x86/superop/trace_based_graph.hh b/src/arch/x86/superop/trace_based_graph.hh
+index 6a1b5a3..2388180 100755
+--- a/src/arch/x86/superop/trace_based_graph.hh
++++ b/src/arch/x86/superop/trace_based_graph.hh
+@@ -13,6 +13,7 @@
+ #include "base/types.hh"
+ #include "cpu/static_inst.hh"
+ #include "cpu/pred/bpred_unit.hh"
++#include "cpu/pred/lvpred_unit.hh"
+ #include "cpu/pred/ltage.hh"
+ #include "debug/SuperOp.hh"
+ #include "params/TraceBasedGraph.hh"
+@@ -24,7 +25,7 @@ using namespace std;
+ class ISA;
+ 
+ 
+-
++class LVPredUnit;
+ 
+ class TraceBasedGraph : public SimObject
+ {
+@@ -34,6 +35,7 @@ class TraceBasedGraph : public SimObject
+ 
+     X86ISA::Decoder* decoder;
+ 
++
+     bool usingControlTracking = false;
+     bool usingCCTracking = false;
+ 
+@@ -69,6 +71,7 @@ class TraceBasedGraph : public SimObject
+     bool ccValid;
+ 
+     BPredUnit* branchPred;
++    LVPredUnit *loadPred;
+ 
+     // Propagation Functions
+     bool propagateLastUse(StaticInstPtr inst);
+diff --git a/src/cpu/pred/SConscript b/src/cpu/pred/SConscript
+index 4455f46..6f43c13 100644
+--- a/src/cpu/pred/SConscript
++++ b/src/cpu/pred/SConscript
+@@ -58,3 +58,4 @@ DebugFlag('FreeList')
+ DebugFlag('Branch')
+ DebugFlag('LTage')
+ DebugFlag('LVP')
++DebugFlag('FA3P')
+diff --git a/src/cpu/pred/basic_lvpred.hh b/src/cpu/pred/basic_lvpred.hh
+index ecf35ae..1665874 100644
+--- a/src/cpu/pred/basic_lvpred.hh
++++ b/src/cpu/pred/basic_lvpred.hh
+@@ -25,6 +25,7 @@ class BasicLVP : public LVPredUnit
+     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle);
+ 
+     virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle);
++    virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret){ assert(0);}
+ 
+   private:
+     virtual void setUpTables(const Params *p);
+diff --git a/src/cpu/pred/empty_lvp.hh b/src/cpu/pred/empty_lvp.hh
+index e0d07f2..b5ac81c 100644
+--- a/src/cpu/pred/empty_lvp.hh
++++ b/src/cpu/pred/empty_lvp.hh
+@@ -17,6 +17,7 @@ class EmptyLVP : public LVPredUnit
+     virtual void setUpTables(const Params * params);
+     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle);
+     virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle);
++    virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret){ assert(0);}
+ };
+ 
+ #endif
+diff --git a/src/cpu/pred/eves.hh b/src/cpu/pred/eves.hh
+index 4f45272..aaeac3e 100755
+--- a/src/cpu/pred/eves.hh
++++ b/src/cpu/pred/eves.hh
+@@ -33,6 +33,7 @@ public:
+   typedef LoadValuePredictorParams Params;
+   EvesLVP(Params* params);
+   virtual LVPredUnit::lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle);
++  virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret){ assert(0);}
+   virtual bool processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
+   uint64_t actual_value, ThreadID tid, uint64_t predictedValue, int8_t confidence,
+   unsigned actual_latency, unsigned currentCycle);
+diff --git a/src/cpu/pred/fa3p.cc b/src/cpu/pred/fa3p.cc
+index d98d2e3..b36f86f 100644
+--- a/src/cpu/pred/fa3p.cc
++++ b/src/cpu/pred/fa3p.cc
+@@ -7,6 +7,7 @@
+ // #include "base/misc.hh"
+ #include "cpu/pred/fa3p.hh"
+ #include "debug/LVP.hh"
++#include "debug/FA3P.hh"
+ #include "mem/packet_access.hh"
+ 
+ typedef LoadValuePredictorParams Params;
+@@ -20,7 +21,7 @@ FA3P::FA3P(Params *params)
+ {
+     DPRINTF(LVP, "Setting up tables (fa3period)\n");
+     setUpTables(params);
+-    assert(!threadPredictors.empty());
++    //assert(!threadPredictors.empty());
+     DPRINTF(LVP, "Tables are set up (fa3period)\n");
+ }
+ 
+@@ -28,149 +29,251 @@ void FA3P::setUpTables(const Params *params)
+ {
+     if (!isPowerOf2(tableEntries))
+         fatal("Invalid table size! Must be power of 2\n");
+-    for (int i = 0; i < numThreads; i++) {
+-        DPRINTF(LVP, "Building LVT with %i entries for thread %i\n", tableEntries, i);
+-        vector<LVTEntry> newLVT = vector<LVTEntry>(tableEntries, LVTEntry(ValueWithCount(), ValueWithCount(), ValueWithCount(), History(2, historyLength), BigSatCounter(scBits, initialPred)));
+-        uint64_t choiceSize = power(2, (historyLength * 2)); // 2 bits each
+-        DPRINTF(LVP, "Building choice table with %i entries for thread %i\n", choiceSize, i);
+-        vector<uint8_t> newChoice = vector<uint8_t>(choiceSize, 0);
+-        threadPredictors.push_back(predictor(newLVT, newChoice));
++    //for (int i = 0; i < numThreads; i++) {
++    DPRINTF(LVP, "Building LVT with %i entries for thread 0\n", tableEntries);
++    vector<LVTEntry> newLVT = vector<LVTEntry>(tableEntries, LVTEntry(ValueWithCount(), ValueWithCount(), ValueWithCount(), History(2, historyLength), BigSatCounter(scBits, initialPred), -1, false));
++    uint64_t choiceSize = power(2, (historyLength * 2)); // 2 bits each
++    DPRINTF(LVP, "Building choice table with %i entries for thread 0\n", choiceSize);
++    vector<uint8_t> newChoice = vector<uint8_t>(choiceSize, 0);
++    predictor = Predictor(newLVT, newChoice);
+         // cout << tableEntries << " " << newLVT.size() << endl;
+-    }
++    //}
+ }
+ 
+ unsigned FA3P::getConfidence(TheISA::PCState pc) {
+-    for (int i=0; i < tableEntries; i++) {
+-        if (threadPredictors[0].LVT[i].tag == pc.instAddr() && threadPredictors[0].LVT[i].microtag == pc.upc()) {
+-            return threadPredictors[0].LVT[i].confidence.read() - firstConst;
++    assert(0);
++    int16_t upc = (int16_t)pc.microPC();
++    Addr addr = pc.instAddr();
++    for (int idx=0; idx < tableEntries; idx++) {
++        if (predictor.LVT[idx].tag == addr && predictor.LVT[idx].tag == addr && predictor.LVT[idx].micropc == upc) {
++            return predictor.LVT[idx].confidence.read() - firstConst;
+         }
+     }
+     return 0;
+ }
+ 
+ unsigned FA3P::getDelay(TheISA::PCState pc) {
+-    for (int i=0; i < tableEntries; i++) {
+-        if (threadPredictors[0].LVT[i].tag == pc.instAddr() && threadPredictors[0].LVT[i].microtag == pc.upc()) {
+-            return threadPredictors[0].LVT[i].averageCycles;
++    //assert(0);
++    int16_t upc = (int16_t)pc.microPC();
++    Addr addr = pc.instAddr();
++    for (int idx=0; idx < tableEntries; idx++) {
++        if (predictor.LVT[idx].tag == addr && predictor.LVT[idx].tag == addr && predictor.LVT[idx].micropc == upc) {
++            return predictor.LVT[idx].averageCycles;
+         }
+     }
+     return 0;
+ }
+ 
++
++uint64_t FA3P::getValuePredicted(TheISA::PCState pc) 
++{
++
++    assert(0);
++    Addr addr = pc.instAddr();
++    int16_t upc = (int16_t)pc.microPC(); 
++
++
++    bool foundAddress = false;
++    int idx;
++    for (idx=0; idx < tableEntries; idx++) {
++        if (predictor.LVT[idx].valid && predictor.LVT[idx].tag == addr && predictor.LVT[idx].micropc == upc) {
++            foundAddress = true;
++            break;
++        }    
++    }
++
++    if (!foundAddress) {
++        panic("Asked for predicted value, but none exists\n");
++    }
++
++    uint8_t choice = predictor.choice[predictor.LVT[idx].history.read()];
++    DPRINTF(LVP, "Choice %i selected for address %x based on history %x\n", choice, addr, predictor.LVT[idx].history.read());
++    uint64_t value;
++    int8_t status;
++    if (choice == 1 && predictor.LVT[idx].val1.valid) {
++        value = predictor.LVT[idx].val1.value;
++        status = predictor.LVT[idx].confidence.read();
++    } else if (choice == 2 && predictor.LVT[idx].val2.valid) {
++        value = predictor.LVT[idx].val2.value;
++        status = predictor.LVT[idx].confidence.read();
++    } else if (choice == 3 && predictor.LVT[idx].val3.valid) {
++        value = predictor.LVT[idx].val3.value;
++        status = predictor.LVT[idx].confidence.read();
++    } else {
++        value = 0;
++        status = -1;
++    }
++    DPRINTF(LVP, "Value for address %x is %llx\n", addr, value);
++    DPRINTF(LVP, "Status for address %x is %i\n", addr, status - firstConst);
++
++    return value;
++}
++
+ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle)
+ {
+-//    DPRINTF(LVP, "Inst %s called LVP makePrediction\n", inst->disassemble(pc.instAddr()));
++
+     ++lvLookups;
+-//    if (inst->isRipRel()) { ++ripRelNum; }
+-    Addr loadAddr = pc.instAddr();
+-    predictor &threadPred = threadPredictors[tid];
+ 
+-    LVTEntry *addressInfo = NULL;
++    Addr addr = pc.instAddr();
++    int16_t upc = (int16_t)pc.microPC(); 
++   
++
++
+     bool foundAddress = false;
+-    for (int i=0; i < tableEntries; i++) {
+-        if (threadPred.LVT[i].tag == loadAddr && threadPred.LVT[i].microtag == pc.upc()) {
+-            addressInfo = &threadPred.LVT[i];
+-            foundAddress = true;
+-        }
+-        else if (threadPred.LVT[i].tag == 0) {
+-            threadPred.LVT[i].tag = loadAddr;
+-            threadPred.LVT[i].microtag = pc.upc();
+-            addressInfo = &threadPred.LVT[i];
++    int idx;
++    for (idx=0; idx < tableEntries; idx++) {
++        if (predictor.LVT[idx].valid && predictor.LVT[idx].tag == addr && predictor.LVT[idx].micropc == upc) {
+             foundAddress = true;
++            DPRINTF(FA3P, "makePrediction: Entry %d is found for address %#x:%d!\n", idx, addr, upc);
++            break;
++        }    
++    }
++
++    bool foundEmptySpace = false;
++    if (!foundAddress)
++    {
++        for (idx=0; idx < tableEntries; idx++) {
++            if (!predictor.LVT[idx].valid) {
++                predictor.LVT[idx].history.reset();
++                predictor.LVT[idx].confidence.reset();
++                predictor.LVT[idx].tag = addr;
++                predictor.LVT[idx].micropc = upc;
++                predictor.LVT[idx].val1.reset();
++                predictor.LVT[idx].val2.reset();
++                predictor.LVT[idx].val3.reset();
++                predictor.LVT[idx].valid = true;
++                foundEmptySpace = true;
++                DPRINTF(FA3P, "makePrediction: Entry %d is allocated for address %#x:%d!\n", idx, addr, upc);
++                break;
++            }    
+         }
+     }
+ 
+-    if (!foundAddress) {
++
++    int replacementIdx = 0;
++    if (!foundAddress && !foundEmptySpace) {
+         tagMismatch++;
+-        LVTEntry *LRU = &threadPred.LVT[0];
+-        for (int i=0; i < tableEntries; i++) {
+-            if (threadPred.LVT[i].lastUsed < LRU->lastUsed) {
+-                LRU = &threadPred.LVT[i];
++        // find a replacement based on LRU policy
++        for (int i = 0; i < tableEntries; i++) {
++            if (predictor.LVT[i].lastUsed < predictor.LVT[replacementIdx].lastUsed) {
++                //LRU = &threadPredictors[tid].LVT[i];
++                replacementIdx = i;
+             }
+         }
+-        LRU->history.reset();
+-        LRU->confidence.reset();
+-        LRU->tag = loadAddr;
+-        LRU->microtag = pc.upc();
+-        addressInfo = LRU;
++        DPRINTF(FA3P, "makePrediction: Entry %d is evicted with address %#x:%d!\n", replacementIdx, predictor.LVT[replacementIdx].tag, predictor.LVT[replacementIdx].micropc);
++        predictor.LVT[replacementIdx].history.reset();
++        predictor.LVT[replacementIdx].confidence.reset();
++        predictor.LVT[replacementIdx].tag = addr;
++        predictor.LVT[replacementIdx].micropc = upc;
++        predictor.LVT[replacementIdx].val1.reset();
++        predictor.LVT[replacementIdx].val2.reset();
++        predictor.LVT[replacementIdx].val3.reset();
++        predictor.LVT[replacementIdx].valid = true;
++        DPRINTF(FA3P, "makePrediction: Entry %d is replaced for address %#x:%d!\n", replacementIdx, addr, upc);
++        //addressInfo = LRU;
+     }
+ 
+-    addressInfo->lastUsed = currentCycle;
++    if (foundAddress || foundEmptySpace)    idx = idx;
++    else                                    idx = replacementIdx;
++
++    predictor.LVT[idx].lastUsed = currentCycle;
++
++    uint8_t choice = predictor.choice[predictor.LVT[idx].history.read()];
++    DPRINTF(FA3P, "makePrediction: Choice %i selected for address %#x:%d based on history %d\n", choice, addr, upc, predictor.LVT[idx].history.read());
++
++    // if the entry is allocated now or is evicted, then base on the choice select a val (1,2, or 3)
++    // if (!foundAddress || !foundEmptySpace)
++    // {
++
++    // }
+ 
+-    uint8_t choice = threadPred.choice[addressInfo->history.read()];
+-    DPRINTF(LVP, "Choice %i selected for address %x.%x based on history %x\n", choice, loadAddr, pc.upc(), addressInfo->history.read());
+     uint64_t value;
+-    int8_t status;
+-    if (choice == 1) {
+-        value = addressInfo->val1.value;
+-        status = addressInfo->confidence.read();
+-    } else if (choice == 2) {
+-        value = addressInfo->val2.value;
+-        status = addressInfo->confidence.read();
+-    } else if (choice == 3) {
+-        value = addressInfo->val3.value;
+-        status = addressInfo->confidence.read();
++    int8_t confidence;
++    if (choice == 1 && predictor.LVT[idx].val1.valid) {
++        value = predictor.LVT[idx].val1.value;
++        confidence = predictor.LVT[idx].confidence.read();
++    } else if (choice == 2 && predictor.LVT[idx].val2.valid) {
++        value = predictor.LVT[idx].val2.value;
++        confidence = predictor.LVT[idx].confidence.read();
++    } else if (choice == 3 && predictor.LVT[idx].val3.valid) {
++        value = predictor.LVT[idx].val3.value;
++        confidence = predictor.LVT[idx].confidence.read();
+     } else {
++        //if the entry is allocated now or is evicted, then just send a random value (i.e., 0) with lowest confidence. Later we will find a spot for this prediction
+         value = 0;
+-        status = -1;
++        confidence = 0;
+     }
+-    DPRINTF(LVP, "Value for address %x.%x is %llx\n", loadAddr, pc.upc(), value);
+-    DPRINTF(LVP, "Status for address %x.%x is %i\n", loadAddr, pc.upc(), status - firstConst);
++
++    DPRINTF(FA3P, "makePrediction: Address: %#x Value: %llx Confidence: %d\n", addr, value, confidence /*- firstConst*/);
+     ++predictionsMade;
+-    return LVPredUnit::lvpReturnValues(value, status - firstConst, getDelay(loadAddr));
++
++    return LVPredUnit::lvpReturnValues(value, confidence/* - firstConst*/, getDelay(pc));
+ }
+ 
+-uint64_t FA3P::getValuePredicted(TheISA::PCState pc) 
++// this function should only be called for instructions coming from uop cache
++bool FA3P::makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
+ {
+-    predictor &threadPred = threadPredictors[0]; // Assuming single-threaded for now
++    //assert(0);
+ 
+-    Addr loadAddr = pc.instAddr();
+-    LVTEntry *addressInfo = NULL;
++    // int16_t upc = (int16_t)pc.microPC();
++    // Addr addr = pc.instAddr();
++    //predictor &threadPred = threadPredictors[tid];
++
++    //LVTEntry *addressInfo = NULL;
+     bool foundAddress = false;
+-    for (int i=0; i < tableEntries; i++) {
+-        if (threadPred.LVT[i].tag == loadAddr && threadPred.LVT[i].microtag == pc.upc()) {
+-            addressInfo = &threadPred.LVT[i];
+-            foundAddress = true;
+-        }
+-        else if (threadPred.LVT[i].tag == 0) {
+-            threadPred.LVT[i].tag = loadAddr;
+-            threadPred.LVT[i].microtag = pc.upc();
+-            addressInfo = &threadPred.LVT[i];
++    int idx;
++    for (idx = 0; idx  < tableEntries; idx++) {
++        if (predictor.LVT[idx].valid && predictor.LVT[idx].tag == addr && predictor.LVT[idx].micropc == upc) {
+             foundAddress = true;
++            break;
+         }
+     }
+ 
+-    if (!foundAddress) {
+-        panic("Asked for predicted value, but none exists\n");
++    if (!foundAddress)
++    {
++        return false;
+     }
+ 
+-    uint8_t choice = threadPred.choice[addressInfo->history.read()];
+-    DPRINTF(LVP, "Choice %i selected for address %x.%x based on history %x\n", choice, loadAddr, pc.upc(), addressInfo->history.read());
++
++
++
++    uint8_t choice = predictor.choice[predictor.LVT[idx].history.read()];
++    DPRINTF(LVP, "Choice %i selected for address %x based on history %x\n", choice, addr, predictor.LVT[idx].history.read());
+     uint64_t value;
+-    int8_t status;
+-    if (choice == 1) {
+-        value = addressInfo->val1.value;
+-        status = addressInfo->confidence.read();
+-    } else if (choice == 2) {
+-        value = addressInfo->val2.value;
+-        status = addressInfo->confidence.read();
+-    } else if (choice == 3) {
+-        value = addressInfo->val3.value;
+-        status = addressInfo->confidence.read();
++    int8_t confidence;
++    if (choice == 1 && predictor.LVT[idx].val1.valid) {
++        value = predictor.LVT[idx].val1.value;
++        confidence = predictor.LVT[idx].confidence.read();
++    } else if (choice == 2 && predictor.LVT[idx].val2.valid) {
++        value = predictor.LVT[idx].val2.value;
++        confidence = predictor.LVT[idx].confidence.read();
++    } else if (choice == 3 && predictor.LVT[idx].val3.valid) {
++        value = predictor.LVT[idx].val3.value;
++        confidence = predictor.LVT[idx].confidence.read();
+     } else {
+-        value = 0;
+-        status = -1;
++        return false;
+     }
+-    DPRINTF(LVP, "Value for address %x.%x is %llx\n", loadAddr, pc.upc(), value);
+-    DPRINTF(LVP, "Status for address %x.%x is %i\n", loadAddr, pc.upc(), status - firstConst);
+-    ++predictionsMade;
+-    return value;
++    DPRINTF(LVP, "Value for address %x is %llx\n", addr, value);
++    DPRINTF(LVP, "confidence for address %x is %i\n", addr, confidence /*- firstConst*/);
++
++    ret = LVPredUnit::lvpReturnValues(value, confidence /*- firstConst*/, predictor.LVT[idx].averageCycles);
++
++    return true;
++
++
+ }
+ 
+ // To not mess around with this logic, we will only update the confidence in Load Value Predictor in this fucntion. 
+ // The trace confidence is updated in IEW::squashDueToLoad function
+ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
+ {
++    assert(inst);
++    assert(inst->predictedLoad);
++
++
++    
++    Addr addr = pc.instAddr();
++    int16_t upc = (int16_t)pc.microPC(); 
+ 	// New stats time
+ 	if (inst->isLoad()) {
+ 		finishedLoads++;
+@@ -184,75 +287,32 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
+ 
+     // don't predict for these types TODO: add more types gradually
+     assert(!inst->isStore());
+-//    assert(inst->getName() != "limm" && inst->getName() != "movi");
+-	
+ 
+-    DPRINTF(LVP, "Inst %s called processPacketRecieved\n", inst->disassemble(pc.instAddr()));
+-    Addr loadAddr = pc.instAddr();
+-    DPRINTF(LVP, "Value %llx predicted for address %x.%x with confidence %i\n", prediction, loadAddr, pc.upc(), confidence);
+-    predictor &threadPred = threadPredictors[tid];
++    
++    DPRINTF(FA3P, "processPacketRecieved: Inst %s called processPacketRecieved\n", inst->disassemble(pc.instAddr()));
+ 
+-    LVTEntry *addressInfo = NULL;
++    //LVTEntry *addressInfo = NULL;
+     bool foundAddress = false;
+-    for (int i=0; i < tableEntries; i++) {
+-        if (threadPred.LVT[i].tag == loadAddr && threadPred.LVT[i].microtag == pc.upc()) {
+-            addressInfo = &threadPred.LVT[i];
++    int idx = 0;
++    for (idx = 0; idx < tableEntries; idx++) {
++        if (predictor.LVT[idx].tag == addr && predictor.LVT[idx].tag == addr && predictor.LVT[idx].micropc == upc) {
+             foundAddress = true;
+-            addressInfo->averageCycles = ((addressInfo->averageCycles * addressInfo->numUses) + cyclesElapsed + 1)/(addressInfo->numUses + 1);
+-            addressInfo->numUses++;
++	        predictor.LVT[idx].averageCycles = ((predictor.LVT[idx].averageCycles * predictor.LVT[idx].numUses) + cyclesElapsed + 1)/(predictor.LVT[idx].numUses + 1);
++	        predictor.LVT[idx].numUses++;
++            DPRINTF(FA3P, "processPacketRecieved: Entry %d is found for address %#x:%d!\n", idx, addr, upc);
++            break;
+         }
+     }
+ 
+ 
++
+     uint64_t responseVal = value;
+-/**
+-    if (pkt->isResponse()) {
+-        unsigned size = pkt->getSize();
+-        DPRINTF(LVP, "Packet contains %i bytes of data\n", size);
+-        assert(pkt->hasData());
+-        uint64_t responseVal;
+-        if (size == 8) {
+-            responseVal = pkt->get<uint64_t>();
+-        } else if (size == 4) {
+-            responseVal = pkt->get<uint32_t>();
+-        } else if (size == 2) {
+-            responseVal = pkt->get<uint16_t>();
+-        } else if (size == 1) {
+-            responseVal = pkt->get<uint8_t>();
+-        } else {
+-            ++largeValueLoads;
+-            if (foundAddress) {
+-                addressInfo->history.update(0);
+-            }
+-            bool noMisPred = confidence < 0;
+-            if (!noMisPred) {
+-                DPRINTF(LVP, "MISPREDICTION DETECTED for address %x\n", loadAddr);
+-                if (foundAddress) {
+-                    addressInfo->confidence.reset();
+-                    while (addressInfo->confidence.read() < resetTo) {
+-                        addressInfo->confidence.increment();
+-                    }
+-                }
+-                ++incorrectUsed;
+-                missCount++;
+-                if (missCount >= missThreshold) {
+-                    if (dynamicThreshold) {
+-                        firstConst++;
+-                        ++constIncrement;
+-                    }
+-                    missCount = 0;
+-                }
+-            } else {
+-                ++incorrectNotUsed;
+-            }
+-            return noMisPred;
+-        }
+-**/
+ 
+-        DPRINTF(LVP, "Value %llx recieved for address %x.%x\n", responseVal, loadAddr, pc.upc());
++    DPRINTF(FA3P, "processPacketRecieved: Address: %#x:%d Predicted Value %#llx Actual Value: %#llx Confidence %d\n", addr, upc, prediction, responseVal ,confidence);
++
+ 
+-        // Stats time!
+-        if (confidence >= 0) {
++    // Stats time!,
++    if (confidence >= 0) {
+             // Used
+             if (prediction == responseVal) {
+                 // Correct
+@@ -262,127 +322,138 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
+                 // Incorrect
+                 ++incorrectUsed;
+             }
+-        } else {
++    } else {
+             // Unused
+-            if (prediction == responseVal) {
+-                // Correct
+-                ++correctNotUsed;
+-                hitCount++;
+-                if (hitCount >= hitThreshold) {
+-                    if (dynamicThreshold) {
+-                        firstConst--;
+-                        ++constDecrement;
+-                    }
+-                    hitCount = 0;
++        if (prediction == responseVal) {
++            // Correct
++            ++correctNotUsed;
++            hitCount++;
++            if (hitCount >= hitThreshold) {
++                if (dynamicThreshold) {
++                    firstConst--;
++                    ++constDecrement;
+                 }
+-            } else {
+-                // Incorrect
+-                ++incorrectNotUsed;
++                hitCount = 0;
+             }
++        } else {
++            // Incorrect
++            ++incorrectNotUsed;
+         }
++    }
+ 
+ 
+ 
+-        bool misPred = (prediction != responseVal);
+-
+-        if (foundAddress) {
+-            //if ((prediction != responseVal) && ((addressInfo.replaceTag.read() > 2) || (addressInfo.tag == 0)) && (addressInfo.tag != tag)) {
+-            //	addressInfo.val1.value = responseVal;
+-            //	addressInfo.val1.count.reset();
+-            //	addressInfo.val1.count.increment();
+-            //	addressInfo.val2.value = 0;
+-            //	addressInfo.val2.count.reset();
+-            //	addressInfo.val3.value = 0;
+-            //	addressInfo.val3.count.reset();
+-            //	addressInfo.tag = tag;
+-            //	addressInfo.replaceTag.reset();
+-            //	addressInfo.history.reset();
+-            //	addressInfo.history.update(1);
+-            //} else {
+-                // UPDATE THE PREDICTOR
+-                if (prediction == responseVal) {
+-                    DPRINTF(LVP, "Correct prediction :)\n");
+-                    addressInfo->confidence.increment();
+-                } else {
+-                    for (int i = 0; i < decrementBy; i++) {
+-                        addressInfo->confidence.decrement();
+-                    }
+-                }
+-                if (responseVal == addressInfo->val1.value) {
+-                    threadPred.choice[addressInfo->history.read()] = 1;
+-                    addressInfo->history.update(1);
+-                    addressInfo->val1.count.increment();
+-                } else if (responseVal == addressInfo->val2.value) {
+-                    threadPred.choice[addressInfo->history.read()] = 2;
+-                    addressInfo->history.update(2);
+-                    addressInfo->val2.count.increment();
+-                } else if (responseVal == addressInfo->val3.value) {
+-                    threadPred.choice[addressInfo->history.read()] = 3;
+-                    addressInfo->history.update(3);
+-                    addressInfo->val3.count.increment();
+-                } else {
+-                    threadPred.choice[addressInfo->history.read()] = 0;
+-                    // Any candidates for eviction?
+-                    // Value can be evicted iff it's count is < 1
+-                    // Evict the smallest value if possible
+-                    unsigned c1 = addressInfo->val1.count.read();
+-                    unsigned c2 = addressInfo->val2.count.read();
+-                    unsigned c3 = addressInfo->val3.count.read();
+-                    if ((c1 <= 0) && (c1 <= c2) && (c1 <= c3)) {
+-                        // Evicting val1
+-                        addressInfo->val1.value = responseVal;
+-                        addressInfo->val1.count.reset();
+-                        addressInfo->val1.count.increment();
+-                        // addressInfo->val2.count.decrement();
+-                        // addressInfo->val3.count.decrement();
+-                        // threadPred.choice[addressInfo.history.read()] = 1;
+-                        addressInfo->history.update(1);
+-                    } else if ((c2 <= 0) && (c2 <= c1) && (c2 <= c3)) {
+-                        // Evicting val2
+-                        addressInfo->val2.value = responseVal;
+-                        addressInfo->val2.count.reset();
+-                        addressInfo->val2.count.increment();
+-                        // addressInfo->val1.count.decrement();
+-                        // addressInfo->val3.count.decrement();
+-                        // threadPred.choice[addressInfo.history.read()] = 2;
+-                        addressInfo->history.update(2);
+-                    } else if ((c3 <= 0) && (c3 <= c1) && (c3 <= c2)) {
+-                        // Evicting val3
+-                        addressInfo->val3.value = responseVal;
+-                        addressInfo->val3.count.reset();
+-                        addressInfo->val3.count.increment();
+-                        // addressInfo->val1.count.decrement();
+-                        // addressInfo->val2.count.decrement();
+-                        // threadPred.choice[addressInfo.history.read()] = 3;
+-                        addressInfo->history.update(3);
+-                    } else {
+-                        // If no candidates for eviction, decrease all counts slightly
+-                        // Keeps predictor from getting stuck with old values
+-                        addressInfo->val1.count.decrement();
+-                        addressInfo->val2.count.decrement();
+-                        addressInfo->val3.count.decrement();
+-                        addressInfo->history.update(0);
+-                    }
+-                }
+-            //}
++    bool misPred = (confidence >= 0) && (prediction != responseVal);
++
++    if (foundAddress) {
++
++        if (prediction == responseVal) {
++            
++            predictor.LVT[idx].confidence.increment();
++            DPRINTF(FA3P, "processPacketRecieved: Correct prediction for entry %d at address %#x:%d! New confidence: %d\n", idx, addr, upc, predictor.LVT[idx].confidence.read());
++        } 
++        else 
++        {
++            
++            // for (int i = 0; i < decrementBy; i++) 
++            // {
++            //     predictor.LVT[idx].confidence.decrement();
++            // }
++            predictor.LVT[idx].confidence.decrement();
++            DPRINTF(FA3P, "processPacketRecieved: Missprediction for entry %d at address %#x:%d! New confidence: %d\n", idx, addr, upc, predictor.LVT[idx].confidence.read());
+         }
+ 
+-        if (misPred) {
+-            DPRINTF(LVP, "MISPREDICTION DETECTED for address %x.%x\n", loadAddr, pc.upc());
+-            if (foundAddress) {
+-                addressInfo->confidence.reset();
+-                while (addressInfo->confidence.read() < resetTo) {
+-                    addressInfo->confidence.increment();
+-                }
+-            }
+-            missCount++;
+-            if (missCount >= missThreshold) {
+-                if (dynamicThreshold) {
+-                    firstConst++;
+-                    ++constIncrement;
+-                }
+-                missCount = 0;
++
++        if (predictor.LVT[idx].val1.valid && (responseVal == predictor.LVT[idx].val1.value)) 
++        {
++            DPRINTF(FA3P, "processPacketRecieved: Value predicted for entry %d is found at VAL1!\n", idx);
++            predictor.choice[predictor.LVT[idx].history.read()] = 1;
++            predictor.LVT[idx].history.update(1);
++            predictor.LVT[idx].val1.count.increment();
++        } 
++        else if (predictor.LVT[idx].val2.valid && (responseVal == predictor.LVT[idx].val2.value)) 
++        {
++            DPRINTF(FA3P, "processPacketRecieved: Value predicted for entry %d is found at VAL2!\n", idx);
++            predictor.choice[predictor.LVT[idx].history.read()] = 2;
++            predictor.LVT[idx].history.update(2);
++            predictor.LVT[idx].val2.count.increment();
++            
++        } 
++        else if (predictor.LVT[idx].val3.valid && (responseVal == predictor.LVT[idx].val3.value)) 
++        {
++            DPRINTF(FA3P, "processPacketRecieved: Value predicted for entry %d is found at VAL3!\n", idx);
++            predictor.choice[predictor.LVT[idx].history.read()] = 3;
++            predictor.LVT[idx].history.update(3);
++            predictor.LVT[idx].val3.count.increment();
++        } 
++        else 
++        {
++            DPRINTF(FA3P, "processPacketRecieved: Can't find a valid value for entry %d! Predictor history is %d\n", idx, predictor.LVT[idx].history.read());
++            predictor.choice[predictor.LVT[idx].history.read()] = 0;
++            // Any candidates for eviction?
++            // Value can be evicted iff it's count is < 1
++            // Evict the smallest value if possible
++            unsigned c1 = predictor.LVT[idx].val1.count.read();
++            unsigned c2 = predictor.LVT[idx].val2.count.read();
++            unsigned c3 = predictor.LVT[idx].val3.count.read();
++            if ((c1 == 0) && (c1 <= c2) && (c1 <= c3)) {
++                // Evicting val1
++                DPRINTF(FA3P, "processPacketRecieved: Evicting VAL1 for entry %d!\n", idx);
++                predictor.LVT[idx].val1.value = responseVal;
++                predictor.LVT[idx].val1.count.reset();
++                predictor.LVT[idx].val1.count.increment();
++                predictor.LVT[idx].val1.valid = true;
++                predictor.LVT[idx].history.update(1);
++            } else if ((c2 == 0) && (c2 <= c1) && (c2 <= c3)) {
++                // Evicting val2
++                DPRINTF(FA3P, "processPacketRecieved: Evicting VAL2 for entry %d!\n", idx);
++                predictor.LVT[idx].val2.value = responseVal;
++                predictor.LVT[idx].val2.count.reset();
++                predictor.LVT[idx].val2.count.increment();
++                predictor.LVT[idx].val2.valid = true;
++                predictor.LVT[idx].history.update(2);
++            } else if ((c3 == 0) && (c3 <= c1) && (c3 <= c2)) {
++                // Evicting val3
++                DPRINTF(FA3P, "processPacketRecieved: Evicting VAL3 for entry %d!\n", idx);
++                predictor.LVT[idx].val3.value = responseVal;
++                predictor.LVT[idx].val3.count.reset();
++                predictor.LVT[idx].val3.count.increment();
++                predictor.LVT[idx].val3.valid = true;
++                predictor.LVT[idx].history.update(3);
++            } else {
++                // If no candidates for eviction, decrease all counts slightly
++                // Keeps predictor from getting stuck with old values
++                DPRINTF(FA3P, "processPacketRecieved: Can't find a candidate for eviction for entry %d!\n", idx);
++                predictor.LVT[idx].val1.count.decrement();
++                predictor.LVT[idx].val2.count.decrement();
++                predictor.LVT[idx].val3.count.decrement();
++                predictor.LVT[idx].history.update(0);
+             }
+         }
+-        return !misPred;
++            //}
++    }
++
++    // if (misPred) {
++        
++    //     if (foundAddress) {
++            
++    //         predictor.LVT[idx].confidence.reset();
++    //         while (predictor.LVT[idx].confidence.read() < resetTo) 
++    //         {
++    //             predictor.LVT[idx].confidence.increment();
++    //         }
++    //         DPRINTF(FA3P, "processPacketRecieved: Decreasing entry %d confidence for address %#x:%d! New confidence: %d\n",  idx, addr, upc, predictor.LVT[idx].confidence.read());
++    //     }
++    //     missCount++;
++    //     if (missCount >= missThreshold) {
++    //         if (dynamicThreshold) {
++    //             firstConst++;
++    //             ++constIncrement;
++    //         }
++    //         missCount = 0;
++    //     }
++    // }
++
++    
++    return !misPred;
+ }
+diff --git a/src/cpu/pred/fa3p.hh b/src/cpu/pred/fa3p.hh
+index 89d6d81..48f5171 100644
+--- a/src/cpu/pred/fa3p.hh
++++ b/src/cpu/pred/fa3p.hh
+@@ -29,6 +29,7 @@ class FA3P : public LVPredUnit
+     virtual unsigned getDelay(TheISA::PCState pc);
+ 
+     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle);
++    virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret);
+ 
+     virtual uint64_t getValuePredicted(TheISA::PCState pc);
+ 
+@@ -41,27 +42,38 @@ class FA3P : public LVPredUnit
+         ValueWithCount(uint64_t value, SatCounter count) {
+             this->value = value;
+             this->count = count;
++            this->valid = true;
+         }
+ 
+         ValueWithCount() {
+             this->value = 0;
+             this->count = SatCounter(4);
++            this->valid = false;
++        }
++
++        void reset()
++        {
++            this->value = 0;
++            this->count.reset();
++            this->valid = false;
+         }
+ 
+         uint64_t value;
+         SatCounter count;
++        bool valid;
+     };
+ 
+     struct LVTEntry {
+-        LVTEntry(ValueWithCount val1, ValueWithCount val2, ValueWithCount val3, History history, BigSatCounter confidence) {
++        LVTEntry(ValueWithCount val1, ValueWithCount val2, ValueWithCount val3, History history, BigSatCounter confidence, int16_t upc, bool _valid) {
+             this->val1 = val1;
+             this->val2 = val2;
+             this->val3 = val3;
+             this->history = history;
+             this->confidence = confidence;
+             this->tag = 0;
+-            this->microtag = 0;
+             this->lastUsed = 0;
++            this->micropc = upc;
++            this->valid = _valid;
+         }
+ 
+         LVTEntry() {
+@@ -71,8 +83,9 @@ class FA3P : public LVPredUnit
+             this->history = History();
+             this->confidence = BigSatCounter();
+             this->tag = 0;
+-            this->microtag = 0;
+             this->lastUsed = 0;
++            this->micropc = -1;
++            this->valid = false;
+         }
+ 
+         ValueWithCount val1;
+@@ -81,19 +94,20 @@ class FA3P : public LVPredUnit
+         History history;
+         BigSatCounter confidence;
+         uint64_t tag;
+-        uint8_t microtag;
++        int16_t micropc = -1;
++        bool valid = false;
+         unsigned lastUsed;
+-	unsigned numUses = 0;
+-	unsigned averageCycles = 0;
++	    unsigned numUses = 0;
++	    unsigned averageCycles = 0;
+     };
+ 
+-    struct predictor {
+-        predictor(vector<LVTEntry> LVT, vector<uint8_t> choice) {
++    struct Predictor {
++        Predictor(vector<LVTEntry> LVT, vector<uint8_t> choice) {
+             this->LVT = LVT;
+             this->choice = choice;
+         }
+ 
+-        predictor() {
++        Predictor() {
+             this->LVT = vector<LVTEntry>();
+             this->choice = vector<uint8_t>();
+         }
+@@ -103,7 +117,7 @@ class FA3P : public LVPredUnit
+         // only using 2 bits, but uint8_t is smallest type available
+     };
+ 
+-    vector<predictor> threadPredictors;
++    Predictor predictor;
+ 
+     unsigned tableEntries;
+ 
+diff --git a/src/cpu/pred/hybrid.hh b/src/cpu/pred/hybrid.hh
+index 694a1ad..8ea340e 100644
+--- a/src/cpu/pred/hybrid.hh
++++ b/src/cpu/pred/hybrid.hh
+@@ -29,7 +29,7 @@ class HybridLVP : public LVPredUnit
+     HybridLVP(Params* params);
+ 
+     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle);
+-
++    virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret){ assert(0);}
+     virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle);
+ 
+   private:
+diff --git a/src/cpu/pred/lvpred_unit.hh b/src/cpu/pred/lvpred_unit.hh
+index b750a6e..6b770e7 100644
+--- a/src/cpu/pred/lvpred_unit.hh
++++ b/src/cpu/pred/lvpred_unit.hh
+@@ -93,6 +93,7 @@ class LVPredUnit : public SimObject
+      * Does lookUpLVPT and lookUpLCT and stores results in instruction itself
+      */
+     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle) = 0;
++    virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret){ assert(0);}
+     // overload for eves
+     //virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle, std::list<DynInstPtr>* cpuInsts) = 0;
+ 
+diff --git a/src/cpu/pred/stride_hist.hh b/src/cpu/pred/stride_hist.hh
+index 64818bf..b0bed15 100644
+--- a/src/cpu/pred/stride_hist.hh
++++ b/src/cpu/pred/stride_hist.hh
+@@ -24,6 +24,7 @@ class StrideHistLVP : public LVPredUnit
+     StrideHistLVP(Params* params);
+ 
+     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle);
++    virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret){ assert(0);}
+ 
+     virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle);
+ 
+diff --git a/src/cpu/pred/three_period.hh b/src/cpu/pred/three_period.hh
+index 8627bfb..ef9b81b 100644
+--- a/src/cpu/pred/three_period.hh
++++ b/src/cpu/pred/three_period.hh
+@@ -25,6 +25,7 @@ class ThreePeriodLVP : public LVPredUnit
+     ThreePeriodLVP(Params* params);
+ 
+     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle);
++    virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret){ assert(0);}
+ 
+     virtual bool processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t predictedValue, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle);
+ 

@@ -103,6 +103,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
             traceConstructor = params->traceConstructor;
             traceConstructor->decoder = this;
             traceConstructor->branchPred = params->branchPred;
+            traceConstructor->loadPred = params->loadPred;
         } else {
             // CPUO3 without depTracker?!
             assert(0);
@@ -1296,10 +1297,42 @@ Decoder::isTraceAvailable(Addr addr, int64_t value, int8_t confidence) {
                 continue;
             }
 
-/*            if (confidence >= 5 && value != trace.source[0].value) { // trace with incorrect value, move on to a different trace
+            int numValidPredSources = 0; int numNotFoundPredSources = 0; int numMatchedPredSources = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                if (trace.source[i].valid)
+                {
+                    numValidPredSources++;
+                    LVPredUnit::lvpReturnValues ret;
+                    if (traceConstructor->loadPred->makePredictionForTraceGenStage(trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, 0 , ret))
+                    {
+                        if (trace.source[i].value == ret.predictedValue && ret.confidence >= 5)
+                        {
+                            DPRINTF(Decoder, "Found the prediction source with address of %#x:%d in the predictor and the values match! Confidence is %d! trace.source[i].value = %#x ret.predictedValue = %#x\n", 
+                                              trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, ret.confidence, trace.source[i].value, ret.predictedValue );
+                            numMatchedPredSources++;
+                        }
+                        else 
+                        {
+                            DPRINTF(Decoder, "Found the prediction source with address of %#x:%d in the predictor but the values dont match or the confidence is low! trace.source[i].value = %#x ret.predictedValue = %#x ret.confidence = %d\n", 
+                                              trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, trace.source[i].value, ret.predictedValue, ret.confidence);
+                        }
+                    }
+                    else 
+                    {
+                        DPRINTF(Decoder, "Can't find prediction source with address of %#x:%d in the predictor!\n", trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr);
+                        numNotFoundPredSources++;
+                    }
+                    
+                }
+            }
+
+
+            if (numMatchedPredSources != numValidPredSources) { // trace with incorrect value, move on to a different trace
+                DPRINTF(Decoder, "The predicted value of some of the prediction sources in Trace %d are not consistent with the current state of predictor! numValidPredSources = %d numMatchedPredSources = %d\n", trace.id, numValidPredSources, numMatchedPredSources);
                 continue;
             }
-*/
+
             if ((trace.controlSources[0].valid && trace.controlSources[0].confidence < 5) || 
                 (trace.controlSources[1].valid && trace.controlSources[1].confidence < 5 )) {
                 DPRINTF(Decoder, "Control sources have low confidence\n");

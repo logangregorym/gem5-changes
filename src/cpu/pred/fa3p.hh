@@ -29,6 +29,7 @@ class FA3P : public LVPredUnit
     virtual unsigned getDelay(TheISA::PCState pc);
 
     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle);
+    virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret);
 
     virtual uint64_t getValuePredicted(TheISA::PCState pc);
 
@@ -41,27 +42,38 @@ class FA3P : public LVPredUnit
         ValueWithCount(uint64_t value, SatCounter count) {
             this->value = value;
             this->count = count;
+            this->valid = true;
         }
 
         ValueWithCount() {
             this->value = 0;
             this->count = SatCounter(4);
+            this->valid = false;
+        }
+
+        void reset()
+        {
+            this->value = 0;
+            this->count.reset();
+            this->valid = false;
         }
 
         uint64_t value;
         SatCounter count;
+        bool valid;
     };
 
     struct LVTEntry {
-        LVTEntry(ValueWithCount val1, ValueWithCount val2, ValueWithCount val3, History history, BigSatCounter confidence) {
+        LVTEntry(ValueWithCount val1, ValueWithCount val2, ValueWithCount val3, History history, BigSatCounter confidence, int16_t upc, bool _valid) {
             this->val1 = val1;
             this->val2 = val2;
             this->val3 = val3;
             this->history = history;
             this->confidence = confidence;
             this->tag = 0;
-            this->microtag = 0;
             this->lastUsed = 0;
+            this->micropc = upc;
+            this->valid = _valid;
         }
 
         LVTEntry() {
@@ -71,8 +83,9 @@ class FA3P : public LVPredUnit
             this->history = History();
             this->confidence = BigSatCounter();
             this->tag = 0;
-            this->microtag = 0;
             this->lastUsed = 0;
+            this->micropc = -1;
+            this->valid = false;
         }
 
         ValueWithCount val1;
@@ -81,19 +94,20 @@ class FA3P : public LVPredUnit
         History history;
         BigSatCounter confidence;
         uint64_t tag;
-        uint8_t microtag;
+        int16_t micropc = -1;
+        bool valid = false;
         unsigned lastUsed;
-	unsigned numUses = 0;
-	unsigned averageCycles = 0;
+	    unsigned numUses = 0;
+	    unsigned averageCycles = 0;
     };
 
-    struct predictor {
-        predictor(vector<LVTEntry> LVT, vector<uint8_t> choice) {
+    struct Predictor {
+        Predictor(vector<LVTEntry> LVT, vector<uint8_t> choice) {
             this->LVT = LVT;
             this->choice = choice;
         }
 
-        predictor() {
+        Predictor() {
             this->LVT = vector<LVTEntry>();
             this->choice = vector<uint8_t>();
         }
@@ -103,7 +117,7 @@ class FA3P : public LVPredUnit
         // only using 2 bits, but uint8_t is smallest type available
     };
 
-    vector<predictor> threadPredictors;
+    Predictor predictor;
 
     unsigned tableEntries;
 

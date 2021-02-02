@@ -33,6 +33,7 @@ public:
   typedef LoadValuePredictorParams Params;
   EvesLVP(Params* params);
   virtual LVPredUnit::lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle);
+  virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret){ assert(0);}
   virtual bool processPacketRecieved(TheISA::PCState actual_addr, StaticInstPtr inst,
   uint64_t actual_value, ThreadID tid, uint64_t predictedValue, int8_t confidence,
   unsigned actual_latency, unsigned currentCycle);

@@ -2070,6 +2070,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                     fused = true;
                                 }
                             }
+
                     	}
                     	if (inUopCache) {
                     	    ++uopCacheHitOps;

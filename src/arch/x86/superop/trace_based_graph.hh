@@ -13,6 +13,7 @@
 #include "base/types.hh"
 #include "cpu/static_inst.hh"
 #include "cpu/pred/bpred_unit.hh"
+#include "cpu/pred/lvpred_unit.hh"
 #include "cpu/pred/ltage.hh"
 #include "debug/SuperOp.hh"
 #include "params/TraceBasedGraph.hh"
@@ -24,7 +25,7 @@ using namespace std;
 class ISA;
 
 
-
+class LVPredUnit;
 
 class TraceBasedGraph : public SimObject
 {
@@ -33,6 +34,7 @@ class TraceBasedGraph : public SimObject
     TraceBasedGraph(TraceBasedGraphParams *p);
 
     X86ISA::Decoder* decoder;
+
 
     bool usingControlTracking = false;
     bool usingCCTracking = false;
@@ -69,6 +71,7 @@ class TraceBasedGraph : public SimObject
     bool ccValid;
 
     BPredUnit* branchPred;
+    LVPredUnit *loadPred;
 
     // Propagation Functions
     bool propagateLastUse(StaticInstPtr inst);

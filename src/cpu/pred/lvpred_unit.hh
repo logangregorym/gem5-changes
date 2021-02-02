@@ -93,6 +93,7 @@ class LVPredUnit : public SimObject
      * Does lookUpLVPT and lookUpLCT and stores results in instruction itself
      */
     virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentCycle) = 0;
+    virtual bool makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , lvpReturnValues& ret){ assert(0);}
     // overload for eves
     //virtual lvpReturnValues makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle, std::list<DynInstPtr>* cpuInsts) = 0;
 
