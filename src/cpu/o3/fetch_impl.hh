@@ -894,7 +894,7 @@ DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
 
     pc[tid] = newPC;
     fetchOffset[tid] = 0;
-    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr()) //&& !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive())
+    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr() && !squashInst->isStreamedFromSpeculativeCache()) //&& !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive())
         macroop[tid] = squashInst->macroop;
     else
         macroop[tid] = NULL;
@@ -2051,11 +2051,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 if ( (curMacroop || inRom)) {
                     if (inRom) {
                     	staticInst = cpu->microcodeRom.fetchMicroop(thisPC.microPC(), curMacroop);
-                        assert(!staticInst->isStreamedFromSpeculativeCache());
 			            staticInst->macroOp = curMacroop;
                     } else {
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
-                        assert(!staticInst->isStreamedFromSpeculativeCache());
                         staticInst->macroOp = curMacroop;
                         staticInst->fetched_from = 1;
                         // if (ENABLE_DEBUG)
