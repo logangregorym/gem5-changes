@@ -845,10 +845,20 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     bool updateSuccessful = decoder->addUopToSpeculativeCache( trace, isPredSource);
     trace.shrunkLength++;
 
-    // Step 3b: Mark all predicted values on the StaticInst -- don't do this for prediction sources
-    if (!isPredSource) {
-        for (int i=0; i<trace.inst->numSrcRegs(); i++) {
-            unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
+    // Step 3b: Mark all predicted values on the StaticInst
+    for (int i=0; i<trace.inst->numSrcRegs(); i++) {
+        unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
+        bool propagatingSrc = true;
+        if (isPredSource) { // handle special case where srcReg == destReg
+            for (int i=0; i<trace.inst->numDestRegs(); i++) {
+                unsigned destIdx = trace.inst->destRegIdx(i).flatIndex();
+                if (destIdx == srcIdx) {
+                    propagatingSrc = false;
+                    break;
+                }
+            }
+        }
+        if (propagatingSrc) {
             DPRINTF(ConstProp, "ConstProp: Examining register %i\n", srcIdx);
             if (regCtx[srcIdx].valid && trace.inst->srcRegIdx(i).classValue() == IntRegClass) {
                 DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
@@ -857,8 +867,10 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
                 trace.inst->sourcesPredicted[i] = true;
             }
         }
+    }
 
-        // update live outs
+    // update live outs -- don't do this for prediction sources
+    if (!isPredSource) {
         for (int i=0; i<trace.inst->numDestRegs(); i++) {
             RegId destReg = trace.inst->destRegIdx(i);
             if (destReg.classValue() == IntRegClass) {

@@ -98,7 +98,7 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
     addressInfo->lastUsed = currentCycle;
 
     uint8_t choice = threadPred.choice[addressInfo->history.read()];
-    DPRINTF(LVP, "Choice %i selected for address %x based on history %x\n", choice, loadAddr, addressInfo->history.read());
+    DPRINTF(LVP, "Choice %i selected for address %x.%x based on history %x\n", choice, loadAddr, pc.upc(), addressInfo->history.read());
     uint64_t value;
     int8_t status;
     if (choice == 1) {
@@ -114,8 +114,8 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
         value = 0;
         status = -1;
     }
-    DPRINTF(LVP, "Value for address %x is %llx\n", loadAddr, value);
-    DPRINTF(LVP, "Status for address %x is %i\n", loadAddr, status - firstConst);
+    DPRINTF(LVP, "Value for address %x.%x is %llx\n", loadAddr, pc.upc(), value);
+    DPRINTF(LVP, "Status for address %x.%x is %i\n", loadAddr, pc.upc(), status - firstConst);
     ++predictionsMade;
     return LVPredUnit::lvpReturnValues(value, status - firstConst, getDelay(loadAddr));
 }
@@ -145,7 +145,7 @@ uint64_t FA3P::getValuePredicted(TheISA::PCState pc)
     }
 
     uint8_t choice = threadPred.choice[addressInfo->history.read()];
-    DPRINTF(LVP, "Choice %i selected for address %x based on history %x\n", choice, loadAddr, addressInfo->history.read());
+    DPRINTF(LVP, "Choice %i selected for address %x.%x based on history %x\n", choice, loadAddr, pc.upc(), addressInfo->history.read());
     uint64_t value;
     int8_t status;
     if (choice == 1) {
@@ -161,8 +161,8 @@ uint64_t FA3P::getValuePredicted(TheISA::PCState pc)
         value = 0;
         status = -1;
     }
-    DPRINTF(LVP, "Value for address %x is %llx\n", loadAddr, value);
-    DPRINTF(LVP, "Status for address %x is %i\n", loadAddr, status - firstConst);
+    DPRINTF(LVP, "Value for address %x.%x is %llx\n", loadAddr, pc.upc(), value);
+    DPRINTF(LVP, "Status for address %x.%x is %i\n", loadAddr, pc.upc(), status - firstConst);
     ++predictionsMade;
     return value;
 }
@@ -189,7 +189,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
 
     DPRINTF(LVP, "Inst %s called processPacketRecieved\n", inst->disassemble(pc.instAddr()));
     Addr loadAddr = pc.instAddr();
-    DPRINTF(LVP, "Value %llx predicted for address %x with confidence %i\n", prediction, loadAddr, confidence);
+    DPRINTF(LVP, "Value %llx predicted for address %x.%x with confidence %i\n", prediction, loadAddr, pc.upc(), confidence);
     predictor &threadPred = threadPredictors[tid];
 
     LVTEntry *addressInfo = NULL;
@@ -249,7 +249,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
         }
 **/
 
-        DPRINTF(LVP, "Value %llx recieved for address %x\n", responseVal, loadAddr);
+        DPRINTF(LVP, "Value %llx recieved for address %x.%x\n", responseVal, loadAddr, pc.upc());
 
         // Stats time!
         if (confidence >= 0) {
@@ -283,7 +283,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
 
 
 
-        bool misPred = (confidence >= 0) && (prediction != responseVal);
+        bool misPred = (prediction != responseVal);
 
         if (foundAddress) {
             //if ((prediction != responseVal) && ((addressInfo.replaceTag.read() > 2) || (addressInfo.tag == 0)) && (addressInfo.tag != tag)) {
@@ -368,7 +368,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
         }
 
         if (misPred) {
-            DPRINTF(LVP, "MISPREDICTION DETECTED for address %x\n", loadAddr);
+            DPRINTF(LVP, "MISPREDICTION DETECTED for address %x.%x\n", loadAddr, pc.upc());
             if (foundAddress) {
                 addressInfo->confidence.reset();
                 while (addressInfo->confidence.read() < resetTo) {
