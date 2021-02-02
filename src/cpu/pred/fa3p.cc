@@ -72,11 +72,15 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
             addressInfo = &threadPred.LVT[i];
             foundAddress = true;
         }
-        else if (threadPred.LVT[i].tag == 0) {
-            threadPred.LVT[i].tag = loadAddr;
-            threadPred.LVT[i].microtag = pc.upc();
-            addressInfo = &threadPred.LVT[i];
-            foundAddress = true;
+    }
+    if (!foundAddress) {
+        for (int i=0; i < tableEntries; i++) {
+            if (threadPred.LVT[i].tag == 0) {
+                threadPred.LVT[i].tag = loadAddr;
+                threadPred.LVT[i].microtag = pc.upc();
+                addressInfo = &threadPred.LVT[i];
+                foundAddress = true;
+            }
         }
     }
 
@@ -132,11 +136,15 @@ uint64_t FA3P::getValuePredicted(TheISA::PCState pc)
             addressInfo = &threadPred.LVT[i];
             foundAddress = true;
         }
-        else if (threadPred.LVT[i].tag == 0) {
-            threadPred.LVT[i].tag = loadAddr;
-            threadPred.LVT[i].microtag = pc.upc();
-            addressInfo = &threadPred.LVT[i];
-            foundAddress = true;
+    }
+    if (!foundAddress) {
+        for (int i=0; i < tableEntries; i++) {
+            if (threadPred.LVT[i].tag == 0) {
+                threadPred.LVT[i].tag = loadAddr;
+                threadPred.LVT[i].microtag = pc.upc();
+                addressInfo = &threadPred.LVT[i];
+                foundAddress = true;
+            }
         }
     }
 

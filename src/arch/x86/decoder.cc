@@ -1296,20 +1296,20 @@ Decoder::isTraceAvailable(Addr addr, int64_t value, int8_t confidence) {
                 continue;
             }
 
-            if (confidence >= 5 && value != trace.source[0].value) { // trace with incorrect value, move on to a different trace
+/*            if (confidence >= 5 && value != trace.source[0].value) { // trace with incorrect value, move on to a different trace
                 continue;
             }
-
+*/
             if ((trace.controlSources[0].valid && trace.controlSources[0].confidence < 5) || 
-                (trace.controlSources[1].valid && trace.controlSources[1].confidence < 5 ))
-            {
-                    continue;
+                (trace.controlSources[1].valid && trace.controlSources[1].confidence < 5 )) {
+                DPRINTF(Decoder, "Control sources have low confidence\n");
+                continue;
             }
 
             unsigned traceConfidence = minConfidence(trace.id);
             unsigned latency = maxLatency(trace.id);
             unsigned shrinkage = trace.length - trace.shrunkLength;
-            DPRINTF(Decoder, "confidence=%i, latency=%i, shrinkage=%i\n", confidence, latency, shrinkage);
+            DPRINTF(Decoder, "confidence=%i, latency=%i, shrinkage=%i\n", traceConfidence, latency, shrinkage);
             if (traceConfidence < 5) { // low confidence, move on the the next trace at this index
                 continue;
             }
@@ -1400,16 +1400,13 @@ Decoder::invalidateSpecCacheLine(int idx, int way) {
 
 unsigned
 Decoder::minConfidence(unsigned traceId) {
-    unsigned minConf = 50;
+    unsigned minConf = traceConstructor->traceMap[traceId].source[0].confidence;
     for (int i = 0; i < 4; i++) {
         assert(traceConstructor->traceMap.find(traceId) != traceConstructor->traceMap.end());
         if (traceConstructor->traceMap[traceId].source[i].valid) {
             unsigned sourceConf = traceConstructor->traceMap[traceId].source[i].confidence;
             if (sourceConf < minConf) { minConf = sourceConf; }
         }
-    }
-    if (minConf == 50) {
-        return 0; 
     }
     return minConf;
 }
