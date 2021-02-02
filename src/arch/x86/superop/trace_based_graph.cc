@@ -172,7 +172,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
             for (int uop=0; uop<decoder->uopCountArray[idx][way]; uop++) {
                 if (decoder->uopValidArray[idx][way] && 
                     decoder->uopAddrArray[idx][way][uop].pcAddr == addr && 
-                    decoder->uopAddrArray[idx][way][uop].uopAddr == uopAddr) 
+                    decoder->uopAddrArray[idx][way][uop].uopAddr == 0 /*uopAddr*/) 
                 {
                     SpecTrace newTrace;
                     newTrace.source[0].valid = true;
@@ -182,7 +182,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, u
                     newTrace.source[0].latency = latency;
                     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
                     newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
-                    newTrace.headAddr = FullUopAddr(addr, uopAddr);
+                    newTrace.headAddr = FullUopAddr(addr,  0 /*uopAddr*/);
                     newTrace.instAddr = FullUopAddr(0, 0);
 
                     // before adding it to the queue, check if profitable -- we prefer long hot traces
