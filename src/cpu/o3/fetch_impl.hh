@@ -2051,9 +2051,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 if ( (curMacroop || inRom)) {
                     if (inRom) {
                     	staticInst = cpu->microcodeRom.fetchMicroop(thisPC.microPC(), curMacroop);
+                        assert(!staticInst->isStreamedFromSpeculativeCache());
 			            staticInst->macroOp = curMacroop;
                     } else {
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
+                        assert(!staticInst->isStreamedFromSpeculativeCache());
                         staticInst->macroOp = curMacroop;
                         staticInst->fetched_from = 1;
                         // if (ENABLE_DEBUG)
@@ -2062,11 +2064,13 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	/* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
-                            prevStaticInst->macroOp = curMacroop;
-                    	    if ((staticInst->isInteger() || staticInst->isNop() ||
-                    	            staticInst->isControl() || staticInst->isMicroBranch()) &&
-                    	            prevStaticInst->isLoad() && !prevStaticInst->isRipRel()) {
-                    	        fused = true;
+                            if (!prevStaticInst->isStreamedFromSpeculativeCache()) {
+                                prevStaticInst->macroOp = curMacroop;
+                                if ((staticInst->isInteger() || staticInst->isNop() ||
+                                        staticInst->isControl() || staticInst->isMicroBranch()) &&
+                                        prevStaticInst->isLoad() && !prevStaticInst->isRipRel()) {
+                                    fused = true;
+                                }
                             }
                     	}
                     	if (inUopCache) {

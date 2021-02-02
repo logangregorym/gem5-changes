@@ -1643,6 +1643,7 @@ FullO3CPU<Impl>::removeFrontInst(DynInstPtr &inst)
         if (commitMacroOp) {
             commitMacroOp->deleteMicroOps();
         }
+        DPRINTF(O3CPU, "Setting commitMacroOp [sn:%lli]\n", inst->seqNum);
         commitMacroOp = inst->staticInst->macroOp;
     }
 
