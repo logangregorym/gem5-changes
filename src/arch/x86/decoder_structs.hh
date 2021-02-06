@@ -372,7 +372,7 @@ class SpeculativeUopCache
             uint64_t setIdx = (_traceHeadAddr >> 5) & (SetBitsMask);
             assert(setIdx < NumSets);
             
-            for (auto const& s : specCacheSets[setIdx])
+            for (auto & s : specCacheSets[setIdx])
             {
                 if (s.second.second.traceHeadAddr == _traceHeadAddr)
                 {

@@ -910,7 +910,7 @@ DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
 
     pc[tid] = newPC;
     fetchOffset[tid] = 0;
-    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr()) //&& !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive())
+    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr() && !squashInst->isStreamedFromSpeculativeCache())//&& !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive())
         macroop[tid] = squashInst->macroop;
     else
         macroop[tid] = NULL;
@@ -2079,21 +2079,22 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     if (inRom) {
                     	staticInst = cpu->microcodeRom.fetchMicroop(thisPC.microPC(), curMacroop);
 			            staticInst->macroOp = curMacroop;
+                        assert(!staticInst->isStreamedFromSpeculativeCache());
                     } else {
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
                         staticInst->macroOp = curMacroop;
                         staticInst->fetched_from = 1;
-                        // if (ENABLE_DEBUG)
-                        //     std::cout << "Decoder || UopCache: " <<  " PCState: " <<  thisPC << 
-                        //     " " << staticInst->disassemble(thisPC.pc()) << std::endl << std::flush;
+                        assert(!staticInst->isStreamedFromSpeculativeCache());
                     	/* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
                             prevStaticInst->macroOp = curMacroop;
-                    	    if ((staticInst->isInteger() || staticInst->isNop() ||
-                    	            staticInst->isControl() || staticInst->isMicroBranch()) &&
-                    	            prevStaticInst->isLoad() && !prevStaticInst->isRipRel()) {
-                    	        fused = true;
+                            if (!prevStaticInst->isStreamedFromSpeculativeCache()) { 
+                                if ((staticInst->isInteger() || staticInst->isNop() ||
+                                        staticInst->isControl() || staticInst->isMicroBranch()) &&
+                                        prevStaticInst->isLoad() && !prevStaticInst->isRipRel()) {
+                                    fused = true;
+                                }
                             }
                     	}
                     	if (inUopCache) {

@@ -304,7 +304,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
 
 
     // Stats time!,
-    if (confidence >= 0) {
+    if (confidence >= 5) {
             // Used
             if (prediction == responseVal) {
                 // Correct
@@ -335,7 +335,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
 
 
 
-    bool misPred = (confidence >= 0) && (prediction != responseVal);
+    bool misPred = /*(confidence >= 0) && */(prediction != responseVal);
 
     if (foundAddress) {
 

@@ -801,30 +801,39 @@ bool TraceBasedGraph::updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstP
 
     // TODO! add spec cache logic
     //bool updateSuccessful = decoder->addUopToSpeculativeCache( trace, isPredSource);
-    bool updateSuccessful = true;
+    bool updateSuccessful = true; updateSuccessful = updateSuccessful;
     _trace_it->second.shrunkLength++;
 
-    // Step 3b: Mark all predicted values on the StaticInst -- don't do this for prediction sources
-    if (!isPredSource) {
-        for (int i=0; i<_decodedMicroOp->numSrcRegs(); i++) {
-            unsigned srcIdx = _decodedMicroOp->srcRegIdx(i).flatIndex();
-            DPRINTF(ConstProp, "ConstProp: Examining register %i\n", srcIdx);
-            if (regCtx[srcIdx].valid && _decodedMicroOp->srcRegIdx(i).classValue() == IntRegClass) {
-                DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, macro_addr, micro_addr);
-                DPRINTF(ConstProp, "ConstProp: Setting _decodedMicroOp sourcePrediction to %#x\n", regCtx[srcIdx].value);
-                _decodedMicroOp->sourcePredictions[i] = regCtx[srcIdx].value;
-                _decodedMicroOp->sourcesPredicted[i] = true;
-            }
-        }
 
-        // update live outs
-        for (int i=0; i < _decodedMicroOp->numDestRegs(); i++) {
-            RegId destReg = _decodedMicroOp->destRegIdx(i);
-            if (destReg.classValue() == IntRegClass) {
-                regCtx[destReg.flatIndex()].valid = false;
-            }
-        }
-    }
+
+    // TODO: what is this?!
+    // Step 3b: Mark all predicted values on the StaticInst -- don't do this for prediction sources
+    // update live outs -- don't do this for prediction sources
+    // if (!isPredSource) {
+    //     for (int i=0; i<_decodedMicroOp->numDestRegs(); i++) {
+    //         RegId destReg = _decodedMicroOp->destRegIdx(i);
+    //         if (destReg.classValue() == IntRegClass) {
+    //             regCtx[destReg.flatIndex()].valid = false;
+    //         }
+    //     }
+    // }
+
+
+    // Update head of the optimized trace
+    // if (!trace.optimizedHead.valid) {
+    //     DPRINTF(Decoder, "updateSpecTrace: Trace %d optimized head is not valid!\n", trace.id);
+    //     trace.optimizedHead.idx = trace.head.idx; 
+    //     trace.optimizedHead.uop = 0;
+    //     for (int way=0; way<8; way++) {
+    //         int idx = trace.head.idx;
+    //         if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == trace.id) {
+    //             DPRINTF(Decoder, "updateSpecTrace: Trace %d optimized head way is updated to %d!\n", trace.id, way);
+    //             trace.optimizedHead.way = way;
+    //             trace.optimizedHead.valid = true;
+    //             break;
+    //         }
+    //     }
+    // }
 
     return updateSuccessful;
 }
