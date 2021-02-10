@@ -1419,15 +1419,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             head_inst->isLastMicroop())
            )
     {   
-            // bool pass = true;
-            // std::map<unsigned int,unsigned int> spec_count;
-            // for (int idx = 0; idx < 32; idx++) {
-            //     for (int way = 0; way < 8; way++) {
-            //         if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
-            //             spec_count[cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way]] = 0;
-            //         }
-            //     }
-            // }
+        
             
             int numOfCompletedTraces = 0;
             for (auto const& elem : cpu->fetch.decoder[tid]->traceConstructor->traceMap)
@@ -1437,51 +1429,22 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
                     numOfCompletedTraces++;
                 }
             }  
-            std::cout << "--------------------START OF EPOCH----------------------------" <<
-            std::endl << std::dec << "NumOfInsts: " << (uint64_t)cpu->committedInsts[tid].value() <<
-            std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<  " numOfCompletedTraces: " << numOfCompletedTraces <<  std::endl;  
-
-             
-		    // std::endl << std::dec << "spec_count Size: " << spec_count.size() << std::endl;        
-            // for (int idx = 0; idx < 32; idx++){
-            //     std::cout << "Idx " << idx  << " : " ;
-            //     for (int way = 0; way < 8; way++) {
-                    
-            //         if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
-            //             pass &= true; 
-            //             std::cout << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
-            //        }
-            //         else if (cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] != 0)
-            //         {
-            //             std::cout << "{" << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << "} (" << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
-            //             pass &= false; 
-            //         }
-            //         else 
-            //         {
-            //             std::cout  << cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way] << " (" << cpu->fetch.decoder[tid]->speculativeEvictionStat[idx][way] << ") ";
-            //             pass &= true; 
-            //         }
-            //     }
-            //     std::cout << std::endl;
-            // }
-            // std::cout << std::endl;  
-            // assert(pass);
             
-            // pass = true;
-            // for (auto &it : cpu->fetch.decoder[tid]->traceConstructor->traceMap)
-            // {
-            //     if (spec_count.find(it.first) == spec_count.end() && it.second.state == SpecTrace::Complete)
-            //     {   
-            //         std::cout << "Can't find trace " << it.first << " in spec$ but it is present in trace map and its state is complete!\n";
-            //         pass &= false;   
-            //     }
-            //     else if (spec_count.find(it.first) == spec_count.end() && it.second.state != SpecTrace::Complete)
-            //     {
-            //         std::cout << "Can't find trace " << it.first << " in spec$ but it is present in trace map and its state is " << it.second.state << "\n";
-            //         //pass &= false; 
-            //     }
-            // }
-            // assert(pass);
+            
+
+            std::cout << "--------------------START OF EPOCH----------------------------" <<
+            std::endl << std::dec << "Number Of Insts: " << (uint64_t)cpu->committedInsts[tid].value() <<
+            std::endl << std::dec << "Trace Map Size: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<  
+            std::endl << std::dec << "Number Of Completed Traces in Trace Map: " << numOfCompletedTraces <<  
+            std::endl << std::dec << "Trace Queue Size: " << cpu->fetch.decoder[tid]->traceConstructor->candidateTraceQueue.size() <<
+            std::endl << std::dec << "Number of Traces in Spec Cache: " << cpu->fetch.decoder[tid]->specCache->GetNumOfValidTracesInSpecCache() << 
+            std::endl << std::dec << "Number of Evicted Traces from Spec Cache: " << cpu->fetch.decoder[tid]->specCache->GetNumOfEvictedTraces() << 
+            std::endl ;
+            cpu->fetch.decoder[tid]->specCache->DumpSpecCacheToStdOut();
+            assert(numOfCompletedTraces == cpu->fetch.decoder[tid]->specCache->GetNumOfValidTracesInSpecCache());
+            
+             
+		    
             
 
     }

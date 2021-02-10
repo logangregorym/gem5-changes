@@ -415,6 +415,8 @@ class DefaultFetch
     // For Trace-Based Implementation, need to track trace ID across cycles
     uint64_t currentTraceID = 0;
 
+    bool enableSpeculativeStreaming = false;
+
   private:
     bool usingTrace = false;
 

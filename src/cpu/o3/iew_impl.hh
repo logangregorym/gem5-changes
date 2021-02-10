@@ -1500,81 +1500,24 @@ DefaultIEW<Impl>::executeInsts()
                     inst->forwardOldRegs();
 		        }
 
-                // update LVP for every instruction 
-                string opcode = inst->getName();
-                if (!inst->isStore() && inst->isInteger() && !inst->isVector()  /*&& !inst->isCC()*/ && !inst->isFloating() && inst->staticInst->predictedLoad && 
-                    ((inst->isStreamedFromUOpCache() /*&& inst->isUOpCacheHotTrace()*/) || inst->isStreamedFromSpeculativeCache() || inst->isSpeculativlyForwarded() || inst->isTracePredictionSource()) && loadPred->predictingArithmetic) { 
-                    
-                    
-                    inst->memoryAccessStartCycle = cpu->numCycles.value();
-                    inst->memoryAccessEndCycle = cpu->numCycles.value();
+                // Unconditional LVP update for arithmatic instructions
+                if (loadPred->predictingArithmetic && inst->staticInst->predictedLoad  && inst->isStreamedFromUOpCache() ) 
+                { 
+                    assert(!inst->isStreamedFromSpeculativeCache());
+                    assert(!inst->isTracePredictionSource());
+                    inst->memoryAccessEndCycle = cpu->numCycles.value(); 
 
-                    assert(!inst->isLoad());
-                    DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
-                    ThreadID tid = inst->threadNumber;
-                    DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence); 
-	
-                    for (int i=0; i<inst->numDestRegs(); i++) {
-                    	PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
-                    	uint64_t value;
-                    	switch (dest_reg->classValue()) {
-			                // Note: changed memoryAccessStartCycle to cycleFetched in all these
-                          case IntRegClass:
-                            value = cpu->readIntReg(dest_reg);
-                            DPRINTF(LVP, "IntRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
-
-                            // gathering some statics
-                            //cpu->fetch.decoder[tid]->insertReturnedValueIntoUopCacheStatics(inst->pcState(), value, inst->staticInst->predictedValue);
-                            
-                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
-                            break;
-                            
-                          case CCRegClass:
-                          case FloatRegClass:
-                      	  case VecRegClass:
-                      	  case VecElemClass:
-                      	  case MiscRegClass:
-                            break;
-                     	  default:
-                            panic("Unsupported Register Class: %d", (int)dest_reg->classValue());
-                   	    }
-                    }
-                    // TODO: Just squash when we actually have used the predicted value whether in super optimizer or LVP
-                    // TODO: FOR NOW JUST TRACE PREDICTIONS, LATER LVP + TRACE
-                    if (inst->lvMispred  && inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource()) 
-                    {
-                    	DPRINTF(LVP, "DefaultIEW::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
-                        DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction for a trace prediction source!\n");
-                    	// cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
-                    	loadPred->lastMisprediction = inst->memoryAccessEndCycle;
-                    	// Moved from commit
-                    	squashDueToLoad(inst, inst, tid);
-                        
-
-                    }
+                    updateLoadValuePredictor(inst);
+                }
+                // here we decide whether we want to squash or not due to a LVP missprediction
+                if (inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource())
+                {
+                    assert(!inst->isStreamedFromUOpCache());
+                    assert(!inst->staticInst->predictedLoad); // prediction sources that are coing from spec cache never should have this set
+                    assert(loadPred->predictingArithmetic); // only when LVP is enabled for arithmatic operations
                     
-                    // we can have non-load instructions which are streamed from speculative cache and thier values are forwaded speculativly
-                    else if (inst->lvMispred && inst->isSpeculativlyForwarded()) 
-                    {
-                        assert(!inst->isStreamedFromSpeculativeCache());
-                         DPRINTF(LVP, "DefaultIEW::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
-                         DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction for a instruction which is not a trace prediction source!\n");
-                         DPRINTF(LVP, "DefaultIEW::executeInsts():: isStreamedFromSpeculativeCache? %d\n", inst->isStreamedFromSpeculativeCache());
-                    	// cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
-                    	loadPred->lastMisprediction = inst->memoryAccessEndCycle;
-                    	// Moved from commit
-                    	squashDueToLoad(inst, inst, tid);
-                    
-                    }
-
-                    // logic to update the trace confidences base on prediction result
-                    if ( inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource())
-                    {
-                        updateTraceConfidence(inst);
-                    }
-                    
-
-            	}
+                    checkForLVPMissprediction(inst);
+                }
             }
 
             inst->setExecuted();
@@ -2048,6 +1991,7 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
                 DPRINTF(LVP, "DefaultIEW::executeInsts():: Correct Prediction! Increasing trace %d confidence! Confidence level is %d\n", traceID, 
                         cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence);
                 updated = true;
+                assert(0);
             }
         }
 
@@ -2078,6 +2022,97 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
 
     }
 
+
+}
+
+
+template <class Impl>
+void
+DefaultIEW<Impl>::updateLoadValuePredictor(DynInstPtr& inst)
+{
+
+
+        DPRINTF(LVP, "Sending a response to LVP from [sn:%i]\n", inst->seqNum);
+        DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence); 
+	
+        int numIntDestRegs = 0 ;
+        for (int i=0; i<inst->numDestRegs(); i++) {
+            PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
+            uint64_t value;
+            switch (dest_reg->classValue()) 
+            {
+			    // Note: changed memoryAccessStartCycle to cycleFetched in all these
+                case IntRegClass:
+                    numIntDestRegs++;
+                    value = cpu->readIntReg(dest_reg);
+                    DPRINTF(LVP, "IntRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
+
+                    // gathering some statics
+                    //cpu->fetch.decoder[inst->threadNumber]->insertReturnedValueIntoUopCacheStatics(inst->pcState(), value, inst->staticInst->predictedValue);
+                            
+                    loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                    break;
+                            
+                case CCRegClass:
+                case FloatRegClass:
+                case VecRegClass:
+                case VecElemClass:
+                case MiscRegClass:
+                    break;
+                default:
+                    panic("Unsupported Register Class: %d", (int)dest_reg->classValue());
+            }
+        }
+
+        // always should be one! We never predict for non int dest regs
+        assert(numIntDestRegs == 1);
+                    
+
+
+}
+
+template <class Impl>
+void
+DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
+{
+        assert(0);
+        assert(!inst->isSpeculativlyForwarded()); // for now disable LV forwarding
+
+        // Check for missprediction using special function of Predictor
+        //TODO:
+
+        if (inst->lvMispred  && inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource()) 
+        {
+            DPRINTF(LVP, "DefaultIEW::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
+            DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction for a trace prediction source!\n");
+            // cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
+            loadPred->lastMisprediction = inst->memoryAccessEndCycle;
+            // Moved from commit
+            squashDueToLoad(inst, inst, inst->threadNumber);
+                        
+
+        }
+                    
+        // we can have non-load instructions which are streamed from speculative cache and thier values are forwaded speculativly
+        else if (inst->lvMispred && inst->isSpeculativlyForwarded()) 
+        {
+            assert(!inst->isStreamedFromSpeculativeCache());
+            DPRINTF(LVP, "DefaultIEW::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
+            DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction for a instruction which is not a trace prediction source!\n");
+            DPRINTF(LVP, "DefaultIEW::executeInsts():: isStreamedFromSpeculativeCache? %d\n", inst->isStreamedFromSpeculativeCache());
+            // cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
+            loadPred->lastMisprediction = inst->memoryAccessEndCycle;
+            // Moved from commit
+            squashDueToLoad(inst, inst, inst->threadNumber);
+                    
+        }
+
+        // logic to update the trace confidences base on prediction result
+        if ( inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource())
+        {
+            updateTraceConfidence(inst);
+        }
+    
 
 }
 

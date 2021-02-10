@@ -38,6 +38,7 @@
 #include "debug/Decoder.hh"
 #include "debug/ConstProp.hh"
 #include "debug/SuperOp.hh"
+#include "debug/TraceSel.hh"
 
 #include <iostream>
 #include <algorithm>
@@ -787,6 +788,7 @@ Decoder::updateLRUBits(int idx, int way)
 void
 Decoder::updateLRUBitsSpeculative(int idx, int way)
 {
+    assert(0);
     for (int lru = 0; lru < 8; lru++) {
         if (speculativeLRUArray[idx][lru] > speculativeLRUArray[idx][way]) {
             speculativeLRUArray[idx][lru]--;
@@ -841,7 +843,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             unsigned uopAddr = 0;
             for (int uop = waySize; uop < (waySize + numUops); uop++) {
                 uopAddrArray[idx][way][uop] = FullUopAddr(addr, uopAddr + uop - waySize);
-                DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uopAddr + uop - waySize);
+                DPRINTF(Decoder, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uopAddr + uop - waySize);
                 emi.instSize = size;
                 uopCache[idx][way][uop] = emi;
                 DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d count:%d.\n", addr, tag, idx, way, uop, emi.instSize, uopCountArray[idx][way]);
@@ -879,7 +881,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 // }
                 for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
                     // DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][way][uop], true);
-                    DPRINTF(ConstProp, "Decoder is invalidating way %i, so removing uop[%i][%i][%i]\n", way, idx, way, uop);
+                    DPRINTF(Decoder, "Decoder is invalidating way %i, so removing uop[%i][%i][%i]\n", way, idx, way, uop);
                     // depTracker->removeAtIndex(idx, way, uop); // changed to spec
                     // depTracker->microopAddrArray[idx][way][uop] = FullUopAddr(0,0);
                 }
@@ -902,16 +904,16 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 /* Multi-way region. */
                 uopNextWayArray[idx][lastWay] = way;
                 uopPrevWayArray[idx][way] = lastWay;
-                DPRINTF(ConstProp, "way %i --> way %i\n", lastWay, way);
+                DPRINTF(Decoder, "way %i --> way %i\n", lastWay, way);
             }
             uopCountArray[idx][way] = numUops;
             uopValidArray[idx][way] = true;
             //uopFullArray[idx][way] = false;
             uopTagArray[idx][way] = tag;
-            DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, way, tag);
+            DPRINTF(Decoder, "Set uopTagArray[%i][%i] to %x\n", idx, way, tag);
             for (int uop = 0; uop < numUops; uop++) {
                 uopAddrArray[idx][way][uop] = FullUopAddr(addr,uop);
-                DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uop);
+                DPRINTF(Decoder, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, way, uop, addr, uop);
                 emi.instSize = size;
                 uopCache[idx][way][uop] = emi;
                 DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
@@ -1115,16 +1117,16 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             /* Multi-way region. */
             uopNextWayArray[idx][lastWay] = evictWay;
             uopPrevWayArray[idx][evictWay] = lastWay;
-            DPRINTF(ConstProp, "way %i --> way %i\n", lastWay, evictWay);
+            DPRINTF(Decoder, "way %i --> way %i\n", lastWay, evictWay);
         }
         uopCountArray[idx][evictWay] = numUops;
         uopValidArray[idx][evictWay] = true;
         //uopFullArray[idx][evictWay] = false;
         uopTagArray[idx][evictWay] = tag;
-        DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, evictWay, tag);
+        DPRINTF(Decoder, "Set uopTagArray[%i][%i] to %x\n", idx, evictWay, tag);
         for (int uop = 0; uop < numUops; uop++) {
             uopAddrArray[idx][evictWay][uop] = FullUopAddr(addr, uop);
-            DPRINTF(ConstProp, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, evictWay, uop, addr, uop);
+            DPRINTF(Decoder, "Set microopAddrArray[%i][%i][%i] to %x.%i\n", idx, evictWay, uop, addr, uop);
             emi.instSize = size;
             uopCache[idx][evictWay][uop] = emi;
             DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, evictWay, uop, emi.instSize);
@@ -1195,7 +1197,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     StaticInstPtr inst =  trace.inst;
     Addr addr = trace.instAddr.pcAddr;
     unsigned uop = trace.instAddr.uopAddr; 
-    unsigned traceID = trace.id;
+    unsigned traceID = trace.getTraceID();
 
     int idx = (addr >> 5) & 0x1f;
     uint64_t tag = (addr >> 10);
@@ -1240,7 +1242,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
                 speculativeCache[idx][way][waySize]->setTracePredictionSource(true);
             }
 
-            DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, waySize, addr, uop);
+            DPRINTF(Decoder, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, waySize, addr, uop);
             updateLRUBitsSpeculative(idx, way);
             DPRINTF(Decoder, "Adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d nextway:%d prevway:%d.\n", addr, tag, idx, way, waySize, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
             if (speculativeCountArray[idx][way] == 6) {
@@ -1279,7 +1281,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
             }
 
             DPRINTF(Decoder, "Allocating a previous invalid way and adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d nextWay:%d prevway:%d.\n", addr, tag, idx, way, u, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
-            DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, u, addr, uop);
+            DPRINTF(Decoder, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, u, addr, uop);
             return true;
         }
     }
@@ -1291,12 +1293,12 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
         // check if we are processing the trace for first time optimization -- write to way in progress
         if ((((traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) ||
               (traceConstructor->currentTrace.state == SpecTrace::ReoptimizationInProcess)) &&
-            traceConstructor->currentTrace.id != 0) && 
-            (traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][way] ||
-             traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
-             traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) {
+            traceConstructor->currentTrace.getTraceID() != 0) && 
+            (traceConstructor->currentTrace.getTraceID() == speculativeTraceIDArray[idx][way] ||
+             traceConstructor->currentTrace.getTraceID() == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
+             traceConstructor->currentTrace.getTraceID() == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) {
             
-            DPRINTF(Decoder, "Can't evict becuase OptimizationInProcess: tag:%#x idx:%d way:%d. currentTrace.id: %d\n", tag, idx, way, traceConstructor->currentTrace.id);
+            DPRINTF(Decoder, "Can't evict becuase OptimizationInProcess: tag:%#x idx:%d way:%d. currentTrace.id: %d\n", tag, idx, way, traceConstructor->currentTrace.getTraceID());
             continue;
         }
         // check if we are processing the trace for re-optimization -- read from way in progress
@@ -1310,12 +1312,12 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
             continue;
         }
         // check if we are streaming the trace -- read from way in progress
-        if ((traceConstructor->streamTrace.id != 0) && 
-            (traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][way] ||
-            traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
-            traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) 
+        if ((traceConstructor->streamTrace.getTraceID() != 0) && 
+            (traceConstructor->streamTrace.getTraceID() == speculativeTraceIDArray[idx][way] ||
+            traceConstructor->streamTrace.getTraceID() == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
+            traceConstructor->streamTrace.getTraceID() == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) 
         {
-            DPRINTF(Decoder, "Can't evict becuase we are streaming from this trace: tag:%#x idx:%d way:%d. streamTrace.id: %d\n", tag, idx, way, traceConstructor->streamTrace.id);
+            DPRINTF(Decoder, "Can't evict becuase we are streaming from this trace: tag:%#x idx:%d way:%d. streamTrace.id: %d\n", tag, idx, way, traceConstructor->streamTrace.getTraceID());
             continue;
         }
 
@@ -1391,12 +1393,12 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
         }
 
         
-        DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, evictWay, u, addr, uop);
+        DPRINTF(Decoder, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, evictWay, u, addr, uop);
         updateLRUBitsSpeculative(idx, evictWay);        
         DPRINTF(Decoder, "Evicting and allocating a way and  adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d.\n", addr, tag, idx, evictWay, u);
         return true;
     }
-    DPRINTF(ConstProp, "Optimized trace could not be loaded into speculative cache because eviction failed\n");
+    DPRINTF(Decoder, "Optimized trace could not be loaded into speculative cache because eviction failed\n");
 
     // if we can't evict a way, we need to put the spec cache into a consistent state before inserting this trace
     // Just invalid all the way's that this trace with TraceID has
@@ -1477,17 +1479,19 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
     return NULL;
 }
 
-// LVPredictor return int8_t confidence, if this confidence if less than zero then just return
+
 uint64_t
 Decoder::isTraceAvailable(Addr headAddr) {
+
+     
     
     std::vector<uint64_t> highConfidentTraces;
    
     std::vector<uint64_t> traces;
-    specCache->findAllTracesInSpeculativeCache(headAddr, traces);
+    specCache->isHitInSpecCache(headAddr, traces);
     if (traces.empty()) 
     {
-        DPRINTF(Decoder, "isTraceAvailable: no trace is found for head address %#x\n", headAddr);
+        //DPRINTF(TraceSel, "isTraceAvailable: no trace is found for head address %#x\n", headAddr);
         return 0;
     }
 
@@ -1498,23 +1502,27 @@ Decoder::isTraceAvailable(Addr headAddr) {
     for (auto const &traceID : traces)
     {
         assert(traceConstructor->traceMap.find(traceID) != traceConstructor->traceMap.end());
+
         auto trace_it = traceConstructor->traceMap.find(traceID);
-        assert(trace_it->second.id == traceID);
-        assert(trace_it->second.traceHeadAddr == headAddr);
+        
+        assert(trace_it->second.getTraceID() == traceID);
+        assert(trace_it->second.getOrigHeadAddr().pcAddr == headAddr);
         assert(trace_it->second.state == SpecTrace::Complete);
-        DPRINTF(Decoder, "Checking Trace %i at head addr = %#x\n",traceID, headAddr);
+
+        DPRINTF(TraceSel, "Checking Trace %i at head addr = %#x\n",traceID, headAddr);
 
         // Counsult with LVP when returning a trace ID 
         // just check all the prediction sources to have the same predicted value as now
         // we may have same trces with different values for the source predictions
         int numOfValidPredictionSources = 0;
         int numOfSameValuePredictionsources = 0;
-        for (int i=0; i<8; i++) 
+        for (int i=0; i < SpecTrace::NUM_PREDICTION_SOURCES; i++) 
         {
             if (trace_it->second.source[i].valid)
             {
                 numOfValidPredictionSources++;
                 LVPredUnit::lvpReturnValues ret;
+
                 Addr pcAddr = trace_it->second.source[i].addr.pcAddr;
                 uint16_t uopAddr = trace_it->second.source[i].addr.uopAddr;
                 uint64_t value = trace_it->second.source[i].value;
@@ -1522,12 +1530,12 @@ Decoder::isTraceAvailable(Addr headAddr) {
                 if (traceConstructor->loadPred->makePredictionForTraceGenStage(pcAddr, uopAddr, 0, ret))
                 {   
                         if (ret.confidence >= 5 && ret.predictedValue == value){
-                            DPRINTF(SuperOp, "Prediction source has the same value and has a high confidence: Addr: %#x:%i, Value: %#x, Trace Confidence: %d, Current Confidence: %d\n",  pcAddr,  uopAddr, value, confidence, ret.confidence);
+                            DPRINTF(TraceSel, "Prediction source has the same value and has a high confidence: Addr: %#x:%i, Value: %#x, Trace Confidence: %d, Current Confidence: %d\n",  pcAddr,  uopAddr, value, confidence, ret.confidence);
                             numOfSameValuePredictionsources++;
                         }
                         else 
                         {
-                            DPRINTF(SuperOp, "Prediction source doesn't have the same value or has a low confidence: Addr: %#x:%i, Value: %#x, Trace Confidence: %d, Current Confidence: %d\n",  pcAddr,  uopAddr, value, confidence, ret.confidence);
+                            DPRINTF(TraceSel, "Prediction source doesn't have the same value or has a low confidence: Addr: %#x:%i, Value: %#x, Trace Confidence: %d, Current Confidence: %d\n",  pcAddr,  uopAddr, value, confidence, ret.confidence);
                         }
                 }      
             }
@@ -1545,40 +1553,48 @@ Decoder::isTraceAvailable(Addr headAddr) {
 
     if (highConfidentTraces.empty()) 
     {
-        DPRINTF(Decoder, "isTraceAvailable: %d traces is/are found for head address %#x but none of them had a high score\n", traces.size(), headAddr);
+        DPRINTF(TraceSel, "isTraceAvailable: %d traces is/are found for head address %#x but none of them had a high score\n", traces.size(), headAddr);
         return 0;
     }
     else if (highConfidentTraces.size() == 1)
     {
         assert(highConfidentTraces[0]);
-        DPRINTF(Decoder, "isTraceAvailable returning trace %i! Original trace size: %d SuperOptimized trace size: %d\n", 
+        DPRINTF(TraceSel, "isTraceAvailable returning trace %i! Original trace size: %d SuperOptimized trace size: %d\n", 
                         highConfidentTraces[0], 
                         traceConstructor->traceMap.find(highConfidentTraces[0])->second.length, 
                         traceConstructor->traceMap.find(highConfidentTraces[0])->second.shrunkLength);
+        return highConfidentTraces[0];
         
     }
 
-    uint64_t finalTraceID = highConfidentTraces[0]; assert(finalTraceID);
-    uint64_t finalTraceShrinkage = traceConstructor->traceMap.find(finalTraceID)->second.shrunkLength;
+    // if multiple high confident traces are available, then select the trace with highest shrinkage
+
+    uint64_t finalTraceID = highConfidentTraces[0]; 
+    assert(finalTraceID);
+    uint64_t finalTraceShrunkSize = traceConstructor->traceMap.find(finalTraceID)->second.shrunkLength;
+    uint64_t finalTraceOrigSize = traceConstructor->traceMap.find(highConfidentTraces[0])->second.length;
     for (size_t i = 1; i < highConfidentTraces.size(); i++)
     {
-        if (traceConstructor->traceMap.find(highConfidentTraces[i])->second.shrunkLength > finalTraceShrinkage)
+        if (traceConstructor->traceMap.find(highConfidentTraces[i])->second.shrunkLength < finalTraceShrunkSize)
         {
-            finalTraceShrinkage = traceConstructor->traceMap.find(highConfidentTraces[i])->second.shrunkLength;
+            finalTraceShrunkSize = traceConstructor->traceMap.find(highConfidentTraces[i])->second.shrunkLength;
+            finalTraceOrigSize = traceConstructor->traceMap.find(highConfidentTraces[0])->second.length;
             finalTraceID = highConfidentTraces[i];
+            assert(finalTraceID);
         }
     }
     
 
-    DPRINTF(Decoder, "isTraceAvailable returning trace %i\n", finalTraceID);
+    DPRINTF(TraceSel, "isTraceAvailable returning trace %i! Original trace size: %d SuperOptimized trace size: %d\n", finalTraceID, finalTraceOrigSize,finalTraceShrunkSize);
     
     return finalTraceID;
 }
 
 void
 Decoder::doSquash(Addr addr) {
+    //assert(0);
     traceConstructor->streamTrace.addr.valid = false;
-    traceConstructor->streamTrace.id = 0;
+    traceConstructor->streamTrace.setTraceID(0);
 
     int idx = (addr >> 5) & 0x1f;
     for (int way = 0; way < 8; way++) {
@@ -1609,6 +1625,7 @@ Decoder::doSquash(Addr addr) {
 
 void
 Decoder::invalidateSpecTrace(Addr addr, unsigned uop) {
+    assert(0);
     /*
      * 1. Find tag match in spec cache
      * 2. Clear out tag
@@ -1627,6 +1644,7 @@ Decoder::invalidateSpecTrace(Addr addr, unsigned uop) {
 
 void
 Decoder::invalidateSpecCacheLine(int idx, int way) {
+    assert(0);
     for (int u = 0; u < 6; u++) {
         // depTracker->registerRemovalOfTraceInst(idx, way, u);
         speculativeAddrArray[idx][way][u] = FullUopAddr(0,0);
@@ -1643,6 +1661,7 @@ Decoder::invalidateSpecCacheLine(int idx, int way) {
 
 unsigned
 Decoder::minConfidence(unsigned traceId) {
+    assert(0);
     unsigned minConf = 50;
     for (int i = 0; i < 4; i++) {
         assert(traceConstructor->traceMap.find(traceId) != traceConstructor->traceMap.end());
@@ -1659,6 +1678,7 @@ Decoder::minConfidence(unsigned traceId) {
 
 unsigned
 Decoder::maxLatency(unsigned traceId) {
+    assert(0);
     unsigned maxLat = 0;
     for (int i = 0; i < 4; i++) {
         if (traceConstructor->traceMap[traceId].source[i].valid) {
@@ -1680,16 +1700,16 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
     int uop = traceConstructor->traceMap[traceID].addr.uop;
 
     
-    if ((traceConstructor->streamTrace.id != traceID || !traceConstructor->streamTrace.addr.valid) ) { 
+    if ((traceConstructor->streamTrace.getTraceID() != traceID || !traceConstructor->streamTrace.addr.valid) ) { 
 
-        DPRINTF(Decoder, "traceConstructor->streamTrace.id  = %d\n", traceConstructor->streamTrace.id);
+        DPRINTF(Decoder, "traceConstructor->streamTrace.id  = %d\n", traceConstructor->streamTrace.getTraceID());
         DPRINTF(Decoder, "traceConstructor->streamTrace.addr.valid = %d\n", traceConstructor->streamTrace.addr.valid);
         DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x:\n", thisPC._pc, idx, way, uop , speculativeAddrArray[idx][way][uop].pcAddr); 
     
         
 
         traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
-        DPRINTF(Decoder, "Trace %d ought to be triggered with shrinkage %d:\n", traceConstructor->streamTrace.id, (traceConstructor->streamTrace.length - traceConstructor->streamTrace.shrunkLength));
+        DPRINTF(Decoder, "Trace %d ought to be triggered with shrinkage %d:\n", traceConstructor->streamTrace.getTraceID(), (traceConstructor->streamTrace.length - traceConstructor->streamTrace.shrunkLength));
         //traceConstructor->dumpTrace(traceConstructor->streamTrace);
 
         int _idx = traceConstructor->streamTrace.addr.idx;
@@ -1784,7 +1804,7 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
     }
 
     if (curInst->isEndOfTrace()) {
-        traceConstructor->streamTrace.id = 0;
+        traceConstructor->streamTrace.setTraceID(0);
     }
 
     // set the trace ID for this instruction

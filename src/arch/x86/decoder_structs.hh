@@ -6,6 +6,7 @@
 #include "cpu/static_inst.hh"
 #include "cpu/pred/big_sat_counter.hh"
 #include "base/intmath.hh"
+#include "debug/SpecCache.hh"
 #include <cmath>
 
 struct FullUopAddr {
@@ -143,138 +144,141 @@ struct SuperOptimizedMicroop {
 // Speculative Trace
 struct SpecTrace
 {
+    public:
+        typedef std::map<Addr, std::map<uint16_t, OriginalMicroop>>         OriginalTrace;
+        typedef std::map<Addr, std::map<uint16_t, SuperOptimizedMicroop>>   SuperOptimizedTrace;
+    
+    private:
+        // address of the head of the original trace
+        FullUopAddr origHeadAddr;
+        // address of the last instruction in the original trace
+        FullUopAddr origEndAddr;
+    
+        // Trace ID
+        uint64_t traceID;
 
-    typedef std::map<Addr, std::map<uint16_t, OriginalMicroop>>         OriginalTrace;
-    typedef std::map<Addr, std::map<uint16_t, SuperOptimizedMicroop>>   SuperOptimizedTrace;
-    // Trace ID
-    uint64_t id;
+        // address of the head of the original trace
+        FullUopAddr superHeadAddr;
+        // address of the last instruction in the original trace
+        FullUopAddr superEndAddr;
 
-    // address of the head of the original trace
-    FullUopAddr headAddr;
-    // address of the last instruction in the original trace
-    FullUopAddr endAddr;
+    public:
+        void setOrigHeadAndEndAddr(FullUopAddr _origHeadAddr, FullUopAddr _origEndAddr) {origHeadAddr = _origHeadAddr; origEndAddr = _origEndAddr;}
+        void setSuperHeadAndEndAddr(FullUopAddr _superHeadAddr, FullUopAddr _superEndAddr) {superHeadAddr = _superHeadAddr; superEndAddr = _superEndAddr;}
+        FullUopAddr getOrigHeadAddr() {return origHeadAddr;}
+        FullUopAddr getOrigEndAddr() {return origEndAddr;}
+        FullUopAddr getSuperHeadAddr() {return superHeadAddr;}
+        FullUopAddr getSuperEndAddr() {return superEndAddr;}
 
-    // address of the head of the original trace
-    FullUopAddr superHeadAddr;
-    // address of the last instruction in the original trace
-    FullUopAddr superEndAddr;
+        void setTraceID (uint64_t _id) {traceID = _id;}
+        uint64_t getTraceID() {return traceID;}
 
-    // head address of trace 
-    Addr traceHeadAddr;
+    public:
 
-    // end address of trace
-    Addr traceEndAddr;
+        const static int NUM_PREDICTION_SOURCES  = 8;
+        // address of the instruction being optimized
+        FullUopAddr instAddr;
 
-    // head address of trace 
-    Addr superTraceHeadAddr;
+        // (idx, way, uop) of head of the trace
+        FullCacheIdx head;
 
-    // end address of trace
-    Addr superTraceEndAddr;
+        // (idx, way, uop) of head of the optimized trace
+        FullCacheIdx optimizedHead;
 
-    // (idx, way, uop) of head of the trace
-    FullCacheIdx head;
-
-    // (idx, way, uop) of head of the optimized trace
-    FullCacheIdx optimizedHead;
-
-    // (idx, way, uop) of the instruction being optimized
-    FullCacheIdx addr;
-
-    // address of the instruction being optimized
-    FullUopAddr instAddr;
-
-    // address of the last instruction processed
-    FullUopAddr lastAddr;
-
-    // instruction being optimized
-    StaticInstPtr inst;
-
-    // previous non-eliminated instruction
-    StaticInstPtr prevNonEliminatedInst;
+        // (idx, way, uop) of the instruction being optimized
+        FullCacheIdx addr;
 
 
+        // address of the last instruction processed
+        FullUopAddr lastAddr;
 
-    // Number of branches folded
-    unsigned branchesFolded;
+        // instruction being optimized
+        StaticInstPtr inst;
 
-    // Control Prediction Sources (at most 2)
-    PredictionSource controlSources[2];
+        // previous non-eliminated instruction
+        StaticInstPtr prevNonEliminatedInst;
 
-    // Originial Trace in Uop/Spec cache
-    OriginalTrace originalTrace;
 
-    // Ways in Uop/Spec cache that holds the original trace
-    //std::vector<uint64_t> originalTraceCacheWays;
 
-    // SuperOptimized Trace
-    SuperOptimizedTrace superOptimizedTrace;
+        // Number of branches folded
+        unsigned branchesFolded;
 
-    // Ways in Uop/Spec cache that holds the super optimized trace
-    //std::vector<uint64_t> superOptmizedTraceCacheWays;
+        // Control Prediction Sources (at most 2)
+        PredictionSource controlSources[2];
 
-    enum State {
-        Invalid,
-        
-        QueuedForFirstTimeOptimization,
-        QueuedForReoptimization,
+        // Originial Trace in Uop/Spec cache
+        OriginalTrace originalTrace;
 
-        // first time optimization
-        OptimizationInProcess,
+        // Ways in Uop/Spec cache that holds the original trace
+        //std::vector<uint64_t> originalTraceCacheWays;
 
-        // re-optimization (e.g., due to a new pred source)
-        ReoptimizationInProcess,
+        // SuperOptimized Trace
+        SuperOptimizedTrace superOptimizedTrace;
 
-        // evicted before we could process it
-        Evicted,
+        // Ways in Uop/Spec cache that holds the super optimized trace
+        //std::vector<uint64_t> superOptmizedTraceCacheWays;
 
-        Complete
-    };
+        enum State {
+            Invalid,
+            
+            QueuedForFirstTimeOptimization,
+            QueuedForReoptimization,
 
-    // Trace Satte
-    State state;
+            // first time optimization
+            OptimizationInProcess,
 
-    // Prediction Sources (at most 8)
-    PredictionSource source[8];
+            // re-optimization (e.g., due to a new pred source)
+            ReoptimizationInProcess,
 
-    // Trace Length
-    uint64_t length;
+            // evicted before we could process it
+            Evicted,
 
-    // Trace Hotness
-    uint64_t hotness;
+            Complete
+        };
 
-    // Shrunk length
-    uint64_t shrunkLength;
+        // Trace Satte
+        State state;
 
-    // ID of the trace being re-optimized in case this is a re-optimization
-    unsigned int reoptId;
+        // Prediction Sources (at most 4)
+        PredictionSource source[NUM_PREDICTION_SOURCES];
 
-    // Counter to assign trace IDs
-    static uint64_t traceIDCounter;
+        // Trace Length
+        uint64_t length;
 
-    SpecTrace() {
+        // Trace Hotness
+        uint64_t hotness;
 
-        id = 0;
-        reoptId = 0;
-        state = Invalid;
-        length = 0;
-        shrunkLength = 0;
-        head = FullCacheIdx();
-        addr = FullCacheIdx();
-        inst = NULL;
-        prevNonEliminatedInst = NULL;
-        branchesFolded = 0;
-        originalTrace.clear();
-        hotness = 0;
-        traceHeadAddr = 0;
-        traceEndAddr = 0;
-        superOptimizedTrace.clear();
+        // Shrunk length
+        uint64_t shrunkLength;
+
+        // ID of the trace being re-optimized in case this is a re-optimization
+        unsigned int reoptId;
+
+        // Counter to assign trace IDs
+        static uint64_t traceIDCounter;
+
+        SpecTrace() {
+            traceID = 0;
+            //id = 0;
+            reoptId = 0;
+            state = Invalid;
+            length = 0;
+            shrunkLength = 0;
+            head = FullCacheIdx();
+            addr = FullCacheIdx();
+            inst = NULL;
+            prevNonEliminatedInst = NULL;
+            branchesFolded = 0;
+            originalTrace.clear();
+            hotness = 0;
+            superOptimizedTrace.clear();
 
 
     }
 
     ~SpecTrace() {
-
-        id = 0;
+        traceID = 0;
+        //id = 0;
         reoptId = 0;
         state = Invalid;
         length = 0;
@@ -286,8 +290,6 @@ struct SpecTrace
         branchesFolded = 0;
         
         hotness = 0;
-        traceHeadAddr = 0;
-        traceEndAddr = 0;
 
         superOptimizedTrace.clear();
         originalTrace.clear();
@@ -295,7 +297,8 @@ struct SpecTrace
 
     void reset()
     {
-        id = 0;
+        traceID = 0;
+        //id = 0;
         reoptId = 0;
         state = Invalid;
         length = 0;
@@ -305,9 +308,7 @@ struct SpecTrace
         inst = NULL;
         prevNonEliminatedInst = NULL;
         branchesFolded = 0;
-        hotness = 0;
-        traceHeadAddr = 0;
-        traceEndAddr = 0;        
+        hotness = 0;      
         originalTrace.clear();
         superOptimizedTrace.clear();
     }
@@ -318,25 +319,32 @@ struct SpecTrace
 class SpeculativeUopCache 
 {
     private:
-
+        
         struct SpecCacheEntity
         {
-            uint64_t LRU;
-            uint64_t traceHeadAddr;
+            public:
+                uint64_t LRU;
 
-            SpecCacheEntity()
-            {
-                this->LRU = 0;
-                this->traceHeadAddr = 0;
-            }
+                SpecCacheEntity()
+                {
+                    this->LRU = 0;
+                    this->traceHeadAddr = 0;
+                    this->numOfMicroopsInTrace = 0;
 
-            SpecCacheEntity(uint64_t _traceHeadAddr, uint64_t _lru)
-            {
-                this->LRU = _lru;
-                this->traceHeadAddr = _traceHeadAddr;
-            }
+                }
+
+                SpecCacheEntity(uint64_t _traceHeadAddr, uint64_t _lru, uint64_t _numOfMicroopsInTrace)
+                {
+                    this->LRU = _lru;
+                    this->traceHeadAddr = _traceHeadAddr;
+                    this->numOfMicroopsInTrace = _numOfMicroopsInTrace;
+                }
+
+            public:
+                uint64_t traceHeadAddr;
+                uint64_t numOfMicroopsInTrace;
         };
-                          // TraceID             NumWaysOccupied     LRU, TraceHeadAddr
+                          // TraceID             NumWaysOccupied     LRU, TraceHeadAddr, numOfMicroopsInTrace
         typedef std::map <uint64_t,     std::pair<uint64_t,          SpecCacheEntity       >> SpecCacheSets;
 
         
@@ -346,6 +354,8 @@ class SpeculativeUopCache
         uint64_t NumWays;
         uint64_t SetBitsMask;
         SpecCacheSets * specCacheSets;
+        uint64_t NumOfValidTracesInSpecCache;
+        uint64_t NumOfEvictedTraces;
 
     public:
 
@@ -356,7 +366,10 @@ class SpeculativeUopCache
             NumSets = _sets;
             NumWays = _ways;
             SetBitsMask = _sets - 1;
+            NumOfValidTracesInSpecCache = 0;
+            NumOfEvictedTraces = 0;
 
+            DPRINTF(SpecCache, "Creating a Spec Cache! Number of Sets: %d, Number of Ways: %d\n", NumSets, NumWays);
             specCacheSets = new SpecCacheSets[_sets];
             for (size_t i = 0; i < _sets; i++)
             {
@@ -366,9 +379,10 @@ class SpeculativeUopCache
 
         }
 
-        void findAllTracesInSpeculativeCache(Addr _traceHeadAddr, std::vector<uint64_t>& _traces)
+        void isHitInSpecCache(Addr _traceHeadAddr, std::vector<uint64_t>& _traces)
         {
 
+            
             uint64_t setIdx = (_traceHeadAddr >> 5) & (SetBitsMask);
             assert(setIdx < NumSets);
             
@@ -383,7 +397,7 @@ class SpeculativeUopCache
 
         }
 
-        bool addToSpeculativeCache(Addr _traceHeadAddr, uint64_t _traceID, uint64_t _numOfMicroops, std::vector<uint64_t>& _evictedTraces)
+        bool AddToSpeculativeCache(Addr _traceHeadAddr, uint64_t _traceID, uint64_t _numOfMicroops, std::vector<uint64_t>& _evictedTraces)
         {
             assert(_numOfMicroops <= 18 && _numOfMicroops > 0);
             uint64_t numWaysToAccomodate = (_numOfMicroops <= 6) ? 1 : (_numOfMicroops <= 12 ? 2 : 3);
@@ -403,7 +417,10 @@ class SpeculativeUopCache
             // if we have enough space to insert the trace, just do it!
             if (numWaysToAccomodate + numOccupiedWays <= NumWays)
             {
-                specCacheSets[setIdx][_traceID] = std::make_pair(numWaysToAccomodate, SpecCacheEntity(_traceHeadAddr, 0));
+                specCacheSets[setIdx][_traceID] = std::make_pair(numWaysToAccomodate, SpecCacheEntity(_traceHeadAddr, 0, _numOfMicroops));
+                assert (NumOfValidTracesInSpecCache <= (NumSets * NumWays));
+                NumOfValidTracesInSpecCache++;
+                DPRINTF(SpecCache, "Adding trace %d!  Set#[%d] NumOfValidTracesInSpecCache[%d] NumWaysToAccomodate[%d] NumOccupiedWays[%d].\n", _traceID, setIdx, NumOfValidTracesInSpecCache,  numWaysToAccomodate, numOccupiedWays);
                 return true;
             }
             else 
@@ -426,14 +443,22 @@ class SpeculativeUopCache
                     }
 
                     // remove the LRU trace
+                    
                     specCacheSets[setIdx].erase(_trace_id);
+                    assert(NumOfValidTracesInSpecCache >= 1);
+                    NumOfValidTracesInSpecCache--; 
+                    NumOfEvictedTraces++;
                     _evictedTraces.push_back(_trace_id);
                     numOccupiedWays -= _waysOccupied;
                     assert(numOccupiedWays >= 1);
+                    DPRINTF(SpecCache, "Removing trace %d! Set#[%d] NumOfValidTracesInSpecCache[%d] WaysOccupied[%d] NumOccupiedWays[%d]\n", _trace_id, setIdx, NumOfValidTracesInSpecCache,  _waysOccupied, numOccupiedWays);
                     if (numWaysToAccomodate + numOccupiedWays <= NumWays)
                     {
-                        specCacheSets[setIdx][_traceID] = std::make_pair(numWaysToAccomodate, SpecCacheEntity(_traceHeadAddr,0));
+                        specCacheSets[setIdx][_traceID] = std::make_pair(numWaysToAccomodate, SpecCacheEntity(_traceHeadAddr, 0, _numOfMicroops));
+                        assert (NumOfValidTracesInSpecCache <= (NumSets * NumWays));
+                        NumOfValidTracesInSpecCache++;
                         replaced = true; /* this is for future replcement algorithms */
+                        DPRINTF(SpecCache, "Adding trace %d!  Set#[%d] NumOfValidTracesInSpecCache[%d] NumWaysToAccomodate[%d] NumOccupiedWays[%d].\n", _traceID, setIdx, NumOfValidTracesInSpecCache,  numWaysToAccomodate, numOccupiedWays);
                         return true;
                     }
 
@@ -445,6 +470,51 @@ class SpeculativeUopCache
             }
 
         }
+
+        void DumpSpecCache()
+        {
+            for (size_t setIdx = 0; setIdx < NumSets; setIdx++)
+            {
+                if (!specCacheSets[setIdx].empty())
+                {
+                    
+                    std::string set_string = "";
+                    for (auto const& s : specCacheSets[setIdx])
+                    {
+                        std::stringstream stream;
+                        stream << "{" << s.first << "," << s.second.first << "," << std::hex << s.second.second.traceHeadAddr << std::dec << "," << s.second.second.LRU << "} - ";
+                        set_string += stream.str();
+                    }
+                 
+                    DPRINTF(SpecCache, "SET[%d]: %s\n", setIdx, set_string);
+                }
+                
+            }
+        }
+        void DumpSpecCacheToStdOut()
+        {
+            for (size_t setIdx = 0; setIdx < NumSets; setIdx++)
+            {
+                if (!specCacheSets[setIdx].empty())
+                {
+                    
+                    std::string set_string = "";
+                    for (auto const& s : specCacheSets[setIdx])
+                    {
+                        std::stringstream stream;
+                        stream << "{" << s.first << "," << s.second.first << "," << std::hex << s.second.second.traceHeadAddr << std::dec << "," << s.second.second.LRU << "} - ";
+                        set_string += stream.str();
+                    }
+                 
+                    
+                    std::cout << std::dec << "SET[" << setIdx << "]: " << set_string << "\n";
+                }
+                
+            }
+        }
+
+        uint64_t GetNumOfValidTracesInSpecCache() {return NumOfValidTracesInSpecCache;}
+        uint64_t GetNumOfEvictedTraces() {return NumOfEvictedTraces;}
 
 };
 #endif // __ARCH_X86_DECODER_STRUCTS__

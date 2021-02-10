@@ -31,7 +31,7 @@ class LVPredUnit;
 class TraceBasedGraph : public SimObject
 {
     public:
-    typedef std::map<unsigned, SpecTrace> TraceMap;
+    typedef std::map<uint64_t, SpecTrace> TraceMap;
     // Constructor
     TraceBasedGraph(TraceBasedGraphParams *p);
 
@@ -53,15 +53,17 @@ class TraceBasedGraph : public SimObject
     bool isTraceStillAvailableInUopCache(SpecTrace::OriginalTrace &trace);
     bool advanceTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp);
     bool isPredictionSource(TraceMap::iterator& _trace_it, uint64_t &value, uint64_t &confidence, uint64_t &latency);
-    bool updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp, bool &isDeadCode , bool propagated);
+    bool updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp , bool propagated);
     bool advanceIfControlTransfer(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp);
 
     // Trace ID to map
     TraceMap traceMap;
-
+    std::queue<uint64_t> candidateTraceQueue;
+    
     // Outstanding trace requests
     queue<SpecTrace> traceQueue;
-    std::queue<uint64_t> candidateTraceQueue;
+    
+
 
     // Current trace being optimized
     SpecTrace currentTrace;
