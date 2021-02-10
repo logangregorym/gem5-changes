@@ -910,7 +910,7 @@ DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
 
     pc[tid] = newPC;
     fetchOffset[tid] = 0;
-    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr() && !squashInst->isStreamedFromSpeculativeCache())//&& !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive())
+    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr() && !squashInst->isStreamedFromSpeculativeCache())//&& !decoder[tid]->specCache->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive())
         macroop[tid] = squashInst->macroop;
     else
         macroop[tid] = NULL;
@@ -1228,7 +1228,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
 
                 // LVP missprediction, therefore, deactivate speculative cache and fetch from uop/decoder
                 DPRINTF(Fetch, "LVP misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
-                decoder[tid]->setSpeculativeCacheActive(false);
+                decoder[tid]->specCache->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = true;
             }
             // folded branch missprediction
@@ -1236,14 +1236,14 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             {
                 // again deactivate speculative cache
                 DPRINTF(Fetch, "folded branch misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
-                decoder[tid]->setSpeculativeCacheActive(false);
+                decoder[tid]->specCache->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = true;
             }
             // not a folded branch or LVP missprediction
             else 
             {
                 DPRINTF(Fetch, "branch misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
-                decoder[tid]->setSpeculativeCacheActive(false);
+                decoder[tid]->specCache->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = false;
                 currentTraceID = 0;
             }
@@ -1256,7 +1256,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             {
                 // activate speculative cache so we can fetch from it again
                 DPRINTF(Fetch, "memory order violation at PC %s\n", fromCommit->commitInfo[tid].pc);
-                decoder[tid]->setSpeculativeCacheActive(true);
+                decoder[tid]->specCache->setSpeculativeCacheActive(true);
                 decoder[tid]->traceConstructor->streamTrace.setTraceID(fromCommit->commitInfo[tid].currentTraceID); 
                 currentTraceID = fromCommit->commitInfo[tid].currentTraceID;
                 decoder[tid]->updateStreamTrace(currentTraceID, fromCommit->commitInfo[tid].pc); 
@@ -1264,7 +1264,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             else {
                 DPRINTF(Fetch, "something else\n");
                 // This squash is not due to LVP missprediction, therefore always deactivate the spec$ and the fetch will handle re-activation
-                decoder[tid]->setSpeculativeCacheActive(false);
+                decoder[tid]->specCache->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = false;
                 currentTraceID = 0;
             }
@@ -1607,7 +1607,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
         //*****CHANGE START**********
         // check the speculative cache even before the microop cache
-        if (enableSpeculativeStreaming && isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive() && thisPC.upc() == 0) {
+        if (enableSpeculativeStreaming && isSuperOptimizationPresent && !decoder[tid]->specCache->isSpeculativeCacheActive() && thisPC.upc() == 0) {
 
             // consult with LVP to better decide about which trace to
             //LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
@@ -1625,8 +1625,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             }
 
         }
-        if (enableSpeculativeStreaming && isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive())
+        if (enableSpeculativeStreaming && isSuperOptimizationPresent && decoder[tid]->specCache->isSpeculativeCacheActive())
         {
+            assert(currentTraceID);
             DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
             // Speculative Cache is already enabled, continue fetchinf from it
             inSpeculativeCache = true;
@@ -1638,11 +1639,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         }
         else if (enableSpeculativeStreaming && isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
         {
-        
+            assert(currentTraceID);
             DPRINTF(Fetch, "Setting speculative cache active at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
             //Enable Speculative Cache
             inSpeculativeCache = true;
-            decoder[tid]->setSpeculativeCacheActive(true, currentTraceID);
+            decoder[tid]->specCache->setSpeculativeCacheActive(true, currentTraceID);
             //Disable Uop Cache
             inUopCache = false;
             useUopCache = false;
@@ -1667,7 +1668,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
            if (isSuperOptimizationPresent)
            {
                 inSpeculativeCache = false;
-                decoder[tid]->setSpeculativeCacheActive(false);
+                decoder[tid]->specCache->setSpeculativeCacheActive(false);
                 
            }
 
@@ -1688,7 +1689,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             if (isSuperOptimizationPresent)
             {
                 inSpeculativeCache = false;
-                decoder[tid]->setSpeculativeCacheActive(false);
+                decoder[tid]->specCache->setSpeculativeCacheActive(false);
             }
 
             fetchCacheLine(fetchAddr, tid, thisPC.instAddr());
@@ -1719,7 +1720,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             if (isSuperOptimizationPresent)
             {
                 inSpeculativeCache = false;
-                decoder[tid]->setSpeculativeCacheActive(false);
+                decoder[tid]->specCache->setSpeculativeCacheActive(false);
             }
 
 
@@ -1956,7 +1957,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             status_change = true;
                             quiesce = true;
                             inSpeculativeCache = false;
-                            decoder[tid]->setSpeculativeCacheActive(false);
+                            decoder[tid]->specCache->setSpeculativeCacheActive(false);
                             break;
                         }
 
@@ -1964,7 +1965,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         {
                             // Disable Speculative Cache
                             inSpeculativeCache = false;
-                            decoder[tid]->setSpeculativeCacheActive(false);
+                            decoder[tid]->specCache->setSpeculativeCacheActive(false);
 
                             // set where to fetch for the next cycle
                             // we need to make sure that fetchBuffer has the necessary data for the next macroop fetch
@@ -2199,15 +2200,17 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 if (enableSpeculativeStreaming && newMacro)
                 {
                     if (isSuperOptimizationPresent && thisPC.upc() == 0) {
-                        //LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+                        
                         currentTraceID = decoder[tid]->isTraceAvailable(thisPC.instAddr());
+
                     }
+                    
                     if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
                     {
         
                         DPRINTF(Fetch, "Swithching from Uop$/Decoder to Speculative Cache active at Pc %s as profitability analysis unit requested. currentTraceID = %d\n", thisPC, currentTraceID);
                         inSpeculativeCache = true;
-                        decoder[tid]->setSpeculativeCacheActive(true, currentTraceID);
+                        decoder[tid]->specCache->setSpeculativeCacheActive(true, currentTraceID);
                         // this will cause outer loop to exit and therefore a switch with one cycle penalty
                         switchFromUopCacheDecoderToSpeculativeCache = true;
                         //fetchBufferValid[tid] = false;

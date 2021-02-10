@@ -133,8 +133,8 @@ class Decoder
     // Parallel cache for optimized micro-ops
     bool redirectDueToLVPSquashing;
     bool isSpeculativeCachePresent;
-    bool speculativeCacheActive;
-    unsigned int currentActiveTraceID;
+    //bool speculativeCacheActive;
+    //unsigned int currentActiveTraceID;
     StaticInstPtr speculativeCache[32][8][6];
     FullUopAddr speculativeAddrArray[32][8][6];
     uint64_t speculativeTagArray[32][8];
@@ -439,12 +439,12 @@ protected:
     void updateLRUBitsSpeculative(int idx, int way);
 
     //*****CHANGE START**********
-    void setSpeculativeCacheActive(bool active, unsigned int _currentTraceID = 0)
-    {
+    // void setSpeculativeCacheActive(bool active, unsigned int _currentTraceID = 0)
+    // {
 
-        speculativeCacheActive = active;
-        currentActiveTraceID = _currentTraceID;
-    }
+    //     speculativeCacheActive = active;
+    //     currentActiveTraceID = _currentTraceID;
+    // }
     //*****CHANGE END**********
     void setSpeculativeCachePresent(bool present)
     {
@@ -456,10 +456,10 @@ protected:
 
 	bool addUopToSpeculativeCache( SpecTrace &trace, bool isPredSource);
 
-    bool isSpeculativeCacheActive()
-    {
-      return speculativeCacheActive;
-    }
+    // bool isSpeculativeCacheActive()
+    // {
+    //   return speculativeCacheActive;
+    // }
 
     bool isUopCacheActive()
     {
@@ -484,7 +484,7 @@ protected:
     // LVPredictor return int8_t confidence, if this confidence if less than zero then just return
 	uint64_t isTraceAvailable(Addr addr);
 
-    StaticInstPtr getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
+    StaticInstPtr getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
     void updateStreamTrace(unsigned traceID, X86ISA::PCState &thisPC);
 
     void regStats();

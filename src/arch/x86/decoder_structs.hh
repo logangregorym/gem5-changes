@@ -162,6 +162,8 @@ struct SpecTrace
         // address of the last instruction in the original trace
         FullUopAddr superEndAddr;
 
+
+
     public:
         void setOrigHeadAndEndAddr(FullUopAddr _origHeadAddr, FullUopAddr _origEndAddr) {origHeadAddr = _origHeadAddr; origEndAddr = _origEndAddr;}
         void setSuperHeadAndEndAddr(FullUopAddr _superHeadAddr, FullUopAddr _superEndAddr) {superHeadAddr = _superHeadAddr; superEndAddr = _superEndAddr;}
@@ -173,11 +175,22 @@ struct SpecTrace
         void setTraceID (uint64_t _id) {traceID = _id;}
         uint64_t getTraceID() {return traceID;}
 
+        
+
     public:
 
         const static int NUM_PREDICTION_SOURCES  = 8;
+
         // address of the instruction being optimized
-        FullUopAddr instAddr;
+        FullUopAddr instGettingOptimizedAddr;
+
+        // address of the instruction being optimized
+        FullUopAddr instGettingStreamedAddr;
+        
+        // previous non-eliminated instruction
+        StaticInstPtr prevNonEliminatedInst;
+
+
 
         // (idx, way, uop) of head of the trace
         FullCacheIdx head;
@@ -195,8 +208,7 @@ struct SpecTrace
         // instruction being optimized
         StaticInstPtr inst;
 
-        // previous non-eliminated instruction
-        StaticInstPtr prevNonEliminatedInst;
+
 
 
 
@@ -232,7 +244,7 @@ struct SpecTrace
 
             // evicted before we could process it
             Evicted,
-
+            Rejected,
             Complete
         };
 
@@ -258,6 +270,8 @@ struct SpecTrace
         static uint64_t traceIDCounter;
 
         SpecTrace() {
+            instGettingOptimizedAddr = FullUopAddr(0,0);
+            instGettingStreamedAddr  = FullUopAddr(0,0);
             traceID = 0;
             //id = 0;
             reoptId = 0;
@@ -272,46 +286,48 @@ struct SpecTrace
             originalTrace.clear();
             hotness = 0;
             superOptimizedTrace.clear();
+        }
 
+        ~SpecTrace() {
+            instGettingOptimizedAddr = FullUopAddr(0,0);
+            instGettingStreamedAddr  = FullUopAddr(0,0);
+            traceID = 0;
+            //id = 0;
+            reoptId = 0;
+            state = Invalid;
+            length = 0;
+            shrunkLength = 0;
+            head = FullCacheIdx();
+            addr = FullCacheIdx();
+            inst = NULL;
+            prevNonEliminatedInst = NULL;
+            branchesFolded = 0;
+            
+            hotness = 0;
 
-    }
+            superOptimizedTrace.clear();
+            originalTrace.clear();
+        }
 
-    ~SpecTrace() {
-        traceID = 0;
-        //id = 0;
-        reoptId = 0;
-        state = Invalid;
-        length = 0;
-        shrunkLength = 0;
-        head = FullCacheIdx();
-        addr = FullCacheIdx();
-        inst = NULL;
-        prevNonEliminatedInst = NULL;
-        branchesFolded = 0;
-        
-        hotness = 0;
-
-        superOptimizedTrace.clear();
-        originalTrace.clear();
-    }
-
-    void reset()
-    {
-        traceID = 0;
-        //id = 0;
-        reoptId = 0;
-        state = Invalid;
-        length = 0;
-        shrunkLength = 0;
-        head = FullCacheIdx();
-        addr = FullCacheIdx();
-        inst = NULL;
-        prevNonEliminatedInst = NULL;
-        branchesFolded = 0;
-        hotness = 0;      
-        originalTrace.clear();
-        superOptimizedTrace.clear();
-    }
+        void reset()
+        {
+            instGettingOptimizedAddr = FullUopAddr(0,0);
+            instGettingStreamedAddr  = FullUopAddr(0,0);
+            traceID = 0;
+            //id = 0;
+            reoptId = 0;
+            state = Invalid;
+            length = 0;
+            shrunkLength = 0;
+            head = FullCacheIdx();
+            addr = FullCacheIdx();
+            inst = NULL;
+            prevNonEliminatedInst = NULL;
+            branchesFolded = 0;
+            hotness = 0;      
+            originalTrace.clear();
+            superOptimizedTrace.clear();
+        }
 };
 
 
@@ -323,19 +339,19 @@ class SpeculativeUopCache
         struct SpecCacheEntity
         {
             public:
-                uint64_t LRU;
+                uint64_t hotness;
 
                 SpecCacheEntity()
                 {
-                    this->LRU = 0;
+                    this->hotness = 0;
                     this->traceHeadAddr = 0;
                     this->numOfMicroopsInTrace = 0;
 
                 }
 
-                SpecCacheEntity(uint64_t _traceHeadAddr, uint64_t _lru, uint64_t _numOfMicroopsInTrace)
+                SpecCacheEntity(uint64_t _traceHeadAddr, uint64_t _hotness, uint64_t _numOfMicroopsInTrace)
                 {
-                    this->LRU = _lru;
+                    this->hotness = _hotness;
                     this->traceHeadAddr = _traceHeadAddr;
                     this->numOfMicroopsInTrace = _numOfMicroopsInTrace;
                 }
@@ -344,7 +360,7 @@ class SpeculativeUopCache
                 uint64_t traceHeadAddr;
                 uint64_t numOfMicroopsInTrace;
         };
-                          // TraceID             NumWaysOccupied     LRU, TraceHeadAddr, numOfMicroopsInTrace
+                          // TraceID             NumWaysOccupied     hotness, TraceHeadAddr, numOfMicroopsInTrace
         typedef std::map <uint64_t,     std::pair<uint64_t,          SpecCacheEntity       >> SpecCacheSets;
 
         
@@ -356,6 +372,8 @@ class SpeculativeUopCache
         SpecCacheSets * specCacheSets;
         uint64_t NumOfValidTracesInSpecCache;
         uint64_t NumOfEvictedTraces;
+        uint64_t currentActiveTraceID;
+        bool speculativeCacheActive;
 
     public:
 
@@ -375,9 +393,26 @@ class SpeculativeUopCache
             {
                 specCacheSets[i].clear();
             }
+
+            currentActiveTraceID = 0;
+            speculativeCacheActive = false;
             
 
         }
+
+        bool isSpeculativeCacheActive()
+        {
+            return speculativeCacheActive;
+        }
+
+        void setSpeculativeCacheActive(bool _active, uint64_t _currentTraceID = 0)
+        {
+
+            speculativeCacheActive = _active;
+            currentActiveTraceID = _currentTraceID;
+        }
+
+        uint64_t getCurrentActiveTraceID() {return currentActiveTraceID; }
 
         void isHitInSpecCache(Addr _traceHeadAddr, std::vector<uint64_t>& _traces)
         {
@@ -391,7 +426,7 @@ class SpeculativeUopCache
                 if (s.second.second.traceHeadAddr == _traceHeadAddr)
                 {
                     _traces.push_back(s.first);
-                    s.second.second.LRU++;
+                    s.second.second.hotness++;
                 }
             }
 
@@ -430,18 +465,27 @@ class SpeculativeUopCache
                     assert(!specCacheSets[setIdx].empty());
                     // there is not enoght space for this trace
                     // try to remove the trace with least accesses and check to see if removing it can help to accomodate the new trace
-                    uint64_t _trace_id = specCacheSets[setIdx].begin()->first;
-                    uint64_t _waysOccupied = specCacheSets[setIdx].begin()->second.first;
-                    uint64_t _lru = specCacheSets[setIdx].begin()->second.second.LRU;
+                    uint64_t _trace_id = 0;
+                    uint64_t _waysOccupied = 0;
+                    uint64_t _hotness = UINT64_MAX;
                     for (auto const & s: specCacheSets[setIdx])
                     {
-                        if (s.second.second.LRU < _lru)
+                        // do not remove a streaming trace 
+                        if (s.first == currentActiveTraceID) 
+                        {
+                            assert(currentActiveTraceID);
+                            continue;
+                        }    
+
+                        if (s.second.second.hotness < _hotness)
                         {
                             _trace_id = s.first;
                             _waysOccupied = s.second.first;
                         }
                     }
 
+                    assert(_trace_id);
+                    assert(_waysOccupied);
                     // remove the LRU trace
                     
                     specCacheSets[setIdx].erase(_trace_id);
@@ -482,7 +526,7 @@ class SpeculativeUopCache
                     for (auto const& s : specCacheSets[setIdx])
                     {
                         std::stringstream stream;
-                        stream << "{" << s.first << "," << s.second.first << "," << std::hex << s.second.second.traceHeadAddr << std::dec << "," << s.second.second.LRU << "} - ";
+                        stream << "{" << s.first << "," << s.second.first << "," << std::hex << s.second.second.traceHeadAddr << std::dec << "," << s.second.second.hotness << "} - ";
                         set_string += stream.str();
                     }
                  
@@ -502,7 +546,7 @@ class SpeculativeUopCache
                     for (auto const& s : specCacheSets[setIdx])
                     {
                         std::stringstream stream;
-                        stream << "{" << s.first << "," << s.second.first << "," << std::hex << s.second.second.traceHeadAddr << std::dec << "," << s.second.second.LRU << "} - ";
+                        stream << "{" << s.first << "," << s.second.first << "," << std::hex << s.second.second.traceHeadAddr << std::dec << "," << s.second.second.hotness << "} - ";
                         set_string += stream.str();
                     }
                  

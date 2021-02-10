@@ -103,7 +103,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(TraceMap::iterator& _trace_it, St
     if (decodedMacroOp->machInst.opcode.op == 0xFF) {
         TheISA::PCState targetPC;
         branchPred->iPred.lookup(pcAddr, branchPred->getGHR(0, NULL), targetPC, 0); // assuming tid = 0
-        target = targetPC.instAddr();
+        target = targetPC.instGettingOptimizedAddr();
     }
 
     // pivot to jump target if it is found in the uop cache
@@ -161,8 +161,8 @@ bool TraceBasedGraph::advanceTrace(TraceMap::iterator& _trace_it, StaticInstPtr 
     assert(_trace_it->second.getTraceID() == currentTraceIDGettingSuperOptimized);
 
     // macro and micro address of _decodedMicroOp
-    Addr macro_addr = _trace_it->second.instAddr.pcAddr;
-    uint16_t micro_addr = _trace_it->second.instAddr.uopAddr; 
+    Addr macro_addr = _trace_it->second.instGettingOptimizedAddr.pcAddr;
+    uint16_t micro_addr = _trace_it->second.instGettingOptimizedAddr.uopAddr; 
 
     assert(_trace_it->second.originalTrace.find(macro_addr) != _trace_it->second.originalTrace.end());
 
@@ -173,8 +173,8 @@ bool TraceBasedGraph::advanceTrace(TraceMap::iterator& _trace_it, StaticInstPtr 
         if (_trace_it->second.originalTrace[macro_addr].find(micro_addr + 1) != _trace_it->second.originalTrace[macro_addr].end())
         {
             // there is still a microop to fetch from the same macroop
-            _trace_it->second.instAddr.uopAddr++;
-            DPRINTF(SuperOp, "Advancing trace %d to [%#x][%d]\n", currentTraceIDGettingSuperOptimized, _trace_it->second.instAddr.pcAddr, _trace_it->second.instAddr.uopAddr);
+            _trace_it->second.instGettingOptimizedAddr.uopAddr++;
+            DPRINTF(SuperOp, "Advancing trace %d to [%#x][%d]\n", currentTraceIDGettingSuperOptimized, _trace_it->second.instGettingOptimizedAddr.pcAddr, _trace_it->second.instGettingOptimizedAddr.uopAddr);
             return false;
         }
         else 
@@ -184,15 +184,15 @@ bool TraceBasedGraph::advanceTrace(TraceMap::iterator& _trace_it, StaticInstPtr 
             macro_it++;
             if (macro_it != _trace_it->second.originalTrace.end())
             {
-                _trace_it->second.instAddr.pcAddr   = macro_it->first;
-                _trace_it->second.instAddr.uopAddr  = 0; 
-                DPRINTF(SuperOp, "Advancing trace %d to [%#x][%d]\n", currentTraceIDGettingSuperOptimized, _trace_it->second.instAddr.pcAddr, _trace_it->second.instAddr.uopAddr);
+                _trace_it->second.instGettingOptimizedAddr.pcAddr   = macro_it->first;
+                _trace_it->second.instGettingOptimizedAddr.uopAddr  = 0; 
+                DPRINTF(SuperOp, "Advancing trace %d to [%#x][%d]\n", currentTraceIDGettingSuperOptimized, _trace_it->second.instGettingOptimizedAddr.pcAddr, _trace_it->second.instGettingOptimizedAddr.uopAddr);
                 return false;
             }
             else 
             {
                 // end of original trace
-                DPRINTF(SuperOp, "End of trace %d at [%#x][%d]\n", currentTraceIDGettingSuperOptimized, _trace_it->second.instAddr.pcAddr, _trace_it->second.instAddr.uopAddr);
+                DPRINTF(SuperOp, "End of trace %d at [%#x][%d]\n", currentTraceIDGettingSuperOptimized, _trace_it->second.instGettingOptimizedAddr.pcAddr, _trace_it->second.instGettingOptimizedAddr.uopAddr);
                 return true;
             }      
         }
@@ -209,8 +209,8 @@ bool TraceBasedGraph::isPredictionSource(TraceMap::iterator& _trace_it, uint64_t
 
     assert(_trace_it != traceMap.end()); 
     // macro and micro address of _decodedMicroOp
-    Addr macro_addr = _trace_it->second.instAddr.pcAddr;
-    uint16_t micro_addr = _trace_it->second.instAddr.uopAddr;
+    Addr macro_addr = _trace_it->second.instGettingOptimizedAddr.pcAddr;
+    uint16_t micro_addr = _trace_it->second.instGettingOptimizedAddr.uopAddr;
 
     for (int i=0; i < SpecTrace::NUM_PREDICTION_SOURCES; i++) {
         if (_trace_it->second.source[i].valid && _trace_it->second.source[i].addr == FullUopAddr(macro_addr, micro_addr)) {
@@ -402,7 +402,7 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
     
     DPRINTF(SuperOp, "Trace Head Address: %#x Trace End Address: %#x\n", newTrace.getOrigHeadAddr().pcAddr, newTrace.getOrigEndAddr().pcAddr);
 
-    newTrace.instAddr = newTrace.getOrigHeadAddr(); 
+    newTrace.instGettingOptimizedAddr = newTrace.getOrigHeadAddr(); 
     
 
     
@@ -660,8 +660,64 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
 
     }
 
-    //TODO: Reject to insert the trace into the spec cache if shrinkage is not enough!
-    
+
+
+    // Reject to insert the trace into the spec cache if shrinkage is not enough!
+    assert(trace_it->second.length >= trace_it->second.shrunkLength);
+    // convert this to percentage
+    if (trace_it->second.length - trace_it->second.shrunkLength <= 3)
+    {
+        for (auto &lv1: trace_it->second.originalTrace)
+        {
+            if (lv1.second[0].macroop->isMacroop())
+            {
+                lv1.second[0].macroop->deleteMicroOps(); 
+            }  
+        }
+        for (auto &lv1: trace_it->second.superOptimizedTrace)
+        {
+            if (lv1.second[0].macroop->isMacroop())
+            {
+                lv1.second[0].macroop->deleteMicroOps(); 
+            }  
+        }
+
+        trace_it->second.state = SpecTrace::Rejected;
+        traceMap.erase(trace_it);
+        currentTraceIDGettingSuperOptimized = 0;
+        return;
+    }
+
+
+
+    // TODO: 
+    // Update last microop 
+    // Update thisPc and NextPC
+    // if this is the last microop, it means we need to check if we are compacting the whole instruction or not
+    // In case that the whole instruction is not compacted, we need to set the lastMicroop flag 
+    // loop through all the microops in the macro and see if they are compacted!
+
+    // After this operation in a not compacted macroop the  last not compacted micoop shoud be the last microop
+    for (auto addr_it = trace_it->second.superOptimizedTrace.begin(); addr_it != trace_it->second.superOptimizedTrace.end(); addr_it++)
+    {
+        
+
+        bool allCompacted = true;
+        for (auto micro_it = addr_it->second.rbegin(); micro_it != addr_it->second.rend(); micro_it++)
+        {
+            if (!micro_it->second.compacted)
+            {
+                micro_it->second.microop->setLastMicroop();
+                allCompacted = false;
+                break;
+            }
+            
+        }
+        allCompacted = allCompacted;
+        
+
+    }
+
 
     DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", trace_it->second.getTraceID(), trace_it->second.length, trace_it->second.shrunkLength);
     DPRINTF(SuperOp, "Before optimization: \n");
@@ -684,7 +740,7 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
         {
             if (!lv2.second.compacted)
             {
-                DPRINTF(SuperOp, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second.microop->disassemble(lv1.first));
+                DPRINTF(SuperOp, "[%x][%d] [%s] [lastMicroop:%d]\n" , lv1.first , lv2.first, lv2.second.microop->disassemble(lv1.first), lv2.second.microop->isLastMicroop());
             }
                 
         }
@@ -725,7 +781,10 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
         }
     }();
 
-     trace_it->second.setSuperHeadAndEndAddr(superHeadAddr, superEndAddr);
+    trace_it->second.setSuperHeadAndEndAddr(superHeadAddr, superEndAddr);
+
+    // set the head address for streaming
+    trace_it->second.instGettingStreamedAddr = superHeadAddr;
 
     // mark end of trace and propagate live outs
     DPRINTF(SuperOp, "End of Trace at %s!\n", trace_it->second.prevNonEliminatedInst->getName());
@@ -865,7 +924,7 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
         {
                 if (!lv2.second.compacted)
                 {
-                    DPRINTF(TraceGen, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second.microop->disassemble(lv1.first));
+                    DPRINTF(TraceGen, "[%x][%d] [%s] [lastMicroop:%d]\n" , lv1.first , lv2.first, lv2.second.microop->disassemble(lv1.first), lv2.second.microop->isLastMicroop());
                 }
                     
         }
@@ -905,44 +964,15 @@ void TraceBasedGraph::finalizeSuperOptimizedTrace()
 }
 
 
-bool TraceBasedGraph::updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp , bool propagated) {
+bool TraceBasedGraph::updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp , bool propagated, bool isPredSource) {
 
     // macro and micro address of _decodedMicroOp
-    Addr macro_addr = _trace_it->second.instAddr.pcAddr;
-    uint16_t micro_addr = _trace_it->second.instAddr.uopAddr;
+    Addr macro_addr = _trace_it->second.instGettingOptimizedAddr.pcAddr;
+    uint16_t micro_addr = _trace_it->second.instGettingOptimizedAddr.uopAddr;
 
-
-
-    // Rather than checking dests, check sources; if all sources, then all dests in trace
-    // bool allSrcsReady = true;
-    // for (int i=0; i<trace.inst->numSrcRegs(); i++) {
-    //     RegId srcReg = trace.inst->srcRegIdx(i);
-    //     allSrcsReady = allSrcsReady && regCtx[srcReg.flatIndex()].valid;
-    // }
-
-    // string type = _decodedMicroOp->getName();
-    // isDeadCode =    (type == "rdip") || 
-    //                 (allSrcsReady && 
-    //                 (type == "mov" || 
-    //                 type == "movi" || 
-    //                 type == "limm" || 
-    //                 type == "add" || 
-    //                 type == "addi" || 
-    //                 type == "sub" || 
-    //                 type == "subi" || 
-    //                 type == "and" || 
-    //                 type == "andi" || 
-    //                 type == "or" || 
-    //                 type == "ori" || 
-    //                 type == "xor" || 
-    //                 type == "xori" || 
-    //                 type == "slri" || 
-    //                 type == "slli" || 
-    //                 type == "sexti" || 
-    //                 type == "zexti"));
 
     bool isCC = (!usingCCTracking && _decodedMicroOp->isCC());
-    bool isDeadCode = propagated && !( isCC || _decodedMicroOp->isReturn());
+    bool isDeadCode = !isPredSource && propagated && !( isCC || _decodedMicroOp->isReturn());
 
     // Inst will never already be in this trace, single pass
     if (isDeadCode) 
@@ -952,7 +982,11 @@ bool TraceBasedGraph::updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstP
     }
 
     DPRINTF(ConstProp, "isDeadCode:%d propagated:%d CC:%d Return:%d\n", isDeadCode, propagated, isCC , _decodedMicroOp->isReturn());
-    if (isCC)
+    if (isPredSource)
+    {
+        DPRINTF(ConstProp, "Instruction at %#x:%d is not a dead code as it's a prediction source!\n", macro_addr, micro_addr);
+    }
+    else if (isCC)
     {
         DPRINTF(ConstProp, "Instruction at %#x:%d is not a dead code as it's a CC inst!\n", macro_addr, micro_addr);
     }
@@ -970,19 +1004,42 @@ bool TraceBasedGraph::updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstP
     
     _trace_it->second.shrunkLength++;
 
-
-
-
     // Step 3b: Mark all predicted values on the StaticInst -- don't do this for prediction sources
-    // update live outs -- don't do this for prediction sources
-
-    for (int i=0; i<_decodedMicroOp->numDestRegs(); i++) {
-        RegId destReg = _decodedMicroOp->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass) {
-            regCtx[destReg.flatIndex()].valid = false;
+    for (int i=0; i<_decodedMicroOp->numSrcRegs(); i++) {
+        unsigned srcIdx = _decodedMicroOp->srcRegIdx(i).flatIndex();
+        bool propagatingSrc = true;
+        if (isPredSource) { // handle special case where srcReg == destReg
+            for (int i=0; i<_decodedMicroOp->numDestRegs(); i++) {
+                unsigned destIdx = _decodedMicroOp->destRegIdx(i).flatIndex();
+                if (destIdx == srcIdx) {
+                    propagatingSrc = false;
+                    break;
+                }
+            }
+        }
+        if (propagatingSrc) {
+            DPRINTF(ConstProp, "ConstProp: Examining register %i! Register Class Type: %d\n", srcIdx, _decodedMicroOp->srcRegIdx(i).classValue());
+            if (regCtx[srcIdx].valid && _decodedMicroOp->srcRegIdx(i).classValue() == IntRegClass) {
+                DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, macro_addr, micro_addr);
+                DPRINTF(ConstProp, "ConstProp: Setting _decodedMicroOp sourcePrediction to %#x\n", regCtx[srcIdx].value);
+                _decodedMicroOp->sourcePredictions[i] = regCtx[srcIdx].value;
+                _decodedMicroOp->sourcesPredicted[i] = true;
+            }
         }
     }
+
+
     
+    // update live outs -- don't do this for prediction sources
+    if (!isPredSource)
+    {
+        for (int i=0; i<_decodedMicroOp->numDestRegs(); i++) {
+            RegId destReg = _decodedMicroOp->destRegIdx(i);
+            if (destReg.classValue() == IntRegClass) {
+                regCtx[destReg.flatIndex()].valid = false;
+            }
+        }
+    }
 
 
     return false;
@@ -1014,8 +1071,8 @@ bool TraceBasedGraph::generateNextSuperOptimizedTraceInst() {
         return true;
     }
         
-    Addr macro_addr = trace_it->second.instAddr.pcAddr;
-    uint16_t micro_addr = trace_it->second.instAddr.uopAddr;
+    Addr macro_addr = trace_it->second.instGettingOptimizedAddr.pcAddr;
+    uint16_t micro_addr = trace_it->second.instGettingOptimizedAddr.uopAddr;
 
     assert(trace_it->second.originalTrace.find(macro_addr) != trace_it->second.originalTrace.end());
     assert(trace_it->second.originalTrace[macro_addr].find(micro_addr) != trace_it->second.originalTrace[macro_addr].end()); 
@@ -1053,6 +1110,8 @@ bool TraceBasedGraph::generateNextSuperOptimizedTraceInst() {
 
 
     // Any inst in a trace may be a prediction source
+    bool isDeadCode = false;
+    bool propagated = false;
     uint64_t value = 0;
     uint64_t confidence = 0;
     uint64_t latency = 0;
@@ -1083,6 +1142,9 @@ bool TraceBasedGraph::generateNextSuperOptimizedTraceInst() {
 
         // always predict int regs and instructions that have one int dest reg
         assert(numIntDestRegs == 1);       
+        // prediction sources are bot propagated
+        isDeadCode = updateSpecTrace(trace_it, decodedSuperMicroop, false, true);
+        assert(!isDeadCode);
         // prediction sources never get compacted
         trace_it->second.superOptimizedTrace[macro_addr][micro_addr].compacted = false;
 
@@ -1090,8 +1152,7 @@ bool TraceBasedGraph::generateNextSuperOptimizedTraceInst() {
 
     } else {
 
-        bool propagated = false;
-        bool folded = false; folded = folded;
+
         // Propagate predicted values
         if (type == "mov") {
             DPRINTF(ConstProp, "Found a MOV at [%#x][%i], compacting...\n", macro_addr, micro_addr);
@@ -1179,12 +1240,13 @@ bool TraceBasedGraph::generateNextSuperOptimizedTraceInst() {
         }
 
         
-        folded = updateSpecTrace(trace_it, decodedSuperMicroop, propagated);
+        isDeadCode = updateSpecTrace(trace_it, decodedSuperMicroop, propagated, false);
         
         // if propagated, then it shouldn't be streamed!
         if (propagated)
-        {
+        {    
             trace_it->second.superOptimizedTrace[macro_addr][micro_addr].compacted = true;
+            
         }
         else 
         {
@@ -2800,7 +2862,7 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
             target = psrc1 + psrc2; // assuming CSBase = 0;
         } else {
             DPRINTF(ConstProp, "Condition failed, advancing trace\n");
-            target = currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize();
+            target = currentTrace.instGettingOptimizedAddr.pcAddr + inst->macroOp->getMacroopSize();
         }
         int idx = (target >> 5) & 0x1f;
         uint64_t tag = (target >> 10);
@@ -2876,7 +2938,7 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
             target = psrc1 + imm8; // assuming CSBase = 0;
         } else {
             DPRINTF(ConstProp, "Condition failed, advancing trace\n");
-            target = currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize();
+            target = currentTrace.instGettingOptimizedAddr.pcAddr + inst->macroOp->getMacroopSize();
         }
         int idx = (target >> 5) & 0x1f;
         uint64_t tag = (target >> 10);
