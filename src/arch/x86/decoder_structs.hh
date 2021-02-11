@@ -90,6 +90,8 @@ struct OriginalMicroop {
     Addr tag;
     Addr idx;
     Addr way;
+    X86ISA::PCState thisPC;
+    X86ISA::PCState nextPC;
 
     OriginalMicroop ()
     {
@@ -108,7 +110,6 @@ struct OriginalMicroop {
         this->tag = _tag;
         this->idx = _idx;
         this->way = _way;
-    
     };
 };
 
@@ -119,6 +120,8 @@ struct SuperOptimizedMicroop {
     Addr idx;
     Addr way;
     bool compacted;
+    X86ISA::PCState thisPC;
+    X86ISA::PCState nextPC;
 
     SuperOptimizedMicroop ()
     {

@@ -149,6 +149,55 @@ bool TraceBasedGraph::advanceIfControlTransfer(TraceMap::iterator& _trace_it, St
     return true;
 }
 
+bool TraceBasedGraph::advanceStreamTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp)
+{
+    // State sanity check
+    assert(streamTrace.getTraceID());
+    assert((streamTrace.state == SpecTrace::Complete));
+    
+    // macro and micro address of _decodedMicroOp
+    Addr macro_addr = _trace_it->second.instGettingStreamedAddr.pcAddr;
+    uint16_t micro_addr = _trace_it->second.instGettingStreamedAddr.uopAddr; 
+
+    assert(_trace_it->second.superOptimizedTrace.find(macro_addr) != _trace_it->second.superOptimizedTrace.end());
+
+
+
+    // first check whether we can find next microop for the same macroop
+    if (_trace_it->second.originalTrace[macro_addr].find(micro_addr + 1) != _trace_it->second.originalTrace[macro_addr].end())
+    {
+        // there is still a microop to fetch from the same macroop
+        _trace_it->second.instGettingStreamedAddr.uopAddr++;
+        DPRINTF(SuperOp, "Advancing stream trace %d to [%#x][%d]\n", streamTrace.getTraceID(), _trace_it->second.instGettingStreamedAddr.pcAddr, _trace_it->second.instGettingStreamedAddr.uopAddr);
+        return false;
+    }
+    else 
+    {
+            // there is no next microop. advance to the next macroop
+            auto macro_it = _trace_it->second.originalTrace.find(macro_addr);
+            macro_it++;
+            if (macro_it != _trace_it->second.originalTrace.end())
+            {
+                _trace_it->second.instGettingStreamedAddr.pcAddr   = macro_it->first;
+                _trace_it->second.instGettingStreamedAddr.uopAddr  = 0; 
+                DPRINTF(SuperOp, "Advancing trace %d to [%#x][%d]\n", streamTrace.getTraceID(), _trace_it->second.instGettingStreamedAddr.pcAddr, _trace_it->second.instGettingStreamedAddr.uopAddr);
+                return false;
+            }
+            else 
+            {
+                // end of original trace
+                DPRINTF(SuperOp, "End of trace %d at [%#x][%d]\n", streamTrace.getTraceID(), _trace_it->second.instGettingStreamedAddr.pcAddr, _trace_it->second.instGettingStreamedAddr.uopAddr);
+                return true;
+            }      
+    }
+    
+
+    // we should never be here
+    assert(0);
+    return false;
+
+}
+
 
 bool TraceBasedGraph::advanceTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp)
 {
@@ -309,6 +358,8 @@ void TraceBasedGraph::predictValue(Addr addr, uint16_t uopAddr, uint64_t value, 
 
                     if (original_macro->isMacroop())
                     {
+
+                        
                         for (uint32_t t = 0; t < original_macro->getNumMicroops(); t++)
                         {
                             StaticInstPtr orig_si = original_macro->fetchMicroop((MicroPC)t);
@@ -998,9 +1049,6 @@ bool TraceBasedGraph::updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstP
     {
         DPRINTF(ConstProp, "Instruction at %#x:%d is not a dead code as it's a return microop!\n", macro_addr, micro_addr);
     }
-
-
-
     
     _trace_it->second.shrunkLength++;
 

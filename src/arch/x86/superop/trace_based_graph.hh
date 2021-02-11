@@ -52,6 +52,7 @@ class TraceBasedGraph : public SimObject
     void finalizeSuperOptimizedTrace();
     bool isTraceStillAvailableInUopCache(SpecTrace::OriginalTrace &trace);
     bool advanceTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp);
+    bool advanceStreamTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp);
     bool isPredictionSource(TraceMap::iterator& _trace_it, uint64_t &value, uint64_t &confidence, uint64_t &latency);
     bool updateSpecTrace(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp , bool propagated, bool isPredSource);
     bool advanceIfControlTransfer(TraceMap::iterator& _trace_it, StaticInstPtr _decodedMicroOp);

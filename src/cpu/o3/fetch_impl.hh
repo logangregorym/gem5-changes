@@ -1494,8 +1494,8 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     }
 
     DPRINTF(Fetch, "[tid:%i]: Instruction PC %#x (%d) created "
-            "[sn:%lli].\n", tid, thisPC.instAddr(),
-            thisPC.microPC(), seq);
+            "[sn:%lli]. nextPC = %s\n", tid, thisPC.instAddr(),
+            thisPC.microPC(), seq, nextPC);
 
     DPRINTF(Fetch, "[tid:%i]: Instruction is: %s\n", tid,
             instruction->staticInst->
