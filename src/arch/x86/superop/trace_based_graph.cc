@@ -92,85 +92,8 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
         }
     }
 
-    unsigned int traceId = 0; 
-    bool reopt = true;
-    int spec_way = -1;
-    int spec_uop = -1;
+
     for (int way=0; way<8; way++) {
-        if (decoder->speculativeValidArray[idx][way])
-        {
-            for (int uop=0; uop<6; uop++) {
-                if (decoder->speculativeAddrArray[idx][way][uop].pcAddr == addr &&
-                    decoder->speculativeAddrArray[idx][way][uop].uopAddr == 0) {
-                    traceId = decoder->speculativeTraceIDArray[idx][way];
-                    spec_way = way;
-                    spec_uop = uop;
-                    break;
-                } 
-            }
-            if (traceId) {
-                assert(traceMap.find(traceId) != traceMap.end());
-                for (int i=0; i<4; i++) {
-                    /* Do we already consider this as a prediction source? */
-                    if (traceMap[traceId].source[i].valid && 
-                        traceMap[traceId].source[i].addr == FullUopAddr(addr, uopAddr) && 
-                        traceMap[traceId].source[i].value == value) 
-                    {
-                        DPRINTF(SuperOp, "Speculative Cache already holds a trace for this prediction source! addr = %#x uopAddr = %d value = %#x  confidence = %d\n", 
-                                        addr, uopAddr, traceMap[traceId].source[i].value, traceMap[traceId].source[i].confidence);
-
-                        reopt = false;
-                        break;
-                    }
-                }
-                break;
-            }
-        }
-    }
-
-    // if an already optimized trace has low confidence, it is time to phase it out
-    if (traceId && reopt) {
-        DPRINTF(SuperOp, "Trace %i exists for this prediction source! addr = %#x uopAddr = %d\n", traceId, addr, uopAddr);
-        assert(traceMap.find(traceId) != traceMap.end());
-        for (int i=0; i<4; i++) {
-            /* Have we exhausted all prediction sources? If not, we can further compact this trace.    */
-            if (!traceMap[traceId].source[i].valid) {
-                
-                //assert(0); // Haven't seen any reoptimize yet! 
-                SpecTrace newTrace;
-                
-                for (int j=0; j<4; j++) {
-                    if (traceMap[traceId].source[j].valid) {
-                        newTrace.source[j] = traceMap[traceId].source[j];
-                    }
-                }
-                newTrace.source[i].valid = true;
-                newTrace.source[i].addr = FullUopAddr(addr, uopAddr);
-                newTrace.source[i].value = value;
-                newTrace.source[i].confidence = confidence;
-                newTrace.source[i].latency = latency;
-                newTrace.state = SpecTrace::QueuedForReoptimization;
-                newTrace.reoptId = traceId;
-
-                unsigned length = computeLength(newTrace);
-                if (length < 4) { // TODO: revisit: pretty low bar
-                    DPRINTF(SuperOp, "Rejecting trace request to re-optimize trace at uop[%i][%i][%i]\n", idx, spec_way, spec_uop);
-                    DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
-                    DPRINTF(SuperOp, "length=%i\n", length);
-                    return;
-                }
-                newTrace.head = newTrace.addr = traceMap[traceId].optimizedHead;
-                newTrace.headAddr = traceMap[traceId].headAddr;
-                newTrace.id = SpecTrace::traceIDCounter++;
-                traceMap[newTrace.id] = newTrace;
-                traceQueue.push(newTrace);
-                DPRINTF(SuperOp, "Queueing up new trace request %i to reoptimize trace %i at spec[%i][%i][%i]\n", newTrace.id, newTrace.reoptId,
-                                    newTrace.addr.idx, newTrace.addr.way, newTrace.addr.uop);
-                return;
-            }
-        }
-    } else {
-        for (int way=0; way<8; way++) {
             DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", idx, way, decoder->uopCountArray[idx][way]);
             for (int uop=0; uop<decoder->uopCountArray[idx][way]; uop++) {
                 if (decoder->uopValidArray[idx][way] && 
@@ -207,8 +130,8 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                     return;
                 }
             }
-        }
     }
+    
 }
 
 bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uint64_t &value, unsigned &confidence, unsigned &latency) {
