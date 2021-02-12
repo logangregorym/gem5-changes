@@ -1219,8 +1219,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     unsigned evictWay = SPEC_CACHE_NUM_WAYS;
     for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
         // check if we are processing the trace for first time optimization -- write to way in progress
-        if ((((traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) ||
-              (traceConstructor->currentTrace.state == SpecTrace::ReoptimizationInProcess)) &&
+        if ((((traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess)) &&
             traceConstructor->currentTrace.id != 0) && 
             (traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][way] ||
              traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
@@ -1229,16 +1228,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
             DPRINTF(Decoder, "Can't evict becuase OptimizationInProcess: tag:%#x idx:%d way:%d. currentTrace.id: %d\n", tag, idx, way, traceConstructor->currentTrace.id);
             continue;
         }
-        // check if we are processing the trace for re-optimization -- read from way in progress
-        if ((traceConstructor->currentTrace.state == SpecTrace::ReoptimizationInProcess && 
-            traceConstructor->currentTrace.reoptId != 0) && 
-            (traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][way] ||
-             traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
-             traceConstructor->currentTrace.reoptId == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) 
-        {
-            DPRINTF(Decoder, "Can't evict becuase ReoptimizationInProcess: tag:%#x idx:%d way:%d. currentTrace.reoptId: %d\n", tag, idx, way, traceConstructor->currentTrace.reoptId);
-            continue;
-        }
+       
         // check if we are streaming the trace -- read from way in progress
         if ((traceConstructor->streamTrace.id != 0) && 
             (traceConstructor->streamTrace.id == speculativeTraceIDArray[idx][way] ||
@@ -1396,8 +1386,8 @@ Decoder::isTraceAvailable(Addr addr, int64_t value, int8_t confidence) {
         if (trace.headAddr.pcAddr == addr) {
             DPRINTF(Decoder, "Checking Trace %i for at addr = %#x\n", trace.id, addr);
 
-            if (trace.state == SpecTrace::OptimizationInProcess || trace.state == SpecTrace::ReoptimizationInProcess ||
-                trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::QueuedForReoptimization) {
+            if (trace.state == SpecTrace::OptimizationInProcess  ||
+                trace.state == SpecTrace::QueuedForFirstTimeOptimization) {
                 DPRINTF(Decoder, "Trace %i is still being processed (state:%d)\n", trace.id, trace.state);
                 continue;
             }

@@ -49,7 +49,9 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
     DPRINTF(SuperOp, "predictValue: addr=%#x:%x value=%#x confidence=%d latency=%d\n", addr, uopAddr, value, confidence, latency);
     
     /* Check if we have an optimized trace with this prediction source -- isTraceAvailable returns the most profitable trace. */
-    int idx = (addr >> 5) & 0x1f;
+    uint64_t uop_cache_idx = (addr >> 5) & 0x1f;
+    //uint64_t spec_cache_idx = (addr >> decoder->SPEC_NUM_INDEX_BITS) & decoder->SPEC_INDEX_MASK;
+
     for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
         //SpecTrace trace = it->second;
         int numPredSources = 0;
@@ -65,19 +67,19 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                 return;
             }
         }
-        if (it->second.state != SpecTrace::QueuedForFirstTimeOptimization && it->second.state != SpecTrace::QueuedForReoptimization) {
+        if (it->second.state != SpecTrace::QueuedForFirstTimeOptimization) {
             continue;
         }
-        if (idx != it->second.head.idx) {
+        if (uop_cache_idx != it->second.head.idx) {
             continue;
         }
         DPRINTF(SuperOp, "Incoming trace request has the same index as trace %i already in queue\n", it->second.id);
         int numWays = 0;
-        for (int way = it->second.head.way; way != 10 && numWays < 8; way = decoder->uopNextWayArray[idx][way]) {
-            if (decoder->uopValidArray[idx][way]) {
-                DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", idx, way, decoder->uopCountArray[idx][way]);
-                for (int uop = it->second.head.uop; uop < decoder->uopCountArray[idx][way]; uop++) {
-                    if (decoder->uopAddrArray[idx][it->second.head.way][uop] == FullUopAddr(addr, 0)) {
+        for (int way = it->second.head.way; way != 10 && numWays < 8; way = decoder->uopNextWayArray[uop_cache_idx][way]) {
+            if (decoder->uopValidArray[uop_cache_idx][way]) {
+                DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", uop_cache_idx, way, decoder->uopCountArray[uop_cache_idx][way]);
+                for (int uop = it->second.head.uop; uop < decoder->uopCountArray[uop_cache_idx][way]; uop++) {
+                    if (decoder->uopAddrArray[uop_cache_idx][it->second.head.way][uop] == FullUopAddr(addr, 0)) {
                         if (numPredSources < 4) {
                             it->second.source[numPredSources].valid = true;
                             it->second.source[numPredSources].addr = FullUopAddr(addr, uopAddr);
@@ -94,11 +96,11 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
 
 
     for (int way=0; way<8; way++) {
-            DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", idx, way, decoder->uopCountArray[idx][way]);
-            for (int uop=0; uop<decoder->uopCountArray[idx][way]; uop++) {
-                if (decoder->uopValidArray[idx][way] && 
-                    decoder->uopAddrArray[idx][way][uop].pcAddr == addr && 
-                    decoder->uopAddrArray[idx][way][uop].uopAddr == 0) 
+            DPRINTF(SuperOp, "Looking up uop[%i][%i] of size %d\n", uop_cache_idx, way, decoder->uopCountArray[uop_cache_idx][way]);
+            for (int uop=0; uop<decoder->uopCountArray[uop_cache_idx][way]; uop++) {
+                if (decoder->uopValidArray[uop_cache_idx][way] && 
+                    decoder->uopAddrArray[uop_cache_idx][way][uop].pcAddr == addr && 
+                    decoder->uopAddrArray[uop_cache_idx][way][uop].uopAddr == 0) 
                 {
                     SpecTrace newTrace;
                     newTrace.source[0].valid = true;
@@ -107,15 +109,15 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                     newTrace.source[0].confidence = confidence;
                     newTrace.source[0].latency = latency;
                     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
-                    newTrace.head = newTrace.addr = FullCacheIdx(idx, way, uop);
+                    newTrace.head = newTrace.addr = FullCacheIdx(uop_cache_idx, way, uop);
                     newTrace.headAddr = FullUopAddr(addr, 0);
                     newTrace.instAddr = FullUopAddr(0, 0);
 
                     // before adding it to the queue, check if profitable -- we prefer long hot traces
-                    unsigned hotness = decoder->uopHotnessArray[idx][way].read();
+                    unsigned hotness = decoder->uopHotnessArray[uop_cache_idx][way].read();
                     unsigned length = computeLength(newTrace);
                     if (hotness < 7 || length < 4) { // TODO: revisit: pretty low bar
-                        DPRINTF(SuperOp, "Rejecting trace request to optimize trace at uop[%i][%i][%i]\n", idx, way, uop);
+                        DPRINTF(SuperOp, "Rejecting trace request to optimize trace at uop[%i][%i][%i]\n", uop_cache_idx, way, uop);
                         DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
                         DPRINTF(SuperOp, "hotness:%i length=%i\n", hotness, length);
                         return;
@@ -124,7 +126,7 @@ void TraceBasedGraph::predictValue(Addr addr, unsigned uopAddr, int64_t value, i
                     newTrace.id = SpecTrace::traceIDCounter++;
                     traceMap[newTrace.id] = newTrace;
                     traceQueue.push(newTrace);
-                    DPRINTF(SuperOp, "Queueing up new trace request %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, idx, way, uop);
+                    DPRINTF(SuperOp, "Queueing up new trace request %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, uop_cache_idx, way, uop);
                     DPRINTF(SuperOp, "Prediction source: %#x:%i=%#x\n", addr, uopAddr, value);
                     DPRINTF(SuperOp, "hotness:%i length=%i\n", hotness, length);
                     return;
@@ -148,7 +150,7 @@ bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uin
 
 bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     // don't do this for re-optimizations
-    if (trace.state != SpecTrace::QueuedForFirstTimeOptimization && trace.state != SpecTrace::OptimizationInProcess)
+    if (trace.state != SpecTrace::QueuedForFirstTimeOptimization)
         return false;
 
     // don't fold more than 2 branches
@@ -206,21 +208,21 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     }
 
     // pivot to jump target if it is found in the uop cache
-    int idx = (target >> 5) & 0x1f;
+    uint64_t uop_cache_idx = (target >> 5) & 0x1f;
     uint64_t tag = (target >> 10);
     for (int way = 0; way < 8; way++) {
-        if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
-            for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
-                if (decoder->uopAddrArray[idx][way][uop].pcAddr == target &&
-                        decoder->uopAddrArray[idx][way][uop].uopAddr == 0) {
-                    trace.addr.idx = idx;
+        if (decoder->uopValidArray[uop_cache_idx][way] && decoder->uopTagArray[uop_cache_idx][way] == tag) {
+            for (int uop = 0; uop < decoder->uopCountArray[uop_cache_idx][way]; uop++) {
+                if (decoder->uopAddrArray[uop_cache_idx][way][uop].pcAddr == target &&
+                        decoder->uopAddrArray[uop_cache_idx][way][uop].uopAddr == 0) {
+                    trace.addr.idx = uop_cache_idx;
                     trace.addr.way = way;
                     trace.addr.uop = uop;
                     if (decodedMacroOp->isMacroop()) { 
                         decodedMacroOp->deleteMicroOps();
                         decodedMacroOp = NULL;
                     }
-                    DPRINTF(ConstProp, "Control Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+                    DPRINTF(ConstProp, "Control Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, uop_cache_idx, way, uop);
                     
                     trace.controlSources[trace.branchesFolded].confidence = 9;
                     trace.controlSources[trace.branchesFolded].valid = true;
@@ -275,9 +277,10 @@ void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
                 }
             }
         } else {
+            assert((trace.addr.way < decoder->SPEC_CACHE_NUM_WAYS) && (trace.addr.idx < decoder->SPEC_CACHE_NUM_SETS));
             if (trace.addr.uop < decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]) {
                 trace.addr.valid = true;
-            } else if (decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way] != 10) {
+            } else if (decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way] != decoder->SPEC_CACHE_WAY_MAGIC_NUM) {
                 trace.addr.uop = 0;
                 trace.addr.way = decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way];
                 trace.addr.valid = true;
@@ -313,6 +316,7 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
 			decodedMacroOp = NULL;
 		}
     } else {
+        assert((way< decoder->SPEC_CACHE_NUM_WAYS) && (idx < decoder->SPEC_CACHE_NUM_SETS));
         Addr pcAddr = decoder->speculativeAddrArray[idx][way][uop].pcAddr;
         Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
         StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
@@ -442,10 +446,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             int uop = currentTrace.addr.uop;
             if (!(currentTrace.state == SpecTrace::QueuedForFirstTimeOptimization &&
                   decoder->uopValidArray[idx][way] &&
-                  decoder->uopAddrArray[idx][way][uop] == currentTrace.headAddr) &&
-                !(currentTrace.state == SpecTrace::QueuedForReoptimization &&
-                  decoder->speculativeValidArray[idx][way] &&
-                  decoder->speculativeAddrArray[idx][way][uop] == currentTrace.headAddr)) 
+                  decoder->uopAddrArray[idx][way][uop] == currentTrace.headAddr)
+                ) 
             {
                 DPRINTF(SuperOp, "Trace %i at (%i,%i,%i) evicted before we could process it.\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
                 currentTrace.addr.valid = false;
@@ -467,9 +469,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
         if (currentTrace.state == SpecTrace::QueuedForFirstTimeOptimization) {
             currentTrace.state = SpecTrace::OptimizationInProcess;
-        } else if (currentTrace.state == SpecTrace::QueuedForReoptimization) {
-            currentTrace.state = SpecTrace::ReoptimizationInProcess;
-        }
+        } 
 
         /* Clear Reg Context Block. */
         for (int i=0; i<38; i++) {
@@ -477,7 +477,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             PredccFlagBits = PredcfofBits = PreddfBit = PredecfBit = PredezfBit = 0;
         }
     } else { 
-        assert(currentTrace.state == SpecTrace::OptimizationInProcess || currentTrace.state == SpecTrace::ReoptimizationInProcess);
+        assert(currentTrace.state == SpecTrace::OptimizationInProcess);
     }
 
     if (!currentTrace.addr.valid) { return false; } // no traces in queue to pop
@@ -517,22 +517,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
         }
         currentTrace.lastAddr = currentTrace.instAddr;
         currentTrace.instAddr = decoder->uopAddrArray[idx][way][uop];
-        newMacro = (currentTrace.lastAddr.pcAddr != currentTrace.instAddr.pcAddr);
-    } else if (state == SpecTrace::ReoptimizationInProcess) {
-        DPRINTF(ConstProp, "Trace %i: Processing instruction at spec[%i][%i][%i]\n", currentTrace.id, idx, way, uop);
-        if (!decoder->speculativeValidArray[idx][way] || (uop >= decoder->speculativeCountArray[idx][way])) {
-            tracesWithInvalidHead++;
-            DPRINTF(SuperOp, "Trace was evicted out of the speculative cache before we could optimize it\n");
-            currentTrace.addr.valid = false;
-            return false;
-        }
-        decodedMacroOp = decoder->decodeInst(decoder->speculativeCache[idx][way][uop]->macroOp->machInst);
-        if (decodedMacroOp->isMacroop()) {
-            currentTrace.inst = decodedMacroOp->fetchMicroop(decoder->speculativeAddrArray[idx][way][uop].uopAddr);
-            currentTrace.inst->macroOp = decodedMacroOp;
-        }
-        currentTrace.lastAddr = currentTrace.instAddr;
-        currentTrace.instAddr = decoder->speculativeAddrArray[idx][way][uop];
         newMacro = (currentTrace.lastAddr.pcAddr != currentTrace.instAddr.pcAddr);
     }
     decodedMacroOp = NULL;

@@ -123,13 +123,13 @@ struct SpecTrace
         Invalid,
         
         QueuedForFirstTimeOptimization,
-        QueuedForReoptimization,
+        //QueuedForReoptimization,
 
         // first time optimization
         OptimizationInProcess,
 
         // re-optimization (e.g., due to a new pred source)
-        ReoptimizationInProcess,
+        //ReoptimizationInProcess,
 
         // evicted before we could process it
         Evicted,
