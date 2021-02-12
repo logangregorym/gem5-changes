@@ -76,21 +76,126 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
             uopCountArray[idx][way] = 0;
             uopLRUArray[idx][way] = way;
             uopHotnessArray[idx][way] = BigSatCounter(4);
-        
+            for (int uop = 0; uop < 6; uop++) {
+                uopAddrArray[idx][way][uop] = FullUopAddr();
+            }
+        }
+    }
+
+    // allocate spec cache
+
+    
+    SPEC_CACHE_NUM_WAYS = 8;
+    SPEC_CACHE_NUM_SETS = 32;
+    SPEC_CACHE_WAY_MAGIC_NUM = 2 + SPEC_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
+
+    assert((SPEC_CACHE_NUM_WAYS & (SPEC_CACHE_NUM_WAYS - 1)) == 0);
+    assert((SPEC_CACHE_NUM_SETS & (SPEC_CACHE_NUM_SETS - 1)) == 0);
+
+    speculativeCache = new StaticInstPtr ** [SPEC_CACHE_NUM_SETS];
+    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    {
+        speculativeCache[set] = new StaticInstPtr * [SPEC_CACHE_NUM_WAYS];
+        for (size_t way = 0; way < SPEC_CACHE_NUM_WAYS; way++)
+        {
+            speculativeCache[set][way] = new StaticInstPtr [6];
+        }
+    }
+
+    speculativeAddrArray = new FullUopAddr ** [SPEC_CACHE_NUM_SETS];
+    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    {
+        speculativeAddrArray[set] = new FullUopAddr * [SPEC_CACHE_NUM_WAYS];
+        for (size_t way = 0; way < SPEC_CACHE_NUM_WAYS; way++)
+        {
+            speculativeAddrArray[set][way] = new FullUopAddr [6];
+        }
+    }
+
+    speculativeTagArray = new uint64_t * [SPEC_CACHE_NUM_SETS];
+    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    {
+        speculativeTagArray[set] = new uint64_t [SPEC_CACHE_NUM_WAYS];
+       
+    }
+
+    speculativeEvictionStat = new uint64_t * [SPEC_CACHE_NUM_SETS];
+    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    {
+        speculativeEvictionStat[set] = new uint64_t [SPEC_CACHE_NUM_WAYS];
+       
+    }
+
+
+    speculativePrevWayArray = new int * [SPEC_CACHE_NUM_SETS];
+    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    {
+        speculativePrevWayArray[set] = new int [SPEC_CACHE_NUM_WAYS];
+       
+    }
+  
+    speculativeNextWayArray = new int * [SPEC_CACHE_NUM_SETS];
+    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    {
+        speculativeNextWayArray[set] = new int [SPEC_CACHE_NUM_WAYS];
+       
+    }
+
+    speculativeValidArray = new bool * [SPEC_CACHE_NUM_SETS];
+    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    {
+        speculativeValidArray[set] = new bool [SPEC_CACHE_NUM_WAYS];
+       
+    }
+
+    speculativeCountArray = new int * [SPEC_CACHE_NUM_SETS];
+    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    {
+        speculativeCountArray[set] = new int [SPEC_CACHE_NUM_WAYS];
+       
+    }
+
+    speculativeLRUArray = new int * [SPEC_CACHE_NUM_SETS];
+    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    {
+        speculativeLRUArray[set] = new int [SPEC_CACHE_NUM_WAYS];
+       
+    }
+
+    speculativeTraceIDArray = new uint64_t * [SPEC_CACHE_NUM_SETS];
+    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    {
+        speculativeTraceIDArray[set] = new uint64_t [SPEC_CACHE_NUM_WAYS];
+       
+    }
+
+    specHotnessArray = new BigSatCounter * [SPEC_CACHE_NUM_SETS];
+    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    {
+        specHotnessArray[set] = new BigSatCounter [SPEC_CACHE_NUM_WAYS];
+       
+    }
+
+    SPEC_INDEX_MASK = (SPEC_CACHE_NUM_SETS-1);
+    SPEC_NUM_INDEX_BITS = std::log2(SPEC_CACHE_NUM_SETS);
+
+
+    for (int idx=0; idx< SPEC_CACHE_NUM_SETS; idx++) {
+        for (int way=0; way< SPEC_CACHE_NUM_WAYS; way++) {
+            
             // Parallel cache for optimized micro-ops
             speculativeValidArray[idx][way] = false;
             speculativeCountArray[idx][way] = 0;
             speculativeLRUArray[idx][way] = way;
             speculativeTagArray[idx][way] = 0;
-            speculativePrevWayArray[idx][way] = 10;
-            speculativeNextWayArray[idx][way] = 10;
+            speculativePrevWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
+            speculativeNextWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
             specHotnessArray[idx][way] = BigSatCounter(4);
             speculativeTraceIDArray[idx][way] = 0;
             speculativeEvictionStat[idx][way] = 0;
             for (int uop = 0; uop < 6; uop++) {
-                uopAddrArray[idx][way][uop] = FullUopAddr();
                 speculativeAddrArray[idx][way][uop] = FullUopAddr();
-                speculativeTraceSources[idx][way][uop] = 0;
+                speculativeCache[idx][way][uop] = NULL;
             }
         }
     }
@@ -782,12 +887,12 @@ Decoder::updateLRUBits(int idx, int way)
 void
 Decoder::updateLRUBitsSpeculative(int idx, int way)
 {
-    for (int lru = 0; lru < 8; lru++) {
+    for (int lru = 0; lru < SPEC_CACHE_NUM_WAYS; lru++) {
         if (speculativeLRUArray[idx][lru] > speculativeLRUArray[idx][way]) {
             speculativeLRUArray[idx][lru]--;
         }
     }
-    speculativeLRUArray[idx][way] = 7;
+    speculativeLRUArray[idx][way] = SPEC_CACHE_NUM_WAYS-1;
 }
 
 bool
@@ -999,7 +1104,7 @@ Decoder::updateStreamTrace(unsigned traceID, X86ISA::PCState &thisPC) {
     int baseWay = traceConstructor->streamTrace.optimizedHead.way;
     FullUopAddr addr = FullUopAddr(thisPC.pc(), thisPC.upc());
 
-    for (int way = baseWay; way != 10; way = speculativeNextWayArray[idx][way]) {
+    for (int way = baseWay; way != SPEC_CACHE_WAY_MAGIC_NUM; way = speculativeNextWayArray[idx][way]) {
         if (speculativeValidArray[idx][way] && speculativeTraceIDArray[idx][way] == traceID) {
             for (int uop = 0; uop < speculativeCountArray[idx][way]; uop++) {
                 if (speculativeAddrArray[idx][way][uop] == addr) {
@@ -1022,8 +1127,8 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     unsigned uop = trace.instAddr.uopAddr; 
     unsigned traceID = trace.id;
 
-    int idx = (addr >> 5) & 0x1f;
-    uint64_t tag = (addr >> 10);
+    uint64_t idx = (addr >> SPEC_NUM_INDEX_BITS) & SPEC_INDEX_MASK;
+    uint64_t tag = (addr >> ( SPEC_NUM_INDEX_BITS + 5 ));
     int numFullWays = 0;
     int lastWay = -1;
 
@@ -1043,7 +1148,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
 
 
     /* Link list traversal traversal. */
-    for (int way = baseWay; way != 10  && numFullWays < 3 && waysVisited < 8; way = speculativeNextWayArray[idx][way]) {
+    for (int way = baseWay; way != SPEC_CACHE_WAY_MAGIC_NUM  && numFullWays < 3 && waysVisited < SPEC_CACHE_NUM_WAYS; way = speculativeNextWayArray[idx][way]) {
         if (speculativeValidArray[idx][way] && speculativeTraceIDArray[idx][way] == traceID) {
             /* Check if this way can accommodate the uops that correspond
                  to this instruction. */
@@ -1082,7 +1187,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     }
 
     // If we make it here, then we need to add a way for this tag
-    for (int way = 0; way < 8; way++) {
+    for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
         if (!speculativeValidArray[idx][way]) {
             if (lastWay != -1) {
                 /* Multi-way region. */
@@ -1110,9 +1215,9 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     }
 
     // If we make it here, we need to evict a way to make space -- evicted region shouldn't be currently in use for optimization
-    unsigned lruWay = 8;
-    unsigned evictWay = 8;
-    for (int way = 0; way < 8; way++) {
+    unsigned lruWay = SPEC_CACHE_NUM_WAYS;
+    unsigned evictWay = SPEC_CACHE_NUM_WAYS;
+    for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
         // check if we are processing the trace for first time optimization -- write to way in progress
         if ((((traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) ||
               (traceConstructor->currentTrace.state == SpecTrace::ReoptimizationInProcess)) &&
@@ -1165,14 +1270,14 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
             DPRINTF(Decoder, "lruWay = %d,  speculativeLRUArray[%d][%d] = %d\n", lruWay, idx, way, speculativeLRUArray[idx][way]);
         }
     }
-    if (evictWay != 8) {
+    if (evictWay != SPEC_CACHE_NUM_WAYS) {
         DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%d way:%d.\n Affected PCs:\n", tag, idx, evictWay);
         /* Invalidate all prior content. */
         unsigned int evictedTraceID = speculativeTraceIDArray[idx][evictWay];
         uint64_t     evcitedTag = speculativeTagArray[idx][evictWay];
         assert(evictedTraceID); // never should be zero
         assert(evcitedTag);
-        for (int w = 0; w < 8; w++) {
+        for (int w = 0; w < SPEC_CACHE_NUM_WAYS; w++) {
             if (speculativeValidArray[idx][w] &&
                 speculativeTraceIDArray[idx][w] == evictedTraceID) 
             {
@@ -1181,8 +1286,8 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
                 }
                 speculativeValidArray[idx][w] = false;
                 speculativeCountArray[idx][w] = 0;
-                speculativePrevWayArray[idx][w] = 10;
-                speculativeNextWayArray[idx][w] = 10;
+                speculativePrevWayArray[idx][w] = SPEC_CACHE_WAY_MAGIC_NUM;
+                speculativeNextWayArray[idx][w] = SPEC_CACHE_WAY_MAGIC_NUM;
                 speculativeTraceIDArray[idx][w] = 0;
                 speculativeTagArray[idx][w] = 0;
                 speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
@@ -1370,8 +1475,8 @@ Decoder::doSquash(Addr addr) {
     traceConstructor->streamTrace.addr.valid = false;
     traceConstructor->streamTrace.id = 0;
 
-    int idx = (addr >> 5) & 0x1f;
-    for (int way = 0; way < 8; way++) {
+    int idx = (addr >> SPEC_NUM_INDEX_BITS) & SPEC_INDEX_MASK;
+    for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
         if (speculativeValidArray[idx][way] && speculativeAddrArray[idx][way][0].pcAddr == addr && speculativePrevWayArray[idx][way] == 10) {
 
             assert(traceConstructor->traceMap.find(speculativeTraceIDArray[idx][way]) != traceConstructor->traceMap.end());
@@ -1406,9 +1511,9 @@ Decoder::invalidateSpecTrace(Addr addr, unsigned uop) {
      * 4. If has a next line, clear that one too
      * Put the check for prev and next in the tag function to call recursively
      */
-    int idx = (addr >> 5) & 0x1f;
-    uint64_t tag = (addr >> 10);
-    for (int way = 0; way < 8; way++) {
+    int idx = (addr >> SPEC_NUM_INDEX_BITS) & SPEC_INDEX_MASK;
+    uint64_t tag = (addr >> (SPEC_NUM_INDEX_BITS + 5));
+    for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
         if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
             invalidateSpecCacheLine(idx, way);
         }
@@ -1492,17 +1597,11 @@ Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86
     }
     // if the traceID is correct and addr is valid, then thisPC._pc should be equal to speculativeAddrArray[idx][way][uop].pcAddr
     // if this is not true, then there is a bug?
-    // else if (thisPC._pc != speculativeAddrArray[idx][way][uop].pcAddr || 
-    //         !speculativeValidArray[idx][way] || 
-    //         speculativeTraceIDArray[idx][way] != traceID)
-    // {
+
         DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x\n",thisPC._pc, idx, way, uop , speculativeAddrArray[idx][way][uop].pcAddr);
         DPRINTF(Decoder,"speculativeValidArray[%d][%d] = %d\n", idx, way , speculativeValidArray[idx][way]);
         DPRINTF(Decoder,"speculativeTraceIDArray[%d][%d] = %d, traceID = %d\n", idx, way ,speculativeTraceIDArray[idx][way], traceID); 
-        
-    //     assert(0);
-    // }
-	
+        	
 
     idx = traceConstructor->streamTrace.addr.idx;
     way = traceConstructor->streamTrace.addr.way;

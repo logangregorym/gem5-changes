@@ -57,8 +57,13 @@ namespace X86ISA
 
 class ISA;
 
+
+
 class Decoder
 {
+  public :
+
+
   private:
     //These are defined and documented in decoder_tables.cc
     static const uint8_t SizeTypeToSize[3][10];
@@ -131,30 +136,36 @@ class Decoder
     bool redirectDueToLVPSquashing;
     bool isSpeculativeCachePresent;
     bool speculativeCacheActive;
-    unsigned int currentActiveTraceID;
-    StaticInstPtr speculativeCache[32][8][6];
-    FullUopAddr speculativeAddrArray[32][8][6];
-    uint64_t speculativeTagArray[32][8];
-    uint64_t speculativeEvictionStat[32][8];
-    int speculativePrevWayArray[32][8];
-    int speculativeNextWayArray[32][8];
-    bool speculativeValidArray[32][8];
-    int speculativeCountArray[32][8];
-    int speculativeLRUArray[32][8];
-	BigSatCounter specHotnessArray[32][8];
-	unsigned speculativeTraceIDArray[32][8];
+    uint64_t currentActiveTraceID;
+    StaticInstPtr *** speculativeCache;
+    FullUopAddr *** speculativeAddrArray;
+    uint64_t ** speculativeTagArray ;
+    uint64_t ** speculativeEvictionStat;
+    int ** speculativePrevWayArray;
+    int ** speculativeNextWayArray;
+    bool ** speculativeValidArray;
+    int ** speculativeCountArray;
+    int ** speculativeLRUArray;
+	BigSatCounter ** specHotnessArray;
+	uint64_t ** speculativeTraceIDArray;
+
+    uint64_t SPEC_INDEX_MASK;
+    uint64_t SPEC_NUM_INDEX_BITS;
+    uint64_t SPEC_CACHE_NUM_WAYS;
+    uint64_t SPEC_CACHE_NUM_SETS;
+    uint64_t SPEC_CACHE_WAY_MAGIC_NUM;
 
 	// Can I remove this? If pred ids are associated with trace ids, not cache lines, now?
-	unsigned speculativeTraceSources[32][8][6]; // pred IDs of predictions used in trace
+	//unsigned speculativeTraceSources[SPEC_CACHE_NUM_SETS][SPEC_CACHE_NUM_WAYS][6]; // pred IDs of predictions used in trace
 
-	void tickAllHotnessCounters() {
-		for (int i=0; i<32; i++) {
-			for (int j=0; j<8; j++) {
-				uopHotnessArray[i][j].decrement();
-				specHotnessArray[i][j].decrement();
-			}
-		}
-	}
+	// void tickAllHotnessCounters() {
+	// 	for (int i=0; i<32; i++) {
+	// 		for (int j=0; j<8; j++) {
+	// 			uopHotnessArray[i][j].decrement();
+	// 			specHotnessArray[i][j].decrement();
+	// 		}
+	// 	}
+	// }
 
     BaseCPU *cpu;
     void setCPU(BaseCPU * newCPU, ThreadID tid=0);

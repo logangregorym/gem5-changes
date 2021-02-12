@@ -432,6 +432,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             DPRINTF(SuperOp, "After optimization: \n");
             int idx = currentTrace.head.idx;
             int way = currentTrace.optimizedHead.way;
+
             if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
                 // mark end of trace and propagate live outs
                 DPRINTF(SuperOp, "End of Trace at %s!\n", currentTrace.prevNonEliminatedInst->getName());
@@ -621,6 +622,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
     }
 
     bool updateSuccessful = false;
+
+
+    
 
     // Any inst in a trace may be a prediction source
     DPRINTF(ConstProp, "Trace %i: Processing instruction: %p:%i -- %s\n", currentTrace.id, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
