@@ -268,9 +268,6 @@ bool FA3P::makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid 
 bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_t value, ThreadID tid, uint64_t prediction, int8_t confidence, unsigned cyclesElapsed, unsigned currentCycle)
 {
     assert(inst);
-    // assert(inst->predictedLoad);
-
-
     
     Addr addr = pc.instAddr();
     int16_t upc = (int16_t)pc.microPC(); 
@@ -433,26 +430,6 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
             //}
     }
 
-    // if (misPred) {
-        
-    //     if (foundAddress) {
-            
-    //         predictor.LVT[idx].confidence.reset();
-    //         while (predictor.LVT[idx].confidence.read() < resetTo) 
-    //         {
-    //             predictor.LVT[idx].confidence.increment();
-    //         }
-    //         DPRINTF(FA3P, "processPacketRecieved: Decreasing entry %d confidence for address %#x:%d! New confidence: %d\n",  idx, addr, upc, predictor.LVT[idx].confidence.read());
-    //     }
-    //     missCount++;
-    //     if (missCount >= missThreshold) {
-    //         if (dynamicThreshold) {
-    //             firstConst++;
-    //             ++constIncrement;
-    //         }
-    //         missCount = 0;
-    //     }
-    // }
 
     
     return !misPred;

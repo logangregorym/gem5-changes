@@ -627,6 +627,7 @@ class DefaultFetch
     Stats::Formula uopCacheHitRate;
     Stats::Formula uopCacheInstHitRate;
     Stats::Vector statFetchMicro;
+    
 
     Stats::Scalar directCtrlBranchesFetched;
     Stats::Scalar indirectCtrlBranchesFetched;
@@ -641,6 +642,9 @@ class DefaultFetch
     Stats::Scalar maxConfidence;
     Stats::Scalar maxDelay;
 
+    Stats::Scalar specCacheMissOps;
+    Stats::Scalar specCacheHitOps;
+    Stats::Formula specCacheHitRate;
 
     Stats::Scalar numFetchBWCyclesWastedDuringSwitch;
 };

@@ -516,6 +516,10 @@ class BaseDynInst : public ExecContext, public RefCounted
     void setTracePredictionSource(bool state) {staticInst->setTracePredictionSource(state);}
     bool isStreamedFromSpeculativeCache() const {return staticInst->isStreamedFromSpeculativeCache();}
     void setStreamedFromSpeculativeCache(bool state)      {staticInst->setStreamedFromSpeculativeCache(state);}
+    bool isStreamedFromUOpCache() const {return staticInst->isStreamedFromUOpCache();}
+    void setStreamedFromUOpCache(bool state)      {staticInst->setStreamedFromUOpCache(state);}
+    bool isUOpCacheHotTrace() const {return staticInst->isUOpCacheHotTrace();}
+    void setUOpCacheHotTrace(bool state)      {staticInst->setUOpCacheHotTrace(state);}
     bool isNop()          const { return staticInst->isNop(); }
     bool isMemRef()       const { return staticInst->isMemRef(); }
     bool isLoad()         const { return staticInst->isLoad(); }

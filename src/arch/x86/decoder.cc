@@ -1366,7 +1366,29 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
                     ExtMachInst emi = uopCache[idx][way][uop];
                     nextPC.size(emi.instSize);
                     nextPC.npc(nextPC.pc() + emi.instSize);
-                    return decode(emi, addr);
+
+                    StaticInstPtr si = decode(emi, addr);
+
+                    if (uopHotnessArray[idx][way].read() > 7)
+                    {
+                        if (si->isMacroop())
+                        {
+                            // set all the microops in this macro as fetched from uop cache
+                            for (uint16_t idx = 0; idx < si->getNumMicroops(); idx++)
+                            {
+                                StaticInstPtr micro = si->fetchMicroop((MicroPC)idx);
+                                micro->setUOpCacheHotTrace(true);
+                            }
+                        }
+                        else 
+                        {
+                            si->setUOpCacheHotTrace(true);
+                        }
+                    }
+
+                    return si;
+
+
                 }
             }
         }
@@ -1667,9 +1689,28 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
 StaticInstPtr
 Decoder::decode(PCState &nextPC, unsigned cycleAdded, ThreadID tid)
 {
-    if (isUopCachePresent && isUopCacheActive() && isHitInUopCache(nextPC.instAddr())) {
-      DPRINTF(Decoder, "Fetching microop from the microop cache: %s.\n", nextPC);
-      return fetchUopFromUopCache(nextPC.instAddr(), nextPC);
+    if (isUopCachePresent && isUopCacheActive() && isHitInUopCache(nextPC.instAddr())) 
+    {
+        DPRINTF(Decoder, "Fetching microop from the microop cache: %s.\n", nextPC);
+      
+        StaticInstPtr si = fetchUopFromUopCache(nextPC.instAddr(), nextPC);
+
+        if (si->isMacroop())
+        {
+            // set all the microops in this macro as fetched from uop cache
+            for (uint16_t idx = 0; idx < si->getNumMicroops(); idx++)
+            {
+                StaticInstPtr micro = si->fetchMicroop((MicroPC)idx);
+                micro->setStreamedFromUOpCache(true);
+            }
+        }
+        else 
+        {
+            si->setStreamedFromUOpCache(true);
+        }
+             
+
+        return si;
     }
 
     if (!instDone)

@@ -418,6 +418,23 @@ DefaultFetch<Impl>::regStats()
     numFetchBWCyclesWastedDuringSwitch
 	    .name(name() + ".numFetchBWCyclesWastedDuringSwitch")
 	    .desc("Number of fetch bandwidth cycles wasted due to switch from Spec$ to Uop$/Decoder and vice versa");
+
+
+    specCacheHitOps
+        .name(name() + ".specCacheHitOps")
+        .desc("Number of hits (ops) in the spec cache")
+        .prereq(specCacheHitOps);
+
+    specCacheMissOps
+        .name(name() + ".specCacheMissOps")
+        .desc("Number of misses (ops) in the spec cache")
+        .prereq(specCacheMissOps);
+
+    specCacheHitRate
+        .name(name() + ".specCacheHitRate")
+        .desc("Spec Cache Hit Rate")
+        .precision(6);
+    specCacheHitRate = specCacheHitOps/(specCacheHitOps + specCacheMissOps);
 }
 
 template<class Impl>
@@ -1340,6 +1357,117 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     instruction->setThreadState(cpu->thread[tid]);
 
     // Make load value prediction if necessary
+    if (staticInst->isStreamedFromSpeculativeCache()) {
+        ++specCacheHitOps;
+    } else {
+        ++specCacheMissOps;
+    }
+
+    assert( (instruction->isStreamedFromUOpCache() && !instruction->isStreamedFromSpeculativeCache()) || 
+            (!instruction->isStreamedFromUOpCache() && instruction->isStreamedFromSpeculativeCache()) ||  
+            (!instruction->isStreamedFromUOpCache() && !instruction->isStreamedFromSpeculativeCache())
+    );
+
+    // Make load value prediction if necessary
+    // only predict when the instruction has only one INT dest reg
+    // Number of INT registers
+    uint16_t numOfIntDestRegs = 0;
+    for (int i = 0; i < instruction->numDestRegs(); i++) 
+    {
+        RegId destReg = instruction->destRegIdx(i);
+        if (destReg.classValue() == IntRegClass && destReg.index() != 4) { // exclude stack and FP operations
+            numOfIntDestRegs++;
+        }
+    }
+
+
+    bool isPredictableType =    (numOfIntDestRegs == 1) && 
+                                instruction->isInteger() && 
+                                !instruction->isVector() && 
+                                !instruction->isFloating() &&
+                                /*!instruction->isCC()*/ 
+                                instruction->isStreamedFromUOpCache() &&
+                                !instruction->isStreamedFromSpeculativeCache();
+
+        // don't pullote predictor with instructions that we already know thier values
+    if (instruction->getName() == "rdip" || 
+        instruction->getName() == "limm" ||  
+        instruction->getName() == "movi") 
+    {
+        isPredictableType = false;
+    }
+        
+
+    bool valuePredictable = false;
+    if (isPredictableType && instruction->isLoad())
+    {
+        // this is a load type. Predict for it!
+        valuePredictable = true;
+    }
+    else if ( isPredictableType && loadPred->predictingArithmetic) 
+    {   
+        // this is a artithmatic type. Predict for it!
+        valuePredictable = true;
+    }
+
+
+
+    if (valuePredictable) 
+    {
+        // don't check against new prediction is the instruction is part of a spec trace
+        DPRINTF(LVP, "MakePrediction called by inst [sn:%i] from fetch!\n", seq);
+        instruction->cycleFetched = cpu->numCycles.value();
+        loadPred->stored_seq_no = seq;
+	    
+	    int inflight_count = 0;
+        for (const DynInstPtr& cpuInst : cpu->instList) {
+                if (cpuInst->instAddr() == thisPC.pc()) {
+                    inflight_count += 1;
+                }
+        }
+        loadPred->stored_inflight = inflight_count;	    
+
+        LVPredUnit::lvpReturnValues ret;
+        ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
+            
+        if (loadPred->lvpredType == "eves")
+            loadPred->lvLookups++;
+
+	    //instruction->staticInst->lvpData = &ret;
+		instruction->staticInst->predictedValue = ret.predictedValue;
+		instruction->staticInst->confidence = ret.confidence;
+		// if (instruction->staticInst->confidence) {std::cout << "Confident prediction at seqno " << instruction->seqNum << endl;}
+		instruction->staticInst->predVtage = ret.predVtage;
+		instruction->staticInst->predStride = ret.predStride;
+		// if (instruction->staticInst->predStride) {std::cout << "Still confident...\n";}
+		instruction->staticInst->prediction_result = ret.prediction_result;
+		for (int i=0; i<9; i++) {
+			instruction->staticInst->GTAG[i] = ret.GTAG[i];
+			instruction->staticInst->GI[i] = ret.GI[i];
+		}
+		for (int i=0; i<3; i++) {
+			instruction->staticInst->TAGSTR[i] = ret.TAGSTR[i];
+			instruction->staticInst->B[i] = ret.B[i];
+		}
+		instruction->staticInst->STHIT = ret.STHIT;
+		// cout << "Fetch received HitBank value " << ret.HitBank << "for sn " << instruction->seqNum << endl;
+		instruction->staticInst->HitBank = ret.HitBank;
+		DPRINTF(LVP, "fetch predicted %x with confidence %i\n", ret.predictedValue, ret.confidence);
+        if (false && (cpu->numCycles.value() - loadPred->lastMisprediction < loadPred->resetDelay) && loadPred->dynamicThreshold) {
+            DPRINTF(LVP, "Misprediction occured %i cycles ago, setting confidence to -1\n", cpu->numCycles.value() - loadPred->lastMisprediction);
+            staticInst->predictedValue = ret.predictedValue;
+            staticInst->confidence = 0;
+            staticInst->predictedLoad = false;
+        } else {
+            DPRINTF(LVP, "Fetch Predicted value for Inst with PC: %#x SeqNum[%d] Setting Value to: %#x Setting confidence to: %d: \n", 
+                          thisPC.instAddr(), instruction->seqNum, ret.predictedValue, ret.confidence);
+            staticInst->predictedValue = ret.predictedValue;
+            staticInst->confidence = ret.confidence;
+            staticInst->predictedLoad = true;
+        } 
+        
+    }
+
 
     DPRINTF(Fetch, "[tid:%i]: Instruction PC %#x (%d) created "
             "[sn:%lli].\n", tid, thisPC.instAddr(),

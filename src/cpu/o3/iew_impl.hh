@@ -1419,7 +1419,7 @@ DefaultIEW<Impl>::executeInsts()
 
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
-                if (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache())
+                if (false && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache()))
                 {
                     assert(!inst->isSquashed());
                     
@@ -1505,53 +1505,32 @@ DefaultIEW<Impl>::executeInsts()
                 if ((!inst->isStore() && inst->isInteger() && loadPred->predictingArithmetic) && inst->staticInst->predictedLoad) { // isFloat()? isVector()? isCC()?
                     inst->memoryAccessStartCycle = cpu->numCycles.value();
                     inst->memoryAccessEndCycle = cpu->numCycles.value();
-		    //cout << "About to call eves on sn " << inst->seqNum << endl;
                     DPRINTF(LVP, "Sending a NOT-load response to LVP from [sn:%i]\n", inst->seqNum);
                     ThreadID tid = inst->threadNumber;
-		    // cout << "Processing seqno " << inst->seqNum << ": confidence is " << (uint64_t) (inst->staticInst->confidence) << endl;
                     DPRINTF(LVP, "Inst->confidence is %d at time of return\n", inst->staticInst->confidence); 
-		    // cout << "iew response for sn " << inst->seqNum << " has HitBank " << inst->staticInst->HitBank << endl;
+                    int numIntDestRegs = 0;
                     for (int i=0; i<inst->numDestRegs(); i++) {
                     	PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                     	uint64_t value;
                     	switch (dest_reg->classValue()) {
 			                // Note: changed memoryAccessStartCycle to cycleFetched in all these
                           case IntRegClass:
+                            numIntDestRegs++;
                             value = cpu->readIntReg(dest_reg);
                             DPRINTF(LVP, "IntRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readIntReg(dest_reg));
                             inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                             break;
                           case FloatRegClass:
-                            value = cpu->readFloatRegBits(dest_reg);
-                            DPRINTF(LVP, "FloatRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readFloatReg(dest_reg));
-                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
-                            break;
                       	  case VecRegClass:
-                            //assert(0);
-                            // Should be okay to ignore, because if predicted, assertion in inst_queue would have failed
-                            // value = cpu->readVecReg(dest_reg);
-                            if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
-                            break;
                       	  case VecElemClass:
-                            //assert(0);
-                            value = cpu->readVecElem(dest_reg);
-                            DPRINTF(LVP, "VecElemClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readVecElem(dest_reg));
-                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
-                            break;
                       	  case CCRegClass:
-                            value = cpu->readCCReg(dest_reg);
-                            DPRINTF(LVP, "CCRegClass: Returning register value %llx to LVP i.e. %llx\n", value, cpu->readCCReg(dest_reg));
-                            inst->lvMispred = inst->lvMispred || !loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, value, tid, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
-                            break;
                       	  case MiscRegClass:
-                            //assert(0);
-                            // Should also be okay to ignore, won't be predicted
-                            if (inst->staticInst->confidence >= 0) { inst->lvMispred = true; }
                             break;
                      	  default:
                             panic("Unknown register class: %d", (int)dest_reg->classValue());
                    	    }
                     }
+                    assert(numIntDestRegs == 1);
                     // TODO: Just squash when we actually have used the predicted value whether in super optimizer or LVP
                     // TODO: FOR NOW JUST TRACE PREDICTIONS, LATER LVP + TRACE
                     if (inst->lvMispred  && inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource()) 
