@@ -1155,10 +1155,7 @@ DefaultFetch<Impl>::tick()
     numInst = 0;
 
    for (int tid = 0; tid < numThreads; tid++) {
-      decoder[tid]->traceConstructor->generateNextTraceInst(); // was depTracker->simplifyGraph
-    //   if ((((int) cpu->numCycles.value()) % 128) == 0) {
-    //       decoder[tid]->tickAllHotnessCounters();
-    //   }
+      decoder[tid]->traceConstructor->generateNextTraceInst(); 
    }
 }
 

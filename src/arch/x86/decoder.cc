@@ -85,8 +85,8 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
     // allocate spec cache
 
     
-    SPEC_CACHE_NUM_WAYS = 8;
-    SPEC_CACHE_NUM_SETS = 32;
+    SPEC_CACHE_NUM_WAYS = 32 * 8;
+    SPEC_CACHE_NUM_SETS = 1;
     SPEC_CACHE_WAY_MAGIC_NUM = 2 + SPEC_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
 
     assert((SPEC_CACHE_NUM_WAYS & (SPEC_CACHE_NUM_WAYS - 1)) == 0);
@@ -1124,14 +1124,15 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
    
     StaticInstPtr inst =  trace.inst;
     Addr addr = trace.instAddr.pcAddr;
-    unsigned uop = trace.instAddr.uopAddr; 
-    unsigned traceID = trace.id;
+    uint16_t uop = trace.instAddr.uopAddr; 
+    uint64_t traceID = trace.id;
 
-    uint64_t idx = (addr >> SPEC_NUM_INDEX_BITS) & SPEC_INDEX_MASK;
+    uint64_t spec_cache_idx = (addr >> SPEC_NUM_INDEX_BITS) & SPEC_INDEX_MASK;
     uint64_t tag = (addr >> ( SPEC_NUM_INDEX_BITS + 5 ));
     int numFullWays = 0;
     int lastWay = -1;
 
+    uint64_t idx;
     int baseWay = 0;
     int waysVisited = 0;
     if (trace.optimizedHead.valid) {
@@ -1141,8 +1142,9 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     }
     else 
     {
-        idx = trace.head.idx;
-        //baseWay = 10;
+        // if the head idx is not valid, it should be assigned here!
+        trace.optimizedHead.idx = spec_cache_idx;
+        idx = spec_cache_idx;
         DPRINTF(Decoder, "addUopToSpeculativeCache: Trace %d optimized head is not valid!\n", traceID);
     }
 

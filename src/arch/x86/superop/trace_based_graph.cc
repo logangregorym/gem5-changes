@@ -150,7 +150,7 @@ bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uin
 
 bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     // don't do this for re-optimizations
-    if (trace.state != SpecTrace::QueuedForFirstTimeOptimization)
+    if (trace.state != SpecTrace::QueuedForFirstTimeOptimization  && trace.state != SpecTrace::OptimizationInProcess)
         return false;
 
     // don't fold more than 2 branches
@@ -277,6 +277,7 @@ void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
                 }
             }
         } else {
+            assert(trace.state == SpecTrace::Complete);
             assert((trace.addr.way < decoder->SPEC_CACHE_NUM_WAYS) && (trace.addr.idx < decoder->SPEC_CACHE_NUM_SETS));
             if (trace.addr.uop < decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]) {
                 trace.addr.valid = true;
@@ -316,6 +317,7 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
 			decodedMacroOp = NULL;
 		}
     } else {
+        assert(trace.state == SpecTrace::Complete);
         assert((way< decoder->SPEC_CACHE_NUM_WAYS) && (idx < decoder->SPEC_CACHE_NUM_SETS));
         Addr pcAddr = decoder->speculativeAddrArray[idx][way][uop].pcAddr;
         Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
@@ -357,7 +359,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.addr = currentTrace.head;
             dumpTrace(currentTrace);
             DPRINTF(SuperOp, "After optimization: \n");
-            int idx = currentTrace.head.idx;
+            int idx = currentTrace.optimizedHead.idx;
             int way = currentTrace.optimizedHead.way;
 
             if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
@@ -492,6 +494,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     if (state == SpecTrace::OptimizationInProcess) {
         DPRINTF(ConstProp, "Trace %i: Processing instruction at uop[%i][%i][%i]\n", currentTrace.id, idx, way, uop);
         if (!decoder->uopValidArray[idx][way] || (uop >= decoder->uopCountArray[idx][way])) {
+            assert(0);
             tracesWithInvalidHead++;
             DPRINTF(SuperOp, "Trace was evicted out of the micro-op cache before we could optimize it\n");
             currentTrace.addr.valid = false;
@@ -556,15 +559,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
         bool isDeadCode = false;
         updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
         
+        panic_if( isDeadCode , "Prediction Source is a dead code?!");
         // source predictions never get eliminated
-        if (!isDeadCode)
-        {
-            currentTrace.prevNonEliminatedInst = currentTrace.inst;
-        }
-        else 
-        {
-            panic("Prediction Source is a dead code?!");
-        }
+        currentTrace.prevNonEliminatedInst = currentTrace.inst;
+        
 
     } else {
 
@@ -793,10 +791,11 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     // Update head of the optimized trace
     if (!trace.optimizedHead.valid) {
         DPRINTF(Decoder, "updateSpecTrace: Trace %d optimized head is not valid!\n", trace.id);
-        trace.optimizedHead.idx = trace.head.idx; 
+        //the idx is set in addToSpeculativeCache function
+        //trace.optimizedHead.idx = trace.head.idx; 
         trace.optimizedHead.uop = 0;
         for (int way=0; way<8; way++) {
-            int idx = trace.head.idx;
+            int idx = trace.optimizedHead.idx;
             if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == trace.id) {
                 DPRINTF(Decoder, "updateSpecTrace: Trace %d optimized head way is updated to %d!\n", trace.id, way);
                 trace.optimizedHead.way = way;
