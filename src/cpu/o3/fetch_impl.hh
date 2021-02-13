@@ -1034,17 +1034,7 @@ template <class Impl>
 void
 DefaultFetch<Impl>::tick()
 {
-    /*
-    DPRINTF(SuperOp, "Cycle:%i Frequency:%i Cycle mod Freq:%i Value:%i\n", (int) cpu->numCycles.value(), dumpFrequency, (int) cpu->numCycles.value() % dumpFrequency, (int) cpu->numCycles.value() % dumpFrequency == 0);
-    if ((int) cpu->numCycles.value() % dumpFrequency == 0) {
-        DPRINTF(SuperOp, "Dump for cycle %i\n", cpu->numCycles.value());
-        decoder[tid]->dumpMicroopCache();
-        DPRINTF(SuperOp, "\n");
-        dumpConstantBuffer();
-        DPRINTF(SuperOp, "\n\n\n");
-    }
-    */
-    
+
 
     list<ThreadID>::iterator threads = activeThreads->begin();
     list<ThreadID>::iterator end = activeThreads->end();
@@ -1350,92 +1340,6 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     instruction->setThreadState(cpu->thread[tid]);
 
     // Make load value prediction if necessary
-    // string opcode = instruction->getName();
-    bool valuePredictable = instruction->isLoad() ; 
-    if (!instruction->isStore() && instruction->isInteger() && !instruction->isFloating() && loadPred->predictingArithmetic) { // isFloating()? isVector()? isCC()?
-        for (int i = 0; i < instruction->numDestRegs(); i++) {
-            RegId destReg = instruction->destRegIdx(i);
-            if (destReg.classValue() == IntRegClass && destReg.index() != 4) { // exclude stack and FP operations
-                valuePredictable = true;
-                break;
-            }
-        }
-    }
-    //valuePredictable  = valuePredictable && staticInst->getName() != "limm" && staticInst->getName() != "movi"; 
-    uint64_t value;
-    unsigned confidence, latency;
-    if (valuePredictable && 
-        !(staticInst->isStreamedFromSpeculativeCache() &&
-          decoder[tid]->traceConstructor->isPredictionSource(decoder[tid]->traceConstructor->traceMap[currentTraceID], FullUopAddr(thisPC.instAddr(), thisPC.upc()), value, confidence, latency))) {
-        // don't check against new prediction is the instruction is part of a spec trace
-        if (loadPred->predictStage == 1 || loadPred->predictStage == 3) {
-            DPRINTF(LVP, "makePrediction called by inst [sn:%i] from fetch\n", seq);
-            instruction->cycleFetched = cpu->numCycles.value();
-            loadPred->stored_seq_no = seq;
-	    
-	    int inflight_count = 0;
-            for (const DynInstPtr& cpuInst : cpu->instList) {
-                if (cpuInst->instAddr() == thisPC.pc()) {
-                    inflight_count += 1;
-                }
-            }
-            loadPred->stored_inflight = inflight_count;	    
-
-            LVPredUnit::lvpReturnValues ret;
-            ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
-            
-	    if (loadPred->lvpredType == "eves")
-	        loadPred->lvLookups++;
-
-	    instruction->staticInst->lvpData = &ret;
-			instruction->staticInst->predictedValue = ret.predictedValue;
-			instruction->staticInst->confidence = ret.confidence;
-			// if (instruction->staticInst->confidence) {std::cout << "Confident prediction at seqno " << instruction->seqNum << endl;}
-			instruction->staticInst->predVtage = ret.predVtage;
-			instruction->staticInst->predStride = ret.predStride;
-			// if (instruction->staticInst->predStride) {std::cout << "Still confident...\n";}
-			instruction->staticInst->prediction_result = ret.prediction_result;
-			for (int i=0; i<9; i++) {
-				instruction->staticInst->GTAG[i] = ret.GTAG[i];
-				instruction->staticInst->GI[i] = ret.GI[i];
-			}
-			for (int i=0; i<3; i++) {
-				instruction->staticInst->TAGSTR[i] = ret.TAGSTR[i];
-				instruction->staticInst->B[i] = ret.B[i];
-			}
-			instruction->staticInst->STHIT = ret.STHIT;
-			// cout << "Fetch received HitBank value " << ret.HitBank << "for sn " << instruction->seqNum << endl;
-			instruction->staticInst->HitBank = ret.HitBank;
-		    DPRINTF(LVP, "fetch predicted %x with confidence %i\n", ret.predictedValue, ret.confidence);
-            if ((cpu->numCycles.value() - loadPred->lastMisprediction < loadPred->resetDelay) && loadPred->dynamicThreshold) {
-                DPRINTF(LVP, "Misprediction occured %i cycles ago, setting confidence to -1\n", cpu->numCycles.value() - loadPred->lastMisprediction);
-                staticInst->predictedValue = ret.predictedValue;
-                staticInst->confidence = -1;
-                staticInst->predictedLoad = false;
-            } else {
-                DPRINTF(LVP, "Fetch Predicted value for Inst with PC: %#x SeqNum[%d] Setting Value to: %#x Setting confidence to: %d: \n", 
-                              thisPC.instAddr(), instruction->seqNum, ret.predictedValue, ret.confidence);
-                staticInst->predictedValue = ret.predictedValue;
-                staticInst->confidence = ret.confidence;
-                staticInst->predictedLoad = true;
-            } 
-
-            if (staticInst->confidence >= 15) {
-                if (instruction->isMacroop()) {
-                    assert(!instruction->staticInst->isMacroop());
-                    for (int uop = 0; uop < instruction->staticInst->getNumMicroops(); uop++) {
-                        if (decoder[tid]->isSuperOptimizationPresent) {
-                            decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), uop, ret.predictedValue, ret.confidence, ret.latency);
-                        }
-                    }
-                } else {
-                    if (decoder[tid]->isSuperOptimizationPresent) {
-                        decoder[tid]->traceConstructor->predictValue(thisPC.instAddr(), thisPC.upc(), ret.predictedValue, ret.confidence, ret.latency);
-                    }
-                }
-            }
-        }
-    }
 
     DPRINTF(Fetch, "[tid:%i]: Instruction PC %#x (%d) created "
             "[sn:%lli].\n", tid, thisPC.instAddr(),
@@ -1471,36 +1375,12 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     	// Keep track of if we can take an interrupt at this boundary
     	delayedCommit[tid] = instruction->isDelayedCommit();
 
-    	// Mark whether reducable at fetch
-    	//if (decoder[tid]->isSuperOptimizationPresent && decoder[tid]->depTracker->isReducable(thisPC.instAddr(), thisPC.microPC())) {
-        //    instruction->reducableAtFetch = true;
-       	//    fetchedReducable++;
-    	//}
-    fetchedOps++;
+        fetchedOps++;
     
 
     return instruction;
 }
 
-/*
-template<class Impl>
-bool
-DefaultFetch<Impl>::isProfitable(Addr addr, unsigned uop) {
-    // Hotness
-	unsigned hotness = decoder[0]->getHotnessOfTrace(addr); // tid=0 here
-	if (hotness > maxHotness.value()) { maxHotness = hotness; }
-    // Trace Length
-    unsigned length = decoder[0]->getSpecTraceLength(addr); // tid=0 here
-	if (length > maxLength.value()) { maxLength = length; }
-    // Confidence
-	unsigned confidence = loadPred->getConfidence(addr);
-	if (confidence > maxConfidence.value()) { maxConfidence = confidence; }
-    // Delay
-    unsigned delay = loadPred->getDelay(addr);
-	if (delay > maxDelay.value()) { maxDelay = delay; }
-    return (hotness > 7 && (length > 15 || confidence > 15 || delay > 50));
-}
-*/
 
 template<class Impl>
 void

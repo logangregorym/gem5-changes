@@ -343,7 +343,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
 
 
 
-    bool misPred = (confidence >= 0) && (prediction != responseVal);
+    bool misPred = (prediction != responseVal);
 
     if (foundAddress) {
 

@@ -85,8 +85,8 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
     // allocate spec cache
 
     
-    SPEC_CACHE_NUM_WAYS = 64;
-    SPEC_CACHE_NUM_SETS = 4;
+    SPEC_CACHE_NUM_WAYS = 32 * 8;
+    SPEC_CACHE_NUM_SETS = 1;
     SPEC_CACHE_WAY_MAGIC_NUM = 2 + SPEC_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
 
     assert((SPEC_CACHE_NUM_WAYS & (SPEC_CACHE_NUM_WAYS - 1)) == 0);
