@@ -85,8 +85,8 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
     // allocate spec cache
 
     
-    SPEC_CACHE_NUM_WAYS = 32 * 8;
-    SPEC_CACHE_NUM_SETS = 1;
+    SPEC_CACHE_NUM_WAYS = 64;
+    SPEC_CACHE_NUM_SETS = 4;
     SPEC_CACHE_WAY_MAGIC_NUM = 2 + SPEC_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
 
     assert((SPEC_CACHE_NUM_WAYS & (SPEC_CACHE_NUM_WAYS - 1)) == 0);
@@ -1377,11 +1377,11 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
 
 // LVPredictor return int8_t confidence, if this confidence if less than zero then just return
 unsigned
-Decoder::isTraceAvailable(Addr addr, int64_t value, int8_t confidence) {
+Decoder::isTraceAvailable(Addr addr, uint64_t value, uint64_t confidence) {
     unsigned maxScore = 0;
     unsigned maxTraceID = 0;
 
-    if (confidence < 0) return 0;
+    //if (confidence < 0) return 0;
 
     for (auto it = traceConstructor->traceMap.begin(); it != traceConstructor->traceMap.end(); it++) {
         SpecTrace trace = it->second;
@@ -1557,7 +1557,7 @@ Decoder::maxLatency(unsigned traceId) {
 // sends back the microop from the active trace
 // In case of a folded branch, nextPC and predict_taken should be set by the function
 StaticInstPtr 
-Decoder::getSuperOptimizedMicroop(unsigned traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken) {
+Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken) {
     int idx = traceConstructor->traceMap[traceID].addr.idx;
     int way = traceConstructor->traceMap[traceID].addr.way;
     int uop = traceConstructor->traceMap[traceID].addr.uop;

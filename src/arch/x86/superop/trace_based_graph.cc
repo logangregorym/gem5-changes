@@ -432,6 +432,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // Pop a new trace from the queue, start at top
         do {
             if (traceQueue.empty()) {
+                DPRINTF(SuperOp, "Trace Queue is empty!\n");
                 currentTrace.addr.valid = false;
                 currentTrace.id = 0;
                 return false; 
@@ -464,6 +465,12 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.id = 0;
                 
             }
+
+            if (currentTrace.addr.valid)
+            {
+                DPRINTF(SuperOp, "Trace %d is selected for super optimization!\n", currentTrace.id);
+            }
+
         } while (!currentTrace.addr.valid);
 
         DPRINTF(SuperOp, "Optimizing trace %i at (%i,%i,%i)\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
@@ -790,14 +797,14 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
 
     // Update head of the optimized trace
     if (!trace.optimizedHead.valid) {
-        DPRINTF(Decoder, "updateSpecTrace: Trace %d optimized head is not valid!\n", trace.id);
+        DPRINTF(SuperOp, "updateSpecTrace: Trace %d optimized head is not valid!\n", trace.id);
         //the idx is set in addToSpeculativeCache function
         //trace.optimizedHead.idx = trace.head.idx; 
         trace.optimizedHead.uop = 0;
         for (int way=0; way<8; way++) {
             int idx = trace.optimizedHead.idx;
             if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == trace.id) {
-                DPRINTF(Decoder, "updateSpecTrace: Trace %d optimized head way is updated to %d!\n", trace.id, way);
+                DPRINTF(SuperOp, "updateSpecTrace: Trace %d optimized head way is updated to %d!\n", trace.id, way);
                 trace.optimizedHead.way = way;
                 trace.optimizedHead.valid = true;
                 break;

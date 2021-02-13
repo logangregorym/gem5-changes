@@ -312,7 +312,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
 
 
     // Stats time!,
-    if (confidence >= 0) {
+    if (confidence >= 5) {
             // Used
             if (prediction == responseVal) {
                 // Correct
