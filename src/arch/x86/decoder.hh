@@ -155,17 +155,14 @@ class Decoder
     uint64_t SPEC_CACHE_NUM_SETS;
     uint64_t SPEC_CACHE_WAY_MAGIC_NUM;
 
-	// Can I remove this? If pred ids are associated with trace ids, not cache lines, now?
-	//unsigned speculativeTraceSources[SPEC_CACHE_NUM_SETS][SPEC_CACHE_NUM_WAYS][6]; // pred IDs of predictions used in trace
-
-	// void tickAllHotnessCounters() {
-	// 	for (int i=0; i<32; i++) {
-	// 		for (int j=0; j<8; j++) {
-	// 			uopHotnessArray[i][j].decrement();
-	// 			specHotnessArray[i][j].decrement();
-	// 		}
-	// 	}
-	// }
+	void tickAllHotnessCounters() {
+		for (int i=0; i<32; i++) {
+			for (int j=0; j<8; j++) {
+				uopHotnessArray[i][j].decrement();
+				specHotnessArray[i][j].decrement();
+			}
+		}
+	}
 
     BaseCPU *cpu;
     void setCPU(BaseCPU * newCPU, ThreadID tid=0);
@@ -475,6 +472,7 @@ protected:
 	StaticInstPtr getSuperoptimizedInst(Addr addr, unsigned uop);
 
 	void invalidateSpecTrace(Addr addr, unsigned uop);
+    void invalidateSpecTrace(FullCacheIdx addr, uint64_t trace_id);
 
 	void invalidateSpecCacheLine(int idx, int way);
 

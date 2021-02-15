@@ -255,6 +255,8 @@ class DefaultIEW
 
     void updateTraceConfidence(DynInstPtr &inst);
     void updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState& tempPC, bool predicted);
+    void checkForLVPMissprediction(DynInstPtr& inst);
+    void updateLoadValuePredictor(DynInstPtr& inst);
 
   private:
     /** Sets Dispatch to blocked, and signals back to other stages to block. */

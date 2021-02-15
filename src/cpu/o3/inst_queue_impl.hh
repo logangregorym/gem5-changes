@@ -921,7 +921,7 @@ InstructionQueue<Impl>::scheduleReadyInsts()
                 FUCompletion *execution = new FUCompletion(issuing_inst,
                                                            idx, this);
 
-
+                // LVP forwarding logic! TODO: FIX THIS!
                 if ( false && cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
                     !issuing_inst->isMemRef() && 
                     !issuing_inst->isStreamedFromSpeculativeCache())

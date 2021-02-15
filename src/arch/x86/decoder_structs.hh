@@ -83,11 +83,25 @@ struct RegisterContext {
 // Speculative Trace
 struct SpecTrace
 {
-    // Trace ID
-    unsigned int id;
+    private:
+        // address of the head of the trace
+        FullUopAddr headAddr;
+    
+    public:
 
-    // address of the head of the trace
-    FullUopAddr headAddr;
+    void setTraceHeadAddress(FullUopAddr _headAddr)
+    {
+        headAddr = _headAddr;
+    }
+
+    FullUopAddr getTraceHeadAddr() {return headAddr;}
+    
+
+
+    // Trace ID
+    uint64_t id;
+
+    
 
     // (idx, way, uop) of head of the trace
     FullCacheIdx head;

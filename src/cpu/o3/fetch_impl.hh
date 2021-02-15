@@ -1161,9 +1161,13 @@ DefaultFetch<Impl>::tick()
     // Reset the number of the instruction we've fetched.
     numInst = 0;
 
-   for (int tid = 0; tid < numThreads; tid++) {
-      decoder[tid]->traceConstructor->generateNextTraceInst(); 
-   }
+    if ( isSuperOptimizationPresent)
+    {
+        for (int tid = 0; tid < numThreads; tid++) {
+            decoder[tid]->traceConstructor->generateNextTraceInst(); 
+        }
+    }
+    
 }
 
 template <class Impl>
@@ -1363,56 +1367,11 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
         ++specCacheMissOps;
     }
 
-    assert( (instruction->isStreamedFromUOpCache() && !instruction->isStreamedFromSpeculativeCache()) || 
-            (!instruction->isStreamedFromUOpCache() && instruction->isStreamedFromSpeculativeCache()) ||  
-            (!instruction->isStreamedFromUOpCache() && !instruction->isStreamedFromSpeculativeCache())
-    );
-
-    // Make load value prediction if necessary
-    // only predict when the instruction has only one INT dest reg
-    // Number of INT registers
-    uint16_t numOfIntDestRegs = 0;
-    for (int i = 0; i < instruction->numDestRegs(); i++) 
-    {
-        RegId destReg = instruction->destRegIdx(i);
-        if (destReg.classValue() == IntRegClass && destReg.index() != 4) { // exclude stack and FP operations
-            numOfIntDestRegs++;
-        }
-    }
-
-
-    bool isPredictableType =    (numOfIntDestRegs == 1) && 
-                                instruction->isInteger() && 
-                                !instruction->isVector() && 
-                                !instruction->isFloating() &&
-                                /*!instruction->isCC()*/ 
-                                instruction->isStreamedFromUOpCache() &&
-                                !instruction->isStreamedFromSpeculativeCache();
-
-        // don't pullote predictor with instructions that we already know thier values
-    if (instruction->getName() == "rdip" || 
-        instruction->getName() == "limm" ||  
-        instruction->getName() == "movi") 
-    {
-        isPredictableType = false;
-    }
+ 
         
 
-    bool valuePredictable = false;
-    if (isPredictableType && instruction->isLoad())
-    {
-        // this is a load type. Predict for it!
-        valuePredictable = true;
-    }
-    else if ( isPredictableType && loadPred->predictingArithmetic) 
-    {   
-        // this is a artithmatic type. Predict for it!
-        valuePredictable = true;
-    }
 
-
-
-    if (valuePredictable) 
+    if (decoder[tid]->traceConstructor->IsValuePredictible(instruction->staticInst)) 
     {
         // don't check against new prediction is the instruction is part of a spec trace
         DPRINTF(LVP, "MakePrediction called by inst [sn:%i] from fetch!\n", seq);
@@ -2043,6 +2002,12 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	} else {
                     	    pcOffset = 0;
                     	}
+                        // Try to queue a new trace if this is macroop is hot!
+                        if (isSuperOptimizationPresent && staticInst->isStreamedFromUOpCache() && staticInst->isUOpCacheHotTrace())
+                        {
+                            decoder[tid]->traceConstructor->QueueHotTraceForSuperOptimization(thisPC);
+                        }
+                            
 
                     } else {
                     	// We need more bytes for this instruction so blkOffset and

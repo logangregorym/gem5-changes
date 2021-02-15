@@ -85,8 +85,8 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
     // allocate spec cache
 
     
-    SPEC_CACHE_NUM_WAYS = 32 * 8;
-    SPEC_CACHE_NUM_SETS = 1;
+    SPEC_CACHE_NUM_WAYS = 8;
+    SPEC_CACHE_NUM_SETS = 32;
     SPEC_CACHE_WAY_MAGIC_NUM = 2 + SPEC_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
 
     assert((SPEC_CACHE_NUM_WAYS & (SPEC_CACHE_NUM_WAYS - 1)) == 0);
@@ -1373,6 +1373,7 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
                     {
                         if (si->isMacroop())
                         {
+                            si->setUOpCacheHotTrace(true);
                             // set all the microops in this macro as fetched from uop cache
                             for (uint16_t idx = 0; idx < si->getNumMicroops(); idx++)
                             {
@@ -1407,7 +1408,7 @@ Decoder::isTraceAvailable(Addr addr, uint64_t value, uint64_t confidence) {
 
     for (auto it = traceConstructor->traceMap.begin(); it != traceConstructor->traceMap.end(); it++) {
         SpecTrace trace = it->second;
-        if (trace.headAddr.pcAddr == addr) {
+        if (trace.getTraceHeadAddr().pcAddr == addr) {
             DPRINTF(Decoder, "Checking Trace %i for at addr = %#x\n", trace.id, addr);
 
             if (trace.state == SpecTrace::OptimizationInProcess  ||
@@ -1415,6 +1416,8 @@ Decoder::isTraceAvailable(Addr addr, uint64_t value, uint64_t confidence) {
                 DPRINTF(Decoder, "Trace %i is still being processed (state:%d)\n", trace.id, trace.state);
                 continue;
             }
+
+            assert(trace.state == SpecTrace::Complete);
 
             int numValidPredSources = 0; int numNotFoundPredSources = 0; int numMatchedPredSources = 0;
             for (int i = 0; i < 4; i++)
@@ -1535,18 +1538,66 @@ Decoder::invalidateSpecTrace(Addr addr, unsigned uop) {
 }
 
 void
+Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t trace_id) 
+{
+    
+    assert(trace_id);
+    
+    /*
+     * 1. Find tag match in spec cache
+     * 2. Clear out tag
+     * 3. If has a previous line, clear that one too
+     * 4. If has a next line, clear that one too
+     * Put the check for prev and next in the tag function to call recursively
+     */
+    int idx = addr.idx;
+    int evict_way = addr.way;
+    uint64_t evictTag = speculativeTagArray[idx][evict_way];
+    
+    assert(evictTag);
+    assert(speculativeTraceIDArray[idx][evict_way] == trace_id);
+
+    for (int w = 0; w < SPEC_CACHE_NUM_WAYS; w++) 
+    {
+
+        if (speculativeValidArray[idx][w] && 
+            speculativeTraceIDArray[idx][w] == trace_id) 
+        {
+                //assert(speculativeTagArray[idx][w] == evictTag);
+                for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) {
+                        DPRINTF(Decoder, "Trace %i: spec[%i][%i][%i] -- %#x:%i\n", speculativeTraceIDArray[idx][w], idx, w, uop, speculativeAddrArray[idx][w][uop].pcAddr, speculativeAddrArray[idx][w][uop].uopAddr);
+                }
+                speculativeValidArray[idx][w] = false;
+                speculativeCountArray[idx][w] = 0;
+                speculativePrevWayArray[idx][w] = SPEC_CACHE_WAY_MAGIC_NUM;
+                speculativeNextWayArray[idx][w] = SPEC_CACHE_WAY_MAGIC_NUM;
+                speculativeTraceIDArray[idx][w] = 0;
+                speculativeTagArray[idx][w] = 0;
+                speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
+                StaticInstPtr macroOp = speculativeCache[idx][w][0]->macroOp;
+                if (macroOp) {
+                    macroOp->deleteMicroOps();
+                    macroOp = NULL;
+                }
+        }
+    
+    }
+    
+}
+
+void
 Decoder::invalidateSpecCacheLine(int idx, int way) {
     for (int u = 0; u < 6; u++) {
         // depTracker->registerRemovalOfTraceInst(idx, way, u);
         speculativeAddrArray[idx][way][u] = FullUopAddr(0,0);
     }
-    if (speculativePrevWayArray[idx][way] != 10) {
+    if (speculativePrevWayArray[idx][way] != SPEC_CACHE_WAY_MAGIC_NUM) {
         invalidateSpecCacheLine(idx, speculativePrevWayArray[idx][way]);
-        speculativePrevWayArray[idx][way] = 10;
+        speculativePrevWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
     }
-    if (speculativeNextWayArray[idx][way] != 10) {
+    if (speculativeNextWayArray[idx][way] != SPEC_CACHE_WAY_MAGIC_NUM) {
         invalidateSpecCacheLine(idx, speculativeNextWayArray[idx][way]);
-        speculativeNextWayArray[idx][way] = 10;
+        speculativeNextWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
     }
 }
 
@@ -1697,6 +1748,7 @@ Decoder::decode(PCState &nextPC, unsigned cycleAdded, ThreadID tid)
 
         if (si->isMacroop())
         {
+            si->setStreamedFromUOpCache(true);
             // set all the microops in this macro as fetched from uop cache
             for (uint16_t idx = 0; idx < si->getNumMicroops(); idx++)
             {

@@ -39,7 +39,7 @@ class TraceBasedGraph : public SimObject
     bool usingControlTracking = false;
     bool usingCCTracking = false;
 
-    bool QueueHotTraceForSuperOptimization(Addr addr, uint16_t uopAddr);
+    bool QueueHotTraceForSuperOptimization(const X86ISA::PCState& pc);
 
     bool updateSpecTrace(SpecTrace &trace, bool& isDeadCode, bool propagated);
 
@@ -47,6 +47,7 @@ class TraceBasedGraph : public SimObject
 
     bool generateNextTraceInst();
 
+    bool IsValuePredictible(const StaticInstPtr inst);
     // Trace ID to map
     map<unsigned, SpecTrace> traceMap;
 

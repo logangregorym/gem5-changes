@@ -418,9 +418,9 @@ class StaticInst : public RefCounted, public StaticInstFlags
     const char * instMnem;
 
     uint64_t predictedValue;
-    int8_t confidence = -1; // could be using BigSC
+    uint64_t confidence = 0; // could be using BigSC
     bool predictedLoad = false;
-    unsigned int traceID  = 0;
+    uint64_t traceID  = 0;
     uint64_t shrunkLength = 0;
 
     // Annotate predicted inputs here
