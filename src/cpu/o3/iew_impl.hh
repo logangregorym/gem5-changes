@@ -2100,7 +2100,7 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
         }
 
         // always should be one! We never predict for non int dest regs
-        assert(numIntDestRegs == 1);
+        //assert(numIntDestRegs == 1);
 
         inst->lvMispred = (reg_value != inst->staticInst->predictedValue);
 

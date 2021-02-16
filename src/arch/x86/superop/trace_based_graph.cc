@@ -150,50 +150,50 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
     }
 
 
-        std::map<uint64_t, std::map<uint16_t, StaticInstPtr>> originalTrace;
-    for (uint64_t way=0; way < 8; way++) {
-        if (decoder->uopValidArray[uop_cache_idx][way] && decoder->uopTagArray[uop_cache_idx][way] == tag)
-        {
+    //     std::map<uint64_t, std::map<uint16_t, StaticInstPtr>> originalTrace;
+    // for (uint64_t way=0; way < 8; way++) {
+    //     if (decoder->uopValidArray[uop_cache_idx][way] && decoder->uopTagArray[uop_cache_idx][way] == tag)
+    //     {
 
-            for (size_t u = 0; u < decoder->uopCountArray[uop_cache_idx][way]; u++)
-            {   
-                Addr baseAddr = decoder->uopAddrArray[uop_cache_idx][way][u].pcAddr; 
-                if (originalTrace.find(baseAddr) == originalTrace.end())
-                {
-                    StaticInstPtr original_macro = decoder->decode(decoder->uopCache[uop_cache_idx][way][u], baseAddr);
-                    StaticInstPtr super_macro = decoder->decode(decoder->uopCache[uop_cache_idx][way][u], baseAddr);
+    //         for (size_t u = 0; u < decoder->uopCountArray[uop_cache_idx][way]; u++)
+    //         {   
+    //             Addr baseAddr = decoder->uopAddrArray[uop_cache_idx][way][u].pcAddr; 
+    //             if (originalTrace.find(baseAddr) == originalTrace.end())
+    //             {
+    //                 StaticInstPtr original_macro = decoder->decode(decoder->uopCache[uop_cache_idx][way][u], baseAddr);
+    //                 StaticInstPtr super_macro = decoder->decode(decoder->uopCache[uop_cache_idx][way][u], baseAddr);
 
-                    if (original_macro->isMacroop())
-                    {
+    //                 if (original_macro->isMacroop())
+    //                 {
 
                         
-                        for (uint32_t t = 0; t < original_macro->getNumMicroops(); t++)
-                        {
-                            StaticInstPtr orig_si = original_macro->fetchMicroop((MicroPC)t);
-                            orig_si->macroOp = original_macro;
-                            originalTrace[baseAddr][t] = orig_si;                    
-                        }
-                    }
-                    else 
-                    {
-                        // Does this mean only one microop?
-                        // no need to set macroOp
-                        originalTrace[baseAddr][0] = original_macro;
-                    }
-                }
-            }
-        }
+    //                     for (uint32_t t = 0; t < original_macro->getNumMicroops(); t++)
+    //                     {
+    //                         StaticInstPtr orig_si = original_macro->fetchMicroop((MicroPC)t);
+    //                         orig_si->macroOp = original_macro;
+    //                         originalTrace[baseAddr][t] = orig_si;                    
+    //                     }
+    //                 }
+    //                 else 
+    //                 {
+    //                     // Does this mean only one microop?
+    //                     // no need to set macroOp
+    //                     originalTrace[baseAddr][0] = original_macro;
+    //                 }
+    //             }
+    //         }
+    //     }
             
-    }
+    // }
 
-    DPRINTF(TraceGen,"Trace in the Uop Cache:\n");
-    for (auto const &lv1: originalTrace)
-    {
-        for (auto const &lv2: lv1.second)
-        {
-            DPRINTF(TraceGen, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second->disassemble(lv1.first));
-        }
-    }
+    // DPRINTF(TraceGen,"Trace in the Uop Cache:\n");
+    // for (auto const &lv1: originalTrace)
+    // {
+    //     for (auto const &lv2: lv1.second)
+    //     {
+    //         DPRINTF(TraceGen, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second->disassemble(lv1.first));
+    //     }
+    // }
 
     newTrace.id = SpecTrace::traceIDCounter++;
     traceMap[newTrace.id] = newTrace;
@@ -706,17 +706,20 @@ bool TraceBasedGraph::generateNextTraceInst() {
     unsigned confidence = 0;
     unsigned latency;
     string type = currentTrace.inst->getName();
-    if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) {
+    if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) 
+    {
         // Step 1: Get predicted value from LVP
         // Step 2: Determine dest register(s)
         // Step 3: Annotate dest register entries with that value
         // Step 4: Add inst to speculative trace
+        
         int numIntDestRegs = 0;
         for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
             RegId destReg = currentTrace.inst->destRegIdx(i);
             if (destReg.classValue() == IntRegClass) {
                 numIntDestRegs++;
 				DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), value, type);
+                assert(destReg.flatIndex() < 38);
                 regCtx[destReg.flatIndex()].value = value;
                 currentTrace.inst->predictedValue = value;
                 regCtx[destReg.flatIndex()].valid = true;
@@ -956,10 +959,12 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     trace.shrunkLength++;
 
     // Step 3b: Mark all predicted values on the StaticInst
-    for (int i=0; i<trace.inst->numSrcRegs(); i++) {
-        unsigned srcIdx = trace.inst->srcRegIdx(i).flatIndex();
+    for (int i=0; i<trace.inst->numSrcRegs(); i++) 
+    {
+        uint16_t srcIdx = trace.inst->srcRegIdx(i).flatIndex();
         bool propagatingSrc = true;
-        if (isPredSource) { // handle special case where srcReg == destReg
+        if (isPredSource) 
+        { // handle special case where srcReg == destReg
             for (int i=0; i<trace.inst->numDestRegs(); i++) {
                 unsigned destIdx = trace.inst->destRegIdx(i).flatIndex();
                 if (destIdx == srcIdx) {
@@ -968,14 +973,26 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
                 }
             }
         }
-        if (propagatingSrc) {
+        
+        if (propagatingSrc) 
+        {
             DPRINTF(ConstProp, "ConstProp: Examining register %i\n", srcIdx);
-            if (regCtx[srcIdx].valid && trace.inst->srcRegIdx(i).classValue() == IntRegClass) {
-                DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%#x\n", regCtx[srcIdx].value, srcIdx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
-                DPRINTF(ConstProp, "ConstProp: Setting trace.inst sourcePrediction to %#x\n", regCtx[srcIdx].value);
-                trace.inst->sourcePredictions[i] = regCtx[srcIdx].value;
-                trace.inst->sourcesPredicted[i] = true;
-                assert(srcIdx < 38);
+            if (trace.inst->srcRegIdx(i).classValue() == IntRegClass) 
+            {
+                RegIndex reg_idx = srcIdx;
+                bool fold = reg_idx & IntFoldBit;
+                reg_idx &= ~IntFoldBit; fold = fold;
+                assert(reg_idx < 38);
+                if (regCtx[reg_idx].valid)
+                {
+                    if (fold)  DPRINTF(ConstProp, "ConstProp: Found a folded register! Reg: %d \n", reg_idx);
+                    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i (arch: %d) at %#x:%d\n", regCtx[reg_idx].value, srcIdx, reg_idx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+                    DPRINTF(ConstProp, "ConstProp: Setting trace.inst sourcePrediction to %#x\n", regCtx[reg_idx].value);
+                    trace.inst->sourcePredictions[i] = regCtx[reg_idx].value;
+                    trace.inst->sourcesPredicted[i] = true;
+                } 
+
+                // assert(srcIdx < 38);
             }
         }
     }
@@ -985,6 +1002,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
         for (int i=0; i<trace.inst->numDestRegs(); i++) {
             RegId destReg = trace.inst->destRegIdx(i);
             if (destReg.classValue() == IntRegClass) {
+                //assert(destReg.flatIndex() < 38);
                 regCtx[destReg.flatIndex()].valid = false;
             }
         }
