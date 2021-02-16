@@ -2079,11 +2079,17 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
         int numIntDestRegs = 0 ;
         for (int i=0; i<inst->numDestRegs(); i++) {
             PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
-
+            
             switch (dest_reg->classValue()) 
             {
 			    // Note: changed memoryAccessStartCycle to cycleFetched in all these
                 case IntRegClass:
+                    if (inst->staticInst->liveOutPredicted[i]) 
+                    {
+                        // this is not a real dest reg, it's a dest reg added to dump all the live outs at the end of a trace
+                        // therefore, just igonore it
+                        continue;
+                    }
                     numIntDestRegs++;
                     reg_value = cpu->readIntReg(dest_reg);      
                     break;
@@ -2100,7 +2106,7 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
         }
 
         // always should be one! We never predict for non int dest regs
-        //assert(numIntDestRegs == 1);
+        assert(numIntDestRegs == 1);
 
         inst->lvMispred = (reg_value != inst->staticInst->predictedValue);
 
