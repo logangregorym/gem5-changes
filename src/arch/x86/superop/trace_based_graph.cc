@@ -1080,6 +1080,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
 
     // Mov is both inhereted from RegOp
     X86ISA::RegOp * inst_regop = (X86ISA::RegOp * )inst.get(); 
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
@@ -1088,7 +1089,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     //assert(src1 < 38); 
     assert(src2 < 38);
 
-    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    
 
     // RegIndex src_1_check = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0));
     // RegIndex src_2_check = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(1));
