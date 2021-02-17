@@ -1,5 +1,6 @@
 #include "arch/isa_traits.hh"
 #include "arch/x86/types.hh"
+#include "arch/x86/isa.hh"
 #include "arch/x86/generated/decoder.hh"
 #include "arch/x86/insts/microop.hh"
 #include "arch/x86/insts/microregop.hh"
@@ -29,6 +30,8 @@ TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), using
 TraceBasedGraph* TraceBasedGraphParams::create() {
     return new TraceBasedGraph(this);
 }
+
+
 
 void TraceBasedGraph::regStats()
 {
@@ -615,7 +618,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     if (state == SpecTrace::OptimizationInProcess) {
         DPRINTF(ConstProp, "Trace %i: Processing instruction at uop[%i][%i][%i]\n", currentTrace.id, idx, way, uop);
         if (!decoder->uopValidArray[idx][way] || (uop >= decoder->uopCountArray[idx][way])) {
-            assert(0);
+            //assert(0);
             tracesWithInvalidHead++;
             DPRINTF(SuperOp, "Trace was evicted out of the micro-op cache before we could optimize it\n");
             currentTrace.addr.valid = false;
@@ -663,7 +666,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     }
 
     // do a prediction for the instruction before trying to propagte it
-    if (NumOfValidPredictionSources < 4  && !currentTrace.inst->isCC())
+    if (NumOfValidPredictionSources < 4 /*&& !currentTrace.inst->isCC()*/)
     {
         LVPredUnit::lvpReturnValues ret;
         if (loadPred->makePredictionForTraceGenStage(currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, 0 , ret))
@@ -979,20 +982,20 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
             DPRINTF(ConstProp, "ConstProp: Examining register %i\n", srcIdx);
             if (trace.inst->srcRegIdx(i).classValue() == IntRegClass) 
             {
-                RegIndex reg_idx = srcIdx;
-                bool fold = reg_idx & IntFoldBit;
-                reg_idx &= ~IntFoldBit; fold = fold;
-                assert(reg_idx < 38);
-                if (regCtx[reg_idx].valid)
+                // ah, bh, ch, dh regs use different index values. For example, ah is 64, and etc.
+                // we need to fold these regs before use them 
+                X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)trace.inst.get();
+                RegIndex src_reg_idx = x86_inst->getUnflattenRegIndex(trace.inst->srcRegIdx(i));
+
+                if (regCtx[src_reg_idx].valid)
                 {
-                    if (fold)  DPRINTF(ConstProp, "ConstProp: Found a folded register! Reg: %d \n", reg_idx);
-                    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i (arch: %d) at %#x:%d\n", regCtx[reg_idx].value, srcIdx, reg_idx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
-                    DPRINTF(ConstProp, "ConstProp: Setting trace.inst sourcePrediction to %#x\n", regCtx[reg_idx].value);
-                    trace.inst->sourcePredictions[i] = regCtx[reg_idx].value;
+                    //if (fold)  DPRINTF(ConstProp, "ConstProp: Found a folded register! Reg: %d \n", src_reg_idx);
+                    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i (arch: %d) at %#x:%d\n", regCtx[src_reg_idx].value, srcIdx, src_reg_idx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+                    DPRINTF(ConstProp, "ConstProp: Setting trace.inst sourcePrediction to %#x\n", regCtx[src_reg_idx].value);
+                    trace.inst->sourcePredictions[i] = regCtx[src_reg_idx].value;
                     trace.inst->sourcesPredicted[i] = true;
                 } 
 
-                // assert(srcIdx < 38);
             }
         }
     }
@@ -1001,9 +1004,16 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     if (!isPredSource) {
         for (int i=0; i<trace.inst->numDestRegs(); i++) {
             RegId destReg = trace.inst->destRegIdx(i);
-            if (destReg.classValue() == IntRegClass) {
-                //assert(destReg.flatIndex() < 38);
-                regCtx[destReg.flatIndex()].valid = false;
+            if (destReg.classValue() == IntRegClass) 
+            {
+                //RegIndex dest_reg_idx = destReg.flatIndex();
+
+                // ah, bh, ch, dh regs use different index values. For example, ah is 64, and etc.
+                // we need to fold these regs before use them 
+                X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)trace.inst.get();
+                RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(destReg);
+                
+                regCtx[dest_reg_idx].valid = false;
             }
         }
     }

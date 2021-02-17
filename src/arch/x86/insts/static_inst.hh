@@ -81,7 +81,8 @@ namespace X86ISA
     class X86StaticInst : public StaticInst
     {
       public:
-	const char * instMnem;
+	      const char * instMnem;
+        RegIndex getUnflattenRegIndex(RegId reg) const;
       protected:
         // Constructor.
         X86StaticInst(const char *mnem, const char * instMnem,
@@ -103,6 +104,8 @@ namespace X86ISA
         void printSegment(std::ostream &os, int segment) const;
 
         void printReg(std::ostream &os, RegId reg, int size) const;
+        
+
         void printSrcReg(std::ostream &os, int reg, int size) const;
         void printDestReg(std::ostream &os, int reg, int size) const;
         void printMem(std::ostream &os, uint8_t segment,

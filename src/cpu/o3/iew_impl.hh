@@ -1394,9 +1394,10 @@ DefaultIEW<Impl>::executeInsts()
         Fault fault = NoFault;
 
         ThreadID tid = inst->threadNumber;
-        // First dump all live outs if this instruction is at the end of a speculatively issued trace
+        // First dump all live outs if this instruction is 
         if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
         {
+            
             for (int i = 0; i < inst->numDestRegs(); i++) {
                 PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                 if (inst->staticInst->liveOutPredicted[i]) {

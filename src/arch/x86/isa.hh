@@ -48,6 +48,9 @@ struct X86ISAParams;
 
 namespace X86ISA
 {
+
+
+
     class ISA : public SimObject
     {
       protected:
@@ -93,6 +96,8 @@ namespace X86ISA
         {
             return reg & ~IntFoldBit;
         }
+
+
 
         int
         flattenFloatIndex(int reg) const

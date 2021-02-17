@@ -48,6 +48,8 @@ class TraceBasedGraph : public SimObject
     bool generateNextTraceInst();
 
     bool IsValuePredictible(const StaticInstPtr inst);
+
+
     // Trace ID to map
     map<unsigned, SpecTrace> traceMap;
 
