@@ -570,10 +570,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 ) 
             {
                 DPRINTF(SuperOp, "Trace %i at (%i,%i,%i) evicted before we could process it.\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
+
+                // A trace queued for first time optimization should never have a valid optimized head address 
+                // because it never had the chance to get super optimized
+                assert(!currentTrace.optimizedHead.valid);
+
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
-                
-
                 // remove it from traceMap
                 DPRINTF(Decoder, "Removing traceID: %d (reoptID: %d) from Trace Map because of eviction!.\n", currentTrace.id, currentTrace.reoptId );
                 assert(traceMap.find(currentTrace.id) != traceMap.end());
@@ -618,7 +621,32 @@ bool TraceBasedGraph::generateNextTraceInst() {
     if (state == SpecTrace::OptimizationInProcess) {
         DPRINTF(ConstProp, "Trace %i: Processing instruction at uop[%i][%i][%i]\n", currentTrace.id, idx, way, uop);
         if (!decoder->uopValidArray[idx][way] || (uop >= decoder->uopCountArray[idx][way])) {
-            //assert(0);
+            
+            // Depending on the time that this eviction has happened we may have allocated one or more ways in spec cache for this trace
+            // if optimizedHead is valid then it means at least one way in spec cache is assigned to this trace and we need to invalidate it/them
+            if (currentTrace.optimizedHead.valid)
+            {
+                
+                int invalidate_idx = currentTrace.optimizedHead.idx;
+                int invalidate_way = currentTrace.optimizedHead.way;
+                // these should never happen
+                assert(currentTrace.id);
+                assert( decoder->speculativeValidArray[invalidate_idx][invalidate_way] && 
+                            decoder->speculativeTraceIDArray[invalidate_idx][invalidate_way] == currentTrace.id &&
+                            decoder->speculativePrevWayArray[invalidate_idx][invalidate_way] == decoder->SPEC_CACHE_WAY_MAGIC_NUM);
+                 // remove it from spec cache
+                decoder->invalidateSpecTrace(currentTrace.optimizedHead, currentTrace.id);
+                
+            }
+            
+            // remove it from traceMap
+            DPRINTF(TraceGen, "Removing traceID: %d from Trace Map because of insufficent prediction sources!.\n", currentTrace.id );
+            assert(traceMap.find(currentTrace.id) != traceMap.end());
+            traceMap.erase(currentTrace.id);
+            currentTrace.addr.valid = false;
+            currentTrace.state = SpecTrace::Evicted;
+            currentTrace.id = 0;
+            
             tracesWithInvalidHead++;
             DPRINTF(SuperOp, "Trace was evicted out of the micro-op cache before we could optimize it\n");
             currentTrace.addr.valid = false;
