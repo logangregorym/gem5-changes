@@ -153,51 +153,6 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
     }
 
 
-    //     std::map<uint64_t, std::map<uint16_t, StaticInstPtr>> originalTrace;
-    // for (uint64_t way=0; way < 8; way++) {
-    //     if (decoder->uopValidArray[uop_cache_idx][way] && decoder->uopTagArray[uop_cache_idx][way] == tag)
-    //     {
-
-    //         for (size_t u = 0; u < decoder->uopCountArray[uop_cache_idx][way]; u++)
-    //         {   
-    //             Addr baseAddr = decoder->uopAddrArray[uop_cache_idx][way][u].pcAddr; 
-    //             if (originalTrace.find(baseAddr) == originalTrace.end())
-    //             {
-    //                 StaticInstPtr original_macro = decoder->decode(decoder->uopCache[uop_cache_idx][way][u], baseAddr);
-    //                 StaticInstPtr super_macro = decoder->decode(decoder->uopCache[uop_cache_idx][way][u], baseAddr);
-
-    //                 if (original_macro->isMacroop())
-    //                 {
-
-                        
-    //                     for (uint32_t t = 0; t < original_macro->getNumMicroops(); t++)
-    //                     {
-    //                         StaticInstPtr orig_si = original_macro->fetchMicroop((MicroPC)t);
-    //                         orig_si->macroOp = original_macro;
-    //                         originalTrace[baseAddr][t] = orig_si;                    
-    //                     }
-    //                 }
-    //                 else 
-    //                 {
-    //                     // Does this mean only one microop?
-    //                     // no need to set macroOp
-    //                     originalTrace[baseAddr][0] = original_macro;
-    //                 }
-    //             }
-    //         }
-    //     }
-            
-    // }
-
-    // DPRINTF(TraceGen,"Trace in the Uop Cache:\n");
-    // for (auto const &lv1: originalTrace)
-    // {
-    //     for (auto const &lv2: lv1.second)
-    //     {
-    //         DPRINTF(TraceGen, "[%x][%d] [%s]\n" , lv1.first , lv2.first, lv2.second->disassemble(lv1.first));
-    //     }
-    // }
-
     newTrace.id = SpecTrace::traceIDCounter++;
     traceMap[newTrace.id] = newTrace;
     traceQueue.push(newTrace);
@@ -441,9 +396,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
             // this should never happen
             if (currentTrace.id != 0)
             {
-                assert( decoder->speculativeValidArray[idx][way] && 
-                        decoder->speculativeTraceIDArray[idx][way] == currentTrace.id &&
-                        decoder->speculativePrevWayArray[idx][way] == decoder->SPEC_CACHE_WAY_MAGIC_NUM);
+                assert(decoder->speculativeValidArray[idx][way]);
+                assert(decoder->speculativeTraceIDArray[idx][way] == currentTrace.id);
+                assert(decoder->speculativePrevWayArray[idx][way] == decoder->SPEC_CACHE_WAY_MAGIC_NUM);
             }
 
             if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
@@ -631,9 +586,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 int invalidate_way = currentTrace.optimizedHead.way;
                 // these should never happen
                 assert(currentTrace.id);
-                assert( decoder->speculativeValidArray[invalidate_idx][invalidate_way] && 
-                            decoder->speculativeTraceIDArray[invalidate_idx][invalidate_way] == currentTrace.id &&
-                            decoder->speculativePrevWayArray[invalidate_idx][invalidate_way] == decoder->SPEC_CACHE_WAY_MAGIC_NUM);
+                assert(decoder->speculativeValidArray[invalidate_idx][invalidate_way] );
+                assert(decoder->speculativeTraceIDArray[invalidate_idx][invalidate_way] == currentTrace.id);
+                assert(decoder->speculativePrevWayArray[invalidate_idx][invalidate_way] == decoder->SPEC_CACHE_WAY_MAGIC_NUM);
                  // remove it from spec cache
                 decoder->invalidateSpecTrace(currentTrace.optimizedHead, currentTrace.id);
                 
@@ -760,33 +715,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
         }
         assert(numIntDestRegs == 1);
-
-        // if (usingCCTracking && currentTrace.inst->isCC())
-        // {
-        //     uint16_t ext = currentTrace.inst->getExt();
-
-        //     if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
-        //         PredccFlagBits = 0; 
-        //     }
-        //     if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
-        //         PredcfofBits = 0;
-        //     }
-        //     PreddfBit = 0;
-        //     PredecfBit = 0;
-        //     PredezfBit = 0;
-
-        //     uint64_t mask = CFBit | ECFBit | OFBit;
-        //     uint64_t newFlags = currentTrace.inst->genFlags(PredccFlagBits | PreddfBit |
-        //                         PredezfBit, ext & ~mask, value, psrc1, psrc2);
-        //     PredezfBit = newFlags & EZFBit;
-        //     PreddfBit = newFlags & DFBit;
-        //     PredccFlagBits = newFlags & ccFlagMask;
-        //     //If a logic microop wants to set these, it wants to set them to 0.
-        //     PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
-        //     PredecfBit = PredecfBit & ~(ECFBit & ext);
-        //     ccValid = true;
-        // }
-
 
 
         bool isDeadCode = false;
@@ -966,7 +894,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     uint64_t value;
     unsigned confidence;
     unsigned latency;
-    bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) && type != "limm" && type != "movi" && type != "rdip";
+    bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) /*&& type != "limm" && type != "movi" && type != "rdip"*/;
     isDeadCode &= (propagated && !isPredSource && !((!usingCCTracking && trace.inst->isCC()) || trace.inst->isReturn()));
 
     DPRINTF(ConstProp, "isDeadCode:%d propagated:%d isPredSource:%d CC:%d Return:%d\n", isDeadCode, propagated, isPredSource, (!usingCCTracking && trace.inst->isCC()), trace.inst->isReturn());
@@ -1052,8 +980,9 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
         //the idx is set in addToSpeculativeCache function
         //trace.optimizedHead.idx = trace.head.idx; 
         trace.optimizedHead.uop = 0;
-        for (int way=0; way<8; way++) {
+        for (int way=0; way< decoder->SPEC_CACHE_NUM_WAYS; way++) {
             int idx = trace.optimizedHead.idx;
+            DPRINTF(SuperOp, "Looking Up spec[%d][%d]! Valid: %d Trace ID: %d!\n", idx, way, decoder->speculativeValidArray[idx][way], decoder->speculativeTraceIDArray[idx][way]);
             if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == trace.id) {
                 DPRINTF(SuperOp, "updateSpecTrace: Trace %d optimized head way is updated to %d!\n", trace.id, way);
                 trace.optimizedHead.way = way;
@@ -1061,6 +990,8 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
                 break;
             }
         }
+        // after the for lopp trace.optimizedHead.valid should always be true otherwise something is wrong!
+        assert(trace.optimizedHead.valid);
     }
 
     return updateSuccessful;
@@ -1099,6 +1030,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
         return false;
     }
 
+    assert(src2 < 38);
     //uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
 

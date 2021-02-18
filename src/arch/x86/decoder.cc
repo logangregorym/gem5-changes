@@ -85,8 +85,8 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
     // allocate spec cache
 
     
-    SPEC_CACHE_NUM_WAYS = 8;
-    SPEC_CACHE_NUM_SETS = 32;
+    SPEC_CACHE_NUM_WAYS = 32 * 8;
+    SPEC_CACHE_NUM_SETS = 1;
     SPEC_CACHE_WAY_MAGIC_NUM = 2 + SPEC_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
 
     assert((SPEC_CACHE_NUM_WAYS & (SPEC_CACHE_NUM_WAYS - 1)) == 0);
@@ -1210,7 +1210,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
                 speculativeCache[idx][way][u]->setTracePredictionSource(true);
             }
 
-            DPRINTF(Decoder, "Allocating a previous invalid way and adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d nextWay:%d prevway:%d.\n", addr, tag, idx, way, u, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
+            DPRINTF(Decoder, "Allocating a previous invalid way for trace %d and adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d nextWay:%d prevway:%d.\n", traceID, addr, tag, idx, way, u, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
             DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, u, addr, uop);
             return true;
         }
