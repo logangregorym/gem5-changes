@@ -84,10 +84,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
 
     
     if (params != nullptr){
-        //if (params->depTracker != nullptr){
-        //    depTracker = params->depTracker;
-        //    depTracker->decoder = this;
-        //    depTracker->branchPred = params->branchPred;
+
         if (params->traceConstructor != nullptr) {
             traceConstructor = params->traceConstructor;
             traceConstructor->decoder = this;
@@ -99,118 +96,121 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
         }
     }
 
-    // allocate spec cache
-    SPEC_CACHE_NUM_WAYS = traceConstructor->specCacheNumWays;
-    SPEC_CACHE_NUM_SETS = traceConstructor->specCacheNumSets;
-    SPEC_CACHE_WAY_MAGIC_NUM = 2 + SPEC_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
-
-    assert((SPEC_CACHE_NUM_WAYS & (SPEC_CACHE_NUM_WAYS - 1)) == 0);
-    assert((SPEC_CACHE_NUM_SETS & (SPEC_CACHE_NUM_SETS - 1)) == 0);
-
-    speculativeCache = new StaticInstPtr ** [SPEC_CACHE_NUM_SETS];
-    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+    if (params != nullptr)
     {
-        speculativeCache[set] = new StaticInstPtr * [SPEC_CACHE_NUM_WAYS];
-        for (size_t way = 0; way < SPEC_CACHE_NUM_WAYS; way++)
+        // allocate spec cache
+        SPEC_CACHE_NUM_WAYS = traceConstructor->specCacheNumWays;
+        SPEC_CACHE_NUM_SETS = traceConstructor->specCacheNumSets;
+        SPEC_CACHE_WAY_MAGIC_NUM = 2 + SPEC_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
+
+        assert((SPEC_CACHE_NUM_WAYS & (SPEC_CACHE_NUM_WAYS - 1)) == 0);
+        assert((SPEC_CACHE_NUM_SETS & (SPEC_CACHE_NUM_SETS - 1)) == 0);
+
+        speculativeCache = new StaticInstPtr ** [SPEC_CACHE_NUM_SETS];
+        for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
         {
-            speculativeCache[set][way] = new StaticInstPtr [6];
+            speculativeCache[set] = new StaticInstPtr * [SPEC_CACHE_NUM_WAYS];
+            for (size_t way = 0; way < SPEC_CACHE_NUM_WAYS; way++)
+            {
+                speculativeCache[set][way] = new StaticInstPtr [6];
+            }
         }
-    }
 
-    speculativeAddrArray = new FullUopAddr ** [SPEC_CACHE_NUM_SETS];
-    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
-    {
-        speculativeAddrArray[set] = new FullUopAddr * [SPEC_CACHE_NUM_WAYS];
-        for (size_t way = 0; way < SPEC_CACHE_NUM_WAYS; way++)
+        speculativeAddrArray = new FullUopAddr ** [SPEC_CACHE_NUM_SETS];
+        for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
         {
-            speculativeAddrArray[set][way] = new FullUopAddr [6];
+            speculativeAddrArray[set] = new FullUopAddr * [SPEC_CACHE_NUM_WAYS];
+            for (size_t way = 0; way < SPEC_CACHE_NUM_WAYS; way++)
+            {
+                speculativeAddrArray[set][way] = new FullUopAddr [6];
+            }
         }
-    }
 
-    speculativeTagArray = new uint64_t * [SPEC_CACHE_NUM_SETS];
-    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
-    {
-        speculativeTagArray[set] = new uint64_t [SPEC_CACHE_NUM_WAYS];
-       
-    }
+        speculativeTagArray = new uint64_t * [SPEC_CACHE_NUM_SETS];
+        for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+        {
+            speculativeTagArray[set] = new uint64_t [SPEC_CACHE_NUM_WAYS];
+        
+        }
 
-    speculativeEvictionStat = new uint64_t * [SPEC_CACHE_NUM_SETS];
-    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
-    {
-        speculativeEvictionStat[set] = new uint64_t [SPEC_CACHE_NUM_WAYS];
-       
-    }
-
-
-    speculativePrevWayArray = new int * [SPEC_CACHE_NUM_SETS];
-    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
-    {
-        speculativePrevWayArray[set] = new int [SPEC_CACHE_NUM_WAYS];
-       
-    }
-  
-    speculativeNextWayArray = new int * [SPEC_CACHE_NUM_SETS];
-    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
-    {
-        speculativeNextWayArray[set] = new int [SPEC_CACHE_NUM_WAYS];
-       
-    }
-
-    speculativeValidArray = new bool * [SPEC_CACHE_NUM_SETS];
-    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
-    {
-        speculativeValidArray[set] = new bool [SPEC_CACHE_NUM_WAYS];
-       
-    }
-
-    speculativeCountArray = new int * [SPEC_CACHE_NUM_SETS];
-    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
-    {
-        speculativeCountArray[set] = new int [SPEC_CACHE_NUM_WAYS];
-       
-    }
-
-    speculativeLRUArray = new int * [SPEC_CACHE_NUM_SETS];
-    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
-    {
-        speculativeLRUArray[set] = new int [SPEC_CACHE_NUM_WAYS];
-       
-    }
-
-    speculativeTraceIDArray = new uint64_t * [SPEC_CACHE_NUM_SETS];
-    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
-    {
-        speculativeTraceIDArray[set] = new uint64_t [SPEC_CACHE_NUM_WAYS];
-       
-    }
-
-    specHotnessArray = new BigSatCounter * [SPEC_CACHE_NUM_SETS];
-    for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
-    {
-        specHotnessArray[set] = new BigSatCounter [SPEC_CACHE_NUM_WAYS];
-       
-    }
-
-    SPEC_INDEX_MASK = (SPEC_CACHE_NUM_SETS-1);
-    SPEC_NUM_INDEX_BITS = std::log2(SPEC_CACHE_NUM_SETS);
+        speculativeEvictionStat = new uint64_t * [SPEC_CACHE_NUM_SETS];
+        for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+        {
+            speculativeEvictionStat[set] = new uint64_t [SPEC_CACHE_NUM_WAYS];
+        
+        }
 
 
-    for (int idx=0; idx< SPEC_CACHE_NUM_SETS; idx++) {
-        for (int way=0; way< SPEC_CACHE_NUM_WAYS; way++) {
-            
-            // Parallel cache for optimized micro-ops
-            speculativeValidArray[idx][way] = false;
-            speculativeCountArray[idx][way] = 0;
-            speculativeLRUArray[idx][way] = way;
-            speculativeTagArray[idx][way] = 0;
-            speculativePrevWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
-            speculativeNextWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
-            specHotnessArray[idx][way] = BigSatCounter(4);
-            speculativeTraceIDArray[idx][way] = 0;
-            speculativeEvictionStat[idx][way] = 0;
-            for (int uop = 0; uop < 6; uop++) {
-                speculativeAddrArray[idx][way][uop] = FullUopAddr();
-                speculativeCache[idx][way][uop] = NULL;
+        speculativePrevWayArray = new int * [SPEC_CACHE_NUM_SETS];
+        for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+        {
+            speculativePrevWayArray[set] = new int [SPEC_CACHE_NUM_WAYS];
+        
+        }
+    
+        speculativeNextWayArray = new int * [SPEC_CACHE_NUM_SETS];
+        for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+        {
+            speculativeNextWayArray[set] = new int [SPEC_CACHE_NUM_WAYS];
+        
+        }
+
+        speculativeValidArray = new bool * [SPEC_CACHE_NUM_SETS];
+        for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+        {
+            speculativeValidArray[set] = new bool [SPEC_CACHE_NUM_WAYS];
+        
+        }
+
+        speculativeCountArray = new int * [SPEC_CACHE_NUM_SETS];
+        for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+        {
+            speculativeCountArray[set] = new int [SPEC_CACHE_NUM_WAYS];
+        
+        }
+
+        speculativeLRUArray = new int * [SPEC_CACHE_NUM_SETS];
+        for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+        {
+            speculativeLRUArray[set] = new int [SPEC_CACHE_NUM_WAYS];
+        
+        }
+
+        speculativeTraceIDArray = new uint64_t * [SPEC_CACHE_NUM_SETS];
+        for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+        {
+            speculativeTraceIDArray[set] = new uint64_t [SPEC_CACHE_NUM_WAYS];
+        
+        }
+
+        specHotnessArray = new BigSatCounter * [SPEC_CACHE_NUM_SETS];
+        for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
+        {
+            specHotnessArray[set] = new BigSatCounter [SPEC_CACHE_NUM_WAYS];
+        
+        }
+
+        SPEC_INDEX_MASK = (SPEC_CACHE_NUM_SETS-1);
+        SPEC_NUM_INDEX_BITS = std::log2(SPEC_CACHE_NUM_SETS);
+
+
+        for (int idx=0; idx< SPEC_CACHE_NUM_SETS; idx++) {
+            for (int way=0; way< SPEC_CACHE_NUM_WAYS; way++) {
+                
+                // Parallel cache for optimized micro-ops
+                speculativeValidArray[idx][way] = false;
+                speculativeCountArray[idx][way] = 0;
+                speculativeLRUArray[idx][way] = way;
+                speculativeTagArray[idx][way] = 0;
+                speculativePrevWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
+                speculativeNextWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
+                specHotnessArray[idx][way] = BigSatCounter(4);
+                speculativeTraceIDArray[idx][way] = 0;
+                speculativeEvictionStat[idx][way] = 0;
+                for (int uop = 0; uop < 6; uop++) {
+                    speculativeAddrArray[idx][way][uop] = FullUopAddr();
+                    speculativeCache[idx][way][uop] = NULL;
+                }
             }
         }
     }

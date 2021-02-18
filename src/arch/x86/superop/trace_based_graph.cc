@@ -1142,11 +1142,14 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     // Add and AddBig are both inhereted from RegOp
     // For both src 0 and src 1 are the source operands
     X86ISA::RegOp * inst_regop = (X86ISA::RegOp * )inst.get(); 
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    unsigned src1 = inst->srcRegIdx(0).flatIndex(); 
-    unsigned src2 = inst->srcRegIdx(1).flatIndex(); 
+    // unsigned src1 = inst->srcRegIdx(0).flatIndex(); 
+    // unsigned src2 = inst->srcRegIdx(1).flatIndex(); 
+    unsigned src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0));
+    unsigned src2 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(1));
     assert(src1 < 38);
     assert(src2 < 38);
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
@@ -1159,7 +1162,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
     uint64_t forwardVal = 0;
-	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+	
 
     uint64_t psrc1, psrc2;
     if (dataSize >= 4)
