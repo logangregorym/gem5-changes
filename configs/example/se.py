@@ -143,6 +143,12 @@ parser.add_option("--predictStage", default=3, type="int", action="store", help=
 parser.add_option("--maxDependencyRecursion", default=15, type="int", action="store", help="How deep to recurse when counting dependencies.");
 parser.add_option("--usingControlTracking", default=0, type="int", action="store", help="Track control dependencies to optimize across?");
 parser.add_option("--usingCCTracking", default=0, type="int", action="store", help="Track condition codes?");
+parser.add_option("--predictionConfidenceThreshold", default=5, type="int", action="store", help="Confidence threshold to make a prediction during superoptmization");
+
+parser.add_option("--specCacheNumWays", default=8, type="int", action="store", help="Number of ways for speculative cache");
+parser.add_option("--specCacheNumSets", default=32, type="int", action="store", help="Number of sets for speculative cache");
+parser.add_option("--numOfTracePredictionSources", default=4, type="int", action="store", help="Number of prediction sources in a super optimized trace");
+
 parser.add_option("--maxRecursiveDepth", default=8, type="int", action="store", help="Maximum depth to recurse to when measuring dependency chains")
 parser.add_option("--usingTrace", default=0, type="int", action="store", help="Whether to stream the optimized trace")
 parser.add_option("--connectionCount", default=4096, type="int", action="store", help="Number of connections to track at any given time");
@@ -222,6 +228,10 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.usingTrace = options.usingTrace
     CPUClass.traceConstructor.usingControlTracking = options.usingControlTracking
     CPUClass.traceConstructor.usingCCTracking = options.usingCCTracking
+    CPUClass.traceConstructor.predictionConfidenceThreshold = options.predictionConfidenceThreshold
+    CPUClass.traceConstructor.specCacheNumWays = options.specCacheNumWays
+    CPUClass.traceConstructor.specCacheNumSets = options.specCacheNumSets
+    CPUClass.traceConstructor.numOfTracePredictionSources = options.numOfTracePredictionSources
     CPUClass.checkpoint_at_instr = options.checkpoint_at_instr
     CPUClass.after_exec_cnt = options.after_exec_cnt
 
@@ -255,6 +265,10 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.usingTrace = options.usingTrace
     FutureClass.traceConstructor.usingControlTracking = options.usingControlTracking
     FutureClass.traceConstructor.usingCCTracking = options.usingCCTracking
+    FutureClass.traceConstructor.predictionConfidenceThreshold = options.predictionConfidenceThreshold
+    FutureClass.traceConstructor.specCacheNumWays = options.specCacheNumWays
+    FutureClass.traceConstructor.specCacheNumSets = options.specCacheNumSets
+    FutureClass.traceConstructor.numOfTracePredictionSources = options.numOfTracePredictionSources
     FutureClass.numThreads = numThreads
     FutureClass.branchPred.numThreads = numThreads
     FutureClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize

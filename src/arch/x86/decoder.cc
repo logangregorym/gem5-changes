@@ -82,11 +82,26 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
         }
     }
 
-    // allocate spec cache
-
     
-    SPEC_CACHE_NUM_WAYS = 32 * 8;
-    SPEC_CACHE_NUM_SETS = 1;
+    if (params != nullptr){
+        //if (params->depTracker != nullptr){
+        //    depTracker = params->depTracker;
+        //    depTracker->decoder = this;
+        //    depTracker->branchPred = params->branchPred;
+        if (params->traceConstructor != nullptr) {
+            traceConstructor = params->traceConstructor;
+            traceConstructor->decoder = this;
+            traceConstructor->branchPred = params->branchPred;
+            traceConstructor->loadPred = params->loadPred;
+        } else {
+            // CPUO3 without depTracker?!
+            assert(0);
+        }
+    }
+
+    // allocate spec cache
+    SPEC_CACHE_NUM_WAYS = traceConstructor->specCacheNumWays;
+    SPEC_CACHE_NUM_SETS = traceConstructor->specCacheNumSets;
     SPEC_CACHE_WAY_MAGIC_NUM = 2 + SPEC_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
 
     assert((SPEC_CACHE_NUM_WAYS & (SPEC_CACHE_NUM_WAYS - 1)) == 0);
@@ -197,21 +212,6 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
                 speculativeAddrArray[idx][way][uop] = FullUopAddr();
                 speculativeCache[idx][way][uop] = NULL;
             }
-        }
-    }
-    if (params != nullptr){
-        //if (params->depTracker != nullptr){
-        //    depTracker = params->depTracker;
-        //    depTracker->decoder = this;
-        //    depTracker->branchPred = params->branchPred;
-        if (params->traceConstructor != nullptr) {
-            traceConstructor = params->traceConstructor;
-            traceConstructor->decoder = this;
-            traceConstructor->branchPred = params->branchPred;
-            traceConstructor->loadPred = params->loadPred;
-        } else {
-            // CPUO3 without depTracker?!
-            assert(0);
         }
     }
 }

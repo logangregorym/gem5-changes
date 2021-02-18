@@ -213,11 +213,7 @@ LVPredUnit::lvpReturnValues FA3P::makePrediction(TheISA::PCState pc, ThreadID ti
 // this function should only be called for instructions coming from uop cache
 bool FA3P::makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
 {
-    //assert(0);
 
-    // int16_t upc = (int16_t)pc.microPC();
-    // Addr addr = pc.instAddr();
-    //predictor &threadPred = threadPredictors[tid];
 
     //LVTEntry *addressInfo = NULL;
     bool foundAddress = false;

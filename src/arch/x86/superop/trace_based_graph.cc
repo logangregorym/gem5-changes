@@ -22,9 +22,21 @@ using namespace std;
 
 unsigned SpecTrace::traceIDCounter = 1;
 
-TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), usingControlTracking(p->usingControlTracking), usingCCTracking(p->usingCCTracking) {
+TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), 
+                                                            usingControlTracking(p->usingControlTracking), 
+                                                            usingCCTracking(p->usingCCTracking), 
+                                                            predictionConfidenceThreshold(p->predictionConfidenceThreshold) ,
+                                                            specCacheNumWays(p->specCacheNumWays),
+                                                            specCacheNumSets(p->specCacheNumSets) ,
+                                                            numOfTracePredictionSources(p->numOfTracePredictionSources) 
+
+{
     DPRINTF(SuperOp, "Control tracking: %i\n", usingControlTracking);
     DPRINTF(SuperOp, "CC tracking: %i\n", usingCCTracking);
+    DPRINTF(SuperOp, "Prediction Confidence Threshold: %i\n", predictionConfidenceThreshold);
+    DPRINTF(SuperOp, "Number of ways for speculative cache: %i\n", specCacheNumWays);
+    DPRINTF(SuperOp, "Number of sets for speculative cache: %i\n", specCacheNumSets);
+    DPRINTF(SuperOp, "Number of prediction sources in a super optimized trace: %i\n", numOfTracePredictionSources);
 }
 
 TraceBasedGraph* TraceBasedGraphParams::create() {
@@ -654,7 +666,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         LVPredUnit::lvpReturnValues ret;
         if (loadPred->makePredictionForTraceGenStage(currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, 0 , ret))
         {
-            if ( ret.confidence >= 5)
+            if ( ret.confidence >= predictionConfidenceThreshold)
             {
                 DPRINTF(TraceGen, "Found a high confidence prediction for address %#x:%d in the predictor! Confidence is %d! Predicted Value = %#x\n", 
                                 currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, ret.confidence, ret.predictedValue );
