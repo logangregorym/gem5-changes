@@ -78,6 +78,42 @@ namespace X86ISA
         return flags;
     }
 
+    uint64_t RegOpBase::genFlagsForSuperOptimizer(uint64_t oldFlags, uint64_t flagMask, uint64_t _dest) const
+    {
+        DPRINTF(X86, "flagMask = %#x\n", flagMask);
+        uint64_t flags = oldFlags & ~flagMask;
+
+        // if (flagMask & (ECFBit | CFBit))
+        // {
+        //     if (findCarry(dataSize*8, _dest, _src1, _src2))
+        //         flags |= (flagMask & (ECFBit | CFBit));
+        //     if (subtract)
+        //         flags ^= (flagMask & (ECFBit | CFBit));
+        // }
+
+        if (flagMask & PFBit && !findParity(8, _dest))
+            flags |= PFBit;
+
+        // if (flagMask & AFBit)
+        // {
+        //     if (findCarry(4, _dest, _src1, _src2))
+        //         flags |= AFBit;
+        //     if (subtract)
+        //         flags ^= AFBit;
+        // }
+
+        if (flagMask & (EZFBit | ZFBit) && findZero(dataSize*8, _dest))
+            flags |= (flagMask & (EZFBit | ZFBit));
+
+        if (flagMask & SFBit && findNegative(dataSize*8, _dest))
+            flags |= SFBit;
+
+        // if (flagMask & OFBit && findOverflow(dataSize*8, _dest, _src1, _src2))
+        //     flags |= OFBit;
+            
+        return flags;
+    }
+
     std::string RegOp::generateDisassembly(Addr pc,
             const SymbolTable *symtab) const
     {

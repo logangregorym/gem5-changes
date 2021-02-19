@@ -661,7 +661,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
     }
 
     // do a prediction for the instruction before trying to propagte it
-    if (NumOfValidPredictionSources < 4 /*&& !currentTrace.inst->isCC()*/)
+    // For Condition Codes based on the flags we will decide that we need source operand or not
+    // If we only need the dest reg value to generate the flags like EZFBit, ZFBit, and etc. then we make a prediction here and in the next step genrate those 
+    // flags   
+    if (NumOfValidPredictionSources < 4 /*&& isPredictiableCC(currentTrace.inst)*/)
     {
         LVPredUnit::lvpReturnValues ret;
         if (loadPred->makePredictionForTraceGenStage(currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, 0 , ret))
@@ -727,6 +730,12 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
         }
         assert(numIntDestRegs == 1);
+
+        // We can predict some of the Condition Code instructions based on whether they need source registers to 
+        // generate the flags or not
+        // Update the flags for these instructions
+      
+
 
 
         bool isDeadCode = false;
@@ -888,6 +897,24 @@ bool TraceBasedGraph::generateNextTraceInst() {
     return true;
 }
 
+
+
+bool TraceBasedGraph::isPredictiableCC(StaticInstPtr inst)
+{
+    if (!inst->isCC()) return true;
+
+    uint64_t flagMask = inst->getExt();
+
+    if (flagMask & (ECFBit | CFBit)) 
+        return false;
+    else if (flagMask & AFBit)
+        return false;
+    else if (flagMask & OFBit)
+        return false;
+
+    return true;
+}
+
 bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool propagated) {
     // IMPORTANT NOTE: This is written assuming the trace will be traversed in order, and so the register map will be accurate for the current point in the trace
     trace.length++;
@@ -927,6 +954,8 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     }
 
     bool updateSuccessful = decoder->addUopToSpeculativeCache( trace, isPredSource);
+    /// This is normal to happen but the problem is that we don't have the necessary logic to cause a stall
+    panic_if(!updateSuccessful, "Failed to update the spec cache!\n");
     trace.shrunkLength++;
 
     // Step 3b: Mark all predicted values on the StaticInst

@@ -118,6 +118,10 @@ namespace X86ISA
                 bool subtract = false) const {
                 panic("genFlags() should only be called by a RegOp, called by X86MicroopBase");
         }
+        virtual uint64_t genFlagsForSuperOptimizer(uint64_t oldFlags, uint64_t flagMask , uint64_t _dest) const 
+        {
+                panic("genFlagsForSuperOptimizer() should only be called by a RegOp, called by X86MicroopBase");
+        }
         virtual uint64_t getImmediate() { panic("getImmediate() should only be called by a RegOpImm, called by X86StaticInst"); }
         virtual bool checkCondition(uint64_t flags, int condition) const {
                 panic("checkCondition() should only be called by X86MicroopBase");

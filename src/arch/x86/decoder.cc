@@ -1318,6 +1318,11 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
         DPRINTF(Decoder, "Evicting and allocating a way and  adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d.\n", addr, tag, idx, evictWay, u);
         return true;
     }
+    else 
+    {
+        /// This is normal to happen but the problem is that we don't have the necessary logic to cause a stall
+        panic("We always should be able to find a way to evict!");
+    }
     DPRINTF(ConstProp, "Optimized trace could not be loaded into speculative cache because eviction failed\n");
 
     // if we can't evict a way, we need to put the spec cache into a consistent state before inserting this trace
@@ -1325,7 +1330,11 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
 
     // should we remove the trace from the trace queue too? 
 
+    /// This is normal to happen but the problem is that we don't have the necessary logic to cause a stall
     // what is the policy in case of an eviction failure in general?
+    // if this happened, we need to add logic to make sure that we stall super optimizer
+    // otherwise it's gonna cause hard to find bugs!
+    panic("Couldn't write to spec cache!");
     return false;
 }
 
