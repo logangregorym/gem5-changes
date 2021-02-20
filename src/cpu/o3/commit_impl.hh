@@ -1380,8 +1380,8 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     {   
             bool pass = true;
             std::map<unsigned int,unsigned int> spec_count;
-            for (int idx = 0; idx < 32; idx++) {
-                for (int way = 0; way < 8; way++) {
+            for (int idx = 0; idx < cpu->fetch.decoder[tid]->SPEC_CACHE_NUM_SETS; idx++) {
+                for (int way = 0; way < cpu->fetch.decoder[tid]->SPEC_CACHE_NUM_WAYS; way++) {
                     if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
                         spec_count[cpu->fetch.decoder[tid]->speculativeTraceIDArray[idx][way]] = 0;
                     }
@@ -1393,9 +1393,9 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             std::endl << std::dec << "NumOfInsts: " << (uint64_t)cpu->committedInsts[tid].value() <<
             std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   
 		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << std::endl;        
-            for (int idx = 0; idx < 32; idx++){
+            for (int idx = 0; idx < cpu->fetch.decoder[tid]->SPEC_CACHE_NUM_SETS; idx++){
                 std::cout << "Idx " << idx  << " : " ;
-                for (int way = 0; way < 8; way++) {
+                for (int way = 0; way < cpu->fetch.decoder[tid]->SPEC_CACHE_NUM_WAYS; way++) {
                     
                     if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
                         pass &= true; 
