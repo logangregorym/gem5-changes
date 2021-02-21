@@ -19,6 +19,7 @@
 #include "params/TraceBasedGraph.hh"
 #include "sim/sim_object.hh"
 #include <queue>
+#include <gperftools/heap-profiler.h>
 
 using namespace std;
 

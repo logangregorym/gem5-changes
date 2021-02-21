@@ -45,7 +45,7 @@
 #define __CPU_O3_FETCH_HH__
 
 #include <vector>
-
+#include <gperftools/heap-profiler.h>
 #include "arch/decoder.hh"
 #include "arch/utility.hh"
 #include "base/statistics.hh"
@@ -59,6 +59,7 @@
 #include "mem/port.hh"
 #include "sim/eventq.hh"
 #include "sim/probe/probe.hh"
+
 
 using namespace std;
 

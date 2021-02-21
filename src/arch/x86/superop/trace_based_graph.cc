@@ -357,12 +357,15 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
 			decodedMacroOp = NULL;
 		}
     } else {
-        assert(trace.state == SpecTrace::Complete);
+
+        panic_if(trace.state != SpecTrace::Complete, "Trace State is %d\n", trace.state);
         assert((way< decoder->SPEC_CACHE_NUM_WAYS) && (idx < decoder->SPEC_CACHE_NUM_SETS));
+
         Addr pcAddr = decoder->speculativeAddrArray[idx][way][uop].pcAddr;
         Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
         StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
-        //DPRINTF(SuperOp, "%p:%i -- spec[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));    
+        //assert(decodedMicroOp);
+        DPRINTF(SuperOp, "%p:%i -- spec[%i][%i][%i]\n", pcAddr, uopAddr, idx, way, uop);    
         DPRINTF(TraceGen, "%p:%i -- spec[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));   
 		for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
 			// LAYNE : TODO : print predicted inputs (checking syntax)
@@ -394,123 +397,170 @@ unsigned TraceBasedGraph::computeLength(SpecTrace trace) {
 }
 
 bool TraceBasedGraph::generateNextTraceInst() {
-    if (!currentTrace.addr.valid) { 
-        // Finalize old trace
-        if (currentTrace.state != SpecTrace::Complete && currentTrace.state != SpecTrace::Evicted) {
-            DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
-            DPRINTF(SuperOp, "Before optimization: \n");
-            currentTrace.addr = currentTrace.head;
-            dumpTrace(currentTrace);
-            DPRINTF(SuperOp, "After optimization: \n");
-            int idx = currentTrace.optimizedHead.idx;
-            int way = currentTrace.optimizedHead.way;
 
-            // this should never happen
-            if (currentTrace.id != 0)
+    //HeapProfilerStart("generateNextTraceInst");
+    if (!currentTrace.addr.valid) 
+    { 
+        // Finalize old trace
+        if (currentTrace.state != SpecTrace::Complete && 
+            currentTrace.state != SpecTrace::Evicted && 
+            currentTrace.state != SpecTrace::Invalid && 
+            currentTrace.id != 0) 
+        {
+            DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
+
+            // find number of valid prediction sources for non-zero traces
+            size_t validPredSources = 0;
+            for (int i = 0; i < 4; i++)
             {
+                if (currentTrace.source[i].valid) {
+                    validPredSources++;
+                }
+            }
+
+            // perform this operation at the end so we can queue a new trace to superoptimize
+            // if there is no prediction sources in the trace, then it's not a usefull trace
+            // just remove the trace
+            if (validPredSources == 0)
+            {
+                // remove it from traceMap
+                DPRINTF(TraceGen, "Removing trace: %d from Trace Map because of insufficent prediction sources!.\n", currentTrace.id );
+                assert(traceMap.find(currentTrace.id) != traceMap.end());
+                traceMap.erase(currentTrace.id);
+                currentTrace.addr.valid = false;
+                currentTrace.state = SpecTrace::Evicted;
+                currentTrace.id = 0;
+                // clear spec cache write queue
+                decoder->specCacheWriteQueue.clear();
+            }
+            // trace is too long to be inserted in the spec cache
+            else if (currentTrace.shrunkLength >= 18)
+            {
+                // now write back to spec cache here!
+                assert(decoder->specCacheWriteQueue.size() == currentTrace.shrunkLength);
+                // remove it from traceMap
+                DPRINTF(TraceGen, "Removing trace: %d from Trace Map because of insufficent space in spec cache for a trace longer than 18 micrrops. Trace length: %d!.\n", currentTrace.id ,  currentTrace.shrunkLength);
+                assert(traceMap.find(currentTrace.id) != traceMap.end());
+                traceMap.erase(currentTrace.id);
+                currentTrace.addr.valid = false;
+                currentTrace.state = SpecTrace::Evicted;
+                currentTrace.id = 0;
+                // clear spec cache write queue
+                decoder->specCacheWriteQueue.clear();
+
+
+            }
+            else 
+            {
+                // now write back to spec cache here!
+                assert(decoder->specCacheWriteQueue.size() == currentTrace.shrunkLength);
+                assert(decoder->specCacheWriteQueue.size() <= 18);
+                
+                for (auto const &microop: decoder->specCacheWriteQueue)
+                {
+                    decoder->addUopToSpeculativeCache(currentTrace, microop);
+                }
+
+                DPRINTF(TraceGen, "Trace id %d added to spec cache with %d valid prediction sources!.\n", currentTrace.id, validPredSources );
+                    
+                // now that write queue is written to the spec cache, clear it
+                decoder->specCacheWriteQueue.clear();
+            
+                DPRINTF(SuperOp, "Before optimization: \n");
+                currentTrace.addr = currentTrace.head;
+                dumpTrace(currentTrace);
+        
+                DPRINTF(SuperOp, "After optimization: \n");
+                // this assertions should never fail!
+                assert(currentTrace.getOptimizedHead().valid);
+                int idx = currentTrace.getOptimizedHead().idx;
+                int way = currentTrace.getOptimizedHead().way;
+
                 assert(decoder->speculativeValidArray[idx][way]);
                 assert(decoder->speculativeTraceIDArray[idx][way] == currentTrace.id);
                 assert(decoder->speculativePrevWayArray[idx][way] == decoder->SPEC_CACHE_WAY_MAGIC_NUM);
-            }
+            
 
-            if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) {
-                // mark end of trace and propagate live outs
-                DPRINTF(SuperOp, "End of Trace at %s!\n", currentTrace.prevNonEliminatedInst->getName());
-                
-                // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
-                currentTrace.prevNonEliminatedInst->setEndOfTrace();
-                currentTrace.prevNonEliminatedInst->shrunkLength = currentTrace.shrunkLength;
-                if (!currentTrace.prevNonEliminatedInst->isControl()) { // control prevNonEliminatedInstructions already propagate live outs
-                    for (int i=0; i<16; i++) { // 16 int registers
-                        if (regCtx[i].valid && !regCtx[i].source) {
-                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
+                if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) 
+                {
+                    // mark end of trace and propagate live outs
+                    DPRINTF(SuperOp, "End of Trace at %s!\n", currentTrace.prevNonEliminatedInst->getName());
+                        
+                    // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
+                    currentTrace.prevNonEliminatedInst->setEndOfTrace();
+                    currentTrace.prevNonEliminatedInst->shrunkLength = currentTrace.shrunkLength;
+                    if (!currentTrace.prevNonEliminatedInst->isControl()) { // control prevNonEliminatedInstructions already propagate live outs
+                        for (int i=0; i<16; i++) { // 16 int registers
+                            if (regCtx[i].valid && !regCtx[i].source) {
+                                currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
+                                currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                                currentTrace.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
+                                currentTrace.prevNonEliminatedInst->_numIntDestRegs++;
+                            }
+                        }
+                        if (ccValid) 
+                        {
+                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredccFlagBits;
                             currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
-                            currentTrace.prevNonEliminatedInst->_numIntDestRegs++;
+                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
+                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredcfofBits;
+                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
+                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PreddfBit;
+                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_DF));
+                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredecfBit;
+                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ECF));
+                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredezfBit;
+                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_EZF));
+                            currentTrace.prevNonEliminatedInst->_numCCDestRegs += 5;
                         }
                     }
+
+                    assert(currentTrace.id);
+                    assert(currentTrace.getOptimizedHead().valid);
+                    assert(currentTrace.state == SpecTrace::OptimizationInProcess);
+
+                    currentTrace.addr = currentTrace.getOptimizedHead();
+                    currentTrace.state = SpecTrace::Complete;
+                    traceMap[currentTrace.id] = currentTrace;
+                    dumpTrace(currentTrace);
+                    DPRINTF(SuperOp, "Live Outs:\n");
+                    for (int i=0; i<16; i++) {
+                        if (regCtx[i].valid && !regCtx[i].source)
+                            DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
+                    }
                     if (ccValid) {
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredccFlagBits;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredcfofBits;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PreddfBit;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_DF));
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredecfBit;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ECF));
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredezfBit;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_EZF));
-                        currentTrace.prevNonEliminatedInst->_numCCDestRegs += 5;
-                    }
-                }
-                assert(currentTrace.id);
-                assert(currentTrace.optimizedHead.valid);
-                assert(currentTrace.state == SpecTrace::OptimizationInProcess);
-
-                currentTrace.addr = currentTrace.optimizedHead;
-                currentTrace.state = SpecTrace::Complete;
-                traceMap[currentTrace.id] = currentTrace;
-                dumpTrace(currentTrace);
-                DPRINTF(SuperOp, "Live Outs:\n");
-                for (int i=0; i<16; i++) {
-                    if (regCtx[i].valid && !regCtx[i].source)
-                        DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
-                }
-                if (ccValid) {
-                    DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
-                    DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
-                    DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
-                    DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
-                    DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
-                } else {
+                        DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
+                        DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
+                        DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
+                        DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
+                        DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
+                    } else {
                     DPRINTF(SuperOp, "No live out CC\n");
-                }
-                for (int i=0; i<4; i++) {
-                    DPRINTF(SuperOp, "Prediction Source %i\n", i);
-                    if (currentTrace.source[i].valid) {
-                        // set the predecitions sources in spec$
-
-                        DPRINTF(SuperOp, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i\n",
-                                    currentTrace.source[i].addr.pcAddr,  currentTrace.source[i].addr.uopAddr,
-                                    currentTrace.source[i].value, currentTrace.source[i].confidence,
-                                    currentTrace.source[i].latency);
+                    }
+                    for (int i=0; i<4; i++) 
+                    {
+                        DPRINTF(SuperOp, "Prediction Source %i\n", i);
+                        if (currentTrace.source[i].valid) {
+                            // set the predecitions sources in spec$
+                            DPRINTF(SuperOp, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i\n",
+                                            currentTrace.source[i].addr.pcAddr,  currentTrace.source[i].addr.uopAddr,
+                                            currentTrace.source[i].value, currentTrace.source[i].confidence,
+                                            currentTrace.source[i].latency);
+                        }
                     }
                 }
 
-                // find number of valid prediction sources
-                size_t validPredSources = 0;
-                for (int i = 0; i < 4; i++)
-                {
-                    if (currentTrace.source[i].valid) {
-                        validPredSources++;
-                    }
-                }
-
-                // perform this operation at the end so we can queue a new trace to superoptimize
-                // if there is no prediction sources in the trace, then it's not a usefull trace
-                // just remove the trace
-                if (validPredSources == 0)
-                {
-                    // remove it from spec cache
-                    decoder->invalidateSpecTrace(currentTrace.optimizedHead, currentTrace.id);
-                    // remove it from traceMap
-                    DPRINTF(TraceGen, "Removing traceID: %d from Trace Map because of insufficent prediction sources!.\n", currentTrace.id );
-                    assert(traceMap.find(currentTrace.id) != traceMap.end());
-                    traceMap.erase(currentTrace.id);
-                    currentTrace.addr.valid = false;
-                    currentTrace.state = SpecTrace::Evicted;
-                    currentTrace.id = 0;
-                }
-                else 
-                {
-                    DPRINTF(TraceGen, "Trace id %d added to spec cache with %d valid prediction sources!.\n", currentTrace.id, validPredSources );
-                }
             }
+            
+        } // end of finalize old trace
+        else if ((currentTrace.id != 0) && (currentTrace.state == SpecTrace::Evicted || currentTrace.state == SpecTrace::Invalid))
+        {
+            // how did we get here?!
+            assert(0);
         }
 
         // Pop a new trace from the queue, start at top
@@ -540,7 +590,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
                 // A trace queued for first time optimization should never have a valid optimized head address 
                 // because it never had the chance to get super optimized
-                assert(!currentTrace.optimizedHead.valid);
+                assert(!currentTrace.getOptimizedHead().valid);
+                // should always be empty!
+                assert(decoder->specCacheWriteQueue.empty());
 
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
@@ -572,6 +624,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             regCtx[i].valid = regCtx[i].source = ccValid = false;
             PredccFlagBits = PredcfofBits = PreddfBit = PredecfBit = PredezfBit = 0;
         }
+        
     } else { 
         assert(currentTrace.state == SpecTrace::OptimizationInProcess);
     }
@@ -589,25 +642,16 @@ bool TraceBasedGraph::generateNextTraceInst() {
         DPRINTF(ConstProp, "Trace %i: Processing instruction at uop[%i][%i][%i]\n", currentTrace.id, idx, way, uop);
         if (!decoder->uopValidArray[idx][way] || (uop >= decoder->uopCountArray[idx][way])) {
             
-            // Depending on the time that this eviction has happened we may have allocated one or more ways in spec cache for this trace
-            // if optimizedHead is valid then it means at least one way in spec cache is assigned to this trace and we need to invalidate it/them
-            if (currentTrace.optimizedHead.valid)
-            {
-                
-                int invalidate_idx = currentTrace.optimizedHead.idx;
-                int invalidate_way = currentTrace.optimizedHead.way;
-                // these should never happen
-                assert(currentTrace.id);
-                assert(decoder->speculativeValidArray[invalidate_idx][invalidate_way] );
-                assert(decoder->speculativeTraceIDArray[invalidate_idx][invalidate_way] == currentTrace.id);
-                assert(decoder->speculativePrevWayArray[invalidate_idx][invalidate_way] == decoder->SPEC_CACHE_WAY_MAGIC_NUM);
-                 // remove it from spec cache
-                decoder->invalidateSpecTrace(currentTrace.optimizedHead, currentTrace.id);
-                
-            }
+            // When a trace is being superoptimized it's written to the spec cahce write queue
+            // Therefore, optimized head should never be valid before trace super optimization is complete and we decide that we eant to wite back the trace 
+            // into the spec cache
+            assert(!currentTrace.getOptimizedHead().valid);
             
+            // clear spec cahce write queue
+            decoder->specCacheWriteQueue.clear();
+            
+            assert(currentTrace.id);
             // remove it from traceMap
-            DPRINTF(TraceGen, "Removing traceID: %d from Trace Map because of insufficent prediction sources!.\n", currentTrace.id );
             assert(traceMap.find(currentTrace.id) != traceMap.end());
             traceMap.erase(currentTrace.id);
             currentTrace.addr.valid = false;
@@ -617,6 +661,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             tracesWithInvalidHead++;
             DPRINTF(SuperOp, "Trace was evicted out of the micro-op cache before we could optimize it\n");
             currentTrace.addr.valid = false;
+
+
             return false;
         }
         decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
@@ -736,7 +782,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // Update the flags for these instructions
       
 
-
+        // set this as a dource of prediction so we can verify it later
+        currentTrace.inst->setTracePredictionSource(true);
 
         bool isDeadCode = false;
         updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
@@ -745,8 +792,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // source predictions never get eliminated
         currentTrace.prevNonEliminatedInst = currentTrace.inst;
         
-        // set this as a dource of prediction so we can verify it later
-        currentTrace.inst->setTracePredictionSource(true);
+
 
     } else {
 
@@ -850,7 +896,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
         advanceTrace(currentTrace);
     }
 
+
     // Propagate live outs at the end of each control instruction
+    // updateSuccessful is not just for spec cache also for folded instructions
     if (currentTrace.inst->isControl() && updateSuccessful) {
         for (int i=0; i<16; i++) { // 16 int registers
             if (regCtx[i].valid && !regCtx[i].source) {
@@ -895,6 +943,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     }
 
     return true;
+    //HeapProfilerStop();
 }
 
 
@@ -953,7 +1002,10 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
         return true;
     }
 
-    bool updateSuccessful = decoder->addUopToSpeculativeCache( trace, isPredSource);
+    //bool updateSuccessful = decoder->addUopToSpeculativeCache( trace, isPredSource);
+    bool updateSuccessful  = true;
+    // instead of adding the trace directly to the spec cache, first wirte it to the spec cache write queue
+    decoder->specCacheWriteQueue.push_back(SuperOptimizedMicroop(trace.inst, trace.instAddr));
     /// This is normal to happen but the problem is that we don't have the necessary logic to cause a stall
     panic_if(!updateSuccessful, "Failed to update the spec cache!\n");
     trace.shrunkLength++;
@@ -1015,25 +1067,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
         }
     }
 
-    // Update head of the optimized trace
-    if (!trace.optimizedHead.valid) {
-        DPRINTF(SuperOp, "updateSpecTrace: Trace %d optimized head is not valid!\n", trace.id);
-        //the idx is set in addToSpeculativeCache function
-        //trace.optimizedHead.idx = trace.head.idx; 
-        trace.optimizedHead.uop = 0;
-        for (int way=0; way< decoder->SPEC_CACHE_NUM_WAYS; way++) {
-            int idx = trace.optimizedHead.idx;
-            DPRINTF(SuperOp, "Looking Up spec[%d][%d]! Valid: %d Trace ID: %d!\n", idx, way, decoder->speculativeValidArray[idx][way], decoder->speculativeTraceIDArray[idx][way]);
-            if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == trace.id) {
-                DPRINTF(SuperOp, "updateSpecTrace: Trace %d optimized head way is updated to %d!\n", trace.id, way);
-                trace.optimizedHead.way = way;
-                trace.optimizedHead.valid = true;
-                break;
-            }
-        }
-        // after the for lopp trace.optimizedHead.valid should always be true otherwise something is wrong!
-        assert(trace.optimizedHead.valid);
-    }
+
 
     return updateSuccessful;
 }

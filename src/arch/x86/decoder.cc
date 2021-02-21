@@ -1100,8 +1100,8 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
 void
 Decoder::updateStreamTrace(unsigned traceID, X86ISA::PCState &thisPC) {
     traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
-    int idx = traceConstructor->streamTrace.optimizedHead.idx;
-    int baseWay = traceConstructor->streamTrace.optimizedHead.way;
+    int idx = traceConstructor->streamTrace.getOptimizedHead().idx;
+    int baseWay = traceConstructor->streamTrace.getOptimizedHead().way;
     FullUopAddr addr = FullUopAddr(thisPC.pc(), thisPC.upc());
 
     for (int way = baseWay; way != SPEC_CACHE_WAY_MAGIC_NUM; way = speculativeNextWayArray[idx][way]) {
@@ -1119,12 +1119,13 @@ Decoder::updateStreamTrace(unsigned traceID, X86ISA::PCState &thisPC) {
 }
 
 bool
-Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
+Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop superoptimized_microop) {
 
    
-    StaticInstPtr inst =  trace.inst;
-    Addr addr = trace.instAddr.pcAddr;
-    uint16_t uop = trace.instAddr.uopAddr; 
+    StaticInstPtr inst =  superoptimized_microop.inst;
+    assert(inst);
+    Addr addr = superoptimized_microop.instAddr.pcAddr;
+    uint16_t uop = superoptimized_microop.instAddr.uopAddr; 
     uint64_t traceID = trace.id;
 
     uint64_t spec_cache_idx = (addr >> SPEC_NUM_INDEX_BITS) & SPEC_INDEX_MASK;
@@ -1135,15 +1136,13 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     uint64_t idx;
     int baseWay = 0;
     int waysVisited = 0;
-    if (trace.optimizedHead.valid) {
-        idx = trace.optimizedHead.idx;
-        baseWay = trace.optimizedHead.way;
-        DPRINTF(Decoder, "addUopToSpeculativeCache: Trace %d optimized head way is %d!\n", traceID, baseWay);
+    if (trace.getOptimizedHead().valid) {
+        idx = trace.getOptimizedHead().idx;
+        baseWay = trace.getOptimizedHead().way;
+        DPRINTF(Decoder, "addUopToSpeculativeCache: Trace %d optimized head is (%d,%d)!\n", traceID, idx, baseWay);
     }
     else 
     {
-        // if the head idx is not valid, it should be assigned here!
-        trace.optimizedHead.idx = spec_cache_idx;
         idx = spec_cache_idx;
         DPRINTF(Decoder, "addUopToSpeculativeCache: Trace %d optimized head is not valid!\n", traceID);
     }
@@ -1166,11 +1165,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
             speculativeCache[idx][way][waySize] = inst;
             speculativeAddrArray[idx][way][waySize] = FullUopAddr(addr, uop);
 
-            if (isPredSource)
-            {
-                DPRINTF(Decoder, "Setting microop in the speculative cache as a Prediction Source: %#x tag:%#x idx:%d way:%d uop:%d nextway:%d prevway:%d.\n", addr, tag, idx, way, waySize, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
-                speculativeCache[idx][way][waySize]->setTracePredictionSource(true);
-            }
+
 
             DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, waySize, addr, uop);
             updateLRUBitsSpeculative(idx, way);
@@ -1178,6 +1173,19 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
             if (speculativeCountArray[idx][way] == 6) {
                 numFullWays++;
             }
+
+            // update optimized head if it's not valid yet!
+            if (!trace.getOptimizedHead().valid) {
+                // when the trace head is not valid, it means this is always the frist microop in the trace
+                // therefore waySize should be equal to zero
+                assert(waySize == 0);
+                DPRINTF(SuperOp, "updateSpecTrace: Trace %d optimized head is not valid!\n", trace.id);
+                trace.setOptimizedTraceHead(FullCacheIdx(idx, way, waySize));
+                DPRINTF(SuperOp, "updateSpecTrace: Trace %d optimized head is updated to (%d, %d)!\n", trace.id, idx, way);
+                // after the for lopp trace.optimizedHead.valid should always be true otherwise something is wrong!
+                assert(trace.getOptimizedHead().valid);
+            }
+
             return true;
         }
         waysVisited++;
@@ -1204,14 +1212,22 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
             speculativeAddrArray[idx][way][u] = FullUopAddr(addr, uop);
             updateLRUBitsSpeculative(idx, way);
 
-            if (isPredSource)
-            {
-                DPRINTF(Decoder, "Setting microop in the speculative cache as a Prediction Source: %#x tag:%#x idx:%d way:%d uop:%d nextway:%d prevway:%d.\n", addr, tag, idx, way, u, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
-                speculativeCache[idx][way][u]->setTracePredictionSource(true);
-            }
 
             DPRINTF(Decoder, "Allocating a previous invalid way for trace %d and adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d nextWay:%d prevway:%d.\n", traceID, addr, tag, idx, way, u, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
             DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, u, addr, uop);
+
+            // update optimized head if it's not valid yet!
+            if (!trace.getOptimizedHead().valid) {
+                // when the trace head is not valid, it means this is always the frist microop in the trace
+                // therefore waySize should be equal to zero
+                assert(u == 0);
+                DPRINTF(SuperOp, "updateSpecTrace: Trace %d optimized head is not valid!\n", trace.id);
+                trace.setOptimizedTraceHead(FullCacheIdx(idx, way, u));
+                DPRINTF(SuperOp, "updateSpecTrace: Trace %d optimized head is updated to (%d, %d)!\n", trace.id, idx, way);
+                // after the for lopp trace.optimizedHead.valid should always be true otherwise something is wrong!
+                assert(trace.getOptimizedHead().valid);
+            }
+
             return true;
         }
     }
@@ -1221,12 +1237,10 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
     unsigned evictWay = SPEC_CACHE_NUM_WAYS;
     for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
         // check if we are processing the trace for first time optimization -- write to way in progress
-        if ((((traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess)) &&
-            traceConstructor->currentTrace.id != 0) && 
-            (traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][way] ||
-             traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativeNextWayArray[idx][way]] ||
-             traceConstructor->currentTrace.id == speculativeTraceIDArray[idx][speculativePrevWayArray[idx][way]])) {
+        if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
             
+            // a trace should never be added to spec cache when optimization is in process
+            assert(0);
             DPRINTF(Decoder, "Can't evict becuase OptimizationInProcess: tag:%#x idx:%d way:%d. currentTrace.id: %d\n", tag, idx, way, traceConstructor->currentTrace.id);
             continue;
         }
@@ -1306,16 +1320,22 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, bool isPredSource) {
         speculativeCache[idx][evictWay][u] = inst;
         speculativeAddrArray[idx][evictWay][u] = FullUopAddr(addr, uop);
 
-        if (isPredSource)
-        {
-            DPRINTF(Decoder, "Setting microop in the speculative cache as a Prediction Source: %#x tag:%#x idx:%d way:%d uop:%d nextway:%d prevway:%d.\n", addr, tag, idx, evictWay, u, speculativeNextWayArray[idx][evictWay], speculativePrevWayArray[idx][evictWay]);
-            speculativeCache[idx][evictWay][u]->setTracePredictionSource(true);
-        }
-
-        
         DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, evictWay, u, addr, uop);
         updateLRUBitsSpeculative(idx, evictWay);        
         DPRINTF(Decoder, "Evicting and allocating a way and  adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d.\n", addr, tag, idx, evictWay, u);
+
+        // update optimized head if it's not valid yet!
+        if (!trace.getOptimizedHead().valid) {
+            // when the trace head is not valid, it means this is always the frist microop in the trace
+            // therefore waySize should be equal to zero
+            assert(u == 0);
+            DPRINTF(SuperOp, "updateSpecTrace: Trace %d optimized head is not valid!\n", trace.id);
+            trace.setOptimizedTraceHead(FullCacheIdx(idx, evictWay, 0));
+            DPRINTF(SuperOp, "updateSpecTrace: Trace %d optimized head is updated to (%d, %d)!\n", trace.id, idx, evictWay);
+            // after the for lopp trace.optimizedHead.valid should always be true otherwise something is wrong!
+            assert(trace.getOptimizedHead().valid);
+        }
+
         return true;
     }
     else 
@@ -1593,6 +1613,8 @@ Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t trace_id)
     }
     
 }
+
+
 
 void
 Decoder::invalidateSpecCacheLine(int idx, int way) {

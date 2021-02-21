@@ -1161,12 +1161,16 @@ DefaultFetch<Impl>::tick()
     // Reset the number of the instruction we've fetched.
     numInst = 0;
 
+    // if (!IsHeapProfilerRunning()) 
+    //     HeapProfilerStart("SuperOptimizer");
     if ( isSuperOptimizationPresent)
     {
         for (int tid = 0; tid < numThreads; tid++) {
             decoder[tid]->traceConstructor->generateNextTraceInst(); 
         }
     }
+    // if (IsHeapProfilerRunning())
+    //     HeapProfilerStop();
     
 }
 

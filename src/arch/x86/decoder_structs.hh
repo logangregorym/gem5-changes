@@ -5,6 +5,10 @@
 #include "base/types.hh"
 #include "cpu/static_inst.hh"
 
+
+
+
+
 struct FullUopAddr {
 	Addr pcAddr;
 	unsigned uopAddr;
@@ -57,7 +61,18 @@ struct FullCacheIdx {
 	}
 };
 
+struct SuperOptimizedMicroop
+{
+    StaticInstPtr inst;
+    FullUopAddr   instAddr;
 
+    SuperOptimizedMicroop(StaticInstPtr _inst, FullUopAddr   _instAddr)
+    {
+        this->inst = _inst;
+        this->instAddr = _instAddr;
+    }
+
+};
 // tracks instructions with confident value predictions
 struct PredictionSource
 {
@@ -86,15 +101,17 @@ struct SpecTrace
     private:
         // address of the head of the trace
         FullUopAddr headAddr;
+        
+        // (idx, way, uop) of head of the optimized trace
+        FullCacheIdx optimizedHead;
     
     public:
 
-    void setTraceHeadAddress(FullUopAddr _headAddr)
-    {
-        headAddr = _headAddr;
-    }
+    void setOptimizedTraceHead(FullCacheIdx _optimizedHead) {optimizedHead = _optimizedHead;}
+    void setTraceHeadAddress(FullUopAddr _headAddr){ headAddr = _headAddr;}
 
     FullUopAddr getTraceHeadAddr() {return headAddr;}
+    FullCacheIdx getOptimizedHead() {return optimizedHead;}
     
 
 
@@ -106,8 +123,6 @@ struct SpecTrace
     // (idx, way, uop) of head of the trace
     FullCacheIdx head;
 
-    // (idx, way, uop) of head of the optimized trace
-    FullCacheIdx optimizedHead;
 
     // (idx, way, uop) of the instruction being optimized
     FullCacheIdx addr;

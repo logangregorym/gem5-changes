@@ -148,6 +148,7 @@ class Decoder
     int ** speculativeLRUArray;
 	BigSatCounter ** specHotnessArray;
 	uint64_t ** speculativeTraceIDArray;
+    std::deque<SuperOptimizedMicroop> specCacheWriteQueue;
 
     uint64_t SPEC_INDEX_MASK;
     uint64_t SPEC_NUM_INDEX_BITS;
@@ -456,7 +457,7 @@ protected:
 	// Interface for superoptimization, interacts with cache differently in gem5
 	// In hardware wouldn't need a different interface, as both are streaming caches
 
-	bool addUopToSpeculativeCache( SpecTrace &trace, bool isPredSource);
+	bool addUopToSpeculativeCache( SpecTrace &trace, SuperOptimizedMicroop superoptimized_microop);
 
     bool isSpeculativeCacheActive()
     {
