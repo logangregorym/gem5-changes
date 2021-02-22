@@ -422,8 +422,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
 
             // perform this operation at the end so we can queue a new trace to superoptimize
-            // if there is no prediction sources in the trace, then it's not a usefull trace
-            // just remove the trace
+            // if there is no prediction sources in the trace, then it's not a usefull trace just remove the trace
             if (validPredSources == 0)
             {
                 // remove it from traceMap
@@ -1718,16 +1717,17 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     }
     else {
         RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(destReg);
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false;
         }
 
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
@@ -1761,14 +1761,18 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
         ccValid = true;
     }
 
+
+    
+
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(destReg);
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
     
     return true;
 }
@@ -2659,7 +2663,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
-    
+
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     //unsigned src1 = inst->srcRegIdx(0).flatIndex();
     unsigned src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0));
