@@ -178,15 +178,11 @@ struct SpecTrace
     // Shrunk length
     unsigned shrunkLength;
 
-    // ID of the trace being re-optimized in case this is a re-optimization
-    unsigned int reoptId;
-
     // Counter to assign trace IDs
     static unsigned traceIDCounter;
 
     SpecTrace() {
         id = 0;
-        reoptId = 0;
         state = Invalid;
         length = 0;
         shrunkLength = 0;

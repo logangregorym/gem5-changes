@@ -409,6 +409,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
         {
             DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
 
+            // make sure always a super-optimized trace is shorter or equal to its original counterpart
+            assert(currentTrace.length >= currentTrace.shrunkLength);
+
             // find number of valid prediction sources for non-zero traces
             size_t validPredSources = 0;
             for (int i = 0; i < 4; i++)
@@ -474,6 +477,31 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
 
             }
+            // Insufficent superoptimization
+            else if ((currentTrace.length == currentTrace.shrunkLength))
+            {
+                // remove it from traceMap
+                DPRINTF(TraceGen, "Removing trace: %d from Trace Map because of insufficent super-optimization!.\n", currentTrace.id );
+                assert(traceMap.find(currentTrace.id) != traceMap.end());
+                traceMap.erase(currentTrace.id);
+                currentTrace.addr.valid = false;
+                currentTrace.state = SpecTrace::Evicted;
+                currentTrace.id = 0;
+                // clear spec cache write queue
+                for (auto &micro: decoder->specCacheWriteQueue)
+                {
+                    StaticInstPtr macro = NULL;
+                    if (micro.inst->macroOp && micro.inst->macroOp->isMacroop())
+                    {
+                        macro = micro.inst->macroOp;
+                    }
+                    if (macro)
+                    {
+                        macro->deleteMicroOps();
+                    }
+                }
+                decoder->specCacheWriteQueue.clear();
+            }
             else 
             {
                 // now write back to spec cache here!
@@ -513,7 +541,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
                         
                     // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
                     currentTrace.prevNonEliminatedInst->setEndOfTrace();
-                    currentTrace.prevNonEliminatedInst->shrunkLength = currentTrace.shrunkLength;
+                    
+                    currentTrace.prevNonEliminatedInst->shrunkLength = (currentTrace.length - currentTrace.shrunkLength);
                     if (!currentTrace.prevNonEliminatedInst->isControl()) { // control prevNonEliminatedInstructions already propagate live outs
                         for (int i=0; i<16; i++) { // 16 int registers
                             if (regCtx[i].valid && !regCtx[i].source) {
@@ -622,7 +651,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
                 // remove it from traceMap
-                DPRINTF(Decoder, "Removing traceID: %d (reoptID: %d) from Trace Map because of eviction!.\n", currentTrace.id, currentTrace.reoptId );
+                DPRINTF(Decoder, "Removing trace id: %d  from Trace Map because of eviction!.\n", currentTrace.id );
                 assert(traceMap.find(currentTrace.id) != traceMap.end());
                 traceMap.erase(currentTrace.id);
 
@@ -1649,8 +1678,11 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    unsigned src1 = inst->srcRegIdx(0).flatIndex();
-    unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    //unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    //unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    unsigned src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0));
+    unsigned src2 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(1));
     assert(src1 < 38);
     assert(src2 < 38);
     if (src1 == src2) {
@@ -1669,7 +1701,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
     uint64_t forwardVal = 0;
-    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    
  
     uint64_t psrc1, psrc2;
     if (dataSize >= 4)
