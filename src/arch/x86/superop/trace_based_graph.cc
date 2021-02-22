@@ -431,6 +431,18 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.state = SpecTrace::Evicted;
                 currentTrace.id = 0;
                 // clear spec cache write queue
+                for (auto &micro: decoder->specCacheWriteQueue)
+                {
+                    StaticInstPtr macro = NULL;
+                    if (micro.inst->macroOp && micro.inst->macroOp->isMacroop())
+                    {
+                        macro = micro.inst->macroOp;
+                    }
+                    if (macro)
+                    {
+                        macro->deleteMicroOps();
+                    }
+                }
                 decoder->specCacheWriteQueue.clear();
             }
             // trace is too long to be inserted in the spec cache
@@ -446,6 +458,18 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.state = SpecTrace::Evicted;
                 currentTrace.id = 0;
                 // clear spec cache write queue
+                for (auto &micro: decoder->specCacheWriteQueue)
+                {
+                    StaticInstPtr macro = NULL;
+                    if (micro.inst->macroOp && micro.inst->macroOp->isMacroop())
+                    {
+                        macro = micro.inst->macroOp;
+                    }
+                    if (macro)
+                    {
+                        macro->deleteMicroOps();
+                    }
+                }
                 decoder->specCacheWriteQueue.clear();
 
 
@@ -464,6 +488,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 DPRINTF(TraceGen, "Trace id %d added to spec cache with %d valid prediction sources!.\n", currentTrace.id, validPredSources );
                     
                 // now that write queue is written to the spec cache, clear it
+                // DON'T DELETE MICROOPS HERE! 
                 decoder->specCacheWriteQueue.clear();
             
                 DPRINTF(SuperOp, "Before optimization: \n");
@@ -648,6 +673,18 @@ bool TraceBasedGraph::generateNextTraceInst() {
             assert(!currentTrace.getOptimizedHead().valid);
             
             // clear spec cahce write queue
+            for (auto &micro: decoder->specCacheWriteQueue)
+            {
+                StaticInstPtr macro = NULL;
+                if (micro.inst->macroOp && micro.inst->macroOp->isMacroop())
+                {
+                    macro = micro.inst->macroOp;
+                }
+                if (macro)
+                {
+                    macro->deleteMicroOps();
+                }
+            }            
             decoder->specCacheWriteQueue.clear();
             
             assert(currentTrace.id);
@@ -665,6 +702,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
             return false;
         }
+
+
+
         decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
         if (decodedMacroOp->getName() == "NOP" || decodedMacroOp->getName() == "fault" || decodedMacroOp->getName() == "popcnt_Gv_Ev") {
             currentTrace.length++;
@@ -686,6 +726,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
         currentTrace.lastAddr = currentTrace.instAddr;
         currentTrace.instAddr = decoder->uopAddrArray[idx][way][uop];
         newMacro = (currentTrace.lastAddr.pcAddr != currentTrace.instAddr.pcAddr);
+
+
     }
     decodedMacroOp = NULL;
 
