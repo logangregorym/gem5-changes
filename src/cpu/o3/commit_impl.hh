@@ -1364,7 +1364,8 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             "--------------------START OF EPOCH----------------------------" <<
             std::endl << std::dec << "NumOfInsts: " << (uint64_t)cpu->committedInsts[tid].value() <<
             std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   
-		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << std::endl;        
+		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << 
+            std::endl << std::dec << "Shrinkage Ratio: " << (numMicroopsShrunken / (numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value())) * 100 << std::endl;       
             for (int idx = 0; idx < cpu->fetch.decoder[tid]->SPEC_CACHE_NUM_SETS; idx++){
                 std::cout << "Idx " << idx  << " : " ;
                 for (int way = 0; way < cpu->fetch.decoder[tid]->SPEC_CACHE_NUM_WAYS; way++) {

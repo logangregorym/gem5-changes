@@ -1383,8 +1383,11 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
         return false;
     }
 
-    unsigned src1 = inst->srcRegIdx(0).flatIndex();
-    unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    // unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    // unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    unsigned src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0));
+    unsigned src2 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(1));
     assert(src1 < 38);
     assert(src2 < 38);
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
@@ -1397,7 +1400,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
     uint64_t forwardVal = 0;
-	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+
     uint64_t psrc1, psrc2;
     if (dataSize >= 4)
     {
@@ -1581,8 +1584,11 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    unsigned src1 = inst->srcRegIdx(0).flatIndex();
-    unsigned src2 = inst->srcRegIdx(1).flatIndex();
+	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    // unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    // unsigned src2 = inst->srcRegIdx(1).flatIndex();
+    unsigned src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0));
+    unsigned src2 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(1));
     assert(src1 < 38);
     assert(src2 < 38);
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
@@ -1595,7 +1601,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
     uint64_t forwardVal = 0;
-	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+
     uint64_t psrc1, psrc2;
     if (dataSize >= 4)
     {
@@ -2309,7 +2315,9 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    //unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    unsigned src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0));
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     assert(src1 < 38);
     //assert(src2 < 38);
@@ -2324,7 +2332,6 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     //uint64_t SrcReg2 = regCtx[src2].value;
     uint64_t forwardVal = 0;
     
-	X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
     uint8_t imm8 = inst_regop->imm8;
     uint64_t psrc1;
     uint8_t shiftAmt;
@@ -2423,8 +2430,10 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
-
-    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    //unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    unsigned src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0));
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     assert(src1 < 38);
     //assert(src2 < 38);
@@ -2438,7 +2447,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     uint64_t SrcReg1 = regCtx[src1].value;
     //uint64_t SrcReg2 = regCtx[src2].value;
     uint64_t forwardVal = 0;
-    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+
     uint8_t imm8 = inst_regop->imm8;
 
     uint64_t psrc1;
@@ -2538,7 +2547,9 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    //unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    unsigned src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0));
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     assert(src1 < 38);
     //assert(src2 < 38);
@@ -2553,7 +2564,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     //uint64_t SrcReg2 = regCtx[src2].value;
 
     uint64_t forwardVal = 0;
-    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+
     uint8_t imm8 = inst_regop->imm8;
     uint64_t psrc1;
     int sign_bit;
@@ -2648,8 +2659,10 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     X86ISA::RegOpImm * inst_regop = (X86ISA::RegOpImm * )inst.get(); 
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
-
-    unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    //unsigned src1 = inst->srcRegIdx(0).flatIndex();
+    unsigned src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0));
     //unsigned src2 = inst->srcRegIdx(1).flatIndex();
     assert(src1 < 38);
     //assert(src2 < 38);
@@ -2662,7 +2675,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
 
     uint64_t forwardVal = 0;
 
-    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+
     uint8_t imm8 = inst_regop->imm8;
 
     uint64_t psrc1;
