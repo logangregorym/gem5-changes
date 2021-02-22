@@ -1237,13 +1237,13 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
     unsigned evictWay = SPEC_CACHE_NUM_WAYS;
     for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
         // check if we are processing the trace for first time optimization -- write to way in progress
-        if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
+        // if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
             
-            // a trace should never be added to spec cache when optimization is in process
-            assert(0);
-            DPRINTF(Decoder, "Can't evict becuase OptimizationInProcess: tag:%#x idx:%d way:%d. currentTrace.id: %d\n", tag, idx, way, traceConstructor->currentTrace.id);
-            continue;
-        }
+        //     // a trace should never be added to spec cache when optimization is in process
+        //     assert(0);
+        //     DPRINTF(Decoder, "Can't evict becuase OptimizationInProcess: tag:%#x idx:%d way:%d. currentTrace.id: %d\n", tag, idx, way, traceConstructor->currentTrace.id);
+        //     continue;
+        // }
        
         // check if we are streaming the trace -- read from way in progress
         if ((traceConstructor->streamTrace.id != 0) && 
