@@ -479,9 +479,9 @@ protected:
 
 	unsigned getHotnessOfTrace(Addr addr);
 
-	unsigned minConfidence(unsigned traceId);
+	unsigned minConfidence(uint64_t traceId);
 
-	unsigned maxLatency(unsigned traceId);
+	unsigned maxLatency(uint64_t traceId);
 
 	// Interface for fetch!
     // tells fetch stage that if a speculative trace is availble for this PC
@@ -489,7 +489,7 @@ protected:
 	unsigned isTraceAvailable(Addr addr, uint64_t value, uint64_t confidence);
 
     StaticInstPtr getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
-    void updateStreamTrace(unsigned traceID, X86ISA::PCState &thisPC);
+    void updateStreamTrace(uint64_t traceID, X86ISA::PCState &thisPC);
 
     void regStats();
 

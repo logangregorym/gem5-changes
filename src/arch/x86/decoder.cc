@@ -1098,7 +1098,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
 }
 
 void
-Decoder::updateStreamTrace(unsigned traceID, X86ISA::PCState &thisPC) {
+Decoder::updateStreamTrace(uint64_t traceID, X86ISA::PCState &thisPC) {
     traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
     int idx = traceConstructor->streamTrace.getOptimizedHead().idx;
     int baseWay = traceConstructor->streamTrace.getOptimizedHead().way;
@@ -1633,7 +1633,7 @@ Decoder::invalidateSpecCacheLine(int idx, int way) {
 }
 
 unsigned
-Decoder::minConfidence(unsigned traceId) {
+Decoder::minConfidence(uint64_t traceId) {
     unsigned minConf = traceConstructor->traceMap[traceId].source[0].confidence;
     for (int i = 0; i < 4; i++) {
         assert(traceConstructor->traceMap.find(traceId) != traceConstructor->traceMap.end());
@@ -1646,7 +1646,7 @@ Decoder::minConfidence(unsigned traceId) {
 }
 
 unsigned
-Decoder::maxLatency(unsigned traceId) {
+Decoder::maxLatency(uint64_t traceId) {
     unsigned maxLat = 0;
     for (int i = 0; i < 4; i++) {
         if (traceConstructor->traceMap[traceId].source[i].valid) {

@@ -179,7 +179,7 @@ struct SpecTrace
     unsigned shrunkLength;
 
     // Counter to assign trace IDs
-    static unsigned traceIDCounter;
+    static uint64_t traceIDCounter;
 
     SpecTrace() {
         id = 0;

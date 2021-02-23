@@ -20,7 +20,7 @@ using namespace std;
 
 
 
-unsigned SpecTrace::traceIDCounter = 1;
+uint64_t SpecTrace::traceIDCounter = 1;
 
 TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p), 
                                                             usingControlTracking(p->usingControlTracking), 
