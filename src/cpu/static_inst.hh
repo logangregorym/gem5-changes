@@ -256,7 +256,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     const ExtMachInst machInst;
 
 
-    unsigned fetched_from = 0;
+    //unsigned fetched_from = 0;
     
   protected:
 

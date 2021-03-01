@@ -59,7 +59,7 @@ class TraceBasedGraph : public SimObject
 
 
     // Trace ID to map
-    map<unsigned, SpecTrace> traceMap;
+    map<uint64_t, SpecTrace> traceMap;
 
     // Outstanding trace requests
     queue<SpecTrace> traceQueue;

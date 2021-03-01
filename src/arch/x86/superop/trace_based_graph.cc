@@ -444,6 +444,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     {
                         macro->deleteMicroOps();
                     }
+                    macro = NULL;
                 }
                 decoder->specCacheWriteQueue.clear();
             }
@@ -471,6 +472,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     {
                         macro->deleteMicroOps();
                     }
+                    macro = NULL;
                 }
                 decoder->specCacheWriteQueue.clear();
 
@@ -498,6 +500,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     {
                         macro->deleteMicroOps();
                     }
+                    macro = NULL;
                 }
                 decoder->specCacheWriteQueue.clear();
             }
@@ -712,6 +715,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 {
                     macro->deleteMicroOps();
                 }
+                macro = NULL;
             }            
             decoder->specCacheWriteQueue.clear();
             

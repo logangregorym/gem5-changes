@@ -2029,11 +2029,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     } else {
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
                         staticInst->macroOp = curMacroop;
-                        staticInst->fetched_from = 1;
-                        // if (ENABLE_DEBUG)
-                        //     std::cout << "Decoder || UopCache: " <<  " PCState: " <<  thisPC << 
-                        //     " " << staticInst->disassemble(thisPC.pc()) << std::endl << std::flush;
-                    	/* Micro-fusion. */
+                        /* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
                             if (!prevStaticInst->isStreamedFromSpeculativeCache()) {

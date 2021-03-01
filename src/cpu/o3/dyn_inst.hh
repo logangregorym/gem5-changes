@@ -271,28 +271,18 @@ class BaseO3DynInst : public BaseDynInst<Impl>
 
     IntReg readIntRegOperand(const StaticInst *si, int idx)
     {
-        DPRINTF(IEW, "SuperOptimizer: readIntRegOperand: isPredicted: %i Predicted Value (idx = %d): %#x\n", si->sourcesPredicted[idx], idx, si->sourcePredictions[idx]);
-        const uint16_t _IntFoldBit = (1 << 6);
-        uint16_t reg_idx = idx;
-        bool fold = reg_idx & _IntFoldBit;
-        reg_idx &= ~_IntFoldBit; 
-        assert(reg_idx < 38);
-        if (fold)  DPRINTF(IEW, "SuperOptimizer: readIntRegOperand: Found a folded register! Reg: %d \n", reg_idx);
-        if (si->sourcesPredicted[reg_idx]) {
-            DPRINTF(IEW, "SuperOptimizer: readIntRegOperand: Returning Predicted Value (reg_idx = %d, idx = %d): %#x\n", reg_idx, idx, si->sourcePredictions[reg_idx]);
-            return si->sourcePredictions[reg_idx];
+        DPRINTF(IEW, "SuperOptimizer: readIntRegOperand: isPredicted: %i Predicted Value (idx = %d): %#x\n", si->sourcesPredicted[idx], idx, si->sourcePredictions[idx]); 
+        assert(idx < 38);
+        if (si->sourcesPredicted[idx]) {
+            DPRINTF(IEW, "SuperOptimizer: readIntRegOperand: Returning Predicted Value (idx = %d): %#x\n", idx, si->sourcePredictions[idx]);
+            return si->sourcePredictions[idx];
         }
         return this->cpu->readIntReg(this->_srcRegIdx[idx]);
     }
 
     FloatReg readFloatRegOperand(const StaticInst *si, int idx)
     {
-        if (si->sourcesPredicted[idx]) {
-            assert(0);
-            DPRINTF(IEW, "SuperOptimizer: readFloatRegOperand: Returning Predicted Value: %i:%#x\n", idx, si->sourcePredictions[idx]);
-            panic("FloatReg not supported yet!");
-            return si->sourcePredictions[idx];
-        }
+        
         return this->cpu->readFloatReg(this->_srcRegIdx[idx]);
     }
 
