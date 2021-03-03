@@ -128,6 +128,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isPredictionSource;
     bool isStreamedFromUopCache;
     bool isUopCacheHotTrace;
+    bool carriesLiveOut;
 
 
 
@@ -230,6 +231,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
     void setStreamedFromUOpCache(bool state)  {isStreamedFromUopCache = state;}
     void setUOpCacheHotTrace(bool state ) {isUopCacheHotTrace = state;}
     bool isUOpCacheHotTrace() const {return isUopCacheHotTrace;}
+    void setCarriesLiveOut(bool state) {carriesLiveOut = state;} 
+    bool isCarryingLivesOut() const {return carriesLiveOut;}
 
     /// Operation class.  Used to select appropriate function unit in issue.
     OpClass opClass()     const { return _opClass; }
@@ -298,7 +301,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
           _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkLength = 0;
-        isStreamedFromUopCache = false; isUopCacheHotTrace = false;}
+        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false;}
 
     StaticInst(const char *_mnemonic, ExtMachInst _machInst, OpClass __opClass)
 	: _opClass(__opClass), _numSrcRegs(0), _numDestRegs(0),
@@ -306,7 +309,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
 	  _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkLength = 0;
-        isStreamedFromUopCache = false; isUopCacheHotTrace = false;}
+        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false;}
 
   public:
     virtual ~StaticInst();

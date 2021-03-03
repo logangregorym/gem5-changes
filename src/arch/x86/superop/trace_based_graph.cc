@@ -540,18 +540,23 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 {
                     // mark end of trace and propagate live outs
                     DPRINTF(SuperOp, "End of Trace at %s!\n", currentTrace.prevNonEliminatedInst->getName());
-                        
+                    
+                    assert(currentTrace.prevNonEliminatedInst);
                     // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
                     currentTrace.prevNonEliminatedInst->setEndOfTrace();
                     
                     currentTrace.prevNonEliminatedInst->shrunkLength = (currentTrace.length - currentTrace.shrunkLength);
-                    if (!currentTrace.prevNonEliminatedInst->isControl()) { // control prevNonEliminatedInstructions already propagate live outs
+                    // control prevNonEliminatedInstructions already propagate live outs
+                    if (!currentTrace.prevNonEliminatedInst->isCarryingLivesOut() &&
+                        !currentTrace.prevNonEliminatedInst->isControl()) 
+                    { 
                         for (int i=0; i<16; i++) { // 16 int registers
                             if (regCtx[i].valid && !regCtx[i].source) {
                                 currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
                                 currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
                                 currentTrace.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
                                 currentTrace.prevNonEliminatedInst->_numIntDestRegs++;
+                                currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
                             }
                         }
                         if (ccValid) 
@@ -572,6 +577,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                             currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
                             currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_EZF));
                             currentTrace.prevNonEliminatedInst->_numCCDestRegs += 5;
+                            currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
                         }
                     }
 
@@ -845,7 +851,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.inst->predictedValue = value;
                 regCtx[destReg.flatIndex()].valid = true;
                 regCtx[destReg.flatIndex()].source = true;
-                // currentTrace.inst->predictedLoad = true; // this is not set for trace prediction sources!
+                // currentTrace.inst->predictedLoad = true; // this should never set for trace prediction sources!
                 currentTrace.inst->confidence = confidence;
             }
         }
@@ -863,6 +869,65 @@ bool TraceBasedGraph::generateNextTraceInst() {
         updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
         
         panic_if( isDeadCode , "Prediction Source is a dead code?!");
+
+        // Before updating the prevNonEliminatedInst, dump out all the live outs for the prev instruction
+        // if the previous instruction already is carrying the lives out then don't dump them again!
+        if (currentTrace.prevNonEliminatedInst && !currentTrace.prevNonEliminatedInst->isCarryingLivesOut()) 
+        {
+            // if the current inst (predicted inst) is the first microop then just dump 16 arch registers and CCs
+            if (currentTrace.inst->isFirstMicroop())
+            {
+                for (int i=0; i<16; i++) { // 16 int registers
+                    if (regCtx[i].valid && !regCtx[i].source) {
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
+                        currentTrace.prevNonEliminatedInst->_numIntDestRegs++;
+                        currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
+                    }
+                }
+            }
+            // if the current instruction is not the first microop, then we need to also dump micro-registers to cover this scenario
+            // E.G., 
+            // MOV_R_P : rdip   t7, %ctrl153,  (Propagated) (first microop)
+            // MOV_R_P : ld   rax, DS:[t7 + 0x3cb4fa] (LVP predicted and currentTrace.inst)
+            else 
+            {
+                for (int i=0; i<38; i++) { // 38 int registers
+                    if (regCtx[i].valid && !regCtx[i].source) {
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
+                        currentTrace.prevNonEliminatedInst->_numIntDestRegs++;
+                        currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
+                    }
+                }
+            }
+
+            // always dump all the CC regs no matter what
+            if (ccValid) 
+            {
+                    currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredccFlagBits;
+                    currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                    currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
+                    currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredcfofBits;
+                    currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                    currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
+                    currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PreddfBit;
+                    currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                    currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_DF));
+                    currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredecfBit;
+                    currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                    currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ECF));
+                    currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredezfBit;
+                    currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                    currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_EZF));
+                    currentTrace.prevNonEliminatedInst->_numCCDestRegs += 5;
+                    currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
+            }
+        }
+        
+
         // source predictions never get eliminated
         currentTrace.prevNonEliminatedInst = currentTrace.inst;
         
@@ -973,13 +1038,17 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
     // Propagate live outs at the end of each control instruction
     // updateSuccessful is not just for spec cache also for folded instructions
-    if (currentTrace.inst->isControl() && updateSuccessful) {
+    if (!currentTrace.inst->isCarryingLivesOut() && 
+        currentTrace.inst->isControl() && 
+        updateSuccessful) 
+    {
         for (int i=0; i<16; i++) { // 16 int registers
             if (regCtx[i].valid && !regCtx[i].source) {
                 currentTrace.inst->liveOut[currentTrace.inst->numDestRegs()] = regCtx[i].value;
                 currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
                 currentTrace.inst->addDestReg(RegId(IntRegClass, i));
                 currentTrace.inst->_numIntDestRegs++;
+                currentTrace.inst->setCarriesLiveOut(true);
             }
         }
         if (ccValid) {
@@ -999,6 +1068,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.inst->liveOutPredicted[currentTrace.inst->numDestRegs()] = true;
             currentTrace.inst->addDestReg(RegId(CCRegClass, CCREG_EZF));
             currentTrace.inst->_numCCDestRegs += 5;
+            currentTrace.inst->setCarriesLiveOut(true);
         }
     }
     DPRINTF(SuperOp, "Live Outs:\n");

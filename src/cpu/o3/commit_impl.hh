@@ -1391,7 +1391,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             assert(pass);
             
             pass = true;
-            for (auto &it : cpu->fetch.decoder[tid]->traceConstructor->traceMap)
+            for (auto const &it : cpu->fetch.decoder[tid]->traceConstructor->traceMap)
             {
                 if (spec_count.find(it.first) == spec_count.end() && it.second.state == SpecTrace::Complete)
                 {   
