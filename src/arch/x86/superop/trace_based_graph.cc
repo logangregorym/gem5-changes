@@ -835,41 +835,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
     string type = currentTrace.inst->getName();
     if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) 
     {
-        // Step 1: Get predicted value from LVP
-        // Step 2: Determine dest register(s)
-        // Step 3: Annotate dest register entries with that value
-        // Step 4: Add inst to speculative trace
-        
-        int numIntDestRegs = 0;
-        for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
-            RegId destReg = currentTrace.inst->destRegIdx(i);
-            if (destReg.classValue() == IntRegClass) {
-                numIntDestRegs++;
-				DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), value, type);
-                assert(destReg.flatIndex() < 38);
-                regCtx[destReg.flatIndex()].value = value;
-                currentTrace.inst->predictedValue = value;
-                regCtx[destReg.flatIndex()].valid = true;
-                regCtx[destReg.flatIndex()].source = true;
-                // currentTrace.inst->predictedLoad = true; // this should never set for trace prediction sources!
-                currentTrace.inst->confidence = confidence;
-            }
-        }
-        assert(numIntDestRegs == 1);
-
-        // We can predict some of the Condition Code instructions based on whether they need source registers to 
-        // generate the flags or not
-        // Update the flags for these instructions
-      
-
-        // set this as a dource of prediction so we can verify it later
-        currentTrace.inst->setTracePredictionSource(true);
-
-        bool isDeadCode = false;
-        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
-        
-        panic_if( isDeadCode , "Prediction Source is a dead code?!");
-
         // Before updating the prevNonEliminatedInst, dump out all the live outs for the prev instruction
         // if the previous instruction already is carrying the lives out then don't dump them again!
         if (currentTrace.prevNonEliminatedInst && !currentTrace.prevNonEliminatedInst->isCarryingLivesOut()) 
@@ -930,7 +895,53 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
         // source predictions never get eliminated
         currentTrace.prevNonEliminatedInst = currentTrace.inst;
+
+        // Step 1: Get predicted value from LVP
+        // Step 2: Determine dest register(s)
+        // Step 3: Annotate dest register entries with that value
+        // Step 4: Add inst to speculative trace
         
+        int numIntDestRegs = 0;
+        for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
+            RegId destReg = currentTrace.inst->destRegIdx(i);
+            if (destReg.classValue() == IntRegClass) {
+                numIntDestRegs++;
+				DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), value, type);
+                assert(destReg.flatIndex() < 38);
+                regCtx[destReg.flatIndex()].value = value;
+                currentTrace.inst->predictedValue = value;
+                regCtx[destReg.flatIndex()].valid = true;
+                regCtx[destReg.flatIndex()].source = true;
+                // currentTrace.inst->predictedLoad = true; // this should never set for trace prediction sources!
+                currentTrace.inst->confidence = confidence;
+            }
+        }
+        assert(numIntDestRegs == 1);
+
+        // We can predict some of the Condition Code instructions based on whether they need source registers to 
+        // generate the flags or not
+        // Update the flags for these instructions
+      
+
+        // set this as a dource of prediction so we can verify it later
+        currentTrace.inst->setTracePredictionSource(true);
+
+        bool isDeadCode = false;
+        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
+        
+        panic_if( isDeadCode , "Prediction Source is a dead code?!");
+
+        // now if the instruction is CC we need to update the CC flags
+        // if (currentTrace.inst->isCC() && isPredictiableCC(currentTrace.inst))
+        // {
+        //     assert(usingCCTracking);
+        //     string type = currentTrace.inst->getName();
+        //     if (!((type == "and" || type == "sub" || type == "xor" || type == "mov")))
+        //     {
+        //         std::cout << type << std::endl;
+        //     }
+        //     //updateCCFlagsForPredictedSource(currentTrace.inst);
+        // }
 
 
     } else {
@@ -1090,11 +1101,23 @@ bool TraceBasedGraph::generateNextTraceInst() {
     //HeapProfilerStop();
 }
 
+void TraceBasedGraph::updateCCFlagsForPredictedSource(StaticInstPtr inst)
+{
+    uint16_t ext = inst->getExt();
+    uint64_t oldFlags = 0;
+    if (inst->getName() == "and")
+    {
+        uint64_t mask = PFBit | EZFBit | ZFBit | SFBit;
+        inst->genFlagsForSuperOptimizer(oldFlags , ext & mask, inst->predictedValue);
+    }
 
+}
 
 bool TraceBasedGraph::isPredictiableCC(StaticInstPtr inst)
 {
     if (!inst->isCC()) return true;
+
+    if (!usingCCTracking) return false;
 
     uint64_t flagMask = inst->getExt();
 
@@ -1104,6 +1127,27 @@ bool TraceBasedGraph::isPredictiableCC(StaticInstPtr inst)
         return false;
     else if (flagMask & OFBit)
         return false;
+
+    // string type = inst->getName();
+    // bool isPredictableType = (type == "mov" || 
+    //                          type == "movi" || 
+    //                          type == "add" || 
+    //                          type == "addi" || 
+    //                          type == "sub" || 
+    //                          type == "subi" || 
+    //                          type == "and" || 
+    //                          type == "andi" || 
+    //                          type == "or" || 
+    //                          type == "ori" || 
+    //                          type == "xor" || 
+    //                          type == "xori" || 
+    //                          type == "slri" || 
+    //                          type == "slli" || 
+    //                          type == "sexti" || 
+    //                          type == "zexti");
+
+
+    // return isPredictableType;
 
     return true;
 }

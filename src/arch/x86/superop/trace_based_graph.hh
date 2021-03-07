@@ -56,6 +56,7 @@ class TraceBasedGraph : public SimObject
     bool IsValuePredictible(const StaticInstPtr inst);
 
     bool isPredictiableCC(StaticInstPtr inst);
+    void updateCCFlagsForPredictedSource(StaticInstPtr inst);
 
 
     // Trace ID to map

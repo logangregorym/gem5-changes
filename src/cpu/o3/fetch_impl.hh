@@ -1245,8 +1245,10 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             {
                 // activate speculative cache so we can fetch from it again
                 DPRINTF(Fetch, "memory order violation at PC %s\n", fromCommit->commitInfo[tid].pc);
-                decoder[tid]->setSpeculativeCacheActive(true);
-                decoder[tid]->traceConstructor->streamTrace.id = currentTraceID = fromCommit->commitInfo[tid].currentTraceID;
+                currentTraceID = fromCommit->commitInfo[tid].currentTraceID;
+                assert(currentTraceID);
+                decoder[tid]->setSpeculativeCacheActive(true, currentTraceID);
+                decoder[tid]->traceConstructor->streamTrace.id = currentTraceID;
                 decoder[tid]->updateStreamTrace(currentTraceID, fromCommit->commitInfo[tid].pc); 
             }
             else {

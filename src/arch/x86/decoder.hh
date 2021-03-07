@@ -442,9 +442,9 @@ protected:
     void updateLRUBitsSpeculative(int idx, int way);
 
     //*****CHANGE START**********
-    void setSpeculativeCacheActive(bool active, unsigned int _currentTraceID = 0)
+    void setSpeculativeCacheActive(bool active, uint64_t _currentTraceID = 0)
     {
-
+        assert((active && _currentTraceID != 0) || (!active && _currentTraceID == 0));
         speculativeCacheActive = active;
         currentActiveTraceID = _currentTraceID;
     }
