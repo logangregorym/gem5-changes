@@ -300,7 +300,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
           _numFPDestRegs(0), _numIntDestRegs(0), _numCCDestRegs(0),
           _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
-    { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkLength = 0;
+    { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
         isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false;}
 
     StaticInst(const char *_mnemonic, ExtMachInst _machInst, OpClass __opClass)
@@ -308,7 +308,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
 	  _numFPDestRegs(0), _numIntDestRegs(0), _numCCDestRegs(0),
 	  _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
-    { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkLength = 0;
+    { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
         isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false;}
 
   public:
@@ -432,7 +432,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     uint64_t confidence = 0; // could be using BigSC
     bool predictedLoad = false;
     uint64_t traceID  = 0;
-    uint64_t shrunkLength = 0;
+    uint64_t shrunkenLength = 0;
 
     // Annotate predicted inputs here
     uint64_t sourcePredictions[38] = {0};

@@ -2092,7 +2092,8 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
                         continue;
                     }
                     numIntDestRegs++;
-                    reg_value = cpu->readIntReg(dest_reg);      
+                    reg_value = cpu->readIntReg(dest_reg);     
+                    inst->lvMispred = (reg_value != inst->staticInst->predictedValue); 
                     break;
                             
                 case CCRegClass:
@@ -2109,7 +2110,7 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
         // always should be one! We never predict for non int dest regs
         assert(numIntDestRegs == 1);
 
-        inst->lvMispred = (reg_value != inst->staticInst->predictedValue);
+        
 
         if (inst->lvMispred  && inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource()) 
         {

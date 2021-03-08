@@ -70,7 +70,7 @@ if 'O3CPU' in env['CPU_MODELS']:
     DebugFlag('Rename')
     DebugFlag('Scoreboard')
     DebugFlag('StoreSet')
-#    DebugFlag('SuperOp')
+    DebugFlag('SuperOpSanityCheck')
     DebugFlag('Writeback')
 
     CompoundFlag('O3CPUAll', [ 'Fetch', 'Decode', 'Rename', 'IEW', 'Commit',

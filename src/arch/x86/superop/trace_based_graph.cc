@@ -545,7 +545,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
                     currentTrace.prevNonEliminatedInst->setEndOfTrace();
                     
-                    currentTrace.prevNonEliminatedInst->shrunkLength = (currentTrace.length - currentTrace.shrunkLength);
+                    currentTrace.prevNonEliminatedInst->shrunkenLength = (currentTrace.length - currentTrace.shrunkLength);
                     // control prevNonEliminatedInstructions already propagate live outs
                     if (!currentTrace.prevNonEliminatedInst->isCarryingLivesOut() &&
                         !currentTrace.prevNonEliminatedInst->isControl()) 
@@ -923,7 +923,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // Update the flags for these instructions
       
 
-        // set this as a dource of prediction so we can verify it later
+        // set this as a source of prediction so we can verify it later
         currentTrace.inst->setTracePredictionSource(true);
 
         bool isDeadCode = false;
@@ -936,11 +936,12 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // {
         //     assert(usingCCTracking);
         //     string type = currentTrace.inst->getName();
-        //     if (!((type == "and" || type == "sub" || type == "xor" || type == "mov")))
-        //     {
+        //     // if (!((type == "and" || type == "sub" || type == "xor" || type == "mov")))
+        //     // {
         //         std::cout << type << std::endl;
-        //     }
+        //     //}
         //     //updateCCFlagsForPredictedSource(currentTrace.inst);
+        //     assert(0);
         // }
 
 
