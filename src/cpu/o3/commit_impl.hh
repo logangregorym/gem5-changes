@@ -1345,8 +1345,9 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             exitSimLoop("simpoint reached", 0);
         }
     }
-        //dumping int arch regs for sanity check
-    if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) % 1000 == 0)
+    
+    //dumping int arch regs for sanity check
+    if (head_inst->isReturn())
     {   
         std::string arch_regs_name[16] = {"RAX", "RCX", "RDX", "RBX", "RSP", "RBP", "RSI", "RDI", "R8", "R9","R10","R11","R12","R13","R14","R15"}; 
         stringstream reg_values; 
@@ -1358,7 +1359,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
                 reg_values << "t" << i << "=" << std::hex <<  cpu->readArchIntReg(i,tid) << " ";
 
         }
-        //std::cout << reg_values.str() << std::endl;
+  
         DPRINTF(SuperOpSanityCheck, "%s\n", reg_values.str());
     }
 
