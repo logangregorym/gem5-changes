@@ -1231,13 +1231,6 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         return false;
     }
 
-    // Squash in event of load-value misprediction
-    // if (head_inst->lvMispred) {
-    //     // Moved to lsq_unit_impl
-    //     // squashWokenDependents(head_inst);
-    //     head_inst->lvMispred = false;
-    //     return false;
-    // }
 
     if (head_inst->isThreadSync()) {
         // Not handled for now.
@@ -1349,14 +1342,35 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     //dumping int arch regs for sanity check
     if (head_inst->isReturn())
     {   
+        
+        stringstream reg_values;
+        std::string sym_str;
+        Addr sym_addr;
+        Addr cur_pc = head_inst->instAddr();
+        if (debugSymbolTable && 
+            /* (!FullSystem || !inUserMode(thread)) && */
+            debugSymbolTable->findNearestSymbol(cur_pc, sym_str, sym_addr)) 
+        {
+            if (cur_pc != sym_addr)
+                sym_str += csprintf("+%d",cur_pc - sym_addr);
+            reg_values << "@" << sym_str << " ";
+        } 
+        else 
+        {
+            reg_values << "0x" << hex << cur_pc << " ";
+        }
+
+        reg_values << head_inst->staticInst->disassemble(cur_pc, debugSymbolTable) << "\t";
+
+
         std::string arch_regs_name[16] = {"RAX", "RCX", "RDX", "RBX", "RSP", "RBP", "RSI", "RDI", "R8", "R9","R10","R11","R12","R13","R14","R15"}; 
-        stringstream reg_values; 
-        for (int i = 0; i < 38; i++)
+         
+        for (int i = 0; i < 16; i++)
         {
             if (i < 16)
                 reg_values <<  arch_regs_name[i] << "=" << std::hex <<  cpu->readArchIntReg(i,tid) << " ";
-            else 
-                reg_values << "t" << i << "=" << std::hex <<  cpu->readArchIntReg(i,tid) << " ";
+            // else 
+            //     reg_values << "t" << i << "=" << std::hex <<  cpu->readArchIntReg(i,tid) << " ";
 
         }
   
