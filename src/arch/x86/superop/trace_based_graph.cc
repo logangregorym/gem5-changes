@@ -372,6 +372,13 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
 				//DPRINTF(SuperOp, "\tSource for register %i predicted as %x\n", decodedMicroOp->srcRegIdx(i), decodedMicroOp->sourcePredictions[i]);
                 DPRINTF(TraceGen, "\tSource for register %i predicted as %x\n", decodedMicroOp->srcRegIdx(i), decodedMicroOp->sourcePredictions[i]);
 			}
+           
+		}
+        for (int i=0; i< 5; i++) {
+			if (decodedMicroOp->isCCFlagPropagated[i]) {
+				//DPRINTF(SuperOp, "\tSource for register %i predicted as %x\n", decodedMicroOp->srcRegIdx(i), decodedMicroOp->sourcePredictions[i]);
+                DPRINTF(TraceGen, "\tCC flag %d is propagated as %x\n", i, decodedMicroOp->propgatedCCFlags[i]);
+			}
 		}
 		for (int i=0; i<decodedMicroOp->numDestRegs(); i++) {
 			if (decodedMicroOp->liveOutPredicted[i]) {
@@ -2881,9 +2888,11 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "wrip");
 
+    
     if (inst->isCC() && (!usingCCTracking || !ccValid))
     {
         DPRINTF(ConstProp, "CC WRIP Inst! We can't propagate CC insts!\n");
+        assert((usingCCTracking && !ccValid) || (!usingCCTracking && !ccValid));
         return false;
     }
 
@@ -2899,11 +2908,53 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
     assert(src2 < 38);
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
         DPRINTF(ConstProp, "sources (%d, %d) invalid\n", regCtx[src1].valid, regCtx[src2].valid); 
+        // if the wripi is not folded and cc flags are valid, then propagte them with microop
+        // in some corner cases, the cc flags for a wripi are valid but the microop itself cannot be folded because of inssuficint space 
+        if (ccValid) {
+            DPRINTF(ConstProp, "Propagating CC flags with wripi microop although the wripi microop itself is not propgated!\n");
+            inst->propgatedCCFlags[0] = PredccFlagBits;
+            inst->isCCFlagPropagated[0] = true;
+            inst->propgatedCCFlags[1] = PredcfofBits;
+            inst->isCCFlagPropagated[1] = true;
+            inst->propgatedCCFlags[2] = PreddfBit;
+            inst->isCCFlagPropagated[2] = true;
+            inst->propgatedCCFlags[3] = PredecfBit;
+            inst->isCCFlagPropagated[3] = true;
+            inst->propgatedCCFlags[4] = PredezfBit;
+            inst->isCCFlagPropagated[4] = true;
+        }
+        else 
+        {
+            DPRINTF(ConstProp, "CC flags are not valid! We can't propagate them!\n");
+        }
         return false;
     }
 
     if (currentTrace.branchesFolded >= 2)
+    {
+        DPRINTF(ConstProp, "More than 2 branches are folded in this trace! We can't fold this wrip instruction although src 1 and src2 are valid!\n");
+        // if the wrip is not folded and cc flags are valid, then propagte them with microop
+        // in some corner cases, the cc flags for a wripi are valid but the microop itself cannot be folded because of inssuficint space 
+        if (ccValid) {
+            DPRINTF(ConstProp, "Propagating CC flags with wripi microop although the wrip microop itself is not propgated!\n");
+            inst->propgatedCCFlags[0] = PredccFlagBits;
+            inst->isCCFlagPropagated[0] = true;
+            inst->propgatedCCFlags[1] = PredcfofBits;
+            inst->isCCFlagPropagated[1] = true;
+            inst->propgatedCCFlags[2] = PreddfBit;
+            inst->isCCFlagPropagated[2] = true;
+            inst->propgatedCCFlags[3] = PredecfBit;
+            inst->isCCFlagPropagated[3] = true;
+            inst->propgatedCCFlags[4] = PredezfBit;
+            inst->isCCFlagPropagated[4] = true;
+        }
+        else 
+        {
+            DPRINTF(ConstProp, "CC flags are not valid! We can't propagate them!\n");
+        }
         return false;
+    }
+        
 
     uint64_t SrcReg1 = regCtx[src1].value;
     uint64_t SrcReg2 = regCtx[src2].value;
@@ -2956,16 +3007,21 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
 
     // if the wrip is not folded and cc flags are valid, then propagte them with microop
     if (ccValid) {
-        currentTrace.inst->propgatedCCFlags[0] = PredccFlagBits;
-        currentTrace.inst->isCCFlagPropagated[0] = true;
-        currentTrace.inst->propgatedCCFlags[1] = PredcfofBits;
-        currentTrace.inst->isCCFlagPropagated[1] = true;
-        currentTrace.inst->propgatedCCFlags[2] = PreddfBit;
-        currentTrace.inst->isCCFlagPropagated[2] = true;
-        currentTrace.inst->propgatedCCFlags[3] = PredecfBit;
-        currentTrace.inst->isCCFlagPropagated[3] = true;
-        currentTrace.inst->propgatedCCFlags[4] = PredezfBit;
-        currentTrace.inst->isCCFlagPropagated[4] = true;
+        DPRINTF(ConstProp, "Propagating CC flags with wrip microop!\n");
+        inst->propgatedCCFlags[0] = PredccFlagBits;
+        inst->isCCFlagPropagated[0] = true;
+        inst->propgatedCCFlags[1] = PredcfofBits;
+        inst->isCCFlagPropagated[1] = true;
+        inst->propgatedCCFlags[2] = PreddfBit;
+        inst->isCCFlagPropagated[2] = true;
+        inst->propgatedCCFlags[3] = PredecfBit;
+        inst->isCCFlagPropagated[3] = true;
+        inst->propgatedCCFlags[4] = PredezfBit;
+        inst->isCCFlagPropagated[4] = true;
+    }
+    else 
+    {
+        DPRINTF(ConstProp, "CC flags are not valid! We can't propagate them!\n");
     }
 
     return false;
@@ -2975,8 +3031,10 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "wripi");
 
+    
     if (inst->isCC() && (!usingCCTracking || !ccValid))
     {
+        assert((usingCCTracking && !ccValid) || (!usingCCTracking && !ccValid));
         DPRINTF(ConstProp, "CC WRIP Inst! We can't propagate CC insts!\n");
         return false;
     }
@@ -2992,11 +3050,54 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
     assert(src1 < 38);
     //assert(src2 < 38);
     if ((!regCtx[src1].valid)/* || (!regCtx[src2].valid)*/) {
+        DPRINTF(ConstProp, "sources (%d) is invalid\n", regCtx[src1].valid); 
+        // if the wripi is not folded and cc flags are valid, then propagte them with microop
+        // in some corner cases, the cc flags for a wripi are valid but the microop itself cannot be folded because of inssuficint space 
+        if (ccValid) {
+            DPRINTF(ConstProp, "Propagating CC flags with wripi microop although the wripi microop itself is not propgated!\n");
+            inst->propgatedCCFlags[0] = PredccFlagBits;
+            inst->isCCFlagPropagated[0] = true;
+            inst->propgatedCCFlags[1] = PredcfofBits;
+            inst->isCCFlagPropagated[1] = true;
+            inst->propgatedCCFlags[2] = PreddfBit;
+            inst->isCCFlagPropagated[2] = true;
+            inst->propgatedCCFlags[3] = PredecfBit;
+            inst->isCCFlagPropagated[3] = true;
+            inst->propgatedCCFlags[4] = PredezfBit;
+            inst->isCCFlagPropagated[4] = true;
+        }
+        else 
+        {
+            DPRINTF(ConstProp, "CC flags are not valid! We can't propagate them!\n");
+        }
         return false;
     }
 
     if (currentTrace.branchesFolded >= 2)
+    {
+        DPRINTF(ConstProp, "More than 2 branches are folded in this trace! We can't fold this wripi instruction although src 1 is valid!\n");
+        // if the wripi is not folded and cc flags are valid, then propagte them with microop
+        // in some corner cases, the cc flags for a wripi are valid but the microop itself cannot be folded because of inssuficint space 
+        if (ccValid) {
+            DPRINTF(ConstProp, "Propagating CC flags with wripi microop although the wripi microop itself is not propgated!\n");
+            inst->propgatedCCFlags[0] = PredccFlagBits;
+            inst->isCCFlagPropagated[0] = true;
+            inst->propgatedCCFlags[1] = PredcfofBits;
+            inst->isCCFlagPropagated[1] = true;
+            inst->propgatedCCFlags[2] = PreddfBit;
+            inst->isCCFlagPropagated[2] = true;
+            inst->propgatedCCFlags[3] = PredecfBit;
+            inst->isCCFlagPropagated[3] = true;
+            inst->propgatedCCFlags[4] = PredezfBit;
+            inst->isCCFlagPropagated[4] = true;
+        }
+        else 
+        {
+            DPRINTF(ConstProp, "CC flags are not valid! We can't propagate them!\n");
+        }
         return false;
+    }
+        
 
     uint64_t SrcReg1 = regCtx[src1].value;
     //uint64_t SrcReg2 = regCtx[src2].value;
@@ -3050,16 +3151,21 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
 
     // if the wripi is not folded and cc flags are valid, then propagte them with microop
     if (ccValid) {
-        currentTrace.inst->propgatedCCFlags[0] = PredccFlagBits;
-        currentTrace.inst->isCCFlagPropagated[0] = true;
-        currentTrace.inst->propgatedCCFlags[1] = PredcfofBits;
-        currentTrace.inst->isCCFlagPropagated[1] = true;
-        currentTrace.inst->propgatedCCFlags[2] = PreddfBit;
-        currentTrace.inst->isCCFlagPropagated[2] = true;
-        currentTrace.inst->propgatedCCFlags[3] = PredecfBit;
-        currentTrace.inst->isCCFlagPropagated[3] = true;
-        currentTrace.inst->propgatedCCFlags[4] = PredezfBit;
-        currentTrace.inst->isCCFlagPropagated[4] = true;
+        DPRINTF(ConstProp, "Propagating CC flags with wripi microop!\n");
+        inst->propgatedCCFlags[0] = PredccFlagBits;
+        inst->isCCFlagPropagated[0] = true;
+        inst->propgatedCCFlags[1] = PredcfofBits;
+        inst->isCCFlagPropagated[1] = true;
+        inst->propgatedCCFlags[2] = PreddfBit;
+        inst->isCCFlagPropagated[2] = true;
+        inst->propgatedCCFlags[3] = PredecfBit;
+        inst->isCCFlagPropagated[3] = true;
+        inst->propgatedCCFlags[4] = PredezfBit;
+        inst->isCCFlagPropagated[4] = true;
+    }
+    else 
+    {
+        DPRINTF(ConstProp, "CC flags are not valid! We can't propagate them!\n");
     }
 
     return false;
