@@ -1564,7 +1564,6 @@ DefaultIEW<Impl>::executeInsts()
             
             if ((!inst->isStreamedFromSpeculativeCache() || (inst->isControl() && inst->isLastMicroop())) && inst->mispredicted() && !loadNotExecuted) {
                 DPRINTF(IEW, "mismatch? target PC=%s, predicted PC=%s\n", tempPC, inst->readPredTarg());
-                //std::cout << "mismatch? target PC=" << tempPC <<", predicted PC=" << inst->readPredTarg() << "\n";
                 fetchRedirect[tid] = true;
 
                 DPRINTF(IEW, "Execute: Branch mispredict detected.\n");

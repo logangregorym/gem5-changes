@@ -365,8 +365,7 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
         Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
         StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
         //assert(decodedMicroOp);
-        DPRINTF(SuperOp, "%p:%i -- spec[%i][%i][%i]\n", pcAddr, uopAddr, idx, way, uop);    
-        DPRINTF(TraceGen, "%p:%i -- spec[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));   
+        DPRINTF(TraceGen, "%p:%i -- spec[%i][%i][%i] -- %s -- isCC = %d -- isPredictionSource = %d\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr), decodedMicroOp->isCC(), decodedMicroOp->isTracePredictionSource());   
 		for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
 			// LAYNE : TODO : print predicted inputs (checking syntax)
 			if (decodedMicroOp->sourcesPredicted[i]) {
@@ -797,8 +796,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
         {
             if ( ret.confidence >= predictionConfidenceThreshold)
             {
-                DPRINTF(TraceGen, "Found a high confidence prediction for address %#x:%d in the predictor! Confidence is %d! Predicted Value = %#x\n", 
-                                currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, ret.confidence, ret.predictedValue );
+                DPRINTF(TraceGen, "Found a high confidence prediction for address %#x:%d in the predictor! Confidence is %d! Predicted Value = %#x. This prediction source is a CC code? %d!\n", 
+                                currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, ret.confidence, ret.predictedValue, currentTrace.inst->isCC() );
 
                 assert(!currentTrace.source[NumOfValidPredictionSources].valid);
 
@@ -931,16 +930,25 @@ bool TraceBasedGraph::generateNextTraceInst() {
         
         panic_if( isDeadCode , "Prediction Source is a dead code?!");
 
-        // now if the instruction is CC we need to update the CC flags
-        // if (currentTrace.inst->isCC() && isPredictiableCC(currentTrace.inst))
+        //now if the instruction is CC we need to update the CC flags
+        // if (currentTrace.inst->isCC() && !isPredictiableCC(currentTrace.inst))
         // {
+        //     // Because we can't propagate AF, PF, and CF flags, from now on they are not valid
+        //     // valid_CF_AF_OF_flags will be set by any instruction that can generate all the flags 
+        //     // if we hit wrip and wripi microops and valid_CF_AF_OF_flags is not valid, then we will decide to 
+        //     // whether fold or not fold it 
+        //     valid_CF_AF_OF_flags = false;
+
         //     assert(usingCCTracking);
-        //     string type = currentTrace.inst->getName();
-        //     // if (!((type == "and" || type == "sub" || type == "xor" || type == "mov")))
-        //     // {
-        //         std::cout << type << std::endl;
-        //     //}
-        //     //updateCCFlagsForPredictedSource(currentTrace.inst);
+        //     DPRINTF(ConstProp, "From now on CF, AF, and OF flags are invalid dude to a condition code prediction source.\n");
+        //     updateCCFlagsForPredictedSource(currentTrace.inst);
+
+        // }
+        // else if (currentTrace.inst->isCC() && isPredictiableCC(currentTrace.inst))
+        // {
+        //     // based on my observation all of the CC codes that we can predict, they set AF, PF, and CF flgas
+        //     // https://www.gem5.org/documentation/general_docs/architecture_support/x86_microop_isa/
+        //     // therefore, if we are here it means that my assumption is wrong and we need to propagate these flags
         //     assert(0);
         // }
 
@@ -1105,11 +1113,46 @@ bool TraceBasedGraph::generateNextTraceInst() {
 void TraceBasedGraph::updateCCFlagsForPredictedSource(StaticInstPtr inst)
 {
     uint16_t ext = inst->getExt();
-    uint64_t oldFlags = 0;
-    if (inst->getName() == "and")
+    if (inst->getName() == "and" )
     {
-        uint64_t mask = PFBit | EZFBit | ZFBit | SFBit;
-        inst->genFlagsForSuperOptimizer(oldFlags , ext & mask, inst->predictedValue);
+
+        if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
+            PredccFlagBits = 0; 
+        }
+        if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
+            PredcfofBits = 0;
+        }
+        PreddfBit = 0;
+        PredecfBit = 0;
+        PredezfBit = 0;
+
+        // from generated exec code
+        uint64_t mask = CFBit | ECFBit | OFBit;
+        uint64_t newFlags = inst->genFlagsForSuperOptimizer(PredccFlagBits | PreddfBit | PredezfBit , ext & ~mask, inst->predictedValue);
+
+        PredezfBit = newFlags & EZFBit;
+        PreddfBit = newFlags & DFBit;
+        PredccFlagBits = newFlags & ccFlagMask;
+        //If a logic microop wants to set these, it wants to set them to 0.
+        PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);   // we can't update this flag with just des reg! we need sources
+        PredecfBit = PredecfBit & ~(ECFBit & ext);                // we can't update this flag with just des reg! we need sources
+
+        assert(PredcfofBits == 0 && PredecfBit == 0);
+
+        ccValid = true;
+
+    }
+    else if (inst->getName() == "xor")
+    {
+
+    }
+    else if (inst->getName() == "sub")
+    {
+
+    }
+    else if ("srli")
+    {
+        panic_if(true, "unimplemented flag generation code for %s microop! Implement it\n", inst->getName());
     }
 
 }
@@ -1147,8 +1190,6 @@ bool TraceBasedGraph::isPredictiableCC(StaticInstPtr inst)
     //                          type == "sexti" || 
     //                          type == "zexti");
 
-
-    // return isPredictableType;
 
     return true;
 }
@@ -1279,8 +1320,10 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     const uint8_t dataSize = inst_regop->dataSize;
     assert(dataSize == 8 || dataSize == 4 || dataSize == 2 || dataSize == 1);
 
-    uint16_t src1 = inst->srcRegIdx(0).flatIndex(); src1 = src1;
-    uint16_t src2 = inst->srcRegIdx(1).flatIndex(); // this is the soruce reg in 4 or 8 byte moves
+    //uint16_t src1 = inst->srcRegIdx(0).flatIndex(); src1 = src1;
+    //uint16_t src2 = inst->srcRegIdx(1).flatIndex(); // this is the soruce reg in 4 or 8 byte moves
+    uint16_t src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0)); src1 = src1;
+    uint16_t src2 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(1));
     //assert(src1 < 38); 
     assert(src2 < 38);
 

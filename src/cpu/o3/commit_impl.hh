@@ -1340,7 +1340,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     }
     
     //dumping int arch regs for sanity check
-    if (head_inst->isReturn())
+    if (head_inst->isReturn() || head_inst->isCall())
     {   
         
         stringstream reg_values;

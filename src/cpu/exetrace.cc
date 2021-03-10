@@ -86,6 +86,7 @@ Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
             debugSymbolTable->findNearestSymbol(cur_pc, sym_str, sym_addr)) {
         if (cur_pc != sym_addr)
             sym_str += csprintf("+%d",cur_pc - sym_addr);
+        outs << "0x" << hex << cur_pc << "\t";
         outs << "@" << sym_str;
     } else {
         outs << "0x" << hex << cur_pc;
