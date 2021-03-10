@@ -438,7 +438,11 @@ class StaticInst : public RefCounted, public StaticInstFlags
     uint64_t sourcePredictions[38] = {0};
     bool sourcesPredicted[38] = {0};
     uint64_t liveOut[38] = {0};
-    bool liveOutPredicted[38] = {0};
+    bool liveOutPredicted[38] = {false};
+
+    // propagated cc flags for wrip and wripi microops
+    uint64_t propgatedCCFlags[5] = {0};
+    bool isCCFlagPropagated[5] = {false};
 };
 
 #endif // __CPU_STATIC_INST_HH__

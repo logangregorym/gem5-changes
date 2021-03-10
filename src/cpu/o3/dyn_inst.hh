@@ -381,6 +381,22 @@ class BaseO3DynInst : public BaseDynInst<Impl>
 
     CCReg readCCRegOperand(const StaticInst *si, int idx)
     {
+
+        // these are for x86 
+        // CCREG_ZAPS = 0
+        // CCREG_CFOF = 1
+        // CCREG_DF   = 2
+        // CCREG_ECF  = 3
+        // CCREG_EZF  = 4
+        uint16_t propagated_reg_idx = si->srcRegIdx(idx).index();
+        // always should be less than 5 as we just have 5 CSR regs in x86
+        assert(propagated_reg_idx < 5);
+        DPRINTF(IEW, "SuperOptimizer: readCCRegOperand: isPropagated %i Propagated Value (idx = %d): %#x\n", si->isCCFlagPropagated[propagated_reg_idx], idx, si->propgatedCCFlags[propagated_reg_idx]); 
+        if (si->isCCFlagPropagated[propagated_reg_idx]) {
+            DPRINTF(IEW, "SuperOptimizer: readCCRegOperand: Returning Propagated Value (idx = %d): %#x\n", propagated_reg_idx, si->propgatedCCFlags[propagated_reg_idx]);
+            return si->propgatedCCFlags[propagated_reg_idx];
+        }
+        
         return this->cpu->readCCReg(this->_srcRegIdx[idx]);
     }
 

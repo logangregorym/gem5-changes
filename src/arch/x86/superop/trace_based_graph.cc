@@ -2954,6 +2954,20 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
     }
 
+    // if the wrip is not folded and cc flags are valid, then propagte them with microop
+    if (ccValid) {
+        currentTrace.inst->propgatedCCFlags[0] = PredccFlagBits;
+        currentTrace.inst->isCCFlagPropagated[0] = true;
+        currentTrace.inst->propgatedCCFlags[1] = PredcfofBits;
+        currentTrace.inst->isCCFlagPropagated[1] = true;
+        currentTrace.inst->propgatedCCFlags[2] = PreddfBit;
+        currentTrace.inst->isCCFlagPropagated[2] = true;
+        currentTrace.inst->propgatedCCFlags[3] = PredecfBit;
+        currentTrace.inst->isCCFlagPropagated[3] = true;
+        currentTrace.inst->propgatedCCFlags[4] = PredezfBit;
+        currentTrace.inst->isCCFlagPropagated[4] = true;
+    }
+
     return false;
 }
 
@@ -3032,6 +3046,20 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
         // unsigned DestReg = inst->srcRegIdx(1).flatIndex();
         // uint64_t psrc1 = pick(SrcReg1, 0, dataSize);
         // DestReg = merge(DestReg, bits(psrc1, imm8, 0), dataSize);;
+    }
+
+    // if the wripi is not folded and cc flags are valid, then propagte them with microop
+    if (ccValid) {
+        currentTrace.inst->propgatedCCFlags[0] = PredccFlagBits;
+        currentTrace.inst->isCCFlagPropagated[0] = true;
+        currentTrace.inst->propgatedCCFlags[1] = PredcfofBits;
+        currentTrace.inst->isCCFlagPropagated[1] = true;
+        currentTrace.inst->propgatedCCFlags[2] = PreddfBit;
+        currentTrace.inst->isCCFlagPropagated[2] = true;
+        currentTrace.inst->propgatedCCFlags[3] = PredecfBit;
+        currentTrace.inst->isCCFlagPropagated[3] = true;
+        currentTrace.inst->propgatedCCFlags[4] = PredezfBit;
+        currentTrace.inst->isCCFlagPropagated[4] = true;
     }
 
     return false;
