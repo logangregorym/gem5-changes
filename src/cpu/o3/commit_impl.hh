@@ -1434,8 +1434,8 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
                 }
                 else if (spec_count.find(it.first) == spec_count.end() && it.second.state != SpecTrace::Complete)
                 {
-                    std::cout << "Can't find trace " << it.first << " in spec$ but it is present in trace map and its state is " << it.second.state << "\n";
-                    //pass &= false; 
+                    //std::cout << "Can't find trace " << it.first << " in spec$ but it is present in trace map and its state is " << it.second.state << "\n";
+                    panic_if(it.second.state == SpecTrace::Evicted, "Found an evicted trace in traceMap!\n");
                 }
             }
             assert(pass);
