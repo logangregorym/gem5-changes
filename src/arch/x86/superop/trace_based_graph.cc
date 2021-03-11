@@ -784,282 +784,243 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
     bool updateSuccessful = false;
 
-
-    size_t NumOfValidPredictionSources;
-    for (NumOfValidPredictionSources = 0; NumOfValidPredictionSources < 4; NumOfValidPredictionSources++)
-    {
-        if (!currentTrace.source[NumOfValidPredictionSources].valid) 
-            break;
-    }
-
-    // do a prediction for the instruction before trying to propagte it
-    // For Condition Codes based on the flags we will decide that we need source operand or not
-    // If we only need the dest reg value to generate the flags like EZFBit, ZFBit, and etc. then we make a prediction here and in the next step genrate those 
-    // flags   
-    if (NumOfValidPredictionSources < 4 /*&& isPredictiableCC(currentTrace.inst)*/)
-    {
-        LVPredUnit::lvpReturnValues ret;
-        if (loadPred->makePredictionForTraceGenStage(currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, 0 , ret))
-        {
-            if ( ret.confidence >= predictionConfidenceThreshold)
-            {
-                DPRINTF(TraceGen, "Found a high confidence prediction for address %#x:%d in the predictor! Confidence is %d! Predicted Value = %#x. This prediction source is a CC code? %d!\n", 
-                                currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, ret.confidence, ret.predictedValue, currentTrace.inst->isCC() );
-
-                assert(!currentTrace.source[NumOfValidPredictionSources].valid);
-
-                currentTrace.source[NumOfValidPredictionSources].addr = FullUopAddr(currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-                currentTrace.source[NumOfValidPredictionSources].confidence = ret.confidence;
-                currentTrace.source[NumOfValidPredictionSources].value = ret.predictedValue;
-                currentTrace.source[NumOfValidPredictionSources].latency = ret.latency;
-                currentTrace.source[NumOfValidPredictionSources].valid = true;
-
-
-            }
-            else 
-            {
-                DPRINTF(TraceGen, "Found a low confidence prediction for address %#x:%d in the predictor! Confidence is %d! Predicted Value = %#x\n", 
-                                currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, ret.confidence, ret.predictedValue );
-            }
-        }
-        else 
-        {
-            DPRINTF(TraceGen, "Can't find a prediction for address %#x:%d in the predictor!\n", currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-        }
-    }
-    else if (NumOfValidPredictionSources == 4)
-    {
-        DPRINTF(TraceGen, "Not enough space for adding a new prediction source!\n");
-    }
-
-
     // Any inst in a trace may be a prediction source
     DPRINTF(ConstProp, "Trace %i: Processing instruction: %p:%i -- %s\n", currentTrace.id, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, currentTrace.inst->getName());
-    uint64_t value = 0;
-    unsigned confidence = 0;
-    unsigned latency;
+    
     string type = currentTrace.inst->getName();
-    if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) 
-    {
-        // Before updating the prevNonEliminatedInst, dump out all the live outs for the prev instruction
-        // if the previous instruction already is carrying the lives out then don't dump them again!
-        if (currentTrace.prevNonEliminatedInst && !currentTrace.prevNonEliminatedInst->isCarryingLivesOut()) 
-        {
-            // if the current inst (predicted inst) is the first microop then just dump 16 arch registers and CCs
-            if (currentTrace.inst->isFirstMicroop())
-            {
-                for (int i=0; i<16; i++) { // 16 int registers
-                    if (regCtx[i].valid && !regCtx[i].source) {
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
-                        currentTrace.prevNonEliminatedInst->_numIntDestRegs++;
-                        currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
-                    }
-                }
-            }
-            // if the current instruction is not the first microop, then we need to also dump micro-registers to cover this scenario
-            // E.G., 
-            // MOV_R_P : rdip   t7, %ctrl153,  (Propagated) (first microop)
-            // MOV_R_P : ld   rax, DS:[t7 + 0x3cb4fa] (LVP predicted and currentTrace.inst)
-            else 
-            {
-                for (int i=0; i<38; i++) { // 38 int registers
-                    if (regCtx[i].valid && !regCtx[i].source) {
-                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
-                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
-                        currentTrace.prevNonEliminatedInst->_numIntDestRegs++;
-                        currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
-                    }
-                }
-            }
-
-            // always dump all the CC regs no matter what
-            if (ccValid) 
-            {
-                    currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredccFlagBits;
-                    currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                    currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
-                    currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredcfofBits;
-                    currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                    currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
-                    currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PreddfBit;
-                    currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                    currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_DF));
-                    currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredecfBit;
-                    currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                    currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ECF));
-                    currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredezfBit;
-                    currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                    currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_EZF));
-                    currentTrace.prevNonEliminatedInst->_numCCDestRegs += 5;
-                    currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
-            }
-        }
-        
-        
-
-        // source predictions never get eliminated
-        currentTrace.prevNonEliminatedInst = currentTrace.inst;
-
-        bool isDeadCode = false;
-        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
-        
-        panic_if( isDeadCode , "Prediction Source is a dead code?!");
-
-        // Step 1: Get predicted value from LVP
-        // Step 2: Determine dest register(s)
-        // Step 3: Annotate dest register entries with that value
-        // Step 4: Add inst to speculative trace
-        
-        int numIntDestRegs = 0;
-        for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
-            RegId destReg = currentTrace.inst->destRegIdx(i);
-            if (destReg.classValue() == IntRegClass) {
-                numIntDestRegs++;
-				DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), value, type);
-                assert(destReg.flatIndex() < 38);
-                regCtx[destReg.flatIndex()].value = value;
-                currentTrace.inst->predictedValue = value;
-                regCtx[destReg.flatIndex()].valid = true;
-                regCtx[destReg.flatIndex()].source = true;
-                // currentTrace.inst->predictedLoad = true; // this should never set for trace prediction sources!
-                currentTrace.inst->confidence = confidence;
-            }
-        }
-        assert(numIntDestRegs == 1);
-
-        // We can predict some of the Condition Code instructions based on whether they need source registers to 
-        // generate the flags or not
-        // Update the flags for these instructions
-      
-
-        // set this as a source of prediction so we can verify it later
-        currentTrace.inst->setTracePredictionSource(true);
-
-        
-
-        //now if the instruction is CC we need to update the CC flags
-        // if (currentTrace.inst->isCC() && !isPredictiableCC(currentTrace.inst))
-        // {
-        //     // Because we can't propagate AF, PF, and CF flags, from now on they are not valid
-        //     // valid_CF_AF_OF_flags will be set by any instruction that can generate all the flags 
-        //     // if we hit wrip and wripi microops and valid_CF_AF_OF_flags is not valid, then we will decide to 
-        //     // whether fold or not fold it 
-        //     valid_CF_AF_OF_flags = false;
-
-        //     assert(usingCCTracking);
-        //     DPRINTF(ConstProp, "From now on CF, AF, and OF flags are invalid dude to a condition code prediction source.\n");
-        //     updateCCFlagsForPredictedSource(currentTrace.inst);
-
-        // }
-        // else if (currentTrace.inst->isCC() && isPredictiableCC(currentTrace.inst))
-        // {
-        //     // based on my observation all of the CC codes that we can predict, they set AF, PF, and CF flgas
-        //     // https://www.gem5.org/documentation/general_docs/architecture_support/x86_microop_isa/
-        //     // therefore, if we are here it means that my assumption is wrong and we need to propagate these flags
-        //     assert(0);
-        // }
-
-
-    } else {
-
-        bool propagated = false;
-        bool folded = false;
-        // Propagate predicted values
-        if (type == "mov") {
+    bool propagated = false;
+    bool folded = false;
+    // Propagate predicted values
+    if (type == "mov") {
             DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateMov(currentTrace.inst);
-        } else if (type == "rdip") {
+    } else if (type == "rdip") {
             DPRINTF(ConstProp, "Found an RDIP at [%i][%i][%i], compacting...\n", idx, way, uop);
             RegId destReg = currentTrace.inst->destRegIdx(0);
             regCtx[destReg.flatIndex()].value = currentTrace.instAddr.pcAddr + currentTrace.inst->macroOp->getMacroopSize();
             regCtx[destReg.flatIndex()].valid = propagated = true;
             DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", regCtx[destReg.flatIndex()].value, destReg.flatIndex());
-        } else if (type == "wrip") {
+    } else if (type == "wrip") {
             DPRINTF(ConstProp, "Found a WRIP branch at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = folded = propagateWrip(currentTrace.inst);
-        } else if (type == "wripi") {
+    } else if (type == "wripi") {
             DPRINTF(ConstProp, "Found a WRIPI branch at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = folded = propagateWripI(currentTrace.inst);
-        } else if (currentTrace.inst->isControl()) {
+    } else if (currentTrace.inst->isControl()) {
             // printf("Control instruction of type %s\n", type);
             // TODO: check for stopping condition or predicted target
-        } else if (type == "movi") {
+    } else if (type == "movi") {
             DPRINTF(ConstProp, "Found a MOVI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateMovI(currentTrace.inst);
-        } else if (type == "and") {
+    } else if (type == "and") {
             DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAnd(currentTrace.inst);
-        } else if (type == "add") {
+    } else if (type == "add") {
             DPRINTF(ConstProp, "Found an ADD at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAdd(currentTrace.inst);
-        } else if (type == "sub") {
+    } else if (type == "sub") {
             DPRINTF(ConstProp, "Found a SUB at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateSub(currentTrace.inst);
-        } else if (type == "xor") {
+    } else if (type == "xor") {
             DPRINTF(ConstProp, "Found an XOR at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateXor(currentTrace.inst);
-        } else if (type == "or") {
+    } else if (type == "or") {
             DPRINTF(ConstProp, "Found an OR at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateOr(currentTrace.inst);
-        } else if (type == "subi") {
+    } else if (type == "subi") {
             DPRINTF(ConstProp, "Found a SUBI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateSubI(currentTrace.inst);
-        } else if (type == "addi") {
+    } else if (type == "addi") {
             DPRINTF(ConstProp, "Found an ADDI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAddI(currentTrace.inst);
-        } else if (type == "slli") {
+    } else if (type == "slli") {
             DPRINTF(ConstProp, "Found a SLLI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateSllI(currentTrace.inst);
-        } else if (type == "srli") {
+    } else if (type == "srli") {
             DPRINTF(ConstProp, "Found a SRLI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateSrlI(currentTrace.inst);
-        } else if (type == "lea") {
+    } else if (type == "lea") {
             DPRINTF(ConstProp, "Type is LEA");
             // Requires multiple ALU operations to propagate, not using
-        } else if (type == "sexti") {
+    } else if (type == "sexti") {
             // Implementation has multiple ALU operations, but this is not required by the nature of the operation
             DPRINTF(ConstProp, "Found a SEXTI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateSExtI(currentTrace.inst);
-        } else if (type == "zexti") {
+    } else if (type == "zexti") {
             // Implementation has multiple ALU operations, but this is not required by the nature of the operation
             DPRINTF(ConstProp, "Found a ZEXTI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateZExtI(currentTrace.inst);
-        } else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
+    } else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
             DPRINTF(ConstProp, "Type is MUL1S, MUL1U, MULEL, or MULEH\n");
             // TODO: two dest regs with different values? maybe too complex arithmetic?
-        } else if (type == "limm") {
+    } else if (type == "limm") {
             DPRINTF(ConstProp, "Found a LIMM at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateLimm(currentTrace.inst);
-        } else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
+    } else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
             DPRINTF(ConstProp, "Type    is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
             // TODO: add control registers to graph?
-        } else if (type == "rdtsc" || type == "rdval") {
+    } else if (type == "rdtsc" || type == "rdval") {
             DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
             // TODO: determine whether direct register file access needs to be handled differently?
-        } else if (type == "panic" || type == "CPUID") {
+    } else if (type == "panic" || type == "CPUID") {
             DPRINTF(ConstProp, "Type is PANIC or CPUID\n");
             // TODO: possibly remove, what is purpose?
-        } else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp") {
+    } else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "syscall" || type == "halt" || type == "fault" || type == "call_far_Mp") {
             DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, SYSCALL, HALT, FAULT, or CALL_FAR_MP\n");
             // TODO: cannot remove
-        } else {
+    } else {
             DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
-        }
-
-        bool isDeadCode = false;
-        if (!folded) {
-            updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, propagated);
-        }
-        // if it's not a dead code, then update the last non-eliminated microop of the specTrace
-        if (!isDeadCode && !folded)
-        {
-            currentTrace.prevNonEliminatedInst = currentTrace.inst;
-        }
     }
 
+    bool isDeadCode = false;
+    if (!folded) {
+            updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, propagated);
+    }
+    
+    
+    // now let's check to see if we can make a prediction
+    if (!isDeadCode && !folded)
+    {
+        // first prob the predictor to see if we can make a prediction
+        probePredictorForMakingPrediction();
+
+        uint64_t value = 0;
+        unsigned confidence = 0;
+        unsigned latency;
+        string type = currentTrace.inst->getName();
+
+        // if it's a prediction source, then do the same thin as before
+        if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) 
+        {
+            // Before updating the prevNonEliminatedInst, dump out all the live outs for the prev instruction
+            // if the previous instruction already is carrying the lives out then don't dump them again!
+            if (currentTrace.prevNonEliminatedInst && !currentTrace.prevNonEliminatedInst->isCarryingLivesOut()) 
+            {
+                // if the current inst (predicted inst) is the first microop then just dump 16 arch registers and CCs
+                if (currentTrace.inst->isFirstMicroop())
+                {
+                        for (int i=0; i<16; i++) { // 16 int registers
+                            if (regCtx[i].valid && !regCtx[i].source) {
+                                currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
+                                currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                                currentTrace.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
+                                currentTrace.prevNonEliminatedInst->_numIntDestRegs++;
+                                currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
+                            }
+                        }
+                }
+                // if the current instruction is not the first microop, then we need to also dump micro-registers to cover this scenario
+                // E.G., 
+                // MOV_R_P : rdip   t7, %ctrl153,  (Propagated) (first microop)
+                // MOV_R_P : ld   rax, DS:[t7 + 0x3cb4fa] (LVP predicted and currentTrace.inst)
+                else 
+                {
+                        for (int i=0; i<38; i++) { // 38 int registers
+                            if (regCtx[i].valid && !regCtx[i].source) {
+                                currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = regCtx[i].value;
+                                currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                                currentTrace.prevNonEliminatedInst->addDestReg(RegId(IntRegClass, i));
+                                currentTrace.prevNonEliminatedInst->_numIntDestRegs++;
+                                currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
+                            }
+                        }
+                }
+
+                    // always dump all the CC regs no matter what
+                    if (ccValid) 
+                    {
+                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredccFlagBits;
+                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
+                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredcfofBits;
+                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
+                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PreddfBit;
+                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_DF));
+                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredecfBit;
+                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ECF));
+                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredezfBit;
+                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_EZF));
+                            currentTrace.prevNonEliminatedInst->_numCCDestRegs += 5;
+                            currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
+                    }
+            }
+                
+                
+
+            // source predictions never get eliminated
+            // currentTrace.prevNonEliminatedInst = currentTrace.inst;
+
+            // bool isDeadCode = false;
+            // updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
+                
+            // panic_if( isDeadCode , "Prediction Source is a dead code?!");
+
+            // Step 1: Get predicted value from LVP
+            // Step 2: Determine dest register(s)
+            // Step 3: Annotate dest register entries with that value
+            // Step 4: Add inst to speculative trace
+                
+            int numIntDestRegs = 0;
+            for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
+                    RegId destReg = currentTrace.inst->destRegIdx(i);
+                    if (destReg.classValue() == IntRegClass) {
+                        numIntDestRegs++;
+                        DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), value, type);
+                        assert(destReg.flatIndex() < 38);
+                        regCtx[destReg.flatIndex()].value = value;
+                        currentTrace.inst->predictedValue = value;
+                        regCtx[destReg.flatIndex()].valid = true;
+                        regCtx[destReg.flatIndex()].source = true;
+                        // currentTrace.inst->predictedLoad = true; // this should never set for trace prediction sources!
+                        currentTrace.inst->confidence = confidence;
+                    }
+            }
+            assert(numIntDestRegs == 1);
+
+            // We can predict some of the Condition Code instructions based on whether they need source registers to 
+            // generate the flags or not
+            // Update the flags for these instructions
+            
+
+            // set this as a source of prediction so we can verify it later
+            currentTrace.inst->setTracePredictionSource(true);
+
+                
+
+            //now if the instruction is CC we need to update the CC flags
+            // if (currentTrace.inst->isCC() && !isPredictiableCC(currentTrace.inst))
+                // {
+            //     // Because we can't propagate AF, PF, and CF flags, from now on they are not valid
+            //     // valid_CF_AF_OF_flags will be set by any instruction that can generate all the flags 
+            //     // if we hit wrip and wripi microops and valid_CF_AF_OF_flags is not valid, then we will decide to 
+            //     // whether fold or not fold it 
+            //     valid_CF_AF_OF_flags = false;
+
+            //     assert(usingCCTracking);
+            //     DPRINTF(ConstProp, "From now on CF, AF, and OF flags are invalid dude to a condition code prediction source.\n");
+            //     updateCCFlagsForPredictedSource(currentTrace.inst);
+
+            // }
+            // else if (currentTrace.inst->isCC() && isPredictiableCC(currentTrace.inst))
+            // {
+            //     // based on my observation all of the CC codes that we can predict, they set AF, PF, and CF flgas
+            //     // https://www.gem5.org/documentation/general_docs/architecture_support/x86_microop_isa/
+            //     // therefore, if we are here it means that my assumption is wrong and we need to propagate these flags
+            //     assert(0);
+            // }
+        }
+
+    }
+    
+    // if it's not a dead code, then update the last non-eliminated microop of the specTrace
+    if (!isDeadCode && !folded)
+    {
+        currentTrace.prevNonEliminatedInst = currentTrace.inst;
+    }
     // Simulate a stall if update to speculative cache wasn't successful
     if (updateSuccessful) {
         advanceTrace(currentTrace);
@@ -1101,6 +1062,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.inst->setCarriesLiveOut(true);
         }
     }
+
     DPRINTF(SuperOp, "Live Outs:\n");
     for (int i=0; i<16; i++) {
         if (regCtx[i].valid && !regCtx[i].source)
@@ -1118,6 +1080,64 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
     return true;
     //HeapProfilerStop();
+}
+
+bool TraceBasedGraph::probePredictorForMakingPrediction()
+{
+    size_t NumOfValidPredictionSources;
+    for (NumOfValidPredictionSources = 0; NumOfValidPredictionSources < 4; NumOfValidPredictionSources++)
+    {
+        if (!currentTrace.source[NumOfValidPredictionSources].valid) 
+            break;
+    }
+
+    // do a prediction for the instruction before trying to propagte it
+    // For Condition Codes based on the flags we will decide that we need source operand or not
+    // If we only need the dest reg value to generate the flags like EZFBit, ZFBit, and etc. then we make a prediction here and in the next step genrate those 
+    // flags   
+    if (NumOfValidPredictionSources < 4 /*&& isPredictiableCC(currentTrace.inst)*/)
+    {
+        LVPredUnit::lvpReturnValues ret;
+        if (loadPred->makePredictionForTraceGenStage(currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, 0 , ret))
+        {
+            if ( ret.confidence >= predictionConfidenceThreshold)
+            {
+                DPRINTF(TraceGen, "Found a high confidence prediction for address %#x:%d in the predictor! Confidence is %d! Predicted Value = %#x. This prediction source is a CC code? %d!\n", 
+                                currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, ret.confidence, ret.predictedValue, currentTrace.inst->isCC() );
+
+                assert(!currentTrace.source[NumOfValidPredictionSources].valid);
+
+                currentTrace.source[NumOfValidPredictionSources].addr = FullUopAddr(currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
+                currentTrace.source[NumOfValidPredictionSources].confidence = ret.confidence;
+                currentTrace.source[NumOfValidPredictionSources].value = ret.predictedValue;
+                currentTrace.source[NumOfValidPredictionSources].latency = ret.latency;
+                currentTrace.source[NumOfValidPredictionSources].valid = true;
+                return true;
+
+            }
+            else 
+            {
+                DPRINTF(TraceGen, "Found a low confidence prediction for address %#x:%d in the predictor! Confidence is %d! Predicted Value = %#x\n", 
+                                currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, ret.confidence, ret.predictedValue );
+                return false;
+            }
+        }
+        else 
+        {
+            DPRINTF(TraceGen, "Can't find a prediction for address %#x:%d in the predictor!\n", currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
+            return false;
+        }
+    }
+    else if (NumOfValidPredictionSources == 4)
+    {
+        DPRINTF(TraceGen, "Not enough space for adding a new prediction source!\n");
+        return false;
+    }
+    else 
+    {
+        panic_if(NumOfValidPredictionSources > 4, "morethan 4 valid prediction sources!\n");
+        return false;
+    }
 }
 
 void TraceBasedGraph::updateCCFlagsForPredictedSource(StaticInstPtr inst)
@@ -1182,25 +1202,6 @@ bool TraceBasedGraph::isPredictiableCC(StaticInstPtr inst)
     else if (flagMask & OFBit)
         return false;
 
-    // string type = inst->getName();
-    // bool isPredictableType = (type == "mov" || 
-    //                          type == "movi" || 
-    //                          type == "add" || 
-    //                          type == "addi" || 
-    //                          type == "sub" || 
-    //                          type == "subi" || 
-    //                          type == "and" || 
-    //                          type == "andi" || 
-    //                          type == "or" || 
-    //                          type == "ori" || 
-    //                          type == "xor" || 
-    //                          type == "xori" || 
-    //                          type == "slri" || 
-    //                          type == "slli" || 
-    //                          type == "sexti" || 
-    //                          type == "zexti");
-
-
     return true;
 }
 
@@ -1222,7 +1223,9 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     uint64_t value;
     unsigned confidence;
     unsigned latency;
-    bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) /*&& type != "limm" && type != "movi" && type != "rdip"*/;
+    bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) ;
+    assert(!isPredSource);
+    
     isDeadCode &= (propagated && !isPredSource && !((!usingCCTracking && trace.inst->isCC()) || trace.inst->isReturn()));
 
     DPRINTF(ConstProp, "isDeadCode:%d propagated:%d isPredSource:%d CC:%d Return:%d\n", isDeadCode, propagated, isPredSource, (/*!usingCCTracking &&*/ trace.inst->isCC()), trace.inst->isReturn());
@@ -1254,20 +1257,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     for (int i=0; i<trace.inst->numSrcRegs(); i++) 
     {
         uint16_t srcIdx = trace.inst->srcRegIdx(i).flatIndex();
-        // bool propagatingSrc = true;
-        // if (isPredSource) 
-        // { // handle special case where srcReg == destReg
-        //     for (int i=0; i<trace.inst->numDestRegs(); i++) {
-        //         unsigned destIdx = trace.inst->destRegIdx(i).flatIndex();
-        //         if (destIdx == srcIdx) {
-        //             propagatingSrc = false;
-        //             break;
-        //         }
-        //     }
-        // }
-        
-        // if (propagatingSrc) 
-        // {
+
         DPRINTF(ConstProp, "ConstProp: Examining register %i\n", srcIdx);
         if (trace.inst->srcRegIdx(i).classValue() == IntRegClass) 
         {
@@ -1286,7 +1276,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
                 } 
 
         }
-        // }
+        
     }
 
     // update live outs -- don't do this for prediction sources
