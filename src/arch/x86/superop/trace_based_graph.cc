@@ -881,12 +881,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
     // now let's check to see if we can make a prediction
     if (!isDeadCode && !folded)
     {
-        // first prob the predictor to see if we can make a prediction
-        probePredictorForMakingPrediction();
-
         uint64_t value = 0;
         unsigned confidence = 0;
         unsigned latency;
+        // first prob the predictor to see if we can make a prediction
+        if (!isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency))
+            probePredictorForMakingPrediction();
+
         string type = currentTrace.inst->getName();
 
         // if it's a prediction source, then do the same thin as before
@@ -1224,7 +1225,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     unsigned confidence;
     unsigned latency;
     bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) ;
-    assert(!isPredSource);
+    //assert(!isPredSource);
     
     isDeadCode &= (propagated && !isPredSource && !((!usingCCTracking && trace.inst->isCC()) || trace.inst->isReturn()));
 
