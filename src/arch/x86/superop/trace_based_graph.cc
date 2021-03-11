@@ -898,9 +898,15 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
         }
         
+        
 
         // source predictions never get eliminated
         currentTrace.prevNonEliminatedInst = currentTrace.inst;
+
+        bool isDeadCode = false;
+        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
+        
+        panic_if( isDeadCode , "Prediction Source is a dead code?!");
 
         // Step 1: Get predicted value from LVP
         // Step 2: Determine dest register(s)
@@ -932,10 +938,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // set this as a source of prediction so we can verify it later
         currentTrace.inst->setTracePredictionSource(true);
 
-        bool isDeadCode = false;
-        updateSuccessful = updateSpecTrace(currentTrace, isDeadCode, false);
         
-        panic_if( isDeadCode , "Prediction Source is a dead code?!");
 
         //now if the instruction is CC we need to update the CC flags
         // if (currentTrace.inst->isCC() && !isPredictiableCC(currentTrace.inst))
@@ -1222,7 +1225,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) /*&& type != "limm" && type != "movi" && type != "rdip"*/;
     isDeadCode &= (propagated && !isPredSource && !((!usingCCTracking && trace.inst->isCC()) || trace.inst->isReturn()));
 
-    DPRINTF(ConstProp, "isDeadCode:%d propagated:%d isPredSource:%d CC:%d Return:%d\n", isDeadCode, propagated, isPredSource, (!usingCCTracking && trace.inst->isCC()), trace.inst->isReturn());
+    DPRINTF(ConstProp, "isDeadCode:%d propagated:%d isPredSource:%d CC:%d Return:%d\n", isDeadCode, propagated, isPredSource, (/*!usingCCTracking &&*/ trace.inst->isCC()), trace.inst->isReturn());
     if (allSrcsReady && (!usingCCTracking && trace.inst->isCC()))
     {
         DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not a dead code as it's a CC inst!\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
@@ -1251,28 +1254,28 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     for (int i=0; i<trace.inst->numSrcRegs(); i++) 
     {
         uint16_t srcIdx = trace.inst->srcRegIdx(i).flatIndex();
-        bool propagatingSrc = true;
-        if (isPredSource) 
-        { // handle special case where srcReg == destReg
-            for (int i=0; i<trace.inst->numDestRegs(); i++) {
-                unsigned destIdx = trace.inst->destRegIdx(i).flatIndex();
-                if (destIdx == srcIdx) {
-                    propagatingSrc = false;
-                    break;
-                }
-            }
-        }
+        // bool propagatingSrc = true;
+        // if (isPredSource) 
+        // { // handle special case where srcReg == destReg
+        //     for (int i=0; i<trace.inst->numDestRegs(); i++) {
+        //         unsigned destIdx = trace.inst->destRegIdx(i).flatIndex();
+        //         if (destIdx == srcIdx) {
+        //             propagatingSrc = false;
+        //             break;
+        //         }
+        //     }
+        // }
         
-        if (propagatingSrc) 
+        // if (propagatingSrc) 
+        // {
+        DPRINTF(ConstProp, "ConstProp: Examining register %i\n", srcIdx);
+        if (trace.inst->srcRegIdx(i).classValue() == IntRegClass) 
         {
-            DPRINTF(ConstProp, "ConstProp: Examining register %i\n", srcIdx);
-            if (trace.inst->srcRegIdx(i).classValue() == IntRegClass) 
-            {
                 // ah, bh, ch, dh regs use different index values. For example, ah is 64, and etc.
                 // we need to fold these regs before use them 
                 X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)trace.inst.get();
                 RegIndex src_reg_idx = x86_inst->getUnflattenRegIndex(trace.inst->srcRegIdx(i));
-
+                assert(src_reg_idx < 38);
                 if (regCtx[src_reg_idx].valid)
                 {
                     //if (fold)  DPRINTF(ConstProp, "ConstProp: Found a folded register! Reg: %d \n", src_reg_idx);
@@ -1282,8 +1285,8 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
                     trace.inst->sourcesPredicted[i] = true;
                 } 
 
-            }
         }
+        // }
     }
 
     // update live outs -- don't do this for prediction sources
@@ -1292,13 +1295,12 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
             RegId destReg = trace.inst->destRegIdx(i);
             if (destReg.classValue() == IntRegClass) 
             {
-                //RegIndex dest_reg_idx = destReg.flatIndex();
 
                 // ah, bh, ch, dh regs use different index values. For example, ah is 64, and etc.
                 // we need to fold these regs before use them 
                 X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)trace.inst.get();
                 RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(destReg);
-                
+                assert(dest_reg_idx < 38);
                 regCtx[dest_reg_idx].valid = false;
             }
         }
