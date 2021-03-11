@@ -607,7 +607,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                         DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
                         DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
                     } else {
-                    DPRINTF(SuperOp, "No live out CC\n");
+                        DPRINTF(SuperOp, "No live out CC\n");
                     }
                     for (int i=0; i<4; i++) 
                     {
@@ -1218,7 +1218,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     }*/
 
     string type = trace.inst->getName();
-    isDeadCode = (type == "rdip") || (allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "slri" || type == "slli" || type == "sexti" || type == "zexti"));
+    isDeadCode = (type == "rdip") || (allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"));
 
     // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC
     uint64_t value;
