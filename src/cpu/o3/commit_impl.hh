@@ -892,10 +892,20 @@ DefaultCommit<Impl>::commit()
 
             if (fromIEW->mispredictInst[tid]) {
                 DPRINTF(Commit,
-                    "[tid:%i]: Squashing due to branch mispred PC:%#x [sn:%i]\n",
+                    "[tid:%i]: Squashing due to branch or a value mispred PC:%#x [sn:%i]\n",
                     tid,
                     fromIEW->mispredictInst[tid]->instAddr(),
                     fromIEW->squashedSeqNum[tid]);
+                if (fromIEW->mispredictInst[tid]->staticInst->isHeadOfTrace) {
+                    // Update the commit rename map
+                    for (int i = 0; i < fromIEW->mispredictInst[tid]->numDestRegs(); i++) {
+                        if (fromIEW->mispredictInst[tid]->staticInst->liveOutPredicted[i]) {
+                            DPRINTF(Commit, "Updating rename map for register %i\n", fromIEW->mispredictInst[tid]->flattenedDestRegIdx(i));
+                            renameMap[tid]->setEntry(fromIEW->mispredictInst[tid]->flattenedDestRegIdx(i),
+                                                     fromIEW->mispredictInst[tid]->renamedDestRegIdx(i));
+                        }
+                    }
+                }
             } else {
                 DPRINTF(Commit,
                     "[tid:%i]: Squashing due to order violation [sn:%i]\n",

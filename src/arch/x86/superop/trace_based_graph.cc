@@ -898,6 +898,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             // from the micro-op cache using the address corresponding to the prediction source.  Due to this, certain instructions just don’t get executed even though
             // they should.
             if (!currentTrace.prevNonEliminatedInst) {
+                currentTrace.inst->isHeadOfTrace = true;
                 currentTrace.prevNonEliminatedInst = currentTrace.inst;
             }
 
@@ -976,7 +977,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             int numIntDestRegs = 0;
             for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
                     RegId destReg = currentTrace.inst->destRegIdx(i);
-                    if (destReg.classValue() == IntRegClass) {
+                    if (!currentTrace.inst->liveOutPredicted[i] && destReg.classValue() == IntRegClass) {
                         numIntDestRegs++;
                         DPRINTF(SuperOp, "Setting regCtx[%i] to %x from %s inst\n", destReg.flatIndex(), value, type);
                         assert(destReg.flatIndex() < 38);
