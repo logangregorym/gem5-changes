@@ -1749,7 +1749,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
         nextPC.valid = true;
     } else {
         /* Assuming a trace always ends at the last micro-op of a macro-op. */
-        nextPC._pc += curInst->macroOp->getMacroopSize();
+        nextPC._pc = thisPC._pc + curInst->macroOp->getMacroopSize();
         nextPC._npc = nextPC._pc + 1;
         nextPC.size(0);
         nextPC._upc = 0;
