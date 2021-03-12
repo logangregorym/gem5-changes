@@ -315,6 +315,7 @@ class DefaultRename
         /** The old physical register that the arch. register was renamed to.
          */
         PhysRegIdPtr prevPhysReg;
+        bool liveOutAtHead;
     };
 
     /** A per-thread list of all destination register renames, used to either

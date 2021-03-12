@@ -945,7 +945,7 @@ DefaultRename<Impl>::doSquash(const InstSeqNum &squashed_seq_num, ThreadID tid)
         // is the same as the old one.  While it would be merely a
         // waste of time to update the rename table, we definitely
         // don't want to put these on the free list.
-        if (hb_it->newPhysReg != hb_it->prevPhysReg) {
+        if (!hb_it->liveOutAtHead && hb_it->newPhysReg != hb_it->prevPhysReg) {
             // Tell the rename map to set the architected register to the
             // previous physical register that it was renamed to.
             renameMap[tid]->setEntry(hb_it->archReg, hb_it->prevPhysReg);
@@ -1108,12 +1108,18 @@ DefaultRename<Impl>::renameDestRegs(DynInstPtr &inst, ThreadID tid)
                                rename_result.first,
                                rename_result.second);
 
+        if (inst->staticInst->isHeadOfTrace && inst->staticInst->liveOutPredicted[dest_idx]) {
+            hb_entry.liveOutAtHead = true;
+        } else {
+            hb_entry.liveOutAtHead = false;
+        }
+
         historyBuffer[tid].push_front(hb_entry);
 
         DPRINTF(Rename, "[tid:%u]: Adding instruction to history buffer "
-                "(size=%i), [sn:%lli].\n",tid,
+                "(size=%i), [sn:%lli], liveOutAtHead:%i.\n",tid,
                 historyBuffer[tid].size(),
-                (*historyBuffer[tid].begin()).instSeqNum);
+                (*historyBuffer[tid].begin()).instSeqNum, hb_entry.liveOutAtHead);
 
         // Tell the instruction to rename the appropriate destination
         // register (dest_idx) to the new physical register
