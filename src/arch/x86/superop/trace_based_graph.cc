@@ -893,6 +893,14 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // if it's a prediction source, then do the same thin as before
         if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) 
         {
+            // If there are eliminated instructions before a prediction source, and the prediction source ends up being the first instruction of the trace, dump live outs.
+            // This is because if the prediction is incorrect, the prediction source will get squashed, but live outs never get dumped, and we redirect and start fetching
+            // from the micro-op cache using the address corresponding to the prediction source.  Due to this, certain instructions just don’t get executed even though
+            // they should.
+            if (!currentTrace.prevNonEliminatedInst) {
+                currentTrace.prevNonEliminatedInst = currentTrace.inst;
+            }
+
             // Before updating the prevNonEliminatedInst, dump out all the live outs for the prev instruction
             // if the previous instruction already is carrying the lives out then don't dump them again!
             if (currentTrace.prevNonEliminatedInst && !currentTrace.prevNonEliminatedInst->isCarryingLivesOut()) 
@@ -980,7 +988,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                         currentTrace.inst->confidence = confidence;
                     }
             }
-            assert(numIntDestRegs == 1);
+            assert(currentTrace.inst == currentTrace.prevNonEliminatedInst || numIntDestRegs == 1);
 
             // We can predict some of the Condition Code instructions based on whether they need source registers to 
             // generate the flags or not
