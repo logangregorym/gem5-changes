@@ -1749,11 +1749,11 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
         nextPC.valid = true;
     } else {
         /* Assuming a trace always ends at the last micro-op of a macro-op. */
-        nextPC._pc = thisPC._pc + curInst->macroOp->getMacroopSize();
-        nextPC._npc = nextPC._pc + 1;
+        nextPC._pc = traceConstructor->streamTrace.end.pcAddr;
+        nextPC._npc = traceConstructor->streamTrace.end.pcAddr+1;
         nextPC.size(0);
-        nextPC._upc = 0;
-        nextPC._nupc = 1;
+        nextPC._upc = traceConstructor->streamTrace.end.uopAddr;
+        nextPC._nupc = traceConstructor->streamTrace.end.uopAddr+1;
         nextPC.valid = false;
         //curInst->setEndOfTrace();
     }

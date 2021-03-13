@@ -898,7 +898,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
             // from the micro-op cache using the address corresponding to the prediction source.  Due to this, certain instructions just don’t get executed even though
             // they should.
             if (!currentTrace.prevNonEliminatedInst) {
-                currentTrace.inst->isHeadOfTrace = true;
                 currentTrace.prevNonEliminatedInst = currentTrace.inst;
             }
 
@@ -936,27 +935,28 @@ bool TraceBasedGraph::generateNextTraceInst() {
                         }
                 }
 
-                    // always dump all the CC regs no matter what
-                    if (ccValid) 
-                    {
-                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredccFlagBits;
-                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
-                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredcfofBits;
-                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
-                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PreddfBit;
-                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_DF));
-                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredecfBit;
-                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ECF));
-                            currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredezfBit;
-                            currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
-                            currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_EZF));
-                            currentTrace.prevNonEliminatedInst->_numCCDestRegs += 5;
-                            currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
-                    }
+                // always dump all the CC regs no matter what
+                if (ccValid) 
+                {
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredccFlagBits;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredcfofBits;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PreddfBit;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_DF));
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredecfBit;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_ECF));
+                        currentTrace.prevNonEliminatedInst->liveOut[currentTrace.prevNonEliminatedInst->numDestRegs()] = PredezfBit;
+                        currentTrace.prevNonEliminatedInst->liveOutPredicted[currentTrace.prevNonEliminatedInst->numDestRegs()] = true;
+                        currentTrace.prevNonEliminatedInst->addDestReg(RegId(CCRegClass, CCREG_EZF));
+                        currentTrace.prevNonEliminatedInst->_numCCDestRegs += 5;
+                        currentTrace.prevNonEliminatedInst->setCarriesLiveOut(true);
+                }
+                currentTrace.prevNonEliminatedInst->shrunkenLength = (currentTrace.length - currentTrace.shrunkLength);
             }
                 
                 
@@ -1033,6 +1033,15 @@ bool TraceBasedGraph::generateNextTraceInst() {
     }
     // Simulate a stall if update to speculative cache wasn't successful
     if (updateSuccessful) {
+        currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr;
+        currentTrace.end.uopAddr = currentTrace.instAddr.uopAddr;
+        currentTrace.end.uopAddr++;
+        if (currentTrace.end.uopAddr == currentTrace.inst->macroOp->getNumMicroops()) {
+            currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr + currentTrace.inst->macroOp->getMacroopSize();
+            currentTrace.end.uopAddr = 0;
+        }
+        DPRINTF(TraceGen, "Setting end of trace PC to: %#x:%#x\n", currentTrace.end.pcAddr, currentTrace.end.uopAddr);
+        
         advanceTrace(currentTrace);
     }
 
@@ -1071,6 +1080,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.inst->_numCCDestRegs += 5;
             currentTrace.inst->setCarriesLiveOut(true);
         }
+        currentTrace.inst->shrunkenLength = (currentTrace.length - currentTrace.shrunkLength);
     }
 
     DPRINTF(SuperOp, "Live Outs:\n");

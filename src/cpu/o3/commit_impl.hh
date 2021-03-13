@@ -896,15 +896,8 @@ DefaultCommit<Impl>::commit()
                     tid,
                     fromIEW->mispredictInst[tid]->instAddr(),
                     fromIEW->squashedSeqNum[tid]);
-                if (fromIEW->mispredictInst[tid]->staticInst->isHeadOfTrace) {
-                    // Update the commit rename map
-                    for (int i = 0; i < fromIEW->mispredictInst[tid]->numDestRegs(); i++) {
-                        if (fromIEW->mispredictInst[tid]->staticInst->liveOutPredicted[i]) {
-                            DPRINTF(Commit, "Updating rename map for register %i\n", fromIEW->mispredictInst[tid]->flattenedDestRegIdx(i));
-                            renameMap[tid]->setEntry(fromIEW->mispredictInst[tid]->flattenedDestRegIdx(i),
-                                                     fromIEW->mispredictInst[tid]->renamedDestRegIdx(i));
-                        }
-                    }
+                if (fromIEW->mispredictInst[tid]->isStreamedFromSpeculativeCache()) {
+                    numMicroopsShrunken += fromIEW->mispredictInst[tid]->staticInst->shrunkenLength;
                 }
             } else {
                 DPRINTF(Commit,

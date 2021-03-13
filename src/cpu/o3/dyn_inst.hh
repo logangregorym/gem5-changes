@@ -214,6 +214,9 @@ class BaseO3DynInst : public BaseDynInst<Impl>
     {
 
         for (int idx = 0; idx < this->numDestRegs(); idx++) {
+            if (this->staticInst->liveOutPredicted[idx]) {
+                continue;
+            }
             PhysRegIdPtr prev_phys_reg = this->prevDestRegIdx(idx);
             const RegId& original_dest_reg =
                 this->staticInst->destRegIdx(idx);

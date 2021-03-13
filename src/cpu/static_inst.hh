@@ -129,7 +129,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isStreamedFromUopCache;
     bool isUopCacheHotTrace;
     bool carriesLiveOut;
-    bool isHeadOfTrace;
+    bool valueMispredicted;
 
 
 
@@ -302,7 +302,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
           _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
-        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; isHeadOfTrace = false;}
+        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; valueMispredicted = false;}
 
     StaticInst(const char *_mnemonic, ExtMachInst _machInst, OpClass __opClass)
 	: _opClass(__opClass), _numSrcRegs(0), _numDestRegs(0),
@@ -310,7 +310,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
 	  _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
-        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; isHeadOfTrace = false;}
+        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; valueMispredicted = false;}
 
   public:
     virtual ~StaticInst();
