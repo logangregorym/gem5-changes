@@ -1036,9 +1036,16 @@ bool TraceBasedGraph::generateNextTraceInst() {
         currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr;
         currentTrace.end.uopAddr = currentTrace.instAddr.uopAddr;
         currentTrace.end.uopAddr++;
-        if (currentTrace.end.uopAddr == currentTrace.inst->macroOp->getNumMicroops()) {
-            currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr + currentTrace.inst->macroOp->getMacroopSize();
+        if (currentTrace.inst->macroOp) {
+            if (currentTrace.end.uopAddr == currentTrace.inst->macroOp->getNumMicroops()) {
+                currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr + currentTrace.inst->macroOp->getMacroopSize();
+                currentTrace.end.uopAddr = 0;
+            }
+        } else if (type == "syscall") {
+            currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr + 2;
             currentTrace.end.uopAddr = 0;
+        } else {
+            panic("unsupported instruction without macro-op: %s", type);
         }
         DPRINTF(TraceGen, "Setting end of trace PC to: %#x:%#x\n", currentTrace.end.pcAddr, currentTrace.end.uopAddr);
         
@@ -1049,7 +1056,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     // Propagate live outs at the end of each control instruction
     // updateSuccessful is not just for spec cache also for folded instructions
     if (!currentTrace.inst->isCarryingLivesOut() && 
-        currentTrace.inst->isControl() && 
+        (currentTrace.inst->isControl() || type == "syscall") && 
         updateSuccessful) 
     {
         for (int i=0; i<16; i++) { // 16 int registers
