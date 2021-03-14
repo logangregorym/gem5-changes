@@ -554,7 +554,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     currentTrace.prevNonEliminatedInst->shrunkenLength = (currentTrace.length - currentTrace.shrunkLength);
                     // control prevNonEliminatedInstructions already propagate live outs
                     if (!currentTrace.prevNonEliminatedInst->isCarryingLivesOut() &&
-                        !currentTrace.prevNonEliminatedInst->isControl()) 
+                        !currentTrace.prevNonEliminatedInst->isControl() && 
+                        !currentTrace.prevNonEliminatedInst->isTracePredictionSource()) 
                     { 
                         for (int i=0; i<16; i++) { // 16 int registers
                             if (regCtx[i].valid && !regCtx[i].source) {
@@ -897,7 +898,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             // This is because if the prediction is incorrect, the prediction source will get squashed, but live outs never get dumped, and we redirect and start fetching
             // from the micro-op cache using the address corresponding to the prediction source.  Due to this, certain instructions just don’t get executed even though
             // they should.
-            if (!currentTrace.prevNonEliminatedInst) {
+            if (!currentTrace.prevNonEliminatedInst || currentTrace.prevNonEliminatedInst->isControl()) {
                 currentTrace.prevNonEliminatedInst = currentTrace.inst;
             }
 
@@ -1041,7 +1042,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr + currentTrace.inst->macroOp->getMacroopSize();
                 currentTrace.end.uopAddr = 0;
             }
-        } else if (type == "syscall") {
+        } else if (type == "syscall" || type == "fdivr") {
             currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr + 2;
             currentTrace.end.uopAddr = 0;
         } else {
