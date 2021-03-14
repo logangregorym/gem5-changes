@@ -896,9 +896,6 @@ DefaultCommit<Impl>::commit()
                     tid,
                     fromIEW->mispredictInst[tid]->instAddr(),
                     fromIEW->squashedSeqNum[tid]);
-                if (fromIEW->mispredictInst[tid]->isStreamedFromSpeculativeCache()) {
-                    numMicroopsShrunken += fromIEW->mispredictInst[tid]->staticInst->shrunkenLength;
-                }
             } else {
                 DPRINTF(Commit,
                     "[tid:%i]: Squashing due to order violation [sn:%i]\n",
@@ -1328,16 +1325,11 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     // logic to end the simulation
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
     {
-        if (head_inst->isStreamedFromSpeculativeCache() && head_inst->staticInst->isEndOfTrace())
-        {
-
+        if (head_inst->isStreamedFromSpeculativeCache()) { 
             numMicroopsShrunken += head_inst->staticInst->shrunkenLength;
         }
 
-        
-
-        if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr && checkpointAtInstr)
-        {
+        if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr && checkpointAtInstr) {
             exitSimLoop("simpoint reached", 0);
         }
     }

@@ -179,6 +179,9 @@ struct SpecTrace
     // Shrunk length
     unsigned shrunkLength;
 
+    // Intervening dead instructions
+    unsigned interveningDeadInsts;
+
     // Counter to assign trace IDs
     static uint64_t traceIDCounter;
 
@@ -187,6 +190,7 @@ struct SpecTrace
         state = Invalid;
         length = 0;
         shrunkLength = 0;
+        interveningDeadInsts = 0;
         head = FullCacheIdx();
         addr = FullCacheIdx();
         inst = NULL;

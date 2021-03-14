@@ -603,10 +603,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
                     currentTrace.prevNonEliminatedInst->setEndOfTrace();
                     
-                    currentTrace.prevNonEliminatedInst->shrunkenLength = (currentTrace.length - currentTrace.shrunkLength);
                     // control prevNonEliminatedInstructions already propagate live outs
                     if (!currentTrace.prevNonEliminatedInst->isControl() && 
                         !currentTrace.prevNonEliminatedInst->isTracePredictionSource()) { 
+                        currentTrace.prevNonEliminatedInst->shrunkenLength += currentTrace.interveningDeadInsts;
                         dumpLiveOuts(currentTrace.prevNonEliminatedInst, true);
                     } else {
                         currentTrace.end.pcAddr = currentTrace.prevNonEliminatedEnd.pcAddr; 
@@ -916,10 +916,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
         }
     }
     
-    
     // now let's check to see if we can make a prediction
-    if (!isDeadCode && !folded)
-    {
+    if (!isDeadCode && !folded) {
         uint64_t value = 0;
         unsigned confidence = 0;
         unsigned latency;
@@ -943,7 +941,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
             // Before updating the prevNonEliminatedInst, dump out all the live outs for the prev instruction
             // if the previous instruction already is carrying the lives out then don't dump them again!
             dumpLiveOuts(currentTrace.prevNonEliminatedInst, currentTrace.inst->isFirstMicroop());
-            currentTrace.inst->shrunkenLength = (currentTrace.length - currentTrace.shrunkLength);
             
             // Mark prediction source as valid in register context block.    
             int numIntDestRegs = 0;
@@ -995,13 +992,11 @@ bool TraceBasedGraph::generateNextTraceInst() {
             //     assert(0);
             // }
         }
-
-    }
-    
-    // if it's not a dead code, then update the last non-eliminated microop of the specTrace
-    if (!isDeadCode && !folded)
-    {
+        currentTrace.inst->shrunkenLength = currentTrace.interveningDeadInsts;
+        currentTrace.interveningDeadInsts = 0;
         currentTrace.prevNonEliminatedInst = currentTrace.inst;
+    } else {
+        currentTrace.interveningDeadInsts++;
     }
     // Simulate a stall if update to speculative cache wasn't successful
     if (updateSuccessful) {
@@ -1035,7 +1030,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
     if ((currentTrace.inst->isControl() || type == "syscall") && 
         updateSuccessful) {
         dumpLiveOuts(currentTrace.inst, true);
-        currentTrace.inst->shrunkenLength = (currentTrace.length - currentTrace.shrunkLength);
     }
 
     DPRINTF(SuperOp, "Live Outs:\n");
