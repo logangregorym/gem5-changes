@@ -141,6 +141,7 @@ struct SpecTrace
 
     // address of the last instruction in the trace
     FullUopAddr end;
+    FullUopAddr prevNonEliminatedEnd;
 
     // Number of branches folded
     unsigned branchesFolded;
