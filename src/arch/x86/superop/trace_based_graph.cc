@@ -790,7 +790,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "popcnt_Gv_Ev" || decodedMacroOp->getName() == "fdivr" ||
             decodedMacroOp->getName() == "xrstor" || decodedMacroOp->getName() == "prefetch_t0") {
             currentTrace.length++;
-            currentTrace.interveningDeadInsts++;
+            if (currentTrace.prevNonEliminatedInst) {
+                currentTrace.prevNonEliminatedInst->shrunkenLength++;
+            }
             advanceTrace(currentTrace);
             return true;
         }
@@ -800,7 +802,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 inst->getName() == "popcnt_Gv_Ev" || inst->getName() == "fdivr" ||
                 inst->getName() == "xrstor" || inst->getName() == "prefetch_t0") {
                 currentTrace.length++;
-                currentTrace.interveningDeadInsts++;
+                if (currentTrace.prevNonEliminatedInst) {
+                    currentTrace.prevNonEliminatedInst->shrunkenLength++;
+                }
                 advanceTrace(currentTrace);
                 return true;
             }
