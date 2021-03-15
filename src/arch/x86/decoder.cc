@@ -1763,7 +1763,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
     }
 
     // set the trace ID for this instruction
-    curInst->traceID = traceID; 
+    // curInst->traceID = traceID; 
 
     return curInst;
 }

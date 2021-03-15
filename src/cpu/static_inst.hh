@@ -432,7 +432,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     uint64_t confidence = 0; // could be using BigSC
     bool predictedLoad = false;
     bool dummyMicroop = false;
-    uint64_t traceID  = 0;
+    
     uint64_t shrunkenLength = 0;
 
     // Annotate predicted inputs here
@@ -446,6 +446,18 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isCCFlagPropagated[5] = {false};
     TheISA::PCState predictedTarget;
     bool predictedTaken = false;
+
+
+    private:
+      uint64_t traceID  = 0;
+      uint64_t traceLength = 0;
+
+    public:
+      void setTraceID (uint64_t _traceID ) {traceID = _traceID;}
+      void setTraceLength (uint64_t _traceLength ) {traceLength = _traceLength;}
+      uint64_t getTraceID () { return traceID; }
+      uint64_t getTraceLength () { return traceLength; }
+
 };
 
 #endif // __CPU_STATIC_INST_HH__

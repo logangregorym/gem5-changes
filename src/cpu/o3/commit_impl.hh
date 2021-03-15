@@ -70,6 +70,7 @@
 #include "sim/faults.hh"
 #include "sim/full_system.hh"
 #include "debug/SuperOpSanityCheck.hh"
+#include "debug/PerfAnalysis.hh"
 
 using namespace std;
 
@@ -198,6 +199,13 @@ DefaultCommit<Impl>::regStats()
         .flags(Stats::pdf)
         ;
 
+    // 18 is the maximum length of a superoptmized trace
+    numCommittedSuperoptmizedInstDist
+        .init(0,18,1)
+        .name(name() + ".committed_superoptmized_insts_per_trace_size")
+        .desc("Number of commited superoptmized insts per trace size")
+        .flags(Stats::pdf)
+        ;
     instsCommitted
         .init(cpu->numThreads)
         .name(name() + ".committedInsts")
@@ -1326,7 +1334,13 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
     {
         if (head_inst->isStreamedFromSpeculativeCache()) { 
+
             numMicroopsShrunken += head_inst->staticInst->shrunkenLength;
+
+            // gather some stats about this superoptmized instrcution
+            assert( head_inst->staticInst->getTraceID()); 
+            assert( head_inst->staticInst->getTraceLength());
+            numCommittedSuperoptmizedInstDist.sample(head_inst->staticInst->getTraceLength(),1);
         }
 
         if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr && checkpointAtInstr) {
@@ -1441,6 +1455,14 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
                 }
             }
             assert(pass);
+
+
+            // Performance analysis 
+            DPRINTF(PerfAnalysis, "%f %d %d %d\n", 
+                ((double)numMicroopsShrunken / (double)(numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value())) * 100, 
+                 iewStage->totalNumOfTimesPredictionSourcesOfTracesAreMisspredicted.value(),
+                 iewStage->totalNumOfTimesControlSourcesOfTracesAreMisspredicted.value(), 
+                 iewStage->branchMispredicts.total());
             
 
     }

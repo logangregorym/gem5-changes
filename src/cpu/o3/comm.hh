@@ -200,7 +200,7 @@ struct DefaultIEWDefaultCommit {
     bool branchTaken[Impl::MaxThreads];
     bool includeSquashInst[Impl::MaxThreads];
     bool squashDueToLVP[Impl::MaxThreads];
-    unsigned currentTraceID[Impl::MaxThreads];
+    uint64_t currentTraceID[Impl::MaxThreads];
 };
 
 template<class Impl>
@@ -319,7 +319,7 @@ struct TimeBufStruct {
 
         bool squashDueToLVP;
 
-        unsigned currentTraceID;
+        uint64_t currentTraceID;
     };
 
     commitComm commitInfo[Impl::MaxThreads];

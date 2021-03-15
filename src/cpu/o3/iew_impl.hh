@@ -375,6 +375,15 @@ DefaultIEW<Impl>::regStats()
         .init(cpu->numThreads)
         .name(name() + ".squashedLoadsInNeitherCache")
         .flags(total);
+
+    totalNumOfTimesControlSourcesOfTracesAreMisspredicted
+        .name(name() + ".totalNumOfTimesControlSourcesOfTracesAreMisspredicted")
+        .desc("total Number Of Times Control Sources Of Traces Are Misspredicted");
+
+    totalNumOfTimesPredictionSourcesOfTracesAreMisspredicted
+        .name(name() + ".totalNumOfTimesPredictionSourcesOfTracesAreMisspredicted")
+        .desc("total Number Of Times Prediction Sources Of Traces Are Misspredicted");
+
 }
 
 template<class Impl>
@@ -656,8 +665,9 @@ DefaultIEW<Impl>::squashDueToMemOrder(DynInstPtr &inst, ThreadID tid)
         
         // in this way we can find out whether mem order violation was in the trace or not
         if (inst->isStreamedFromSpeculativeCache()) {
+            assert(inst->staticInst->getTraceID());
             toCommit->squashDueToLVP[tid] = true;
-            toCommit->currentTraceID[tid] = inst->staticInst->traceID;
+            toCommit->currentTraceID[tid] = inst->staticInst->getTraceID();
         } else {
             toCommit->squashDueToLVP[tid] = false;
         }
@@ -1904,15 +1914,18 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
 
     if (inst->isStreamedFromSpeculativeCache())
     {
+        
                 
-        unsigned int traceID = inst->staticInst->traceID;
+        uint64_t traceID = inst->staticInst->getTraceID();
         
         // this should never be zero
         assert(traceID);
+        if (!predicted) totalNumOfTimesControlSourcesOfTracesAreMisspredicted++;
 
         // this trace may have been flushed therfore there is no need to update its confidence
         if (cpu->fetch.decoder[tid]->traceConstructor->traceMap.find(traceID) == cpu->fetch.decoder[tid]->traceConstructor->traceMap.end())
         {
+            // this may get trigered if the trace get evicted from spec cache. TODO: implement transient trace in spec cache 
             DPRINTF(LVP, "DefaultIEW::executeInsts():: Couldn't find trace %d in traceMap! Is it flushed? \n", traceID);
             return;
         }
@@ -1922,6 +1935,7 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
         // missprediction
         if (!predicted) 
         {
+            bool updated = false;
             for (size_t idx = 0; idx < 2; idx++)
             {
                 if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].valid &&
@@ -1930,11 +1944,19 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
                     if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence > 0 )
                     {
                         cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence--;
-                        DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction! Traget: %s Decreasing trace %d confidence! Confidence level is %d\n", 
-                        tempPC.instAddr(), traceID, cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence);
+                        cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].numOfTimesMisspredicted++;
+                        DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction! Traget: %s Decreasing trace %d confidence! Confidence level is %d!  Number of times this branch source is misspredicted: %d\n", 
+                        tempPC.instAddr(), traceID, cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence,
+                        cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].numOfTimesMisspredicted);
+                        
                     }
+                    updated = true;
                 }
             }
+
+            updated = updated;
+            //assert(updated);
+
             
         } 
         //correct prediction
@@ -1965,14 +1987,16 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
     ThreadID tid = inst->threadNumber;
     Addr addr = inst->pcState().instAddr();
     //int idx = (addr >> 5) & 0x1f;
-    uint64_t traceID = inst->staticInst->traceID;
+    uint64_t traceID = inst->staticInst->getTraceID();
     
     // this should never be zero
     assert(traceID);
+    if (!inst->lvMispred)  totalNumOfTimesPredictionSourcesOfTracesAreMisspredicted++; 
 
     // this trace may have been flushed therfore there is no need to update its confidence
     if (cpu->fetch.decoder[tid]->traceConstructor->traceMap.find(traceID) == cpu->fetch.decoder[tid]->traceConstructor->traceMap.end())
     {
+        // this may get trigered if the trace get evicted from spec cache. TODO: implement transient trace in spec cache 
         DPRINTF(LVP, "DefaultIEW::executeInsts():: Couldn't find trace %d in traceMap! Is it flushed? \n", traceID);
         return;
     }
@@ -1997,7 +2021,9 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
             }
         }
 
+        
         assert(updated);
+
 
 
     }
@@ -2014,8 +2040,11 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
                 // if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence > 0) 
                 //     cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence--;
                 
-                DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction! Decreasing trace %d confidence! Confidence level is %d\n", traceID, 
-                        cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence);
+                cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].numOfTimesMisspredicted++;
+                DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction! Decreasing trace %d confidence! Confidence level is %d! Number of times this prediction source misspredicted: %d\n", 
+                        traceID, 
+                        cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence, 
+                        cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].numOfTimesMisspredicted);
                 updated = true;
             }
         }
@@ -2131,6 +2160,7 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
         // we can have non-load instructions which are streamed from speculative cache and thier values are forwaded speculativly
         else if (inst->lvMispred && inst->isSpeculativlyForwarded()) 
         {
+            assert(0); // this feature is not enabaled yet!
             assert(!inst->isStreamedFromSpeculativeCache());
             DPRINTF(LVP, "DefaultIEW::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
             DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction for a instruction which is not a trace prediction source!\n");

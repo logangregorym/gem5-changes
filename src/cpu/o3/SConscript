@@ -72,6 +72,7 @@ if 'O3CPU' in env['CPU_MODELS']:
     DebugFlag('StoreSet')
     DebugFlag('SuperOpSanityCheck')
     DebugFlag('Writeback')
+    DebugFlag('PerfAnalysis')
 
     CompoundFlag('O3CPUAll', [ 'Fetch', 'Decode', 'Rename', 'IEW', 'Commit',
         'IQ', 'ROB', 'FreeList', 'LSQ', 'LSQUnit', 'StoreSet', 'MemDepUnit',

@@ -55,6 +55,13 @@ void TraceBasedGraph::regStats()
         .name("system.switch_cpus.decode.superop.traceConstructor.tracesWithInvalidHead")
         .desc("# of traces whose first inst wasn't found in the uop cache")
         ;
+    
+    numMicroopsInTraceDist
+        .init(0,18,1)
+        .name(name() + ".microops_per_trace")
+        .desc("Number of microops in super optimized trace")
+        .flags(Stats::pdf)
+        ;
 }
 
 
@@ -584,11 +591,17 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     currentTrace.prevNonEliminatedInst = currentTrace.prevEliminatedInst;
                 }
 
-                for (auto const &microop: decoder->specCacheWriteQueue)
+                for (auto &microop: decoder->specCacheWriteQueue)
                 {
+                    // add trace id to each spec microop for gathering stats in commit stage
+                    microop.inst->setTraceID(currentTrace.id);
+                    microop.inst->setTraceLength(decoder->specCacheWriteQueue.size());
                     decoder->addUopToSpeculativeCache(currentTrace, microop);
                 }
+                
+                
 
+                numMicroopsInTraceDist.sample(decoder->specCacheWriteQueue.size());
                 DPRINTF(TraceGen, "Trace id %d added to spec cache with %d valid prediction sources!.\n", currentTrace.id, validPredSources );
                     
                 // now that write queue is written to the spec cache, clear it
@@ -1028,9 +1041,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
         } else if (type == "syscall") {
             currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr + 2;
             currentTrace.end.uopAddr = 0;
-        } else {
-            panic("unsupported instruction without macro-op: %s", type);
-        }
+        } 
+        // else {
+        //     panic("unsupported instruction without macro-op: %s", type);
+        // }
         DPRINTF(TraceGen, "Setting end of trace PC to: %#x:%#x\n",
                             currentTrace.end.pcAddr, currentTrace.end.uopAddr);
        

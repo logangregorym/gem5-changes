@@ -82,8 +82,9 @@ struct PredictionSource
     uint64_t value;
     unsigned confidence;
     unsigned latency;
+    uint64_t numOfTimesMisspredicted;
 
-    PredictionSource() {valid = false; isBranch = false;}
+    PredictionSource() {valid = false; isBranch = false; numOfTimesMisspredicted = 0;}
 };
 
 // Register context block for liveness analysis
@@ -149,6 +150,7 @@ struct SpecTrace
     // Control Prediction Sources (at most 2)
     PredictionSource controlSources[2];
 
+
     enum State {
         Invalid,
         
@@ -172,7 +174,8 @@ struct SpecTrace
 
     // Prediction Sources (at most 4)
     PredictionSource source[4];
-
+    // Total number of times trace is misspredicted (source[4])
+    uint64_t totalNumOfTimesPredictionSourcesAreMisspredicted;
     // Trace Length
     unsigned length;
 
@@ -197,6 +200,7 @@ struct SpecTrace
         prevNonEliminatedInst = NULL;
         prevEliminatedInst = NULL;
         branchesFolded = 0;
+
     }
 };
 #endif // __ARCH_X86_DECODER_STRUCTS__
