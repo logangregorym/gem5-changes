@@ -1827,10 +1827,14 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                             bpred_predict_taken = branchPred->predict(instruction->staticInst, instruction->seqNum,
                                     bpred_nextPC, tid);
-                            if (!nextPC.valid)
-                            {
+                            if (!nextPC.valid) {
                                 predict_taken = bpred_predict_taken;
                                 nextPC = bpred_nextPC;
+                                instruction->setPredTarg(nextPC);
+                                instruction->setPredTaken(predict_taken);
+                            } else {
+                                instruction->setPredTarg(instruction->staticInst->predictedTarget);
+                                instruction->setPredTaken(instruction->staticInst->predictedTaken);
                             }
                             
                             if (thisPC.branching()) {
@@ -1848,8 +1852,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             DPRINTF(Fetch, "[tid:%i]: [sn:%i] Folded branch predicted to go to %s.\n",
                                         tid, instruction->seqNum, nextPC);
                             
-                            instruction->setPredTarg(nextPC);
-                            instruction->setPredTaken(predict_taken);
 
                             ++fetchedBranches;
 

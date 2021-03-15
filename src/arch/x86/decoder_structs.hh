@@ -136,12 +136,12 @@ struct SpecTrace
     // instruction being optimized
     StaticInstPtr inst;
 
-    // previous non-eliminated instruction
+    // previous non-eliminated and eliminated instructions
     StaticInstPtr prevNonEliminatedInst;
+    StaticInstPtr prevEliminatedInst;
 
-    // address of the last instruction in the trace
+    // nextPC of the last instruction in the trace
     FullUopAddr end;
-    FullUopAddr prevNonEliminatedEnd;
 
     // Number of branches folded
     unsigned branchesFolded;
@@ -195,6 +195,7 @@ struct SpecTrace
         addr = FullCacheIdx();
         inst = NULL;
         prevNonEliminatedInst = NULL;
+        prevEliminatedInst = NULL;
         branchesFolded = 0;
     }
 };

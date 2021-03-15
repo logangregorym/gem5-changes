@@ -854,7 +854,7 @@ class BaseDynInst : public ExecContext, public RefCounted
 
     bool readPredicate()
     {
-        return instFlags[Predicate];
+        return (instFlags[Predicate] || staticInst->dummyMicroop);
     }
 
     void setPredicate(bool val)

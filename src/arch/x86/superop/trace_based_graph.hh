@@ -116,8 +116,8 @@ class TraceBasedGraph : public SimObject
     void dumpTrace(SpecTrace trace);
 
     // advance to next micro-op.
-    bool advanceIfControlTransfer(SpecTrace &trace);
-    void advanceTrace(SpecTrace &trace);
+    bool advanceIfControlTransfer(SpecTrace &trace, Addr &target);
+    Addr advanceTrace(SpecTrace &trace);
     unsigned computeLength(SpecTrace trace);
 
     void regStats();

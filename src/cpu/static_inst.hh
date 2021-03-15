@@ -301,7 +301,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
           _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
-        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false;}
+        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false;}
 
     StaticInst(const char *_mnemonic, ExtMachInst _machInst, OpClass __opClass)
 	: _opClass(__opClass), _numSrcRegs(0), _numDestRegs(0),
@@ -309,7 +309,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
 	  _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
-        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false;}
+        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false;}
 
   public:
     virtual ~StaticInst();
@@ -431,6 +431,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     uint64_t predictedValue;
     uint64_t confidence = 0; // could be using BigSC
     bool predictedLoad = false;
+    bool dummyMicroop = false;
     uint64_t traceID  = 0;
     uint64_t shrunkenLength = 0;
 
@@ -443,6 +444,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
     // propagated cc flags for wrip and wripi microops
     uint64_t propgatedCCFlags[5] = {0};
     bool isCCFlagPropagated[5] = {false};
+    TheISA::PCState predictedTarget;
+    bool predictedTaken = false;
 };
 
 #endif // __CPU_STATIC_INST_HH__

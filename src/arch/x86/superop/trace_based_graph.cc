@@ -188,7 +188,7 @@ bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uin
     return false;
 }
 
-bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
+bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
     // don't do this for re-optimizations
     if (trace.state != SpecTrace::QueuedForFirstTimeOptimization  && trace.state != SpecTrace::OptimizationInProcess)
         return false;
@@ -229,7 +229,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     std::string disas = decodedMicroOp->disassemble(pcAddr);
 
     // if it is a direct call or a jump, fold the branch (provided it is predicted taken)
-    Addr target = pcAddr + decodedMacroOp->machInst.instSize;
+    target = pcAddr + decodedMacroOp->machInst.instSize;
     if (disas.find("CALL_NEAR_I") != std::string::npos || disas.find("JMP_I") != std::string::npos || decodedMicroOp->isCondCtrl()) {
         target = pcAddr + decodedMacroOp->machInst.instSize + decodedMacroOp->machInst.immediate;
     } 
@@ -286,8 +286,9 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace) {
     return false;
 }
 
-void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
-    if (!usingControlTracking || !advanceIfControlTransfer(trace)) {
+Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
+    Addr target = 0;
+    if (!usingControlTracking || !advanceIfControlTransfer(trace, target)) {
         trace.addr.uop++;
         trace.addr.valid = false;
         // select cache to advance from
@@ -300,7 +301,7 @@ void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
             } else {
                 nextAddr.pcAddr = prevAddr.pcAddr + decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop-1].instSize;
                 if (trace.addr.idx != ((nextAddr.pcAddr >> 5) & 0x1f)) { // we have exhausted all ways
-                    return;
+                    return 0;
                 }
                 uint64_t tag = (nextAddr.pcAddr >> 10);
                 for (int way = 0; way < 8; way++) {
@@ -310,7 +311,7 @@ void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
                                 trace.addr.way = way;
                                 trace.addr.uop = uop;
                                 trace.addr.valid = true;
-                                return;
+                                return 0;
                             }
                         }
                     }
@@ -327,7 +328,9 @@ void TraceBasedGraph::advanceTrace(SpecTrace &trace) {
                 trace.addr.valid = true;
             }
         }
+        return 0;
     }
+    return target;
 }
 
 void TraceBasedGraph::dumpTrace(SpecTrace trace) {
@@ -365,7 +368,7 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
         Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
         StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
         //assert(decodedMicroOp);
-        DPRINTF(TraceGen, "%p:%i -- spec[%i][%i][%i] -- %s -- isCC = %d -- isPredictionSource = %d\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr), decodedMicroOp->isCC(), decodedMicroOp->isTracePredictionSource());   
+        DPRINTF(TraceGen, "%p:%i -- spec[%i][%i][%i] -- %s -- isCC = %d -- isPredictionSource = %d -- isDummyMicroop = %d\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr), decodedMicroOp->isCC(), decodedMicroOp->isTracePredictionSource(), decodedMicroOp->dummyMicroop);   
 		for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
 			// LAYNE : TODO : print predicted inputs (checking syntax)
 			if (decodedMicroOp->sourcesPredicted[i]) {
@@ -568,6 +571,19 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 assert(decoder->specCacheWriteQueue.size() == currentTrace.shrunkLength);
                 assert(decoder->specCacheWriteQueue.size() <= 18);
                 
+                if (currentTrace.interveningDeadInsts) {
+                    // E* at the end of the trace.
+                    // Pick the last E to dump live outs.
+                    assert(currentTrace.prevEliminatedInst);
+                    currentTrace.prevEliminatedInst->dummyMicroop = true;
+                    decoder->specCacheWriteQueue.push_back(SuperOptimizedMicroop(currentTrace.prevEliminatedInst, currentTrace.lastAddr));
+
+                    currentTrace.shrunkLength++;
+                    currentTrace.prevEliminatedInst->shrunkenLength = currentTrace.interveningDeadInsts - 1; // excluding the current one
+                    currentTrace.interveningDeadInsts = 0;
+                    currentTrace.prevNonEliminatedInst = currentTrace.prevEliminatedInst;
+                }
+
                 for (auto const &microop: decoder->specCacheWriteQueue)
                 {
                     decoder->addUopToSpeculativeCache(currentTrace, microop);
@@ -601,17 +617,11 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     
                     assert(currentTrace.prevNonEliminatedInst);
                     // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
+                    // Also, unset trace prediction source at the end of a trace as it doesn't matter what the prediction is since it will never be used.
                     currentTrace.prevNonEliminatedInst->setEndOfTrace();
-                    
-                    // control prevNonEliminatedInstructions already propagate live outs
-                    if (!currentTrace.prevNonEliminatedInst->isControl() && 
-                        !currentTrace.prevNonEliminatedInst->isTracePredictionSource()) { 
-                        currentTrace.prevNonEliminatedInst->shrunkenLength += currentTrace.interveningDeadInsts;
-                        dumpLiveOuts(currentTrace.prevNonEliminatedInst, true);
-                    } else {
-                        currentTrace.end.pcAddr = currentTrace.prevNonEliminatedEnd.pcAddr; 
-                        currentTrace.end.uopAddr = currentTrace.prevNonEliminatedEnd.uopAddr; 
-                    }
+                    currentTrace.prevNonEliminatedInst->setTracePredictionSource(false);
+
+                    dumpLiveOuts(currentTrace.prevNonEliminatedInst, true);
 
                     assert(currentTrace.id);
                     assert(currentTrace.getOptimizedHead().valid);
@@ -780,6 +790,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "popcnt_Gv_Ev" || decodedMacroOp->getName() == "fdivr" ||
             decodedMacroOp->getName() == "xrstor" || decodedMacroOp->getName() == "prefetch_t0") {
             currentTrace.length++;
+            currentTrace.interveningDeadInsts++;
             advanceTrace(currentTrace);
             return true;
         }
@@ -789,6 +800,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 inst->getName() == "popcnt_Gv_Ev" || inst->getName() == "fdivr" ||
                 inst->getName() == "xrstor" || inst->getName() == "prefetch_t0") {
                 currentTrace.length++;
+                currentTrace.interveningDeadInsts++;
                 advanceTrace(currentTrace);
                 return true;
             }
@@ -996,6 +1008,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         currentTrace.interveningDeadInsts = 0;
         currentTrace.prevNonEliminatedInst = currentTrace.inst;
     } else {
+        currentTrace.prevEliminatedInst = currentTrace.inst;
         currentTrace.interveningDeadInsts++;
     }
     // Simulate a stall if update to speculative cache wasn't successful
@@ -1014,14 +1027,27 @@ bool TraceBasedGraph::generateNextTraceInst() {
         } else {
             panic("unsupported instruction without macro-op: %s", type);
         }
-        if (!isDeadCode && !folded) {
-            currentTrace.prevNonEliminatedEnd = currentTrace.end;
+        DPRINTF(TraceGen, "Setting end of trace PC to: %#x:%#x\n",
+                            currentTrace.end.pcAddr, currentTrace.end.uopAddr);
+       
+        Addr target = advanceTrace(currentTrace);
+        if (currentTrace.inst->isControl()) {
+            if (target) {
+                currentTrace.inst->predictedTarget._pc = target;
+                currentTrace.inst->predictedTarget._npc = target + 1;
+                currentTrace.inst->predictedTarget._upc = 0;
+                currentTrace.inst->predictedTarget._upc = 1;
+                currentTrace.inst->predictedTaken = true;
+                DPRINTF(TraceGen, "Predicted taken to: %s\n", currentTrace.inst->predictedTarget);
+            } else {
+                currentTrace.inst->predictedTarget._pc = currentTrace.end.pcAddr;
+                currentTrace.inst->predictedTarget._npc = currentTrace.end.pcAddr + 1;
+                currentTrace.inst->predictedTarget._upc = currentTrace.end.uopAddr;
+                currentTrace.inst->predictedTarget._upc = currentTrace.end.uopAddr + 1;
+                currentTrace.inst->predictedTaken = false;
+                DPRINTF(TraceGen, "Predicted not taken to: %s\n", currentTrace.inst->predictedTarget);
+            }
         }
-        DPRINTF(TraceGen, "Setting end of trace PC to: %#x:%#x, prevNonEliminatedEnd:%#x:%#x\n",
-                            currentTrace.end.pcAddr, currentTrace.end.uopAddr,
-                            currentTrace.prevNonEliminatedEnd.pcAddr, currentTrace.prevNonEliminatedEnd.uopAddr);
-        
-        advanceTrace(currentTrace);
     }
 
 
