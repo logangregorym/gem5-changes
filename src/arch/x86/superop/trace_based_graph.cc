@@ -1042,9 +1042,12 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr + 2;
             currentTrace.end.uopAddr = 0;
         } 
-        // else {
-        //     panic("unsupported instruction without macro-op: %s", type);
-        // }
+        else if (type == "CPUID") {
+            //panic("unsupported instruction without macro-op: %s", type);
+        }
+        else {
+            panic("unsupported instruction without macro-op: %s", type);
+        }
         DPRINTF(TraceGen, "Setting end of trace PC to: %#x:%#x\n",
                             currentTrace.end.pcAddr, currentTrace.end.uopAddr);
        

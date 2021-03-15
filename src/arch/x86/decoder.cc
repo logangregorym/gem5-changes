@@ -204,7 +204,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
                 speculativeTagArray[idx][way] = 0;
                 speculativePrevWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
                 speculativeNextWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
-                specHotnessArray[idx][way] = BigSatCounter(4);
+                specHotnessArray[idx][way] = BigSatCounter(64);
                 speculativeTraceIDArray[idx][way] = 0;
                 speculativeEvictionStat[idx][way] = 0;
                 for (int uop = 0; uop < 6; uop++) {
@@ -1164,7 +1164,8 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
             speculativeTraceIDArray[idx][way] = traceID;
             speculativeCache[idx][way][waySize] = inst;
             speculativeAddrArray[idx][way][waySize] = FullUopAddr(addr, uop);
-
+            inst->setSpecCacheIdx(idx);
+            inst->setSpecCacheWay(way);
 
 
             DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, waySize, addr, uop);
@@ -1210,8 +1211,10 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
             speculativeTraceIDArray[idx][way] = traceID;
             speculativeCache[idx][way][u] = inst;
             speculativeAddrArray[idx][way][u] = FullUopAddr(addr, uop);
+            specHotnessArray[idx][way].reset();
             updateLRUBitsSpeculative(idx, way);
-
+            inst->setSpecCacheIdx(idx);
+            inst->setSpecCacheWay(way);
 
             DPRINTF(Decoder, "Allocating a previous invalid way for trace %d and adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d nextWay:%d prevway:%d.\n", traceID, addr, tag, idx, way, u, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
             DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, u, addr, uop);
@@ -1233,17 +1236,12 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
     }
 
     // If we make it here, we need to evict a way to make space -- evicted region shouldn't be currently in use for optimization
-    unsigned lruWay = SPEC_CACHE_NUM_WAYS;
+    unsigned lruWay = SPEC_CACHE_NUM_WAYS; lruWay = lruWay;
     unsigned evictWay = SPEC_CACHE_NUM_WAYS;
+    uint64_t wayHotness = UINT64_MAX;
     for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
-        // check if we are processing the trace for first time optimization -- write to way in progress
-        // if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
-            
-        //     // a trace should never be added to spec cache when optimization is in process
-        //     assert(0);
-        //     DPRINTF(Decoder, "Can't evict becuase OptimizationInProcess: tag:%#x idx:%d way:%d. currentTrace.id: %d\n", tag, idx, way, traceConstructor->currentTrace.id);
-        //     continue;
-        // }
+        // TODO: check if the trace is in transient state 
+
        
         // check if we are streaming the trace -- read from way in progress
         if ((traceConstructor->streamTrace.id != 0) && 
@@ -1266,6 +1264,8 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
             continue;
         }
 
+        // LRU based eviction algorithm 
+        /*
         if (speculativeLRUArray[idx][way] < lruWay) {
             DPRINTF(Decoder, "lruWay = %d,  speculativeLRUArray[%d][%d] = %d\n", lruWay, idx, way, speculativeLRUArray[idx][way]);
             lruWay = speculativeLRUArray[idx][way];
@@ -1275,7 +1275,21 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
         {
             DPRINTF(Decoder, "lruWay = %d,  speculativeLRUArray[%d][%d] = %d\n", lruWay, idx, way, speculativeLRUArray[idx][way]);
         }
+        */
+
+        // Hotness based eviction algorithm
+        if (specHotnessArray[idx][way].read() < wayHotness) {
+            DPRINTF(Decoder, "wayHotness = %d,  speculativeLRUArray[%d][%d] = %d\n", wayHotness, idx, way, specHotnessArray[idx][way].read());
+            wayHotness = specHotnessArray[idx][way].read();
+            evictWay = way;
+        }
+        else 
+        {
+            DPRINTF(Decoder, "wayHotness = %d,  specHotnessArray[%d][%d] = %d\n", wayHotness, idx, way, specHotnessArray[idx][way].read());
+        }
     }
+
+
     if (evictWay != SPEC_CACHE_NUM_WAYS) {
         DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%d way:%d.\n Affected PCs:\n", tag, idx, evictWay);
         /* Invalidate all prior content. */
@@ -1297,6 +1311,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                 speculativeTraceIDArray[idx][w] = 0;
                 speculativeTagArray[idx][w] = 0;
                 speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
+                specHotnessArray[idx][w].reset();
                 StaticInstPtr macroOp = speculativeCache[idx][w][0]->macroOp;
                 if (macroOp) {
                     macroOp->deleteMicroOps();
@@ -1319,6 +1334,9 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
         speculativeTraceIDArray[idx][evictWay] = traceID;
         speculativeCache[idx][evictWay][u] = inst;
         speculativeAddrArray[idx][evictWay][u] = FullUopAddr(addr, uop);
+        specHotnessArray[idx][evictWay].reset();
+        inst->setSpecCacheIdx(idx);
+        inst->setSpecCacheWay(evictWay);
 
         DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, evictWay, u, addr, uop);
         updateLRUBitsSpeculative(idx, evictWay);        
@@ -1706,6 +1724,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
     thisPC._pc = speculativeAddrArray[idx][way][uop].pcAddr;
 
     StaticInstPtr curInst = speculativeCache[idx][way][uop];
+    increaseSpecWayHotness(idx,way);
     /// dump all the micropps in the way and then assert!
     if (!curInst)
     {

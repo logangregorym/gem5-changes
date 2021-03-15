@@ -1593,11 +1593,15 @@ DefaultIEW<Impl>::executeInsts()
 
                 ppMispredict->notify(inst);
 
-                if (inst->readPredTaken()) {
-                    predictedTakenIncorrect++;
-                } else {
-                    predictedNotTakenIncorrect++;
+                if (!inst->isStreamedFromSpeculativeCache())
+                {
+                    if (inst->readPredTaken()) {
+                        predictedTakenIncorrect++;
+                    } else {
+                        predictedNotTakenIncorrect++;
+                    }
                 }
+                
             } else if (ldstQueue.violation(tid)) {
                 assert(inst->isMemRef());
                 // If there was an ordering violation, then get the
@@ -1895,11 +1899,15 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
             squashDueToBranch(inst, tid);
             updateTraceBranchConfidence(inst, tempPC ,false);    
 
-            if (inst->readPredTaken()) {
-                predictedTakenIncorrect++;
-            } else {
-                predictedNotTakenIncorrect++;
+            if (!inst->isStreamedFromSpeculativeCache())
+            {
+                if (inst->readPredTaken()) {
+                    predictedTakenIncorrect++;
+                } else {
+                    predictedNotTakenIncorrect++;
+                }
             }
+
         }
     }
 }
