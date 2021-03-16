@@ -1601,7 +1601,7 @@ DefaultIEW<Impl>::executeInsts()
                         predictedNotTakenIncorrect++;
                     }
                 }
-                
+
             } else if (ldstQueue.violation(tid)) {
                 assert(inst->isMemRef());
                 // If there was an ordering violation, then get the
@@ -1958,6 +1958,7 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
                         cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].numOfTimesMisspredicted);
                         
                     }
+                    cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].totalNumOfTimesControlSourcesAreMisspredicted++;
                     updated = true;
                 }
             }
@@ -1999,7 +2000,10 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
     
     // this should never be zero
     assert(traceID);
-    if (!inst->lvMispred)  totalNumOfTimesPredictionSourcesOfTracesAreMisspredicted++; 
+    if (inst->lvMispred)  
+    {
+        totalNumOfTimesPredictionSourcesOfTracesAreMisspredicted++; 
+    }
 
     // this trace may have been flushed therfore there is no need to update its confidence
     if (cpu->fetch.decoder[tid]->traceConstructor->traceMap.find(traceID) == cpu->fetch.decoder[tid]->traceConstructor->traceMap.end())
@@ -2032,8 +2036,6 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
         
         assert(updated);
 
-
-
     }
     else 
     {
@@ -2049,10 +2051,14 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
                 //     cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence--;
                 
                 cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].numOfTimesMisspredicted++;
+                
                 DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction! Decreasing trace %d confidence! Confidence level is %d! Number of times this prediction source misspredicted: %d\n", 
                         traceID, 
                         cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence, 
                         cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].numOfTimesMisspredicted);
+
+                        
+                cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].totalNumOfTimesPredictionSourcesAreMisspredicted++;
                 updated = true;
             }
         }

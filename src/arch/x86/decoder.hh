@@ -149,6 +149,8 @@ class Decoder
 	BigSatCounter ** specHotnessArray;
 	uint64_t ** speculativeTraceIDArray;
     std::deque<SuperOptimizedMicroop> specCacheWriteQueue;
+    std::deque<SpecCacheHistory>  specCacheHistoryBuffer;
+
 
     uint64_t SPEC_INDEX_MASK;
     uint64_t SPEC_NUM_INDEX_BITS;

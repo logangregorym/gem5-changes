@@ -164,6 +164,7 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
 
     // before adding it to the queue, check if profitable -- we prefer long hot traces
     uint64_t hotness = decoder->uopHotnessArray[uop_cache_idx][baseWay].read();
+    newTrace.hotness = hotness;
     uint64_t length = computeLength(newTrace);
     if (hotness < 7 || length < 4) { // TODO: revisit: pretty low bar
         DPRINTF(TraceGen, "Rejecting trace request to optimize trace at uop[%i][%i][%i]\n", uop_cache_idx, baseWay, 0);
@@ -598,6 +599,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     microop.inst->setTraceLength(decoder->specCacheWriteQueue.size());
                     decoder->addUopToSpeculativeCache(currentTrace, microop);
                 }
+
+                
                 
                 
 
@@ -1043,11 +1046,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.end.uopAddr = 0;
         } 
         else if (type == "CPUID") {
-            //panic("unsupported instruction without macro-op: %s", type);
-        }
-        else {
             panic("unsupported instruction without macro-op: %s", type);
         }
+        else 
+        {
+            panic("unsupported instruction without macro-op: %s", type);
+        }
+        
         DPRINTF(TraceGen, "Setting end of trace PC to: %#x:%#x\n",
                             currentTrace.end.pcAddr, currentTrace.end.uopAddr);
        

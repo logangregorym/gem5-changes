@@ -73,6 +73,19 @@ struct SuperOptimizedMicroop
     }
 
 };
+
+struct SpecCacheHistory
+{
+    uint64_t seqNum;
+    uint64_t traceID;
+
+    SpecCacheHistory(uint64_t _seqNum, uint64_t _traceID)
+    {
+        this->seqNum = _seqNum;
+        this->traceID = _traceID; 
+    }
+
+};
 // tracks instructions with confident value predictions
 struct PredictionSource
 {
@@ -119,7 +132,13 @@ struct SpecTrace
     // Trace ID
     uint64_t id;
 
-    
+    uint64_t hotness;
+
+    // the tick at which this trace is inserted into the spec cache
+    uint64_t insertion_tick;
+
+    // the tick at which the trace is evicted from the spec cache
+    uint64_t eviction_tick;
 
     // (idx, way, uop) of head of the trace
     FullCacheIdx head;
@@ -149,7 +168,8 @@ struct SpecTrace
 
     // Control Prediction Sources (at most 2)
     PredictionSource controlSources[2];
-
+    // Total number of times trace is misspredicted (controlSources[2])
+    uint64_t totalNumOfTimesControlSourcesAreMisspredicted;
 
     enum State {
         Invalid,
@@ -200,7 +220,11 @@ struct SpecTrace
         prevNonEliminatedInst = NULL;
         prevEliminatedInst = NULL;
         branchesFolded = 0;
-
+        totalNumOfTimesControlSourcesAreMisspredicted = 0;
+        totalNumOfTimesPredictionSourcesAreMisspredicted = 0;
+        hotness = 0;
+        insertion_tick = 0;
+        eviction_tick = 0;
     }
 };
 #endif // __ARCH_X86_DECODER_STRUCTS__
