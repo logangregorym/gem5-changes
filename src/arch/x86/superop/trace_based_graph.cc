@@ -405,11 +405,12 @@ unsigned TraceBasedGraph::computeLength(SpecTrace trace) {
     return (1 + computeLength(trace));
 }
 
-void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
+bool TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
     if (inst && !inst->isCarryingLivesOut()) {
         // if the current inst (predicted inst) is the first microop then just dump 16 arch registers and CCs
         if (dumpOnlyArchRegs) {
                 for (int i=0; i<16; i++) { // 16 int registers
+                    DPRINTF(TraceGen, "Trying to dump live out: regCts[%d]=%#x valid=%d source=%d\n", i, regCtx[i].value, regCtx[i].valid, regCtx[i].source);
                     if (regCtx[i].valid && !regCtx[i].source) {
                         inst->liveOut[inst->numDestRegs()] = regCtx[i].value;
                         inst->liveOutPredicted[inst->numDestRegs()] = true;
@@ -424,6 +425,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
         // MOV_R_P : rdip   t7, %ctrl153,  (Propagated) (first microop)
         // MOV_R_P : ld   rax, DS:[t7 + 0x3cb4fa] (LVP predicted and currentTrace.inst)
                 for (int i=0; i<38; i++) { // 38 int registers
+                    DPRINTF(TraceGen, "Trying to dump live out: regCts[%d]=%#x valid=%d source=%d\n", i, regCtx[i].value, regCtx[i].valid, regCtx[i].source);
                     if (regCtx[i].valid && !regCtx[i].source) {
                         inst->liveOut[inst->numDestRegs()] = regCtx[i].value;
                         inst->liveOutPredicted[inst->numDestRegs()] = true;
@@ -436,6 +438,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
 
         // always dump all the CC regs no matter what
         if (ccValid) {
+                DPRINTF(TraceGen, "Dumping CCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x\n", PredccFlagBits, PredcfofBits, PreddfBit, PredecfBit, PredezfBit);
                 inst->liveOut[inst->numDestRegs()] = PredccFlagBits;
                 inst->liveOutPredicted[inst->numDestRegs()] = true;
                 inst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
@@ -454,7 +457,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                 inst->_numCCDestRegs += 5;
                 inst->setCarriesLiveOut(true);
         }
+        return true;
     }
+    return false;
 }
 
 bool TraceBasedGraph::generateNextTraceInst() {
@@ -621,7 +626,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     currentTrace.prevNonEliminatedInst->setEndOfTrace();
                     currentTrace.prevNonEliminatedInst->setTracePredictionSource(false);
 
-                    dumpLiveOuts(currentTrace.prevNonEliminatedInst, true);
+                    bool liveOutDumpingSuccesful = dumpLiveOuts(currentTrace.prevNonEliminatedInst, true);
+                    assert(currentTrace.prevNonEliminatedInst != currentTrace.prevEliminatedInst || liveOutDumpingSuccesful);
 
                     assert(currentTrace.id);
                     assert(currentTrace.getOptimizedHead().valid);
@@ -946,17 +952,33 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // if it's a prediction source, then do the same thin as before
         if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) 
         {
+            // Recreate any unexpectedly lost liveOut state when a propagated source is reused as a destination register.
+            // This is not a special scenario -- just an artifact of our implementation.
+            for (int i = 0; i < currentTrace.inst->numSrcRegs(); i++) {
+                if (currentTrace.inst->sourcesPredicted[i]) {
+                    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)currentTrace.inst.get();
+                    RegIndex src_reg_idx = x86_inst->getUnflattenRegIndex(currentTrace.inst->srcRegIdx(i));
+                    regCtx[src_reg_idx].value = currentTrace.inst->sourcePredictions[i];
+                    regCtx[src_reg_idx].valid = true;
+                }
+            }
+
             // If there are eliminated instructions before a prediction source, and the prediction source ends up being the first instruction of the trace, dump live outs.
             // This is because if the prediction is incorrect, the prediction source will get squashed, but live outs never get dumped, and we redirect and start fetching
             // from the micro-op cache using the address corresponding to the prediction source.  Due to this, certain instructions just don’t get executed even though
             // they should.
-            if (!currentTrace.prevNonEliminatedInst || currentTrace.prevNonEliminatedInst->isControl() || currentTrace.prevNonEliminatedInst->isTracePredictionSource()) {
+            if (!currentTrace.prevNonEliminatedInst ||
+                currentTrace.prevNonEliminatedInst->isCarryingLivesOut() ||
+                currentTrace.prevNonEliminatedInst->isControl() ||
+                currentTrace.prevNonEliminatedInst->isTracePredictionSource()) {
+                DPRINTF(TraceGen, "Live outs dumped at prediction source\n");
                 currentTrace.prevNonEliminatedInst = currentTrace.inst;
             }
 
             // Before updating the prevNonEliminatedInst, dump out all the live outs for the prev instruction
             // if the previous instruction already is carrying the lives out then don't dump them again!
-            dumpLiveOuts(currentTrace.prevNonEliminatedInst, currentTrace.inst->isFirstMicroop());
+            bool liveOutDumpingSuccesful = dumpLiveOuts(currentTrace.prevNonEliminatedInst, currentTrace.inst->isFirstMicroop());
+            assert(liveOutDumpingSuccesful);
             
             // Mark prediction source as valid in register context block.    
             int numIntDestRegs = 0;
@@ -1059,7 +1081,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
     // updateSuccessful is not just for spec cache also for folded instructions
     if ((currentTrace.inst->isControl() || type == "syscall") && 
         updateSuccessful) {
-        dumpLiveOuts(currentTrace.inst, true);
+        bool liveOutDumpingSuccesful = dumpLiveOuts(currentTrace.inst, true);
+        assert(liveOutDumpingSuccesful);
     }
 
     DPRINTF(SuperOp, "Live Outs:\n");
