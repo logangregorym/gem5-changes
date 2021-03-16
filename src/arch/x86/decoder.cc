@@ -38,6 +38,7 @@
 #include "debug/Decoder.hh"
 #include "debug/ConstProp.hh"
 #include "debug/SuperOp.hh"
+#include "debug/TraceEviction.hh"
 
 #include <iostream>
 #include <algorithm>
@@ -204,7 +205,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
                 speculativeTagArray[idx][way] = 0;
                 speculativePrevWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
                 speculativeNextWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
-                specHotnessArray[idx][way] = BigSatCounter(4);
+                specHotnessArray[idx][way] = BigSatCounter(64);
                 speculativeTraceIDArray[idx][way] = 0;
                 speculativeEvictionStat[idx][way] = 0;
                 for (int uop = 0; uop < 6; uop++) {
@@ -1143,6 +1144,10 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
     }
     else 
     {
+        // the first time we will be here, therefore here we can update the insertion tick
+        assert(trace.insertion_tick == 0);
+        trace.insertion_tick = cpu->numCycles.value();
+        assert(trace.insertion_tick != 0);
         idx = spec_cache_idx;
         DPRINTF(Decoder, "addUopToSpeculativeCache: Trace %d optimized head is not valid!\n", traceID);
     }
@@ -1164,7 +1169,8 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
             speculativeTraceIDArray[idx][way] = traceID;
             speculativeCache[idx][way][waySize] = inst;
             speculativeAddrArray[idx][way][waySize] = FullUopAddr(addr, uop);
-
+            inst->setSpecCacheIdx(idx);
+            inst->setSpecCacheWay(way);
 
 
             DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, waySize, addr, uop);
@@ -1210,8 +1216,10 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
             speculativeTraceIDArray[idx][way] = traceID;
             speculativeCache[idx][way][u] = inst;
             speculativeAddrArray[idx][way][u] = FullUopAddr(addr, uop);
+            specHotnessArray[idx][way].reset();
             updateLRUBitsSpeculative(idx, way);
-
+            inst->setSpecCacheIdx(idx);
+            inst->setSpecCacheWay(way);
 
             DPRINTF(Decoder, "Allocating a previous invalid way for trace %d and adding microop in the speculative cache: %#x tag:%#x idx:%d way:%d uop:%d nextWay:%d prevway:%d.\n", traceID, addr, tag, idx, way, u, speculativeNextWayArray[idx][way], speculativePrevWayArray[idx][way]);
             DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, way, u, addr, uop);
@@ -1233,17 +1241,12 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
     }
 
     // If we make it here, we need to evict a way to make space -- evicted region shouldn't be currently in use for optimization
-    unsigned lruWay = SPEC_CACHE_NUM_WAYS;
+    unsigned lruWay = SPEC_CACHE_NUM_WAYS; lruWay = lruWay;
     unsigned evictWay = SPEC_CACHE_NUM_WAYS;
+    uint64_t wayHotness = UINT64_MAX; wayHotness = wayHotness;
     for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
-        // check if we are processing the trace for first time optimization -- write to way in progress
-        // if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
-            
-        //     // a trace should never be added to spec cache when optimization is in process
-        //     assert(0);
-        //     DPRINTF(Decoder, "Can't evict becuase OptimizationInProcess: tag:%#x idx:%d way:%d. currentTrace.id: %d\n", tag, idx, way, traceConstructor->currentTrace.id);
-        //     continue;
-        // }
+        // TODO: check if the trace is in transient state 
+        
        
         // check if we are streaming the trace -- read from way in progress
         if ((traceConstructor->streamTrace.id != 0) && 
@@ -1266,6 +1269,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
             continue;
         }
 
+        // LRU based eviction algorithm 
         if (speculativeLRUArray[idx][way] < lruWay) {
             DPRINTF(Decoder, "lruWay = %d,  speculativeLRUArray[%d][%d] = %d\n", lruWay, idx, way, speculativeLRUArray[idx][way]);
             lruWay = speculativeLRUArray[idx][way];
@@ -1275,11 +1279,28 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
         {
             DPRINTF(Decoder, "lruWay = %d,  speculativeLRUArray[%d][%d] = %d\n", lruWay, idx, way, speculativeLRUArray[idx][way]);
         }
+        
+        
+        //don't evict a trace that is added just now! 
+        // if (speculativeTraceIDArray[idx][way] == traceID) continue;
+
+        //Hotness based eviction algorithm
+        // if (specHotnessArray[idx][way].read() < wayHotness) {
+        //     DPRINTF(Decoder, "wayHotness = %d,  specHotnessArray[%d][%d] = %d speculativeTraceIDArray[%d][%d] = %d\n", wayHotness, idx, way, specHotnessArray[idx][way].read(), idx, way, speculativeTraceIDArray[idx][way]);
+        //     wayHotness = specHotnessArray[idx][way].read();
+        //     evictWay = way;
+        // }
+        // else 
+        // {
+        //     DPRINTF(Decoder, "wayHotness = %d,  specHotnessArray[%d][%d] = %d speculativeTraceIDArray[%d][%d] = %d\n", wayHotness, idx, way, specHotnessArray[idx][way].read(), idx, way, speculativeTraceIDArray[idx][way]);
+        // }
     }
+
+
     if (evictWay != SPEC_CACHE_NUM_WAYS) {
         DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%d way:%d.\n Affected PCs:\n", tag, idx, evictWay);
         /* Invalidate all prior content. */
-        unsigned int evictedTraceID = speculativeTraceIDArray[idx][evictWay];
+        uint64_t evictedTraceID = speculativeTraceIDArray[idx][evictWay];
         uint64_t     evcitedTag = speculativeTagArray[idx][evictWay];
         assert(evictedTraceID); // never should be zero
         assert(evcitedTag);
@@ -1297,6 +1318,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                 speculativeTraceIDArray[idx][w] = 0;
                 speculativeTagArray[idx][w] = 0;
                 speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
+                specHotnessArray[idx][w].reset();
                 StaticInstPtr macroOp = speculativeCache[idx][w][0]->macroOp;
                 if (macroOp) {
                     macroOp->deleteMicroOps();
@@ -1305,9 +1327,67 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
             }
         }
         // trace map should always hold it
+        
         DPRINTF(Decoder, "Removing trace %d from Trace Map.  Tag :%#x\n", evictedTraceID, evcitedTag);
         assert(traceConstructor->traceMap.find(evictedTraceID) != traceConstructor->traceMap.end());
+        
+        // Update the eviction tick
+        assert(traceConstructor->traceMap[evictedTraceID].eviction_tick == 0);
+        traceConstructor->traceMap[evictedTraceID].eviction_tick = cpu->numCycles.value();
+        assert(traceConstructor->traceMap[evictedTraceID].eviction_tick != 0);
+        
+        // Dump some debug analysis information for evicted traces
+        DPRINTF(TraceEviction, "@ %d,%d,%d,%d,%d,%d,%x,%x,%d,%d,%d,%d\n", 
+                                    traceConstructor->traceMap[evictedTraceID].id, 
+                                    traceConstructor->traceMap[evictedTraceID].insertion_tick,
+                                    traceConstructor->traceMap[evictedTraceID].eviction_tick,
+                                    traceConstructor->traceMap[evictedTraceID].hotness,
+                                    traceConstructor->traceMap[evictedTraceID].length,
+                                    traceConstructor->traceMap[evictedTraceID].shrunkLength,
+                                    traceConstructor->traceMap[evictedTraceID].getTraceHeadAddr().pcAddr,
+                                    traceConstructor->traceMap[evictedTraceID].end.pcAddr,
+                                    traceConstructor->traceMap[evictedTraceID].branchesFolded,
+                                    traceConstructor->traceMap[evictedTraceID].validPredSources,
+                                    traceConstructor->traceMap[evictedTraceID].totalNumOfTimesControlSourcesAreMisspredicted,
+                                    traceConstructor->traceMap[evictedTraceID].totalNumOfTimesPredictionSourcesAreMisspredicted
+                                    );
+
+        if(Debug::TraceEviction.status())
+        {
+            traceConstructor->dumpTrace(traceConstructor->traceMap[evictedTraceID]);
+            for (int i=0; i<4; i++) 
+            {
+                DPRINTF(TraceEviction, "Prediction Source %i: %d\n", i, traceConstructor->traceMap[evictedTraceID].source[i].valid);
+                if (traceConstructor->traceMap[evictedTraceID].source[i].valid) {
+                    // set the predecitions sources in spec$
+                    DPRINTF(TraceEviction, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i, numOfTimesMisspredicted:%d\n",
+                                            traceConstructor->traceMap[evictedTraceID].source[i].addr.pcAddr,  
+                                            traceConstructor->traceMap[evictedTraceID].source[i].addr.uopAddr,
+                                            traceConstructor->traceMap[evictedTraceID].source[i].value, 
+                                            traceConstructor->traceMap[evictedTraceID].source[i].confidence,
+                                            traceConstructor->traceMap[evictedTraceID].source[i].latency,
+                                            traceConstructor->traceMap[evictedTraceID].source[i].numOfTimesMisspredicted);
+                }
+            }
+            for (int i=0; i<2; i++) 
+            {
+                DPRINTF(TraceEviction, "Control Source %i: %d\n", i, traceConstructor->traceMap[evictedTraceID].controlSources[i].valid);
+                if (traceConstructor->traceMap[evictedTraceID].controlSources[i].valid) {
+                    // set the predecitions sources in spec$
+                    DPRINTF(TraceEviction, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i, numOfTimesMisspredicted:%d\n",
+                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].addr.pcAddr,  
+                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].addr.uopAddr,
+                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].value, 
+                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].confidence,
+                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].latency,
+                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].numOfTimesMisspredicted);
+                }
+            }
+        }
+
+
         traceConstructor->traceMap.erase(evictedTraceID);
+
         if (lastWay != -1) {
             /* Multi-way region. */
             speculativeNextWayArray[idx][lastWay] = evictWay;
@@ -1319,6 +1399,9 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
         speculativeTraceIDArray[idx][evictWay] = traceID;
         speculativeCache[idx][evictWay][u] = inst;
         speculativeAddrArray[idx][evictWay][u] = FullUopAddr(addr, uop);
+        specHotnessArray[idx][evictWay].reset();
+        inst->setSpecCacheIdx(idx);
+        inst->setSpecCacheWay(evictWay);
 
         DPRINTF(ConstProp, "Set speculativeAddrArray[%i][%i][%i] to %x.%i\n", idx, evictWay, u, addr, uop);
         updateLRUBitsSpeculative(idx, evictWay);        
@@ -1497,6 +1580,17 @@ Decoder::isTraceAvailable(FullUopAddr addr, uint64_t value, uint64_t confidence)
             if (traceConfidence < 5) { // low confidence, move on the the next trace at this index
                 continue;
             }
+
+            // if (trace.totalNumOfTimesPredictionSourcesAreMisspredicted >= 10)
+            // {
+            //     DPRINTF(Decoder, "Trace %d overall missprediction of the trace is high!  totalNumOfTimesPredictionSourcesAreMisspredicted = %d\n", trace.id, trace.totalNumOfTimesPredictionSourcesAreMisspredicted);
+            //     continue;
+            // }
+            // else if (trace.totalNumOfTimesControlSourcesAreMisspredicted >= 10)
+            // {
+            //     DPRINTF(Decoder, "Trace %d overall missprediction of the trace is high!  totalNumOfTimesControlSourcesAreMisspredicted = %d\n", trace.id, trace.totalNumOfTimesControlSourcesAreMisspredicted);
+            //     continue;
+            // }
 
             // taking product because we want the highest confidence, latency, and shrinkage
             // we don't include hotness here as that is considered while generating a trace
@@ -1690,13 +1784,16 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
         // assert(thisPC._pc == speculativeAddrArray[_idx][_way][_uop].pcAddr);
         // assert(traceConstructor->streamTrace.addr.valid);
         assert(speculativeTraceIDArray[_idx][_way] == traceID);
+
+        // add to history that this trace is activated and is in transit and therefore shouldn't be removed
+
     }
     // if the traceID is correct and addr is valid, then thisPC._pc should be equal to speculativeAddrArray[idx][way][uop].pcAddr
     // if this is not true, then there is a bug?
 
-        DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x\n",thisPC._pc, idx, way, uop , speculativeAddrArray[idx][way][uop].pcAddr);
-        DPRINTF(Decoder,"speculativeValidArray[%d][%d] = %d\n", idx, way , speculativeValidArray[idx][way]);
-        DPRINTF(Decoder,"speculativeTraceIDArray[%d][%d] = %d, traceID = %d\n", idx, way ,speculativeTraceIDArray[idx][way], traceID); 
+    DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x\n",thisPC._pc, idx, way, uop , speculativeAddrArray[idx][way][uop].pcAddr);
+    DPRINTF(Decoder,"speculativeValidArray[%d][%d] = %d\n", idx, way , speculativeValidArray[idx][way]);
+    DPRINTF(Decoder,"speculativeTraceIDArray[%d][%d] = %d, traceID = %d\n", idx, way ,speculativeTraceIDArray[idx][way], traceID); 
         	
 
     idx = traceConstructor->streamTrace.addr.idx;
@@ -1706,6 +1803,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
     thisPC._pc = speculativeAddrArray[idx][way][uop].pcAddr;
 
     StaticInstPtr curInst = speculativeCache[idx][way][uop];
+    increaseSpecWayHotness(idx,way);
     /// dump all the micropps in the way and then assert!
     if (!curInst)
     {
@@ -1763,7 +1861,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
     }
 
     // set the trace ID for this instruction
-    curInst->traceID = traceID; 
+    // curInst->traceID = traceID; 
 
     return curInst;
 }

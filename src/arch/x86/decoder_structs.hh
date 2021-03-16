@@ -73,6 +73,19 @@ struct SuperOptimizedMicroop
     }
 
 };
+
+struct SpecCacheHistory
+{
+    uint64_t seqNum;
+    uint64_t traceID;
+
+    SpecCacheHistory(uint64_t _seqNum, uint64_t _traceID)
+    {
+        this->seqNum = _seqNum;
+        this->traceID = _traceID; 
+    }
+
+};
 // tracks instructions with confident value predictions
 struct PredictionSource
 {
@@ -82,8 +95,9 @@ struct PredictionSource
     uint64_t value;
     unsigned confidence;
     unsigned latency;
+    uint64_t numOfTimesMisspredicted;
 
-    PredictionSource() {valid = false; isBranch = false;}
+    PredictionSource() {valid = false; isBranch = false; numOfTimesMisspredicted = 0;}
 };
 
 // Register context block for liveness analysis
@@ -118,7 +132,13 @@ struct SpecTrace
     // Trace ID
     uint64_t id;
 
-    
+    uint64_t hotness;
+
+    // the tick at which this trace is inserted into the spec cache
+    uint64_t insertion_tick;
+
+    // the tick at which the trace is evicted from the spec cache
+    uint64_t eviction_tick;
 
     // (idx, way, uop) of head of the trace
     FullCacheIdx head;
@@ -148,6 +168,8 @@ struct SpecTrace
 
     // Control Prediction Sources (at most 2)
     PredictionSource controlSources[2];
+    // Total number of times trace is misspredicted (controlSources[2])
+    uint64_t totalNumOfTimesControlSourcesAreMisspredicted;
 
     enum State {
         Invalid,
@@ -170,9 +192,13 @@ struct SpecTrace
     // Trace Satte
     State state;
 
+    // number of valid prediction sources
+    unsigned validPredSources ;
+
     // Prediction Sources (at most 4)
     PredictionSource source[4];
-
+    // Total number of times trace is misspredicted (source[4])
+    uint64_t totalNumOfTimesPredictionSourcesAreMisspredicted;
     // Trace Length
     unsigned length;
 
@@ -197,6 +223,12 @@ struct SpecTrace
         prevNonEliminatedInst = NULL;
         prevEliminatedInst = NULL;
         branchesFolded = 0;
+        totalNumOfTimesControlSourcesAreMisspredicted = 0;
+        totalNumOfTimesPredictionSourcesAreMisspredicted = 0;
+        hotness = 0;
+        insertion_tick = 0;
+        eviction_tick = 0;
+        validPredSources = 0;
     }
 };
 #endif // __ARCH_X86_DECODER_STRUCTS__

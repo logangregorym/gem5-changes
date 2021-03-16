@@ -14,6 +14,7 @@
 #include "debug/ConstProp.hh"
 #include "debug/TraceGen.hh"
 #include "cpu/reg_class.hh"
+#include "debug/TraceEviction.hh"
 
 using namespace X86ISA;
 using namespace std;
@@ -54,6 +55,13 @@ void TraceBasedGraph::regStats()
     tracesWithInvalidHead
         .name("system.switch_cpus.decode.superop.traceConstructor.tracesWithInvalidHead")
         .desc("# of traces whose first inst wasn't found in the uop cache")
+        ;
+    
+    numMicroopsInTraceDist
+        .init(0,18,1)
+        .name(name() + ".microops_per_trace")
+        .desc("Number of microops in super optimized trace")
+        .flags(Stats::pdf)
         ;
 }
 
@@ -157,6 +165,7 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
 
     // before adding it to the queue, check if profitable -- we prefer long hot traces
     uint64_t hotness = decoder->uopHotnessArray[uop_cache_idx][baseWay].read();
+    newTrace.hotness = hotness;
     uint64_t length = computeLength(newTrace);
     if (hotness < 7 || length < 4) { // TODO: revisit: pretty low bar
         DPRINTF(TraceGen, "Rejecting trace request to optimize trace at uop[%i][%i][%i]\n", uop_cache_idx, baseWay, 0);
@@ -353,7 +362,7 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
             decodedMicroOp = decodedMacroOp->fetchMicroop(uopAddr);
             decodedMicroOp->macroOp = decodedMacroOp;
         }
-        //DPRINTF(SuperOp, "%p:%i -- uop[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));    
+        DPRINTF(TraceEviction, "%p:%i -- uop[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr));    
         DPRINTF(TraceGen, "%p:%i -- uop[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr)); 
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
@@ -368,24 +377,25 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
         Addr uopAddr = decoder->speculativeAddrArray[idx][way][uop].uopAddr;
         StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
         //assert(decodedMicroOp);
+        DPRINTF(TraceEviction, "%p:%i -- spec[%i][%i][%i] -- %s -- isCC = %d -- isPredictionSource = %d -- isDummyMicroop = %d\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr), decodedMicroOp->isCC(), decodedMicroOp->isTracePredictionSource(), decodedMicroOp->dummyMicroop);   
         DPRINTF(TraceGen, "%p:%i -- spec[%i][%i][%i] -- %s -- isCC = %d -- isPredictionSource = %d -- isDummyMicroop = %d\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr), decodedMicroOp->isCC(), decodedMicroOp->isTracePredictionSource(), decodedMicroOp->dummyMicroop);   
 		for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
 			// LAYNE : TODO : print predicted inputs (checking syntax)
 			if (decodedMicroOp->sourcesPredicted[i]) {
-				//DPRINTF(SuperOp, "\tSource for register %i predicted as %x\n", decodedMicroOp->srcRegIdx(i), decodedMicroOp->sourcePredictions[i]);
+				DPRINTF(TraceEviction, "\tSource for register %i predicted as %x\n", decodedMicroOp->srcRegIdx(i), decodedMicroOp->sourcePredictions[i]);
                 DPRINTF(TraceGen, "\tSource for register %i predicted as %x\n", decodedMicroOp->srcRegIdx(i), decodedMicroOp->sourcePredictions[i]);
 			}
            
 		}
         for (int i=0; i< 5; i++) {
 			if (decodedMicroOp->isCCFlagPropagated[i]) {
-				//DPRINTF(SuperOp, "\tSource for register %i predicted as %x\n", decodedMicroOp->srcRegIdx(i), decodedMicroOp->sourcePredictions[i]);
+				DPRINTF(TraceEviction, "\tSource for register %i predicted as %x\n", decodedMicroOp->srcRegIdx(i), decodedMicroOp->sourcePredictions[i]);
                 DPRINTF(TraceGen, "\tCC flag %d is propagated as %x\n", i, decodedMicroOp->propgatedCCFlags[i]);
 			}
 		}
 		for (int i=0; i<decodedMicroOp->numDestRegs(); i++) {
 			if (decodedMicroOp->liveOutPredicted[i]) {
-				//DPRINTF(SuperOp, "\tLive out for register %i predicted as %x\n", decodedMicroOp->destRegIdx(i), decodedMicroOp->liveOut[i]);
+				DPRINTF(TraceEviction, "\tLive out for register %i predicted as %x\n", decodedMicroOp->destRegIdx(i), decodedMicroOp->liveOut[i]);
                 DPRINTF(TraceGen, "\tLive out for register %i predicted as %x\n", decodedMicroOp->destRegIdx(i), decodedMicroOp->liveOut[i]);
 			}
 		}
@@ -589,11 +599,19 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     currentTrace.prevNonEliminatedInst = currentTrace.prevEliminatedInst;
                 }
 
-                for (auto const &microop: decoder->specCacheWriteQueue)
+                for (auto &microop: decoder->specCacheWriteQueue)
                 {
+                    // add trace id to each spec microop for gathering stats in commit stage
+                    microop.inst->setTraceID(currentTrace.id);
+                    microop.inst->setTraceLength(decoder->specCacheWriteQueue.size());
                     decoder->addUopToSpeculativeCache(currentTrace, microop);
                 }
 
+                currentTrace.validPredSources = validPredSources;
+                
+                
+
+                numMicroopsInTraceDist.sample(decoder->specCacheWriteQueue.size());
                 DPRINTF(TraceGen, "Trace id %d added to spec cache with %d valid prediction sources!.\n", currentTrace.id, validPredSources );
                     
                 // now that write queue is written to the spec cache, clear it
@@ -1050,9 +1068,15 @@ bool TraceBasedGraph::generateNextTraceInst() {
         } else if (type == "syscall") {
             currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr + 2;
             currentTrace.end.uopAddr = 0;
-        } else {
+        } 
+        else if (type == "CPUID") {
             panic("unsupported instruction without macro-op: %s", type);
         }
+        else 
+        {
+            panic("unsupported instruction without macro-op: %s", type);
+        }
+        
         DPRINTF(TraceGen, "Setting end of trace PC to: %#x:%#x\n",
                             currentTrace.end.pcAddr, currentTrace.end.uopAddr);
        

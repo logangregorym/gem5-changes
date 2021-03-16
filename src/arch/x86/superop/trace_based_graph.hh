@@ -125,6 +125,9 @@ class TraceBasedGraph : public SimObject
     Stats::Scalar tracesPoppedFromQueue;
     Stats::Scalar tracesWithInvalidHead;
 
+    /** Distribution of the number of microops in superoptimized trace */
+    Stats::Distribution numMicroopsInTraceDist;
+
 }; // class TraceBasedGraph
 
 

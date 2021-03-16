@@ -537,6 +537,9 @@ class DefaultCommit
     Stats::Formula reducableCommitPercent2;
 
     Stats::Scalar exec_cnt;
+
+    /** Distribution of the number of committed super optmized instructions comming from each trace. */
+    Stats::Distribution numCommittedSuperoptmizedInstDist;
 };
 
 #endif // __CPU_O3_COMMIT_HH__

@@ -464,8 +464,7 @@ class DefaultIEW
     Stats::Scalar predictedTakenIncorrect;
     /** Stat for total number of incorrect predicted not taken branches. */
     Stats::Scalar predictedNotTakenIncorrect;
-    /** Stat for total number of mispredicted branches detected at execute. */
-    Stats::Formula branchMispredicts;
+
 
     /** Stat for total number of executed instructions. */
     Stats::Scalar iewExecutedInsts;
@@ -521,6 +520,17 @@ class DefaultIEW
     Stats::Vector squashedLoadsOnlyInUopCache;
     Stats::Vector squashedLoadsOnlyInSpecCache;
     Stats::Vector squashedLoadsInNeitherCache;
+
+    public:
+    // Total number of times trace is misspredicted (controlSources[2])
+    Stats::Scalar totalNumOfTimesControlSourcesOfTracesAreMisspredicted;
+
+    // Total number of times trace is misspredicted (prediction source[4])
+    Stats::Scalar totalNumOfTimesPredictionSourcesOfTracesAreMisspredicted;
+
+    /** Stat for total number of mispredicted branches detected at execute. */
+    // this only includes the branchs. The one at the commit also counts the LVP misspredictions
+    Stats::Formula branchMispredicts;
 };
 
 #endif // __CPU_O3_IEW_HH__

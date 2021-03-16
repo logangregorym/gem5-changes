@@ -1724,6 +1724,20 @@ FullO3CPU<Impl>::squashInstIt(const ListIt &instIt, ThreadID tid, bool squashDue
 
         if (squashDueToLVP) squashedDueToLVPAllStages++;
 
+        // decrease the hotness of trace
+        if ((*instIt)->isStreamedFromSpeculativeCache())
+        {
+            int idx = (*instIt)->staticInst->getSpecIdx();
+            int way = (*instIt)->staticInst->getSpecWay();
+            uint64_t traceID = (*instIt)->staticInst->getTraceID();
+            assert(traceID); assert(idx != -1); assert(way != -1);
+            // if we still have the trace in spec cache reduce its hotness
+            if (fetch.decoder[tid]->speculativeValidArray[idx][way] && fetch.decoder[tid]->speculativeTraceIDArray[idx][way] == traceID)
+            {
+                fetch.decoder[tid]->decreaseSpecWayHotness(idx, way);
+            }
+        }
+
         // Mark it as squashed.
         (*instIt)->setSquashed();
         (*instIt)->macroop = NULL;
