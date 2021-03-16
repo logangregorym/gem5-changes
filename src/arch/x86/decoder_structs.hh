@@ -192,6 +192,9 @@ struct SpecTrace
     // Trace Satte
     State state;
 
+    // number of valid prediction sources
+    unsigned validPredSources ;
+
     // Prediction Sources (at most 4)
     PredictionSource source[4];
     // Total number of times trace is misspredicted (source[4])
@@ -225,6 +228,7 @@ struct SpecTrace
         hotness = 0;
         insertion_tick = 0;
         eviction_tick = 0;
+        validPredSources = 0;
     }
 };
 #endif // __ARCH_X86_DECODER_STRUCTS__
