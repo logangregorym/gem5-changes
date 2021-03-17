@@ -820,7 +820,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
         decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
         if (decodedMacroOp->getName() == "NOP" || decodedMacroOp->getName() == "fault" ||
             decodedMacroOp->getName() == "popcnt_Gv_Ev" || decodedMacroOp->getName() == "fdivr" ||
-            decodedMacroOp->getName() == "xrstor" || decodedMacroOp->getName() == "prefetch_t0") {
+            decodedMacroOp->getName() == "xrstor" || decodedMacroOp->getName() == "prefetch_t0" || 
+            decodedMacroOp->getName() == "inst_ib" || decodedMacroOp->getName() == "sldt_Mw_or_Rv") {
             currentTrace.length++;
             if (currentTrace.prevNonEliminatedInst) {
                 currentTrace.prevNonEliminatedInst->shrunkenLength++;
@@ -832,7 +833,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             StaticInstPtr inst = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
             if (inst->getName() == "NOP" || inst->getName() == "fault" ||
                 inst->getName() == "popcnt_Gv_Ev" || inst->getName() == "fdivr" ||
-                inst->getName() == "xrstor" || inst->getName() == "prefetch_t0") {
+                inst->getName() == "xrstor" || inst->getName() == "prefetch_t0" || 
+                decodedMacroOp->getName() == "inst_ib" || decodedMacroOp->getName() == "sldt_Mw_or_Rv") {
                 currentTrace.length++;
                 if (currentTrace.prevNonEliminatedInst) {
                     currentTrace.prevNonEliminatedInst->shrunkenLength++;
