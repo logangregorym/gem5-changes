@@ -1800,6 +1800,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
     way = traceConstructor->streamTrace.addr.way;
     uop = traceConstructor->streamTrace.addr.uop;
 
+    updateLRUBitsSpeculative(idx, way);
     thisPC._pc = speculativeAddrArray[idx][way][uop].pcAddr;
 
     StaticInstPtr curInst = speculativeCache[idx][way][uop];
