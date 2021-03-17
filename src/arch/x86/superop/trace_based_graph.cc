@@ -1382,15 +1382,16 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
 
     // checks to make sure there is no overflow
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
 
     return true;
 
@@ -1429,19 +1430,20 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get(); 
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
 
-    assert(destReg.flatIndex() < 38);
-	if (dataSize < 4 && regCtx[destReg.flatIndex()].valid) {
-		forwardVal = x86_inst->merge(regCtx[destReg.flatIndex()].value, imm, dataSize);
+    assert(dest_reg_idx < 38);
+	if (dataSize < 4 && regCtx[dest_reg_idx].valid) {
+		forwardVal = x86_inst->merge(regCtx[dest_reg_idx].value, imm, dataSize);
 	} else if (dataSize < 4) { 
         return false; 
     }
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
         
     return true;
 }
@@ -1495,17 +1497,18 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
         
     } else {
 		RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
 
-		if (!regCtx[destReg.flatIndex()].valid) { 
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false;
         }
 
-        assert(destReg.flatIndex() < 38);
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+        assert(dest_reg_idx < 38);
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
@@ -1539,13 +1542,14 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
 
     
     return true;
@@ -1597,16 +1601,17 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
         forwardVal = (psrc1 - psrc2) & mask(dataSize * 8);;
     } else {
 		RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false; 
         }
-        assert(destReg.flatIndex() < 38);
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+        assert(dest_reg_idx < 38);
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 		
         psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
@@ -1640,13 +1645,14 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
     
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
     
     return true;
 }
@@ -1697,16 +1703,17 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
         forwardVal = (psrc1 & psrc2) & mask(dataSize * 8);
     } else {
         RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false;
         }
         
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
@@ -1741,13 +1748,14 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
 
     return true;
 }
@@ -1797,16 +1805,17 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
         forwardVal = (psrc1 | psrc2) & mask(dataSize * 8);
     } else {
 		RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false;
         }
 
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
@@ -1841,13 +1850,14 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
     
     return true;
 }
@@ -1998,12 +2008,13 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
-    assert(destReg.flatIndex() < 38);
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    assert(dest_reg_idx < 38);
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
 
     
     return true;
@@ -2055,16 +2066,17 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
         forwardVal = (psrc1 - imm8) & mask(dataSize * 8);;
     } else {
         RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false;
         }
 
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
@@ -2097,13 +2109,14 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
 
     return true;
 }
@@ -2152,16 +2165,17 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
         
     } else {
         RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false;
         }
 
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
@@ -2192,13 +2206,14 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
 
     return true;
 }
@@ -2245,16 +2260,17 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
         forwardVal = (psrc1 & imm8) & mask(dataSize * 8);;
     } else {
         RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false;
         }
 
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		forwardVal = x86_inst->merge(DestReg, (psrc1 & imm8), dataSize);
@@ -2287,13 +2303,14 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
 
     return true;
 }
@@ -2339,16 +2356,16 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
         psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         forwardVal = (psrc1 | imm8) & mask(dataSize * 8);;
     } else {
-        RegId destReg = inst->destRegIdx(0);
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false;
         }
 
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
@@ -2382,13 +2399,14 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
 
     return true;
 }
@@ -2435,16 +2453,17 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
         forwardVal = (psrc1 ^ imm8) & mask(dataSize * 8);;
     } else {
         RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false;
         }
 
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
@@ -2478,13 +2497,14 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
     
     return true;
 }
@@ -2535,15 +2555,16 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
         forwardVal = (psrc1 << shiftAmt) & mask(dataSize * 8);
     } else {
         RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false;
         }
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
@@ -2594,13 +2615,14 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
 
     return true;
 }
@@ -2653,16 +2675,17 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
         forwardVal = (psrc1 >> shiftAmt) & logicalMask;
     } else {
         RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) {
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) {
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false; 
         }
 
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 		shiftAmt = (imm8 & ((dataSize == 8) ? mask(6) : mask(5)));
@@ -2709,13 +2732,14 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
     
     return true;
 }
@@ -2773,16 +2797,17 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
         forwardVal = val & mask(dataSize * 8);
     } else {
         RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             if (usingCCTracking && inst->isCC()) {
                 ccValid = false;
             }
             return false;
         }
         
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
 
 		IntReg val = psrc1;
@@ -2821,13 +2846,14 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
     
     return true;
 }
@@ -2878,13 +2904,14 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     }
     else {
         RegId destReg = inst->destRegIdx(0);
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(destReg.isIntReg());
-        assert(destReg.flatIndex() < 38);
-		if (!regCtx[destReg.flatIndex()].valid) { 
+        assert(dest_reg_idx < 38);
+		if (!regCtx[dest_reg_idx].valid) { 
             return false; 
         }
 
-		uint64_t DestReg = regCtx[destReg.flatIndex()].value;
+		uint64_t DestReg = regCtx[dest_reg_idx].value;
 
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);	
 
@@ -2892,13 +2919,14 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     }
 
     RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
 
-    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, destReg.flatIndex());
-    assert(destReg.flatIndex() < 38);
-    regCtx[destReg.flatIndex()].value = forwardVal;
-    regCtx[destReg.flatIndex()].valid = true;
-    regCtx[destReg.flatIndex()].source = false;
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
     
     return true;
 }
