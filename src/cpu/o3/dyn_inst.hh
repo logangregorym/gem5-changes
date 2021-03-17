@@ -222,8 +222,14 @@ class BaseO3DynInst : public BaseDynInst<Impl>
                 this->staticInst->destRegIdx(idx);
             switch (original_dest_reg.classValue()) {
               case IntRegClass:
-                this->setIntRegOperand(this->staticInst.get(), idx,
-                               this->cpu->readIntReg(prev_phys_reg));
+                if (this->staticInst->forwardedLiveValueExists &&
+                    this->staticInst->predSourceRegIdx == idx) {
+                    this->setIntRegOperand(this->staticInst.get(), idx,
+                                   this->staticInst->forwardedLiveValue);
+                } else {
+                    this->setIntRegOperand(this->staticInst.get(), idx,
+                                   this->cpu->readIntReg(prev_phys_reg));
+                }
                 break;
               case FloatRegClass:
                 this->setFloatRegOperandBits(this->staticInst.get(), idx,

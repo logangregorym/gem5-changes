@@ -610,13 +610,8 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
         toCommit->oldpc[tid] = inst->pcState();
         assert(inst);
         toCommit->mispredictInst[tid] = inst; // not a branch misprediction
-        if (inst->staticInst->isCarryingLivesOut()) {
-            toCommit->includeSquashInst[tid] = false;
-            inst->forwardOldRegs();
-        } else {
-            toCommit->includeSquashInst[tid] = true;
-        }
-
+        toCommit->includeSquashInst[tid] = false;
+        inst->forwardOldRegs();
         toCommit->squashDueToLVP[tid] = true;
 
         wroteToTimeBuffer = true;

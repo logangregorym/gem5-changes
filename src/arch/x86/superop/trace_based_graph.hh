@@ -88,7 +88,7 @@ class TraceBasedGraph : public SimObject
     LVPredUnit *loadPred;
 
     // Dump live outs
-    bool dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs);
+    void dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs);
 
     // Propagation Functions
     bool propagateLastUse(StaticInstPtr inst);

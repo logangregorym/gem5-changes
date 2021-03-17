@@ -301,7 +301,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
           _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
-        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false;}
+        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false; forwardedLiveValueExists = false;}
 
     StaticInst(const char *_mnemonic, ExtMachInst _machInst, OpClass __opClass)
 	: _opClass(__opClass), _numSrcRegs(0), _numDestRegs(0),
@@ -309,7 +309,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
 	  _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
-        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false;}
+        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false; forwardedLiveValueExists = false;}
 
   public:
     virtual ~StaticInst();
@@ -446,6 +446,9 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isCCFlagPropagated[5] = {false};
     TheISA::PCState predictedTarget;
     bool predictedTaken = false;
+    int predSourceRegIdx;
+    uint64_t forwardedLiveValue;
+    bool forwardedLiveValueExists = false;
 
 
     private:
