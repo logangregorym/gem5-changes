@@ -1506,7 +1506,9 @@ DefaultFetch<Impl>::isStreamingFromSpeculativeCache(TheISA::PCState thisPC)
         decoder[tid]->setSpeculativeCacheActive(true, currentTraceID);
         return true;
     }
-    decoder[tid]->setSpeculativeCacheActive(false);
+    if (decoder[tid]->isSpeculativeCacheActive()) {
+        decoder[tid]->setSpeculativeCacheActive(false);
+    }
     return false;
 }
 
@@ -1523,8 +1525,9 @@ DefaultFetch<Impl>::isStreamingFromUopCache(TheISA::PCState thisPC)
         fetchBufferValid[tid] = false;
         return true;
     }
-
-    decoder[tid]->setUopCacheActive(false);
+    if (decoder[tid]->isUopCacheActive()) {
+        decoder[tid]->setUopCacheActive(false);
+    }
     return false;
 }
 
@@ -2046,7 +2049,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 }
 
         } while ((isStreamingFromSpeculativeCache(thisPC) ||
-                  (curMacroop || (decoder[tid]->isUopCacheActive() && decoder[tid]->isHitInUopCache(thisPC.instAddr())) || decoder[tid]->instReady())) &&
+                  (curMacroop || decoder[tid]->isUopCacheActive() || decoder[tid]->instReady())) &&
                   numInst < fetchWidth &&
                   computeFetchQueueSize(tid) < fetchQueueSize);
 

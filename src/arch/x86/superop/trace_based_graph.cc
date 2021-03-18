@@ -824,7 +824,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "inst_ib" || decodedMacroOp->getName() == "sldt_Mw_or_Rv" ||
             decodedMacroOp->getName() == "fcomp" || decodedMacroOp->getName() == "unknown" || 
             decodedMacroOp->getName() == "ret_far_Iw" || decodedMacroOp->getName() == "fisub" ||
-            decodedMacroOp->getName() == "int1") {
+            decodedMacroOp->getName() == "int1" || decodedMacroOp->getName() == "CPUID") {
             currentTrace.length++;
             if (currentTrace.prevNonEliminatedInst) {
                 currentTrace.prevNonEliminatedInst->shrunkenLength++;
@@ -840,7 +840,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 decodedMacroOp->getName() == "inst_ib" || decodedMacroOp->getName() == "sldt_Mw_or_Rv" ||
                 decodedMacroOp->getName() == "fcomp" || decodedMacroOp->getName() == "unknown" ||
                 decodedMacroOp->getName() == "ret_far_Iw" || decodedMacroOp->getName() == "fisub" ||
-                decodedMacroOp->getName() == "int1") {
+                decodedMacroOp->getName() == "int1" || decodedMacroOp->getName() == "CPUID") {
                 currentTrace.length++;
                 if (currentTrace.prevNonEliminatedInst) {
                     currentTrace.prevNonEliminatedInst->shrunkenLength++;
@@ -1075,12 +1075,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         } else if (type == "syscall") {
             currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr + 2;
             currentTrace.end.uopAddr = 0;
-        } 
-        else if (type == "CPUID") {
-            panic("unsupported instruction without macro-op: %s", type);
-        }
-        else 
-        {
+        } else {
             panic("unsupported instruction without macro-op: %s", type);
         }
         
