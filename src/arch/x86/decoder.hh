@@ -490,7 +490,7 @@ protected:
 	// Interface for fetch!
     // tells fetch stage that if a speculative trace is availble for this PC
     // LVPredictor return int8_t confidence, if this confidence if less than zero then just return
-	uint64_t isTraceAvailable(FullUopAddr addr, uint64_t value, uint64_t confidence);
+	uint64_t isTraceAvailable(FullUopAddr addr);
 
     StaticInstPtr getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken);
     void updateStreamTrace(uint64_t traceID, X86ISA::PCState &thisPC);

@@ -1474,6 +1474,59 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     return instruction;
 }
 
+template<class Impl>
+bool
+DefaultFetch<Impl>::isStreamingFromSpeculativeCache(TheISA::PCState thisPC)
+{
+    // check the speculative cache even before the microop cache
+    ThreadID tid = getFetchingThread(fetchPolicy);
+    if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive() && thisPC.upc() == 0) {
+        currentTraceID = decoder[tid]->isTraceAvailable(FullUopAddr(thisPC.instAddr(), thisPC.upc()));
+        if (currentTraceID != 0 && decoder[tid]->redirectDueToLVPSquashing) {
+            DPRINTF(Fetch, "A trace is available but due to a previous LVP missprediction squash we can't fetch from spec$! Available TraceID is %i.\n", currentTraceID);
+        }
+        else if (currentTraceID != 0 && !decoder[tid]->redirectDueToLVPSquashing)
+        {
+            DPRINTF(Fetch, "A trace is available and Spec$ will be activated! Available TraceID is %i.\n", currentTraceID);
+        }
+        else if (currentTraceID == 0)
+        {
+            DPRINTF(Fetch, "No trace is Avaialble at this PC.\n", currentTraceID);
+        }
+    }
+    if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive())
+    {
+        DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
+        return true;
+    }
+    if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
+    {
+    
+        DPRINTF(Fetch, "Setting speculative cache active at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
+        decoder[tid]->setSpeculativeCacheActive(true, currentTraceID);
+        return true;
+    }
+    decoder[tid]->setSpeculativeCacheActive(false);
+    return false;
+}
+
+template<class Impl>
+bool
+DefaultFetch<Impl>::isStreamingFromUopCache(TheISA::PCState thisPC)
+{
+    // Check the micro-op cache.  If we already find a translation
+    // in the micro-op cache, bypass icache fetch and decode.
+    ThreadID tid = getFetchingThread(fetchPolicy);
+    if (isUopCachePresent && decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
+        DPRINTF(Fetch, "Setting microop cache active at Pc %s.\n", thisPC);
+        decoder[tid]->setUopCacheActive(true);
+        fetchBufferValid[tid] = false;
+        return true;
+    }
+
+    decoder[tid]->setUopCacheActive(false);
+    return false;
+}
 
 template<class Impl>
 void
@@ -1508,9 +1561,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     Addr fetchAddr = (thisPC.instAddr() + pcOffset) & BaseCPU::PCMask;
 
     bool inRom = isRomMicroPC(thisPC.microPC());
-    bool inUopCache = false;
-    bool useUopCache = false;
-    bool inSpeculativeCache = false;
 
     // If returning from the delay of a cache miss, then update the status
     // to running, otherwise do the cache access.  Possibly move this up
@@ -1524,88 +1574,15 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         // Align the fetch PC so its at the start of a fetch buffer segment.
         Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
 
-        
-
-        //*****CHANGE START**********
-        // check the speculative cache even before the microop cache
-        if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive() && thisPC.upc() == 0) {
-            LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
-            currentTraceID = decoder[tid]->isTraceAvailable(FullUopAddr(thisPC.instAddr(), thisPC.upc()), ret.predictedValue, ret.confidence);
-            if (currentTraceID != 0 && decoder[tid]->redirectDueToLVPSquashing) {
-                DPRINTF(Fetch, "A trace is available but due to a previous LVP missprediction squash we can't fetch from spec$! Available TraceID is %i.\n", currentTraceID);
-            }
-            else if (currentTraceID != 0 && !decoder[tid]->redirectDueToLVPSquashing)
-            {
-                DPRINTF(Fetch, "A trace is available and Spec$ will be activated! Available TraceID is %i.\n", currentTraceID);
-            }
-            else if (currentTraceID == 0)
-            {
-                DPRINTF(Fetch, "No trace is Avaialble at this PC.\n", currentTraceID);
-            }
-        }
-        if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive())
-        {
-            DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
-            // Speculative Cache is already enabled, continue fetchinf from it
-            inSpeculativeCache = true;
-            //Disable Uop Cache
-            inUopCache = false;
-            useUopCache = false;
-            decoder[tid]->setUopCacheActive(false);
-            //fetchBufferValid[tid] = false;
-        }
-        else if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
-        {
-        
-            DPRINTF(Fetch, "Setting speculative cache active at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
-            //Enable Speculative Cache
-            inSpeculativeCache = true;
-            decoder[tid]->setSpeculativeCacheActive(true, currentTraceID);
-            //Disable Uop Cache
-            inUopCache = false;
-            useUopCache = false;
-            decoder[tid]->setUopCacheActive(false);
-            //fetchBufferValid[tid] = false;
-          
-        }
-        //*****CHANGE END**********
-
-        // Check the micro-op cache first.  If we already find a translation
-        // in the micro-op cache, bypass icache fetch and decode.
-        else if (isUopCachePresent && (!fetchBufferValid[tid] || !macroop[tid]) &&
-                decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
-          DPRINTF(Fetch, "Setting microop cache active at Pc %s.\n", thisPC);
-          // Enable UopCache
-          inUopCache = true;
-          useUopCache = true;
-          decoder[tid]->setUopCacheActive(true);
-          fetchBufferValid[tid] = false;
-
-           // Disable Speculative Cache
-           if (isSuperOptimizationPresent)
-           {
-                inSpeculativeCache = false;
-                decoder[tid]->setSpeculativeCacheActive(false);
-                
-           }
-          
-        } else if (!(fetchBufferValid[tid] && fetchBufferBlockPC == fetchBufferPC[tid])
+        // We check spec cache first due to left to right associativity of &&
+        if (!isStreamingFromSpeculativeCache(thisPC) && !isStreamingFromUopCache(thisPC) &&
+            !(fetchBufferValid[tid] && fetchBufferBlockPC == fetchBufferPC[tid])
             && !inRom && !macroop[tid]) {
-        // If buffer is no longer valid or fetchAddr has moved to point
-        // to the next cache block, AND we have no remaining ucode
-        // from a macro-op, then start fetch from icache.
+            // If buffer is no longer valid or fetchAddr has moved to point
+            // to the next cache block, AND we have no remaining ucode
+            // from a macro-op, then start fetch from icache.
             DPRINTF(Fetch, "[tid:%i]: Attempting to translate and read "
                     "instruction from legacy decoder, starting at PC %s.\n", tid, thisPC);
-
-            //Disable uop cache
-            decoder[tid]->setUopCacheActive(false);
-
-            //Disable Speculative Cache
-            if (isSuperOptimizationPresent)
-            {
-                inSpeculativeCache = false;
-                decoder[tid]->setSpeculativeCacheActive(false);
-            }
 
             fetchCacheLine(fetchAddr, tid, thisPC.instAddr());
 
@@ -1616,29 +1593,14 @@ DefaultFetch<Impl>::fetch(bool &status_change)
             else
                 ++fetchMiscStallCycles;
             return;
-        } else if ((checkInterrupt(thisPC.instAddr()) && !delayedCommit[tid])) {
+        }
+        if (!isStreamingFromSpeculativeCache(thisPC) && !isStreamingFromUopCache(thisPC) &&
+            (checkInterrupt(thisPC.instAddr()) && !delayedCommit[tid])) {
             // Stall CPU if an interrupt is posted and we're not issuing
             // an delayed commit micro-op currently (delayed commit instructions
             // are not interruptable by interrupts, only faults)
             ++fetchMiscStallCycles;
             DPRINTF(Fetch, "[tid:%i]: Fetch is stalled!\n", tid);
-
-            //Disable Uop Cache
-            if (isUopCachePresent && !useUopCache &&
-                decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
-                decoder[tid]->setUopCacheActive(false);
-            }
-
-
-            // do we need to do anything here for speculative cache?
-            //Disable Speculative Cache
-            if (isSuperOptimizationPresent)
-            {
-                inSpeculativeCache = false;
-                decoder[tid]->setSpeculativeCacheActive(false);
-            }
-
-
             return;
         }
     } else {
@@ -1693,10 +1655,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     // Need to halt fetch if quiesce instruction detected
     bool quiesce = false;
 
-    // we use this flag to find out if we want to switch fetching from uopcache/decoder to speculative cache
-    bool switchFromUopCacheDecoderToSpeculativeCache = false;
-    bool switchFromSpeculativeCacheToUopCacheDecoder = false;
-    
     const unsigned numInsts = fetchBufferSize / instSize;
     unsigned blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
 
@@ -1705,6 +1663,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     if (decoder[tid]->redirectDueToLVPSquashing) decoder[tid]->redirectDueToLVPSquashing = false;
 
 
+    bool switchToDecodePipeline = false;
     // Loop through instruction memory from the cache.
     // Keep issuing while fetchWidth is available and branch is not
     // predicted taken
@@ -1716,8 +1675,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
 
         //*****CHANGE START**********
-        // added inSpeculativeCache flag because when the speculative cache is active we don't need to check for needMem
-        bool needMem = !inRom && !curMacroop && !inUopCache && !inSpeculativeCache && 
+        bool needMem = !inRom && !curMacroop && !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive() && 
             !decoder[tid]->instReady();
         //*****CHANGE START**********
 
@@ -1759,239 +1717,203 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 bool newMacro = false, fused = false;
 
                 //*****CHANGE START**********
-                if (isSuperOptimizationPresent && inSpeculativeCache) {
-                        bool predict_taken = false;
-                        // fetch next microop and also update the nextPC, so we can decide whether there is
-                        // TODO: fetchBufferPC[tid] ?
-                        DPRINTF(Fetch, "Asking SPEC for microop at %s and to update %s (%d). currentTraceID is %d\n", thisPC, nextPC, nextPC.valid, currentTraceID);
+                if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive()) {
+                    bool predict_taken = false;
+                    // fetch next microop and also update the nextPC, so we can decide whether there is
+                    // TODO: fetchBufferPC[tid] ?
+                    DPRINTF(Fetch, "Asking SPEC for microop at %s and to update %s (%d). currentTraceID is %d\n", thisPC, nextPC, nextPC.valid, currentTraceID);
 
-                        staticInst = decoder[tid]->getSuperOptimizedMicroop(currentTraceID, thisPC, nextPC, predict_taken);
-                        assert(staticInst);
-                        
-                        if (staticInst->isEndOfTrace()) {
-                            DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and the last microop of the trace! currentTraceID is %d\n", nextPC, nextPC.valid, currentTraceID);
-                        } else {
-                            DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and a valid next inst! currentTraceID is %d\n", nextPC, nextPC.valid, currentTraceID);
+                    staticInst = decoder[tid]->getSuperOptimizedMicroop(currentTraceID, thisPC, nextPC, predict_taken);
+                    assert(staticInst);
+                    
+                    if (staticInst->isEndOfTrace()) {
+                        DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and the last microop of the trace! currentTraceID is %d\n", nextPC, nextPC.valid, currentTraceID);
+                    } else {
+                        DPRINTF(Fetch, "Received from SPEC nextPC %s (%d) and a valid next inst! currentTraceID is %d\n", nextPC, nextPC.valid, currentTraceID);
+                    }
+
+                    // to make sure that we never use decoder/uop cache and speculative cache in parallel 
+                    curMacroop = NULL;
+
+                    // to make sure that we always have the macroop for every microop
+                    //assert(staticInst->macroOp != StaticInst::nullStaticInstPtr);
+
+                    assert(staticInst->macroOp);
+                    staticInst->setStreamedFromSpeculativeCache(true);
+                    DynInstPtr instruction = buildInst(tid, staticInst, staticInst->macroOp,
+                                                        thisPC, nextPC, true);
+
+
+                    DPRINTF(Fetch, "Speculative instruction created: [sn:%lli]:%s thisPC = %s nextPC = %s. currentTraceID is %d \n", 
+                                instruction->seqNum, instruction->pcState(), thisPC, nextPC, currentTraceID);
+                    DPRINTF(Fetch, "pc:%#x, npc:%#x, upc:%#x, nupc:%#x, size:%#x\n", instruction->pcState().pc(), instruction->pcState().npc(), instruction->pcState().upc(), instruction->pcState().nupc(), instruction->pcState().size());
+                    for (int j=0; j<staticInst->numSrcRegs(); j++) {
+                        if (staticInst->sourcesPredicted[j])
+                            DPRINTF(Fetch, "Speculative instruction has propagated constant %#x at operand %#x\n", staticInst->sourcePredictions[j], j);
+                    }
+                    for (int i = 0; i < staticInst->numDestRegs(); i++) {
+                        if (staticInst->liveOutPredicted[i]) {
+                            DPRINTF(Fetch, "Operand %i has a live out value %#x\n", i, staticInst->liveOut[i]);
                         }
+                    }
 
-                        
-
-                        // to make sure that we never use decoder/uop cache and speculative cache in parallel 
-                        curMacroop = NULL;
-
-                        // to make sure that we always have the macroop for every microop
-                        //assert(staticInst->macroOp != StaticInst::nullStaticInstPtr);
-
-                        assert(staticInst->macroOp);
-                        staticInst->setStreamedFromSpeculativeCache(true);
-                        DynInstPtr instruction = buildInst(tid, staticInst, staticInst->macroOp,
-                                                            thisPC, nextPC, true);
+                    ppFetch->notify(instruction);
+                    numInst++;
 
 
-                        DPRINTF(Fetch, "Speculative instruction created: [sn:%lli]:%s thisPC = %s nextPC = %s. currentTraceID is %d \n", 
-                                    instruction->seqNum, instruction->pcState(), thisPC, nextPC, currentTraceID);
-                        DPRINTF(Fetch, "pc:%#x, npc:%#x, upc:%#x, nupc:%#x, size:%#x\n", instruction->pcState().pc(), instruction->pcState().npc(), instruction->pcState().upc(), instruction->pcState().nupc(), instruction->pcState().size());
-                        for (int j=0; j<staticInst->numSrcRegs(); j++) {
-                            if (staticInst->sourcesPredicted[j])
-                                DPRINTF(Fetch, "Speculative instruction has propagated constant %#x at operand %#x\n", staticInst->sourcePredictions[j], j);
-                        }
-                        for (int i = 0; i < staticInst->numDestRegs(); i++) {
-                            if (staticInst->liveOutPredicted[i]) {
-                                DPRINTF(Fetch, "Operand %i has a live out value %#x\n", i, staticInst->liveOut[i]);
-                            }
-                        }
+                    if (!instruction->isControl()) {
+                        //assert(thisPC.instAddr() == nextPC.instAddr());
+                        instruction->setPredTarg(nextPC);
+                        instruction->setPredTaken(false);
+    
+                    } else {
+                        //branch without a high confidence prediction at the end of a macroop at the end of a trace, 
+                        //in which case we aren't able to update nextPC and predicted_branch accurately from the speculative cache
+                        // here we use the default lookupAndUpdate mechanism to update the nextPC
+                        // here I assume that this branch is at the end of a trace, therefore the next time we call getSuperoptimizedMicroop
+                        // we should always get StaticInst::nullStaticInstPtr.
+                        bool bpred_predict_taken = false; 
+                        TheISA::PCState bpred_nextPC = thisPC;
+                        DPRINTF(Fetch, "Branch detected at the end of trace with PC = %s\n", thisPC);
 
-                        ppFetch->notify(instruction);
-                        numInst++;
-
-
-                        if (!instruction->isControl()) 
-                        {
-                            //assert(thisPC.instAddr() == nextPC.instAddr());
+                        bpred_predict_taken = branchPred->predict(instruction->staticInst, instruction->seqNum,
+                                bpred_nextPC, tid);
+                        if (!nextPC.valid) {
+                            predict_taken = bpred_predict_taken;
+                            nextPC = bpred_nextPC;
                             instruction->setPredTarg(nextPC);
-                            instruction->setPredTaken(false);
-        
+                            instruction->setPredTaken(predict_taken);
+                        } else {
+                            instruction->setPredTarg(instruction->staticInst->predictedTarget);
+                            instruction->setPredTaken(instruction->staticInst->predictedTaken);
                         }
-                        else 
-                        {
+                        
+                        if (thisPC.branching()) {
+                            DPRINTF(Fetch, "Folded branch detected with PC = %s\n", thisPC);
+                        }
 
-                            //branch without a high confidence prediction at the end of a macroop at the end of a trace, 
-                            //in which case we aren't able to update nextPC and predicted_branch accurately from the speculative cache
-                            // here we use the default lookupAndUpdate mechanism to update the nextPC
-                            // here I assume that this branch is at the end of a trace, therefore the next time we call getSuperoptimizedMicroop
-                            // we should always get StaticInst::nullStaticInstPtr.
-                           
-                            bool bpred_predict_taken = false; 
-                            TheISA::PCState bpred_nextPC = thisPC;
-                            DPRINTF(Fetch, "Branch detected at the end of trace with PC = %s\n", thisPC);
-
-                            bpred_predict_taken = branchPred->predict(instruction->staticInst, instruction->seqNum,
-                                    bpred_nextPC, tid);
-                            if (!nextPC.valid) {
-                                predict_taken = bpred_predict_taken;
-                                nextPC = bpred_nextPC;
-                                instruction->setPredTarg(nextPC);
-                                instruction->setPredTaken(predict_taken);
-                            } else {
-                                instruction->setPredTarg(instruction->staticInst->predictedTarget);
-                                instruction->setPredTaken(instruction->staticInst->predictedTaken);
-                            }
-                            
-                            if (thisPC.branching()) {
-                                DPRINTF(Fetch, "Folded branch detected with PC = %s\n", thisPC);
-                            }
-
-                            if (predict_taken) {
-                                DPRINTF(Fetch, "[tid:%i]: [sn:%i]: Folded branch predicted to be taken to %s.\n",
-                                            tid, instruction->seqNum, nextPC);
-                            } else {
-                                DPRINTF(Fetch, "[tid:%i]: [sn:%i]: Folded branch predicted to be not taken.\n",
-                                            tid, instruction->seqNum);
-                            }
-
-                            DPRINTF(Fetch, "[tid:%i]: [sn:%i] Folded branch predicted to go to %s.\n",
+                        if (predict_taken) {
+                            DPRINTF(Fetch, "[tid:%i]: [sn:%i]: Folded branch predicted to be taken to %s.\n",
                                         tid, instruction->seqNum, nextPC);
-                            
-
-                            ++fetchedBranches;
-
-                            if (predict_taken) {
-                                ++predictedBranches;
-                            }
+                        } else {
+                            DPRINTF(Fetch, "[tid:%i]: [sn:%i]: Folded branch predicted to be not taken.\n",
+                                        tid, instruction->seqNum);
                         }
 
-                        
-                        thisPC = nextPC;
-
-                     
-                        ++instsPartOfOptimizedTrace;
+                        DPRINTF(Fetch, "[tid:%i]: [sn:%i] Folded branch predicted to go to %s.\n",
+                                    tid, instruction->seqNum, nextPC);
                         
 
-                        if (instruction->isQuiesce()) {
-                            DPRINTF(Fetch,
-                                    "Quiesce instruction encountered, halting fetch!\n");
-                            fetchStatus[tid] = QuiescePending;
-                            status_change = true;
-                            quiesce = true;
-                            inSpeculativeCache = false;
-                            decoder[tid]->setSpeculativeCacheActive(false);
-                            break;
+                        ++fetchedBranches;
+
+                        if (predict_taken) {
+                            ++predictedBranches;
                         }
+                    }
 
-                        if (staticInst->isEndOfTrace())
-                        {
-                            // Disable Speculative Cache
-                            inSpeculativeCache = false;
-                            decoder[tid]->setSpeculativeCacheActive(false);
+                    
+                    thisPC = nextPC;
 
-                            // set where to fetch for the next cycle
-                            // we need to make sure that fetchBuffer has the necessary data for the next macroop fetch
-                            // do we need pcOffset? 
-                            // fetchBufferPC[tid] is updated at the begining of streaming microops from speculative cache 
-                            thisPC = nextPC; 
-                            thisPC.upc(0); thisPC.nupc(1);
-                            
-                            // 
-                            // When we are done with streaming from speculative cache we always know that we are at the 
-                            // end of the prevoius macroop, therefore, pcOffset is always zero for a new macroop
-                            pcOffset = 0;  
-                            curMacroop = NULL;
-                            newMacro = true;
+                 
+                    ++instsPartOfOptimizedTrace;
+                    
 
-                            // To make sure that Uop cache is also disabled
-                            // if we don't disable microop cache here, we may fall back to Uop cache after we reach to the end of a trace
-                            // Disable Uop Cache
-                            inUopCache = false;
-                            useUopCache = false;
-                            decoder[tid]->setUopCacheActive(false);
+                    if (instruction->isQuiesce()) {
+                        DPRINTF(Fetch,
+                                "Quiesce instruction encountered, halting fetch!\n");
+                        fetchStatus[tid] = QuiescePending;
+                        status_change = true;
+                        quiesce = true;
+                        decoder[tid]->setSpeculativeCacheActive(false);
+                        break;
+                    }
 
-                            
-                            // lets check to see if there is enough bytes in the current fetchBuffer so the decoder can use them   
-                            // if we have passed the border between two fetch buffer we need to issue an I-cache request
-                            // here just break, at the end of fetch() function it will handel this automaticly  
-                            // if the next instruction is a branch, this will handel that automaticly too. 
+                    if (staticInst->isEndOfTrace()) {
+                        // Disable streaming from the current trace.  i.e., look for a brand new trace to stream from.
+                        decoder[tid]->setSpeculativeCacheActive(false);
 
-                            currentTraceID = 0;
-                            fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
-                            Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
-                            // fortunatly fetchBufferPC[tid] is updated somewhere else
-                            if ( fetchBufferBlockPC != fetchBufferPC[tid])
-                            {
-                                DPRINTF(Fetch, "[tid:%i]: Done streaming from speculative cache and "
-                                                "fetch buffer is not valid anymore!. Fetch continues to stream from %s\n", tid, thisPC);
-                                
-                                fetchBufferValid[tid] = false;
+                        // set where to fetch for the next cycle
+                        // we need to make sure that fetchBuffer has the necessary data for the next macroop fetch
+                        // do we need pcOffset? 
+                        // fetchBufferPC[tid] is updated at the begining of streaming microops from speculative cache 
+                        thisPC = nextPC; 
+                        thisPC.upc(0); thisPC.nupc(1);
+                        
+                        // 
+                        // When we are done with streaming from speculative cache we always know that we are at the 
+                        // end of the prevoius macroop, therefore, pcOffset is always zero for a new macroop
+                        pcOffset = 0;  
+                        curMacroop = NULL;
+                        newMacro = true;
 
-                                
-                                blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
+                        // check if we can stream from the uop cache -- if yes, this will set the uop cache active
+                        isStreamingFromUopCache(thisPC);
 
-                                DPRINTF(Fetch, "fetchBuffer is not valid with PC: %#x fetchAddr: %#x fetchBufferPC: %#x blkoffset: %d fetchBuffer: 0x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x\n", thisPC.instAddr() ,fetchAddr, fetchBufferPC[tid], blkOffset,
-                                    fetchBuffer[tid][0],fetchBuffer[tid][1],fetchBuffer[tid][2],fetchBuffer[tid][3],fetchBuffer[tid][4],fetchBuffer[tid][5],fetchBuffer[tid][6],fetchBuffer[tid][7],
-                                    fetchBuffer[tid][8],fetchBuffer[tid][9],fetchBuffer[tid][10],fetchBuffer[tid][11],fetchBuffer[tid][12],fetchBuffer[tid][13],fetchBuffer[tid][14],fetchBuffer[tid][15]            
-                                );
-                                // when we break, we need to make sure that decoder[tid]->instReady() always return false;
-                                // otherwise we will go into a loop!
-                                // if this assert gets activated we need to reset instReady manualy in decoder.  
-                                assert(!decoder[tid]->instReady()); // just to make sure!
-                                break;
-                            }
-                            
-                            // if one of these asserts gets activated it means there is a corner case
-                            // it doesn't make sense (fetchBufferBlockPC == fetchBufferPC[tid]) to false
-                            // assert(fetchBufferBlockPC == fetchBufferPC[tid]);
+                        // lets check to see if there is enough bytes in the current fetchBuffer so the decoder can use them   
+                        // if we have passed the border between two fetch buffer we need to issue an I-cache request
+                        // here just break, at the end of fetch() function it will handel this automaticly  
+                        // if the next instruction is a branch, this will handel that automaticly too. 
 
+                        currentTraceID = 0;
+                        fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
+                        Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
+                        // fortunatly fetchBufferPC[tid] is updated somewhere else
+                        if (fetchBufferBlockPC != fetchBufferPC[tid]) {
                             DPRINTF(Fetch, "[tid:%i]: Done streaming from speculative cache and "
-                                                "fetch buffer is still valid!.\n", tid);
+                                            "fetch buffer is not valid anymore!. Fetch continues to stream from %s\n", tid, thisPC);
+                            
                             fetchBufferValid[tid] = false;
 
                             
-                            fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
                             blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
-                           
 
-                            DPRINTF(Fetch, "fetchBuffer is valid with PC: %#x fetchAddr: %#x fetchBufferPC: %#x blkoffset: %d fetchBuffer: 0x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x\n", thisPC.instAddr() ,fetchAddr, fetchBufferPC[tid], blkOffset,
+                            DPRINTF(Fetch, "fetchBuffer is not valid with PC: %#x fetchAddr: %#x fetchBufferPC: %#x blkoffset: %d fetchBuffer: 0x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x\n", thisPC.instAddr() ,fetchAddr, fetchBufferPC[tid], blkOffset,
                                 fetchBuffer[tid][0],fetchBuffer[tid][1],fetchBuffer[tid][2],fetchBuffer[tid][3],fetchBuffer[tid][4],fetchBuffer[tid][5],fetchBuffer[tid][6],fetchBuffer[tid][7],
                                 fetchBuffer[tid][8],fetchBuffer[tid][9],fetchBuffer[tid][10],fetchBuffer[tid][11],fetchBuffer[tid][12],fetchBuffer[tid][13],fetchBuffer[tid][14],fetchBuffer[tid][15]            
                             );
-                            
-                            // decoder never should say the next instruction is ready at anytime when returning from the speculative cache
-                            // if this assert gets activated we need to reset instReady manualy in decoder. 
-                            assert(!decoder[tid]->instReady()); 
-
-                            // this will breaks from the outer loop
-                            // this is necessary as we don't want to fetch from both speculative cahce and uop cache in the same cycle
-                            switchFromSpeculativeCacheToUopCacheDecoder = true;
-
-                            // let's count number of wasted fetch bandwidth cycles due to switch
-                            assert(numInst <= fetchWidth);
-                            numFetchBWCyclesWastedDuringSwitch += (fetchWidth - numInst);
-
-                            // jumps to the while loop condition and because:
-                            //  inSpeculativeCache <== false; 
-                            //  (curMacroop || decoder[tid]->instReady() || inUopCache) <== false; 
-                            // breaks from the outer loop
-                            // TODO: not sure if we should check for uop cache here or not. I think we should we check for uop cache here
-                            break;
+                            // when we break, we need to make sure that decoder[tid]->instReady() always return false;
+                            // otherwise we will go into a loop!
+                            // if this assert gets activated we need to reset instReady manualy in decoder.  
+                            assert(!decoder[tid]->instReady()); // just to make sure!
+                            continue;
+                        }
                         
-                        }
-                        else{
-                            inSpeculativeCache = true;
-                        }
+                        // if one of these asserts gets activated it means there is a corner case
+                        // it doesn't make sense (fetchBufferBlockPC == fetchBufferPC[tid]) to false
+                        // assert(fetchBufferBlockPC == fetchBufferPC[tid]);
 
+                        DPRINTF(Fetch, "[tid:%i]: Done streaming from speculative cache and "
+                                            "fetch buffer is still valid!.\n", tid);
+                        fetchBufferValid[tid] = false;
 
-                        // jumps to the while loop condition and if:
-                        // if  (numInst < fetchWidth && computeFetchQueueSize(tid) < fetchQueueSize) continue fetching from microop cache
-                        continue;
-                   
-                }
-                else 
-                {
+                        
+                        fetchAddr = thisPC.instAddr() & BaseCPU::PCMask;
+                        blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
+                       
+
+                        DPRINTF(Fetch, "fetchBuffer is valid with PC: %#x fetchAddr: %#x fetchBufferPC: %#x blkoffset: %d fetchBuffer: 0x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x\n", thisPC.instAddr() ,fetchAddr, fetchBufferPC[tid], blkOffset,
+                            fetchBuffer[tid][0],fetchBuffer[tid][1],fetchBuffer[tid][2],fetchBuffer[tid][3],fetchBuffer[tid][4],fetchBuffer[tid][5],fetchBuffer[tid][6],fetchBuffer[tid][7],
+                            fetchBuffer[tid][8],fetchBuffer[tid][9],fetchBuffer[tid][10],fetchBuffer[tid][11],fetchBuffer[tid][12],fetchBuffer[tid][13],fetchBuffer[tid][14],fetchBuffer[tid][15]            
+                        );
+                        
+                        // decoder never should say the next instruction is ready at anytime when returning from the speculative cache
+                        // if this assert gets activated we need to reset instReady manualy in decoder. 
+                        assert(!decoder[tid]->instReady()); 
+
+                        // let's count number of wasted fetch bandwidth cycles due to switch
+                        assert(numInst <= fetchWidth);
+                    }
+
+                    // jumps to the while loop condition and if:
+                    // if  (numInst < fetchWidth && computeFetchQueueSize(tid) < fetchQueueSize) continue fetching from microop cache
+                    continue;
+                } else {
                     ++instsNotPartOfOptimizedTrace;
                 }   
-                //*****CHANGE END**********
 
             	if (!(curMacroop || inRom)) {
-               	    if (decoder[tid]->instReady() || inUopCache) {
+               	    if (decoder[tid]->instReady() ||
+                        (decoder[tid]->isUopCacheActive() && decoder[tid]->isHitInUopCache(thisPC.instAddr()))) {
                     	staticInst = decoder[tid]->decode(thisPC, cpu->numCycles.value(), tid);
                     	for (int i=0; i<staticInst->numSrcRegs(); i++) {
                           DPRINTF(Fetch, "arch:%d \n", staticInst->srcRegIdx(i));
@@ -2001,7 +1923,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	// Increment stat of fetched instructions.
                     	++fetchedInsts;
 
-                    	if (inUopCache) {
+                    	if (decoder[tid]->isUopCacheActive() && decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
                     	  ++uopCacheHitInsts;
                     	}
 
@@ -2011,8 +1933,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	    pcOffset = 0;
                     	}
                         // Try to queue a new trace if this is macroop is hot!
-                        if (isSuperOptimizationPresent && staticInst->isStreamedFromUOpCache() && staticInst->isUOpCacheHotTrace())
-                        {
+                        if (isSuperOptimizationPresent && staticInst->isStreamedFromUOpCache() && staticInst->isUOpCacheHotTrace()) {
                             decoder[tid]->traceConstructor->QueueHotTraceForSuperOptimization(thisPC);
                         }
                             
@@ -2046,7 +1967,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             }
 
                     	}
-                    	if (inUopCache) {
+                    	if (decoder[tid]->isUopCacheActive() && decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
                     	    ++uopCacheHitOps;
                     	    DPRINTF(Fetch,"Counting pc=%s as a uopCache hit \n",thisPC);
                     	} else {
@@ -2092,8 +2013,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 // Move to the next instruction, unless we have a branch.
                 thisPC = nextPC;
                 inRom = isRomMicroPC(thisPC.microPC());
-                inUopCache = isUopCachePresent && useUopCache &&
-                                decoder[tid]->isHitInUopCache(thisPC.instAddr());
 
                 if (newMacro) {
                     
@@ -2101,10 +2020,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
                     pcOffset = 0;
                     curMacroop = NULL;
-		    DPRINTF(Fetch, "A new macro is needed with fetchAddr: %#x fetchBufferPC: %#x instSize: %d blkoffset: %d\n", fetchAddr, fetchBufferPC[tid], instSize, blkOffset);
+                    DPRINTF(Fetch, "A new macro is needed with fetchAddr: %#x fetchBufferPC: %#x instSize: %d blkoffset: %d\n", fetchAddr, fetchBufferPC[tid], instSize, blkOffset);
                 }
-
-                
 
                 if (instruction->isQuiesce()) {
                     DPRINTF(Fetch,
@@ -2115,79 +2032,32 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     break;
                 }
 
-                //*****CHANGE START**********
-                // whenever we need to fetch a new macroop check whether we can start fetching from speculative cahce
-                if (newMacro)
-                {
-                    if (isSuperOptimizationPresent && thisPC.upc() == 0) {
-                        LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(thisPC, tid, cpu->numCycles.value());
-                        
-                        currentTraceID = decoder[tid]->isTraceAvailable(FullUopAddr(thisPC.instAddr(), thisPC.upc()), ret.predictedValue, ret.confidence);
-                    }
-                    if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
-                    {
-        
-                        DPRINTF(Fetch, "Swithching from Uop$/Decoder to Speculative Cache active at Pc %s as profitability analysis unit requested. currentTraceID = %d\n", thisPC, currentTraceID);
-                        inSpeculativeCache = true;
-                        decoder[tid]->setSpeculativeCacheActive(true, currentTraceID);
-                        // this will cause outer loop to exit and therefore a switch with one cycle penalty
-                        switchFromUopCacheDecoderToSpeculativeCache = true;
-                        //fetchBufferValid[tid] = false;
-                        inUopCache = false;
-                        useUopCache = false;
-                        decoder[tid]->setUopCacheActive(false);
-
-                        // let's count number of wasted fetch bandwidth cycles due to switch
-                        assert(numInst <= fetchWidth);
-                        numFetchBWCyclesWastedDuringSwitch += (fetchWidth - numInst);
-
-                        break;
-                    }
-                
-                }
-                //*****CHANGE END**********
-
-                if (useUopCache && !inUopCache) {
+                /* Model penalty due to switch to decode pipeline. */
+                if (isUopCachePresent &&
+                    (!isSuperOptimizationPresent || !isStreamingFromSpeculativeCache(thisPC)) &&
+                    decoder[tid]->isUopCacheActive() &&
+                    !decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
                     DPRINTF(Fetch, "PC:%s is not in microop cache\n", thisPC);
+                    decoder[tid]->setUopCacheActive(false);
+                    switchToDecodePipeline = true;
                     break;
-                } else if (useUopCache && inUopCache) {
+                } else if (isUopCachePresent && decoder[tid]->isUopCacheActive()) {
                     DPRINTF(Fetch, "PC:%s is in microop cache\n", thisPC);
                 }
 
-        } while (((inSpeculativeCache) || (curMacroop || decoder[tid]->instReady() || inUopCache)) &&
-                 numInst < fetchWidth &&
-                 computeFetchQueueSize(tid) < fetchQueueSize);
+        } while ((isStreamingFromSpeculativeCache(thisPC) ||
+                  (curMacroop || (decoder[tid]->isUopCacheActive() && decoder[tid]->isHitInUopCache(thisPC.instAddr())) || decoder[tid]->instReady())) &&
+                  numInst < fetchWidth &&
+                  computeFetchQueueSize(tid) < fetchQueueSize);
 
-        // When fetching from Uop Cache/Decoder, the profitability analysis unit may request a switch to speculative cache 
-        // this will cause outer loop to exit and therefore a switch with one cycle penalty will happen
-        // note that we never issue a I-Cache request as we are activating the speculative cache
-        if (isSuperOptimizationPresent && switchFromUopCacheDecoderToSpeculativeCache)
-        {
-             break;
-        }
-
-        // At the end of a trace we should stop fetching because we can't have both uop cache/decoder and speculative cache active in the same cycle
-        // and continue fetching from them seamlessly 
-        // this will cause outer loop to exit and therefore a switch with one cycle penalty will happen
-        // note if the fetchBuffer is valid, we will not issue an I-Cache request
-        // note this haas higher priority and therefore, even if there is a hit in Uop Cache, we still break
-        if (isSuperOptimizationPresent && switchFromSpeculativeCacheToUopCacheDecoder)
-        {
+        if (switchToDecodePipeline) {
             break;
         }
-
-        // CHANGE ME!///
-        if (useUopCache && !inUopCache) {
-          break;
-        }
-
     }
 
-    if (useUopCache && !inUopCache) {
+    if (switchToDecodePipeline) {
         DPRINTF(Fetch, "[tid:%i]: microop cache miss.\n", tid);
-        decoder[tid]->setUopCacheActive(false);
     }
-
     if (predictedBranch) {
         DPRINTF(Fetch, "[tid:%i]: Done fetching, predicted branch "
                 "instruction encountered.\n", tid);
@@ -2223,7 +2093,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         fetchStatus[tid] != ItlbWait &&
         fetchStatus[tid] != IcacheWaitRetry &&
         fetchStatus[tid] != QuiescePending &&
-        !curMacroop && !useUopCache && !inSpeculativeCache;
+        !curMacroop && !isStreamingFromSpeculativeCache(thisPC) && !isStreamingFromUopCache(thisPC);
     //*****CHANGE END**********
 }
 

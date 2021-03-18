@@ -1512,7 +1512,7 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
 
 // LVPredictor return int8_t confidence, if this confidence if less than zero then just return
 uint64_t
-Decoder::isTraceAvailable(FullUopAddr addr, uint64_t value, uint64_t confidence) {
+Decoder::isTraceAvailable(FullUopAddr addr) {
     unsigned maxScore = 0;
     uint64_t maxTraceID = 0;
 

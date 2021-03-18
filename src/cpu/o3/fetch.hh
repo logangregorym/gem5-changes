@@ -209,6 +209,12 @@ class DefaultFetch
     /** DefaultFetch constructor. */
     DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params);
 
+    /** Check if streaming from the micro-op cache. */
+    bool isStreamingFromUopCache(TheISA::PCState thisPC);
+
+    /** Check if streaming from the speculative cache. */
+    bool isStreamingFromSpeculativeCache(TheISA::PCState thisPC);
+
     /** Returns the name of fetch. */
     std::string name() const;
 
