@@ -426,8 +426,14 @@ protected:
     void updateLRUBits(int idx, int way);
     void setUopCacheActive(bool active)
     {
+        
+        
+        // only set these two variables if the previous state is active, otherwise we will overwrite the decoder state in a the middle of decoding
+        if (!active && uopCacheActive == true) { 
+            instDone = false; state = ResetState; 
+        }
+
         uopCacheActive = active;
-        if (!active) { instDone = false; state = ResetState; }
     }
     void setUopCachePresent(bool present)
     {

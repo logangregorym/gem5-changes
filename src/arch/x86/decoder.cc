@@ -264,6 +264,8 @@ Decoder::process()
     assert(!outOfBytes);
     assert(!instDone);
 
+    DPRINTF(Decoder, "Current state is %d\n", state);
+
     if (state == ResetState)
         state = doResetState();
     if (state == FromCacheState) {
@@ -572,6 +574,7 @@ Decoder::doOneByteOpcodeState(uint8_t nextByte)
 
         nextState = processOpcode(ImmediateTypeOneByte, UsesModRMOneByte,
                                   nextByte >= 0xA0 && nextByte <= 0xA3);
+        DPRINTF(Decoder, "Next state is: %d\n", nextState);
     }
     return nextState;
 }
