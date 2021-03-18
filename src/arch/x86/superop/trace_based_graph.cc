@@ -821,7 +821,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
         if (decodedMacroOp->getName() == "NOP" || decodedMacroOp->getName() == "fault" ||
             decodedMacroOp->getName() == "popcnt_Gv_Ev" || decodedMacroOp->getName() == "fdivr" ||
             decodedMacroOp->getName() == "xrstor" || decodedMacroOp->getName() == "prefetch_t0" || 
-            decodedMacroOp->getName() == "inst_ib" || decodedMacroOp->getName() == "sldt_Mw_or_Rv") {
+            decodedMacroOp->getName() == "inst_ib" || decodedMacroOp->getName() == "sldt_Mw_or_Rv" ||
+            decodedMacroOp->getName() == "fcomp" || decodedMacroOp->getName() == "unknown") {
             currentTrace.length++;
             if (currentTrace.prevNonEliminatedInst) {
                 currentTrace.prevNonEliminatedInst->shrunkenLength++;
@@ -834,7 +835,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             if (inst->getName() == "NOP" || inst->getName() == "fault" ||
                 inst->getName() == "popcnt_Gv_Ev" || inst->getName() == "fdivr" ||
                 inst->getName() == "xrstor" || inst->getName() == "prefetch_t0" || 
-                decodedMacroOp->getName() == "inst_ib" || decodedMacroOp->getName() == "sldt_Mw_or_Rv") {
+                decodedMacroOp->getName() == "inst_ib" || decodedMacroOp->getName() == "sldt_Mw_or_Rv" ||
+                decodedMacroOp->getName() == "fcomp" || decodedMacroOp->getName() == "unknown") {
                 currentTrace.length++;
                 if (currentTrace.prevNonEliminatedInst) {
                     currentTrace.prevNonEliminatedInst->shrunkenLength++;
