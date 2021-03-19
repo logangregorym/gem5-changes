@@ -1873,8 +1873,10 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
 StaticInstPtr
 Decoder::decode(PCState &nextPC, unsigned cycleAdded, ThreadID tid)
 {
-    if (isUopCachePresent && isUopCacheActive() && isHitInUopCache(nextPC.instAddr())) 
+    if (isUopCachePresent && isUopCacheActive()) 
     {
+        assert(isHitInUopCache(nextPC.instAddr()));
+        
         DPRINTF(Decoder, "Fetching microop from the microop cache: %s.\n", nextPC);
       
         StaticInstPtr si = fetchUopFromUopCache(nextPC.instAddr(), nextPC);

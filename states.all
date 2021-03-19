@@ -1,0 +1,10 @@
+gem5 Simulator System.  http://gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 compiled Mar 18 2021 16:42:32
+gem5 started Mar 18 2021 16:43:05
+gem5 executing on portal01, pid 136871
+command line: /u/as3mx/gem5-changes/build/X86/gem5.opt /u/as3mx/gem5-changes/configs/example/se.py -c ./tests/test-progs/hello/bin/x86/linux/hello --caches --l2cache --cpu-type=O3_X86_skylake_1 --mem-type=DDR4_2400_16x4 --mem-size=64GB --mem-channels=2 --enable-microop-cache --enable-micro-fusion --enable-superoptimization --lvpredType=fa3p --dynamicThreshold=5 --constantThreshold=3 --predictingArithmetic=1 --usingControlTracking=1 --maxRecursiveDepth=1 --usingCCTracking=1 --checkpoint_at_instr=167440165 --predictionConfidenceThreshold=5 --specCacheNumWays=256 --specCacheNumSets=1
+
+Global frequency set at 1000000000000 ticks per second
+**** REAL SIMULATION ****

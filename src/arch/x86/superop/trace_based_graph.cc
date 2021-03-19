@@ -1077,7 +1077,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.end.uopAddr = 0;
         } 
         else if (type == "CPUID") {
-            panic("unsupported instruction without macro-op: %s", type);
+            //panic("unsupported instruction without macro-op: %s", type);
         }
         else 
         {
