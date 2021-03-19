@@ -48,14 +48,14 @@ class LVPredUnit : public SimObject
     virtual void updateGtables(Addr pc, Addr next_pc, bool branches) { };
 
     struct lvpReturnValues {
-        lvpReturnValues(int64_t v, int8_t status, uint8_t predSource) {
+        lvpReturnValues(uint64_t v, int8_t status, uint8_t predSource) {
             this->predictedValue = v;
             this->confidence = status;
             this->latency = 0;
             this->predSource = predSource;
         }
 
-        lvpReturnValues(int64_t v, int8_t status) {
+        lvpReturnValues(uint64_t v, int8_t status) {
             this->predictedValue = v;
             this->confidence = status;
             this->latency = 0;

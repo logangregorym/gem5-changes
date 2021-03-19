@@ -41,7 +41,7 @@ void FA3P::setUpTables(const Params *params)
 }
 
 unsigned FA3P::getConfidence(TheISA::PCState pc) {
-    assert(0);
+    //assert(0);
     int16_t upc = (int16_t)pc.microPC();
     Addr addr = pc.instAddr();
     for (int idx=0; idx < tableEntries; idx++) {
@@ -67,8 +67,7 @@ unsigned FA3P::getDelay(TheISA::PCState pc) {
 
 uint64_t FA3P::getValuePredicted(TheISA::PCState pc) 
 {
-
-    assert(0);
+    //assert(0);
     Addr addr = pc.instAddr();
     int16_t upc = (int16_t)pc.microPC(); 
 

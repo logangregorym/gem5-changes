@@ -461,6 +461,7 @@ LTAGE::getGHR(ThreadID tid, void *bp_history) const
 bool
 LTAGE::predict(ThreadID tid, Addr branch_pc, bool cond_branch, void* &b)
 {
+    DPRINTF(LTage, "In LTAGE::predict\n");
     BranchInfo *bi = new BranchInfo(nHistoryTables+1);
     b = (void*)(bi);
     Addr pc = branch_pc;
@@ -501,9 +502,11 @@ LTAGE::predict(ThreadID tid, Addr branch_pc, bool cond_branch, void* &b)
         //computes the prediction and the alternate prediction
         if (bi->hitBank > 0) {
             if (bi->altBank > 0) {
+                DPRINTF(LTage, "Predict for %lx: altTaken = stored value\n", branch_pc);
                 bi->altTaken =
                     gtable[bi->altBank][tableIndices[bi->altBank]].ctr >= 0;
             }else {
+                DPRINTF(LTage, "Predict for %lx: altTaken = BimodePred\n", branch_pc);
                 bi->altTaken = getBimodePred(pc, bi);
             }
 
@@ -517,11 +520,15 @@ LTAGE::predict(ThreadID tid, Addr branch_pc, bool cond_branch, void* &b)
             //prediction
             if ((useAltPredForNewlyAllocated < 0)
                    || abs(2 *
-                   gtable[bi->hitBank][tableIndices[bi->hitBank]].ctr + 1) > 1)
+                   gtable[bi->hitBank][tableIndices[bi->hitBank]].ctr + 1) > 1){
+                DPRINTF(LTage, "Predict for %lx: Using longestMatchPred\n", branch_pc);
                 bi->tagePred = bi->longestMatchPred;
-            else
+            } else{
+                DPRINTF(LTage, "Predict for %lx: Using altTaken\n", branch_pc);
                 bi->tagePred = bi->altTaken;
+           }
         } else {
+            DPRINTF(LTage, "Predict for %lx: Using BimodePred\n", branch_pc);
             bi->altTaken = getBimodePred(pc, bi);
             bi->tagePred = bi->altTaken;
             bi->longestMatchPred = bi->altTaken;
@@ -534,6 +541,7 @@ LTAGE::predict(ThreadID tid, Addr branch_pc, bool cond_branch, void* &b)
         //             (bi->loopPred): (bi->tagePred);
 		
 	if ((loopUseCounter >= 0) && (bi->loopPredValid)) {
+        DPRINTF(LTage, "Predict for %lx: !!!Using loopPred!!!\n", branch_pc);
 	    pred_taken = bi->loopPred;
             //numLoopPredictions++;
 	} else {
@@ -838,6 +846,7 @@ LTAGE::lookupWithoutUpdate(ThreadID tid, Addr branch_pc)
 bool
 LTAGE::lookup(ThreadID tid, Addr branch_pc, void* &bp_history)
 {
+    DPRINTF(LTage, "In LTAGE::lookup\n");
     bool retval = predict(tid, branch_pc, true, bp_history);
 
     DPRINTF(LTage, "Lookup branch: %lx; predict:%d\n", branch_pc, retval);

@@ -415,6 +415,128 @@ DefaultFetch<Impl>::regStats()
 		.name(name() + ".maxDelay")
 		.desc("Top end of range of load resolution delay");
 
+    loopStreamCount
+        .name(name() + ".loopStreamCount")
+        .desc("Total number of loop streams built");
+    loopStreamUniqueCount
+        .name(name() + ".loopStreamUniqueCount")
+        .desc("Total number of uinque loop streams built");
+    loopStreamAnalyze
+        .name(name() + ".loopStreamAnalyze")
+        .desc("Total number of loop streams analyzed");
+    loopStreamTooLong
+        .name(name() + ".loopStreamTooLong")
+        .desc("Total number of (unique) loop streams which were too long");
+    loopStreamTotalLength
+        .name(name() + ".loopStreamTotalLength")
+        .desc("Total length of all loop streams");
+    loopStreamTotalUniqueLength
+        .name(name() + ".loopStreamTotalUniqueLength")
+        .desc("Total length of all unique loop streams");
+    loopStreamInUopCache
+        .name(name() + ".loopStreamInUopCache")
+        .desc("Number of loop streams which hit in uop cache");
+    loopStreamUniqueInUopCache
+        .name(name() + ".loopStreamUniqueInUopCache")
+        .desc("Number of loop streams which hit in uop cache");
+    loopStreamMakePred
+        .name(name() + ".loopStreamMakePred")
+        .desc("Number of predictable iteretion counts (dynamic)");
+    loopStreamUniquePred
+        .name(name() + ".loopStreamUniquePred")
+        .desc("Number of predictable iteretion counts (static)");
+    loopStreamCorrectPred
+        .name(name() + ".loopStreamCorrectPred")
+        .desc("Number of correctly predictied iteretion counts (dynamic)");
+    loopStreamUniqueCorrect
+        .name(name() + ".loopStreamUniqueCorrect")
+        .desc("Number of correctly predictied iteretion counts (static)");
+    loopStreamVectorizable1
+        .name(name() + ".loopStreamVectorizable1")
+        .desc("Number of vectorizable loop streams");
+    loopStreamVectorizable2
+        .name(name() + ".loopStreamVectorizable2")
+        .desc("Number of vectorizable loop streams");
+    loopStreamVectorizable3
+        .name(name() + ".loopStreamVectorizable3")
+        .desc("Number of vectorizable loop streams");
+    loopStreamVectorizable4
+        .name(name() + ".loopStreamVectorizable4")
+        .desc("Number of vectorizable loop streams");
+    loopStreamVectorizable5
+        .name(name() + ".loopStreamVectorizable5")
+        .desc("Number of vectorizable loop streams");
+    loopStreamVectorizable6
+        .name(name() + ".loopStreamVectorizable6")
+        .desc("Number of vectorizable loop streams");
+    loopStreamVectorizable7
+        .name(name() + ".loopStreamVectorizable7")
+        .desc("Number of vectorizable loop streams");
+    loopStreamVectorizable8
+        .name(name() + ".loopStreamVectorizable8")
+        .desc("Number of vectorizable loop streams");
+    loopStreamVectorizable9
+        .name(name() + ".loopStreamVectorizable9")
+        .desc("Number of vectorizable loop streams");
+    loopStreamVectorizable10
+        .name(name() + ".loopStreamVectorizable10")
+        .desc("Number of vectorizable loop streams");
+    loopStreamUniqueVectorizable5
+        .name(name() + ".loopStreamUniqueVectorizable5")
+        .desc("Number of unique vectorizable loop streams");
+
+    loopStreamUopV1
+        .name(name() + ".loopStreamUopV1")
+        .desc("Number of vectorizable loop streams also residing in uop cache");
+    loopStreamUopV2
+        .name(name() + ".loopStreamUopV2")
+        .desc("Number of vectorizable loop streams also residing in uop cache");
+    loopStreamUopV3
+        .name(name() + ".loopStreamUopV3")
+        .desc("Number of vectorizable loop streams also residing in uop cache");
+    loopStreamUopV4
+        .name(name() + ".loopStreamUopV4")
+        .desc("Number of vectorizable loop streams also residing in uop cache");
+    loopStreamUopV5
+        .name(name() + ".loopStreamUopV5")
+        .desc("Number of vectorizable loop streams also residing in uop cache");
+    loopStreamUopV6
+        .name(name() + ".loopStreamUopV6")
+        .desc("Number of vectorizable loop streams also residing in uop cache");
+    loopStreamUopV7
+        .name(name() + ".loopStreamUopV7")
+        .desc("Number of vectorizable loop streams also residing in uop cache");
+    loopStreamUopV8
+        .name(name() + ".loopStreamUopV8")
+        .desc("Number of vectorizable loop streams also residing in uop cache");
+    loopStreamUopV9
+        .name(name() + ".loopStreamUopV9")
+        .desc("Number of vectorizable loop streams also residing in uop cache");
+    loopStreamUopV10
+        .name(name() + ".loopStreamUopV10")
+        .desc("Number of vectorizable loop streams also residing in uop cache");
+    loopStreamUniqueUopV
+        .name(name() + ".loopStreamUniqueUopV")
+        .desc("Number of unique vectorizable loop streams also residing in uop cache");
+
+
+    loopStreamAvgLength
+        .name(name() + ".loopStreamAvgLength")
+        .desc("Average length of a loop stream")
+        .precision(6);
+    loopStreamAvgLength = loopStreamTotalLength/loopStreamCount;
+    loopStreamAvgUniqueLength
+        .name(name() + ".loopStreamAvgUniqueLength")
+        .desc("Average length of a unique loop stream")
+        .precision(6);
+    loopStreamAvgUniqueLength = loopStreamTotalUniqueLength/loopStreamUniqueCount;
+    loopStreamAvgCalls
+        .name(name() + ".loopStreamAvgCalls")
+        .desc("Average calls of to a specific loop stream (count/unique)")
+        .precision(6);
+    loopStreamAvgCalls = loopStreamCount/loopStreamUniqueCount;
+
+
     numFetchBWCyclesWastedDuringSwitch
 	    .name(name() + ".numFetchBWCyclesWastedDuringSwitch")
 	    .desc("Number of fetch bandwidth cycles wasted due to switch from Spec$ to Uop$/Decoder and vice versa");
@@ -1474,6 +1596,305 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     return instruction;
 }
 
+template<class Impl>
+void 
+DefaultFetch<Impl>::analyze_loopstream (std::vector<StaticInstPtr> loop_stream_insts, std::vector<TheISA::PCState> loop_stream_pcs, ThreadID tid, bool& first_v, bool& first_p, bool& first_u, bool& first_a, uint32_t e_iter){
+
+  //  StaticInstPtr loop_stream_insts = loop.insts;
+  //  TheISA::PCState loop_stream_pcs = loop.pcs;
+    int loop_stream_indx = loop_stream_insts.size() - 1;
+//unordered_map<string, int> loopStreamMap;
+
+    DPRINTF(Fetch, "Begin loop stream at %lx\n", loop_stream_pcs[0].instAddr());
+
+    bool prediction_result = false;
+//    bool prediction_result2 = false;
+    int iterations = -1;
+
+    // Predict number of iterations
+    if (loop_stream_indx >= 2) {
+        StaticInstPtr cmp = loop_stream_insts[loop_stream_indx-1];
+        if (cmp->isCC()) {
+            //cout << hex<< loop_stream_pcs[loop_stream_indx-1].instAddr() << endl;
+            //int loop_count = -1;
+            uint32_t num_reg = cmp->numSrcRegs();
+            uint16_t regs[num_reg];
+            //int reg_count[num_reg] = {0};
+            for (int i = 0; i < num_reg; i ++) {
+                regs[i] = cmp->srcRegIdx(i).index();
+                //cout << "adding reg: " << regs[i] << endl;
+            }
+
+            TheISA::PCState lvp_target;
+            bool target_aquired = false;
+            for (int i = loop_stream_indx -2; i >= 0; i --) {
+                StaticInstPtr inst = loop_stream_insts[i];
+                for (int r = 0; r < inst->numDestRegs(); r++) {
+                    for (int c = 0; c < num_reg; c++){
+                        if (!target_aquired && inst->isLoad() && regs[c] == inst->destRegIdx(r).index()){
+                            target_aquired = true;
+                            lvp_target = loop_stream_pcs[i];
+                        }
+                    }
+                }
+            }
+/*
+            //check against all other regs
+            for (int i = loop_stream_indx - 2; i >= 0; i--) {
+                StaticInstPtr inst = loop_stream_insts[i];
+                for (int r = 0; r < inst->numDestRegs(); r++) {
+                    for (int c = 0; c < num_reg; c++){
+                        cout << inst->getName();
+                        printf("is MemRef?%d, Load?%d, Prefetch?%d CC?%d, Control?%d, Direct?%d, Indirect?%d, Cond?%d, Uncond?%d, IprAccess?%d\n", inst->isMemRef(), inst->isLoad(), inst->isPrefetch(), inst->isCC(), inst->isControl(), inst->isDirectCtrl(), inst->isIndirectCtrl(), inst->isCondCtrl(), inst->isUncondCtrl(), inst->isIprAccess()); 
+
+                        if (inst->opClass() == IntAluOp && !inst->isLoad() && regs[c] == inst->destRegIdx(r).index()) {
+                            cout <<loop_stream_pcs[i]<<": "<< "add/sub detected on reg " << c << endl;
+                            reg_count[c] ++;
+                        }
+                    }
+                }
+            }
+
+            // Determine which reg is counter
+            for (int i = 0; i < num_reg; i++){
+                if (reg_count[i] == 0) {
+                    //assert(loop_count == NULL);
+                    loop_count = i;
+                    break;
+                }
+            }
+
+            cout << "loop_count = " << loop_count << endl;
+            //Other reg should be number of iterations
+            if (loop_count == 0){
+                loop_count = 1;
+            } else if (loop_count ==1) {
+                loop_count = 0;
+            } else {
+                cout << "ERROR: num_reg = " << num_reg << endl;
+                //assert(false);
+            }
+
+            //cout << loop_count <<endl;
+            //Determine target inst for LVP
+            Addr lvp_target = 0;
+            bool target_aquired = false;
+            if (loop_count != -1) {
+                for (int i = loop_stream_indx - 2; i >= 0; i--) {
+                    StaticInstPtr temp_inst = loop_stream_insts[i];
+                    for (int r = 0; r < temp_inst->numDestRegs(); r++) {
+                        cout << "pc: "<< hex<<loop_stream_pcs[i].instAddr() << ", want: " << regs[loop_count] << ", got: "<< temp_inst->destRegIdx(r).index() << endl;
+                        if (!target_aquired && regs[loop_count] == temp_inst->destRegIdx(r).index()) {
+                            target_aquired = true;
+                            lvp_target = loop_stream_pcs[i].instAddr();
+                            DPRINTF(Fetch, "Instruction chosen as lvp target: pc: %lx\n", pc);//, inst->disassemble(lvp_target));
+                            cout<< loop_stream_pcs[0] << ": Instruction chosen as lvp target: pc: "<<hex<< lvp_target <<endl;//, inst->disassemble(lvp_target));
+//                            if (loopStreamMap.count(mapKey) <= 0) {
+//                                loopStreamUniquePred ++;
+//                            }
+                        }
+                    }
+                }
+            }
+*/
+            //cout << "Target addr = " << lvp_target << endl;
+            // Make prediction
+            if (target_aquired) {
+                //if  
+                loopStreamMakePred ++;
+                LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(lvp_target, tid, cpu->numCycles.value());
+                iterations = ret.predictedValue;
+                //iterations = loadPred->getValuePredicted(lvp_target);
+                //uint64_t pred_conf = loadPred->getConfidence(lvp_target);
+                //cout << "expected: " << e_iter << ", actual: " << iterations << endl;
+                prediction_result = (iterations == e_iter);
+                if (prediction_result) {
+                    loopStreamCorrectPred ++;
+                    if(first_p) {
+                        loopStreamUniqueCorrect ++;
+                        first_p = false;
+                    }
+                }
+//                if (prediction_result2) {
+//                    loopStreamCorrectPred2 ++;
+//                }
+//                if (loopStreamMap.count(mapKey) <= 0) {
+//                    loopStreamUniquePred ++;
+//                    if (prediction_result) {
+//                        loopStreamUniqueCorrect ++;
+//                    }
+//                }
+            }
+        }
+    }
+    bool vectorizable1 = true;
+    bool vectorizable2 = true;
+    bool vectorizable3 = true;
+    bool vectorizable4 = true;
+    bool vectorizable5 = true;
+    bool vectorizable6 = true;
+    bool vectorizable7 = true;
+    bool vectorizable8 = true;
+    bool vectorizable9 = true;
+    bool vectorizable10 = true;
+    for (int i = 0; i < loop_stream_indx-1; i++) {
+//cout << 
+        StaticInstPtr inst = loop_stream_insts[i];
+        if (inst->isControl()) {
+            vectorizable1 = false;
+            vectorizable2 = false;
+            vectorizable3 = false;
+            vectorizable4 = false;
+            vectorizable5 = false;
+            vectorizable6 = false;
+            vectorizable7 = false;
+            vectorizable8 = false;
+            vectorizable9 = false;
+            vectorizable10 = false;
+        }
+        if (inst->isLoad()) {
+            //LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(loop_stream_pcs[i].instAddr(), tid, cpu->numCycles.value());
+            unsigned pred_conf = loadPred->getConfidence(loop_stream_pcs[i]);
+            if (pred_conf < 0) {
+                vectorizable1 = false;
+            }if (pred_conf < 1) {
+                vectorizable2 = false;
+            }if (pred_conf < 2) {
+                vectorizable3 = false;
+            }if (pred_conf < 3) {
+                vectorizable4 = false;
+            }if (pred_conf < 4) {
+                vectorizable5 = false;
+            }if (pred_conf < 5) {
+                vectorizable6 = false;
+            }if (pred_conf < 6) {
+                vectorizable7 = false;
+            }if (pred_conf < 7) {
+                vectorizable8 = false;
+            }if (pred_conf < 8) {
+                vectorizable9 = false;
+            }if (pred_conf < 9) {
+                vectorizable10 = false;
+            }
+        }
+    }
+    if (vectorizable5) {
+        loopStreamVectorizable5 ++;
+        if (first_v) {
+            loopStreamUniqueVectorizable5 ++;
+            first_v = false;
+        }
+    }
+    if (vectorizable1) {
+        loopStreamVectorizable1 ++;
+    }
+    if (vectorizable2) {
+        loopStreamVectorizable2 ++;
+    }
+    if (vectorizable3) {
+        loopStreamVectorizable3 ++;
+    }
+    if (vectorizable4) {
+        loopStreamVectorizable4 ++;
+    }
+//    if (vectorizable5) {
+//        loopStreamVectorizable5 ++;
+//    }
+    if (vectorizable6) {
+        loopStreamVectorizable6 ++;
+    }
+    if (vectorizable7) {
+        loopStreamVectorizable7 ++;
+    }
+    if (vectorizable8) {
+        loopStreamVectorizable8 ++;
+    }
+    if (vectorizable9) {
+        loopStreamVectorizable9 ++;
+    }
+    if (vectorizable10) {
+        loopStreamVectorizable10 ++;
+    }
+
+    DPRINTF(Fetch, "Predicted number of loop iterations: %d\n", iterations);
+
+    bool inUopCache = true;
+    for (int i = 0; i <= loop_stream_indx; i++) {
+        StaticInstPtr inst = loop_stream_insts[i];
+        TheISA::PCState pc = loop_stream_pcs[i];
+        //LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(pc, tid, cpu->numCycles.value());
+        bool in_cache = isUopCachePresent && decoder[tid]->isHitInUopCache(pc.instAddr());
+        inUopCache &= in_cache;
+
+        if (DTRACE(Fetch)) {
+            LVPredUnit::lvpReturnValues ret = loadPred->makePrediction(pc, tid, cpu->numCycles.value());
+            uint64_t pred_val = ret.predictedValue;
+//          uint64_t pred_val = 999;
+//          if (inst->isLoad()){
+//              pred_val = loadPred->getValuePredicted(pc);
+//          }
+            DPRINTF(Fetch, "Instruction: pc: %lx, in uop cache?: %d, pred_val: %d, disas: %s\n", pc.instAddr(), in_cache, pred_val, inst->disassemble(pc.instAddr()));
+
+            stringstream str;
+            str << "Source regs: ";
+            for (int s = 0; s < inst->numSrcRegs(); s ++) {
+                str << inst->srcRegIdx(s) << " ";
+            }
+            str << "\tDest regs: ";
+            for (int d = 0; d < inst->numDestRegs(); d ++) {
+                str << inst->destRegIdx(d) << " ";
+            }
+            DPRINTF(Fetch, "%s\n", str.str());
+        }
+
+        DPRINTF(Fetch, "is MemRef?%d, Load?%d, Prefetch?%d CC?%d, Control?%d, Direct?%d, Indirect?%d, Cond?%d, Uncond?%d, IprAccess?%d\n", inst->isMemRef(), inst->isLoad(), inst->isPrefetch(), inst->isCC(), inst->isControl(), inst->isDirectCtrl(), inst->isIndirectCtrl(), inst->isCondCtrl(), inst->isUncondCtrl(), inst->isIprAccess());
+    }
+    
+    if(inUopCache) {
+        loopStreamInUopCache ++;
+        if(first_u) {
+            loopStreamUniqueInUopCache ++;
+            first_u = false;
+        }
+    }
+
+    if(inUopCache && prediction_result){
+        if (vectorizable1) {
+            loopStreamUopV1 ++;
+        }
+        if (vectorizable2) {
+            loopStreamUopV2 ++;
+        }
+        if (vectorizable3) {
+            loopStreamUopV3 ++;
+        }
+        if (vectorizable4) {
+            loopStreamUopV4 ++;
+        }
+        if (vectorizable5) {
+            loopStreamUopV5 ++;
+            if (first_a){
+                loopStreamUniqueUopV ++;
+                first_a = false;
+            }
+        }
+        if (vectorizable6) {
+            loopStreamUopV6 ++;
+        }
+        if (vectorizable7) {
+            loopStreamUopV7 ++;
+        }
+        if (vectorizable8) {
+            loopStreamUopV8 ++;
+        }
+        if (vectorizable9) {
+            loopStreamUopV9 ++;
+        }
+        if (vectorizable10) {
+            loopStreamUopV10 ++;
+        }
+    }
+}
 
 template<class Impl>
 void
@@ -2071,6 +2492,39 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
             	ppFetch->notify(instruction);
             	if (!instruction->fused) numInst++;
+
+                for (LoopStream& s : cpu->loopStreams) {
+                    if (s.start == thisPC.instAddr()){
+                        s.active = true;
+                    }
+                    if (s.active && s.insts.size() < 20){
+                        if(!s.complete) {
+                            s.insts.push_back(instruction->staticInst);
+                            s.pcs.push_back(thisPC);
+                        }
+                        if (s.end == thisPC.instAddr()){
+                            s.count ++;
+                            loopStreamCount ++;
+                            loopStreamTotalLength += s.insts.size();
+                            if (!s.complete) {
+                                loopStreamUniqueCount ++;
+                                loopStreamTotalUniqueLength += s.insts.size();
+                                s.complete = true;
+                                //s.print();
+                            }
+                            if (s.count > 10) {
+                                loopStreamAnalyze ++;
+                                analyze_loopstream(s.insts, s.pcs, tid, s.first_v, s.first_p, s.first_u, s.first_a, s.expected_iter);
+                            }
+                            s.active = false;
+                        } else if (s.insts.size() == 20) {
+                            loopStreamTooLong ++;
+                            s.active = false;
+                            //s.print();
+                        }
+                    }
+                }
+
 
 
                 nextPC = thisPC;

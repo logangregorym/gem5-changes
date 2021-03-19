@@ -177,6 +177,8 @@ class DerivO3CPU(BaseCPU):
     checkpoint_at_instr = Param.UInt64(0, "checkpoint at Instruction")
     after_exec_cnt = Param.UInt64(0, "checkpoint at Instruction")
 
+    pin_input_file = Param.String('loop_stats_pin.out', "File to read pin loop stats from")
+
     def addCheckerCpu(self):
         if buildEnv['TARGET_ISA'] in ['arm']:
             from ArmTLB import ArmTLB

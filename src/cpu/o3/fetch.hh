@@ -361,6 +361,7 @@ class DefaultFetch
      */
     bool checkSignalsAndUpdate(ThreadID tid);
 
+    void analyze_loopstream (std::vector<StaticInstPtr> loop_stream_insts, std::vector<TheISA::PCState> loop_stream_pcs, ThreadID tid, bool& first_v, bool& first_p, bool& first_u, bool& first_a, uint32_t e_iter);
     /** Does the actual fetching of instructions and passing them on to the
      * next stage.
      * @param status_change fetch() sets this variable if there was a status
@@ -646,6 +647,50 @@ class DefaultFetch
     Stats::Scalar specCacheMissOps;
     Stats::Scalar specCacheHitOps;
     Stats::Formula specCacheHitRate;
+
+    /** New stats for loop pred */
+    Stats::Scalar loopStreamCount;
+    Stats::Scalar loopStreamUniqueCount;
+    Stats::Scalar loopStreamAnalyze;
+    Stats::Scalar loopStreamTooLong;
+    Stats::Scalar loopStreamTotalLength;
+    Stats::Scalar loopStreamTotalUniqueLength;
+    Stats::Scalar loopStreamInUopCache;
+    Stats::Scalar loopStreamUniqueInUopCache;
+    Stats::Scalar loopStreamMakePred;
+    Stats::Scalar loopStreamUniquePred;
+    Stats::Scalar loopStreamCorrectPred;
+    Stats::Scalar loopStreamUniqueCorrect;
+
+    Stats::Scalar loopStreamVectorizable1;
+    Stats::Scalar loopStreamVectorizable2;
+    Stats::Scalar loopStreamVectorizable3;
+    Stats::Scalar loopStreamVectorizable4;
+    Stats::Scalar loopStreamVectorizable5;
+    Stats::Scalar loopStreamVectorizable6;
+    Stats::Scalar loopStreamVectorizable7;
+    Stats::Scalar loopStreamVectorizable8;
+    Stats::Scalar loopStreamVectorizable9;
+    Stats::Scalar loopStreamVectorizable10;
+    Stats::Scalar loopStreamUniqueVectorizable5;
+
+    Stats::Scalar loopStreamUopV1;
+    Stats::Scalar loopStreamUopV2;
+    Stats::Scalar loopStreamUopV3;
+    Stats::Scalar loopStreamUopV4;
+    Stats::Scalar loopStreamUopV5;
+    Stats::Scalar loopStreamUopV6;
+    Stats::Scalar loopStreamUopV7;
+    Stats::Scalar loopStreamUopV8;
+    Stats::Scalar loopStreamUopV9;
+    Stats::Scalar loopStreamUopV10;
+    Stats::Scalar loopStreamUniqueUopV;
+
+
+    Stats::Formula loopStreamAvgLength;
+    Stats::Formula loopStreamAvgUniqueLength;
+    Stats::Formula loopStreamAvgCalls;
+
 
     Stats::Scalar numFetchBWCyclesWastedDuringSwitch;
 };

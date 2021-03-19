@@ -199,6 +199,7 @@ bool
 BPredUnit::predict(const StaticInstPtr &inst, const InstSeqNum &seqNum,
                    TheISA::PCState &pc, ThreadID tid)
 {
+    DPRINTF(Branch, "In BPredUnit::predict for %lx\n", pc.instAddr());
     // See if branch predictor predicts taken.
     // If so, get its target addr either from the BTB or the RAS.
     // Save off record of branch stuff so the RAS can be fixed
@@ -212,7 +213,8 @@ BPredUnit::predict(const StaticInstPtr &inst, const InstSeqNum &seqNum,
 
     uint64_t next_maybe = pc.instAddr() + inst->machInst.immediate;
 
-    DPRINTF(Branch, "[tid:%i] Addition gives a taken address of %i.\n", tid, next_maybe); 
+
+    DPRINTF(Branch, "[tid:%i] Addition from pc %s gives a taken address of 0x%lx.\n", tid, pc, next_maybe);
 
     ++lookups;
     ppBranches->notify(1);
@@ -346,6 +348,7 @@ BPredUnit::predict(const StaticInstPtr &inst, const InstSeqNum &seqNum,
     DPRINTF(Branch, "[tid:%i]: [sn:%i]: History entry added."
             "predHist.size(): %i\n", tid, seqNum, predHist[tid].size());
 
+    DPRINTF(Branch, "End BPredUnit::predict for %lx\n", pc.instAddr());
     return pred_taken;
 }
 

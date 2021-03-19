@@ -151,6 +151,7 @@ parser.add_option("--numOfTracePredictionSources", default=4, type="int", action
 
 parser.add_option("--maxRecursiveDepth", default=8, type="int", action="store", help="Maximum depth to recurse to when measuring dependency chains")
 parser.add_option("--usingTrace", default=0, type="int", action="store", help="Whether to stream the optimized trace")
+parser.add_option("--pin_input_file", default="loop_stats_pin.out", help="File ot read pin loop stats from")
 parser.add_option("--connectionCount", default=4096, type="int", action="store", help="Number of connections to track at any given time");
 parser.add_option("--branchConfidenceCounterSize", default=2, type="int", action="store", help="Size of the branch confidence counters in bits.")
 parser.add_option("--branchConfidenceThreshold", default=3, type="int", action="store", help="Minimum confidence needed to do LVP across a branch.")
@@ -226,6 +227,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.loadPred.predictStage = options.predictStage
     CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
     CPUClass.usingTrace = options.usingTrace
+    CPUClass.pin_input_file = options.pin_input_file
     CPUClass.traceConstructor.usingControlTracking = options.usingControlTracking
     CPUClass.traceConstructor.usingCCTracking = options.usingCCTracking
     CPUClass.traceConstructor.predictionConfidenceThreshold = options.predictionConfidenceThreshold
@@ -263,6 +265,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.loadPred.predictStage = options.predictStage
     FutureClass.maxDependencyRecursion = options.maxDependencyRecursion
     FutureClass.usingTrace = options.usingTrace
+    FutureClass.pin_input_file = options.pin_input_file
     FutureClass.traceConstructor.usingControlTracking = options.usingControlTracking
     FutureClass.traceConstructor.usingCCTracking = options.usingCCTracking
     FutureClass.traceConstructor.predictionConfidenceThreshold = options.predictionConfidenceThreshold

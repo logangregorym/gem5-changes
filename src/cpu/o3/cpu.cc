@@ -68,6 +68,7 @@
 #include "sim/stat_control.hh"
 #include "sim/system.hh"
 
+#include <fstream>
 #if THE_ISA == ALPHA_ISA
 #include "arch/alpha/osfpal.hh"
 #include "debug/Activity.hh"
@@ -185,10 +186,40 @@ FullO3CPU<Impl>::FullO3CPU(DerivO3CPUParams *params)
 
       globalSeqNum(1),
       system(params->system),
-      lastRunningCycle(curCycle())
+      lastRunningCycle(curCycle()),
+      pinInputFile(params->pin_input_file)
 {
     commitMacroOp = NULL;
     squashMacroOp = NULL;
+
+    cout << pinInputFile << endl;
+    std::ifstream ifs(pinInputFile);
+    assert(ifs.good());
+    std::string line;
+    while(std::getline(ifs, line)) {
+       // cout << line << endl;
+        LoopStream stream;
+        std::istringstream iss(line);
+        string tmp;
+        iss >> tmp;
+        stream.start = std::stoi(tmp);
+        iss >> tmp;
+        stream.end = std::stoi(tmp);
+        iss >> tmp;
+        stream.expected_iter = std::stoi(tmp);
+        iss >> tmp;
+        stream.expected_call = std::stoi(tmp);
+        stream.active = false;
+        stream.complete = false;
+        stream.first_v = true;
+        stream.first_p = true;
+        stream.first_u = true;
+        stream.first_a = true;
+        stream.count = 0;
+        loopStreams.push_back(stream);
+    }
+
+
 
     if (!params->switched_out) {
         _status = Running;

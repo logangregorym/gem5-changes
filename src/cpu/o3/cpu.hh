@@ -80,6 +80,35 @@ class Checkpoint;
 class MemObject;
 class Process;
 
+// Added for loop analysis (holds pcs of loops)
+class LoopStream {
+    public:
+        uint32_t start;
+        uint32_t end;
+        uint32_t expected_iter;
+        uint32_t expected_call;
+        std::vector<StaticInstPtr> insts;
+        std::vector<TheISA::PCState> pcs;
+        bool active;
+        bool complete;
+        bool first_v;
+        bool first_p;
+        bool first_u;
+        bool first_a;
+        uint32_t count;
+        void print() {
+            std::cout << "0x" << std::hex << start << " - 0x" << std::hex << end << ": ";
+            std::cout << "e_iter= " << std::dec << expected_iter << ", e_call= " << std::dec << expected_call;
+            std::cout << ", active? " << active << ", complete? " << complete << ", num inst: " << insts.size();
+            std::cout << "Instructions: " << std::endl;
+            for (const StaticInstPtr& i : insts) {
+                std::cout << "\t" << i->getName() << std::endl;
+            }
+            
+        }
+};
+
+
 struct BaseCPUParams;
 
 class BaseO3CPU : public BaseCPU
@@ -739,6 +768,8 @@ class FullO3CPU : public BaseO3CPU
     /** The cycle that the CPU was last running, used for statistics. */
     Cycles lastRunningCycle;
 
+    std::string pinInputFile;
+
     /** The cycle that the CPU was last activated by a new thread*/
     Tick lastActivatedCycle;
 
@@ -810,6 +841,8 @@ class FullO3CPU : public BaseO3CPU
     // cleanup memory
     StaticInstPtr commitMacroOp;
     StaticInstPtr squashMacroOp;
+
+    std::vector<LoopStream> loopStreams;
 
     //number of microops squashed in all stages because of LVP
     Stats::Scalar squashedDueToLVPAllStages;
