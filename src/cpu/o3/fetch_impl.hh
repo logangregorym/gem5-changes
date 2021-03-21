@@ -1526,13 +1526,13 @@ DefaultFetch<Impl>::isStreamingFromUopCache(TheISA::PCState thisPC)
     // in the micro-op cache, bypass icache fetch and decode.
     ThreadID tid = getFetchingThread(fetchPolicy);
     if (isUopCachePresent && decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
-        DPRINTF(Fetch, "Setting microop cache active at Pc %s.\n", thisPC);
-        decoder[tid]->setUopCacheActive(true);
-        fetchBufferValid[tid] = false;
+        DPRINTF(Fetch, "isStreamingFromUopCache: Setting microop cache active at Pc %s.\n", thisPC);
+        //decoder[tid]->setUopCacheActive(true);
+        // fetchBufferValid[tid] = false;
         return true;
     }
 
-    decoder[tid]->setUopCacheActive(false);
+    //decoder[tid]->setUopCacheActive(false);
     return false;
 }
 
@@ -1583,7 +1583,17 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
 
         // We check spec cache first due to left to right associativity of &&
-        if (!isStreamingFromSpeculativeCache(thisPC) && !isStreamingFromUopCache(thisPC) &&
+        if (isStreamingFromSpeculativeCache(thisPC))
+        {
+            fetchBufferValid[tid] = false;
+        }
+        else if ( isStreamingFromUopCache(thisPC))
+        {
+            decoder[tid]->setUopCacheActive(true);
+            fetchBufferValid[tid] = false;
+        }
+
+        if (!decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive() &&
             !(fetchBufferValid[tid] && fetchBufferBlockPC == fetchBufferPC[tid])
             && !inRom && !macroop[tid]) {
             // If buffer is no longer valid or fetchAddr has moved to point
@@ -1684,10 +1694,13 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
 
         //*****CHANGE START**********
+        
+
         bool needMem = !inRom && !curMacroop && !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive() && 
             !decoder[tid]->instReady();
         //*****CHANGE START**********
-
+        DPRINTF(Fetch, "Flags Status: needMem = %d, instReady = %d, isSpeculativeCacheActive = %d, isUopCacheActive = %d\n", 
+                        needMem, decoder[tid]->instReady(), decoder[tid]->isSpeculativeCacheActive(), decoder[tid]->isUopCacheActive());
 
         fetchAddr = (thisPC.instAddr() + pcOffset) & BaseCPU::PCMask;
         Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
@@ -1844,11 +1857,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     }
 
                     if (staticInst->isEndOfTrace()) {
-                        // Disable both caches! 
-                        // streaming from the current trace.  i.e., look for a brand new trace to stream from.
+                        
                         decoder[tid]->setSpeculativeCacheActive(false);
                         decoder[tid]->setUopCacheActive(false);
-
                         // set where to fetch for the next cycle
                         // we need to make sure that fetchBuffer has the necessary data for the next macroop fetch
                         // do we need pcOffset? 
@@ -1864,19 +1875,30 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         newMacro = true;
 
                         // check if we can stream from the spec cache or uop cache -- if yes, this will set the spec cache, uop cache active
+                        // Switching State Machine
                         if (isStreamingFromSpeculativeCache(thisPC))            
                         {
                             switchToDecodePipeline = false;
+                            switchToSpecUopCachePipeline = false;
+                            decoder[tid]->resetDecoder();
                         }
                         else if (isStreamingFromUopCache(thisPC))               
                         {
                             currentTraceID = 0;
                             switchToDecodePipeline = false;
+                            switchToSpecUopCachePipeline = false;
+                            decoder[tid]->setUopCacheActive(true);
+                            decoder[tid]->resetDecoder();
                         }
                         else                                                    
                         {
                             currentTraceID = 0;
                             switchToDecodePipeline = true;
+                            switchToSpecUopCachePipeline = false;
+                            // Disable both caches! 
+                            // streaming from the current trace.  i.e., look for a brand new trace to stream from.
+                            decoder[tid]->setUopCacheActive(false);
+                            decoder[tid]->resetDecoder();
                         }
 
                         // lets check to see if there is enough bytes in the current fetchBuffer so the decoder can use them   
@@ -2094,6 +2116,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     {
                         DPRINTF(Fetch, "Switching from Uop Cache to Spec Cache at PC:%s!\n", thisPC);
                         assert(decoder[tid]->isSpeculativeCacheActive());
+                        // reset decoder state whenever it's disabled
+                        decoder[tid]->resetDecoder();
                         switchToSpecUopCachePipeline = false;
                         switchToDecodePipeline = false;
                     
@@ -2104,6 +2128,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     {
                         DPRINTF(Fetch, "Switching from Legacy Decoder to Spec Cache pipline at PC:%s!\n", thisPC);
                         assert(decoder[tid]->isSpeculativeCacheActive());
+                        // reset decoder state whenever we are sqitching to uop/sepc cache pipeline
+                        decoder[tid]->resetDecoder();
                         switchToSpecUopCachePipeline = true;
                         switchToDecodePipeline = false;
                     
@@ -2114,55 +2140,59 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     {
                         
                         DPRINTF(Fetch, "Switching from Legacy Decoder to Uop Cache pipeline at PC:%s!\n", thisPC);
-                        assert(decoder[tid]->isUopCacheActive());
+                        decoder[tid]->setUopCacheActive(true);
+                        //assert(decoder[tid]->isUopCacheActive());
+                        // reset decoder state whenever it's disabled
+                        decoder[tid]->resetDecoder();
                         switchToSpecUopCachePipeline = true;
                         switchToDecodePipeline = false;
                         
                     }
-                    // Scenario #3: In this cycle we were fetching from legacy decoder, therefore both caches were disabled. 
+                    // Scenario #4: In this cycle we were fetching from legacy decoder, therefore both caches were disabled. 
                     // Now isStreamingFromUopCache() tells us that there is no hit in uop cache. Therfore, we continue fetching from Lagacy Decoder
                     else if (isUopCachePresent  && !decoder[tid]->isUopCacheActive() && !isStreamingFromUopCache(thisPC)) 
                     {
                         
-                        DPRINTF(Fetch, "Switching from Legacy Decoder to Uop Cache pipeline at PC:%s!\n", thisPC);
+                        DPRINTF(Fetch, "Continue fetching from Legacy Decoder pipeline at PC:%s!\n", thisPC);
                         assert(!decoder[tid]->isUopCacheActive());
                         switchToSpecUopCachePipeline = false;
                         switchToDecodePipeline = false;
                         
                     }
-                    // Scenario #4: In this cycle we were fetching from uop cache. Therefore, only uop cache is enabled.
+                    // Scenario #5: In this cycle we were fetching from uop cache. Therefore, only uop cache is enabled.
                     // Now isStreamingFromUopCache() tells us that we STILL can fetch from uop cache therefore we don't need to switch!
                     else if (isUopCachePresent &&  decoder[tid]->isUopCacheActive() && isStreamingFromUopCache(thisPC)) 
                     {
                         
-                        DPRINTF(Fetch, "Continue Fetching from Uop Cache pipeline at PC:%s!\n", thisPC);
+                        DPRINTF(Fetch, "Continue fetching from Uop Cache pipeline at PC:%s!\n", thisPC);
                         assert(decoder[tid]->isUopCacheActive());
+                        // reset decoder state whenever it's disabled
+                        decoder[tid]->resetDecoder();
                         switchToSpecUopCachePipeline = false;
                         switchToDecodePipeline = false;
                         
                     }
-                    // Scenario #4: In this cycle we were fetching from uop cache. Therefore, only uop cache is enabled.
+                    // Scenario #6: In this cycle we were fetching from uop cache. Therefore, only uop cache is enabled.
                     // Now isStreamingFromUopCache() tells us that we can't continue fetching from uop cache anymore therefore we need to switch!
                     else if (isUopCachePresent  && decoder[tid]->isUopCacheActive() && !isStreamingFromUopCache(thisPC)) 
                     {
                         
                         DPRINTF(Fetch, "Switching from Uop Cache pipeline to lagacy decoder pipeline at PC:%s\n", thisPC);
-                        assert(!decoder[tid]->isUopCacheActive());
+                        //assert(!decoder[tid]->isUopCacheActive());
+                        decoder[tid]->setUopCacheActive(false);
+                        // reset decoder state whenever it's disabled
+                        decoder[tid]->resetDecoder();
                         switchToSpecUopCachePipeline = false;
                         switchToDecodePipeline = true;
                         
                     }
-                    // Scenario #4: In this cycle we were fetching from lagacy decoder and there is not hit in spec/uop caches
-                    // Continue fetching from lagacy decoder
-                    // this is for when uop cache is disabled
                     else 
                     {
-                       
-                        DPRINTF(Fetch, "Continue Fetching from Legacy Decoder pipline at PC:%s!\n", thisPC);
+                        assert(0);
+                        DPRINTF(Fetch, "Uop and Spec Cache are not present!\n");
                         assert(!decoder[tid]->isUopCacheActive());
                         switchToSpecUopCachePipeline = false;
                         switchToDecodePipeline = false;
-                        
                     }
                 }
 
@@ -2232,7 +2262,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         fetchStatus[tid] != ItlbWait &&
         fetchStatus[tid] != IcacheWaitRetry &&
         fetchStatus[tid] != QuiescePending &&
-        !curMacroop && !isStreamingFromSpeculativeCache(thisPC) && !isStreamingFromUopCache(thisPC);
+        !curMacroop && !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive();
     //*****CHANGE END**********
 }
 

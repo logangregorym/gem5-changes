@@ -429,14 +429,10 @@ protected:
         // before deactiviting the uop cache, the spec cache should always have been deactivated,
         // otherwise there is a bug
         if (active == false) assert(speculativeCacheActive == false);
-        
-        // only set these two variables if the previous state is active, otherwise we will overwrite the decoder state in a the middle of decoding
-        if (!active && uopCacheActive == true) { 
-            instDone = false; state = ResetState; 
-        }
 
         uopCacheActive = active;
     }
+    void resetDecoder() {instDone = false; state = ResetState;}
     void setUopCachePresent(bool present)
     {
         isUopCachePresent = present;

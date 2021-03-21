@@ -1357,7 +1357,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         Addr sym_addr;
         Addr cur_pc = head_inst->instAddr();
 
-        reg_values << std::dec << (uint64_t)cpu->committedInsts[tid].value() << ": ";
+        //reg_values << std::dec << (uint64_t)cpu->committedInsts[tid].value() << ": ";
 
         if (debugSymbolTable && 
             /* (!FullSystem || !inUserMode(thread)) && */
@@ -1390,7 +1390,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     }
     else if (head_inst->isStore())
     {
-        DPRINTF(SuperOpSanityCheck, "%d: %x\n", (uint64_t)cpu->committedInsts[tid].value(), head_inst->instAddr());
+        DPRINTF(SuperOpSanityCheck, "%x\n", head_inst->instAddr());
     }
 
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
