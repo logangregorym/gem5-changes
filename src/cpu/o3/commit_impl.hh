@@ -71,6 +71,7 @@
 #include "sim/full_system.hh"
 #include "debug/SuperOpSanityCheck.hh"
 #include "debug/PerfAnalysis.hh"
+#include "debug/TraceEviction.hh"
 
 using namespace std;
 
@@ -1344,7 +1345,31 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         }
 
         if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr && checkpointAtInstr) {
-            exitSimLoop("simpoint reached", 0);
+
+            DPRINTF(TraceEviction, "---------------Live Traces in Spec Cache at the end of the simulation!------------------\n");
+            for (auto &it : cpu->fetch.decoder[tid]->traceConstructor->traceMap)
+            {
+                if (it.second.state == SpecTrace::Complete)
+                {   
+                    // Dump some debug analysis information for evicted traces
+                    DPRINTF(TraceEviction, "@ %d,%d,%d,%d,%d,%d,%x,%x,%d,%d,%d,%d\n", 
+                                    it.second.id, 
+                                    it.second.insertion_tick,
+                                    it.second.eviction_tick,
+                                    it.second.hotness,
+                                    it.second.length,
+                                    it.second.shrunkLength,
+                                    it.second.getTraceHeadAddr().pcAddr,
+                                    it.second.end.pcAddr,
+                                    it.second.branchesFolded,
+                                    it.second.validPredSources,
+                                    it.second.totalNumOfTimesControlSourcesAreMisspredicted,
+                                    it.second.totalNumOfTimesPredictionSourcesAreMisspredicted
+                            );
+                }
+            }
+            
+            exitSimLoop("super-optimization simpoint reached", 0);
         }
     }
     

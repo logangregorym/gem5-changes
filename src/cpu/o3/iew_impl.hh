@@ -1938,6 +1938,7 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
         // missprediction
         if (!predicted) 
         {
+            cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].totalNumOfTimesControlSourcesAreMisspredicted++;
             bool updated = false;
             for (size_t idx = 0; idx < 2; idx++)
             {
@@ -1953,7 +1954,7 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
                         cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].numOfTimesMisspredicted);
                         
                     }
-                    cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].totalNumOfTimesControlSourcesAreMisspredicted++;
+                    //cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].totalNumOfTimesControlSourcesAreMisspredicted++;
                     updated = true;
                 }
             }

@@ -1355,6 +1355,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                                     traceConstructor->traceMap[evictedTraceID].totalNumOfTimesPredictionSourcesAreMisspredicted
                                     );
 
+        /*
         if(Debug::TraceEviction.status())
         {
             traceConstructor->dumpTrace(traceConstructor->traceMap[evictedTraceID]);
@@ -1387,6 +1388,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                 }
             }
         }
+        */
 
 
         traceConstructor->traceMap.erase(evictedTraceID);
