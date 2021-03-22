@@ -824,7 +824,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "inst_ib" || decodedMacroOp->getName() == "sldt_Mw_or_Rv" ||
             decodedMacroOp->getName() == "fcomp" || decodedMacroOp->getName() == "unknown" || 
             decodedMacroOp->getName() == "ret_far_Iw" || decodedMacroOp->getName() == "fisub" ||
-            decodedMacroOp->getName() == "int1") {
+            decodedMacroOp->getName() == "int1" || decodedMacroOp->getName() == "fistp" ||
+            decodedMacroOp->getName() == "fsubr" || decodedMacroOp->getName() == "fcmovbe" || 
+            decodedMacroOp->getName() == "fbld" || decodedMacroOp->getName() == "ficomp" || 
+            decodedMacroOp->getName() == "fcom") {
             currentTrace.length++;
             if (currentTrace.prevNonEliminatedInst) {
                 currentTrace.prevNonEliminatedInst->shrunkenLength++;
@@ -840,7 +843,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 decodedMacroOp->getName() == "inst_ib" || decodedMacroOp->getName() == "sldt_Mw_or_Rv" ||
                 decodedMacroOp->getName() == "fcomp" || decodedMacroOp->getName() == "unknown" ||
                 decodedMacroOp->getName() == "ret_far_Iw" || decodedMacroOp->getName() == "fisub" ||
-                decodedMacroOp->getName() == "int1") {
+                decodedMacroOp->getName() == "int1" || decodedMacroOp->getName() == "fistp" ||
+                decodedMacroOp->getName() == "fsubr" || decodedMacroOp->getName() == "fcmovbe" ||
+                decodedMacroOp->getName() == "fbld" || decodedMacroOp->getName() == "ficomp" ||
+                decodedMacroOp->getName() == "fcom") {
                 currentTrace.length++;
                 if (currentTrace.prevNonEliminatedInst) {
                     currentTrace.prevNonEliminatedInst->shrunkenLength++;

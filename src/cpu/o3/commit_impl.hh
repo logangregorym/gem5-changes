@@ -1388,10 +1388,10 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
   
         DPRINTF(SuperOpSanityCheck, "%s\n", reg_values.str());
     }
-    else if (head_inst->isStore())
-    {
-        DPRINTF(SuperOpSanityCheck, "%x\n", head_inst->instAddr());
-    }
+    // else if (head_inst->isStore())
+    // {
+    //     DPRINTF(SuperOpSanityCheck, "%x\n", head_inst->instAddr());
+    // }
 
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->committedInsts[tid].value() % 100000 == 0 &&
