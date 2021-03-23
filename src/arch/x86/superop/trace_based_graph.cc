@@ -827,7 +827,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "int1" || decodedMacroOp->getName() == "fistp" ||
             decodedMacroOp->getName() == "fsubr" || decodedMacroOp->getName() == "fcmovbe" || 
             decodedMacroOp->getName() == "fbld" || decodedMacroOp->getName() == "ficomp" || 
-            decodedMacroOp->getName() == "fcom") {
+            decodedMacroOp->getName() == "fcom" || decodedMacroOp->getName() == "fisttp" ||
+            decodedMacroOp->getName() == "fwait" || decodedMacroOp->getName() == "frstor" ||
+            decodedMacroOp->getName() == "xsave" || decodedMacroOp->getName() == "call_far_Mp") {
             currentTrace.length++;
             if (currentTrace.prevNonEliminatedInst) {
                 currentTrace.prevNonEliminatedInst->shrunkenLength++;
@@ -846,7 +848,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 decodedMacroOp->getName() == "int1" || decodedMacroOp->getName() == "fistp" ||
                 decodedMacroOp->getName() == "fsubr" || decodedMacroOp->getName() == "fcmovbe" ||
                 decodedMacroOp->getName() == "fbld" || decodedMacroOp->getName() == "ficomp" ||
-                decodedMacroOp->getName() == "fcom") {
+                decodedMacroOp->getName() == "fcom" || decodedMacroOp->getName() == "fisttp" ||
+                decodedMacroOp->getName() == "fwait" || decodedMacroOp->getName() == "frstor" || 
+                decodedMacroOp->getName() == "xsave"|| decodedMacroOp->getName() == "call_far_Mp") {
                 currentTrace.length++;
                 if (currentTrace.prevNonEliminatedInst) {
                     currentTrace.prevNonEliminatedInst->shrunkenLength++;

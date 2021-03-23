@@ -1960,7 +1960,7 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
             }
 
             updated = updated;
-            //assert(updated);
+            // assert(updated);
 
             
         } 
@@ -2043,8 +2043,8 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
                 cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].addr.pcAddr == addr) 
             {
                 // Is there a limit on confidence? I'm assuming 0.
-                // if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence > 0) 
-                //     cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence--;
+                if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence > 0) 
+                    cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence--;
                 
                 cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].numOfTimesMisspredicted++;
                 

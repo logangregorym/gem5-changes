@@ -2120,6 +2120,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         decoder[tid]->resetDecoder();
                         switchToSpecUopCachePipeline = false;
                         switchToDecodePipeline = false;
+                        fetchBufferValid[tid] = false;
                     
                     } 
                     // Scenario #2: In this cycle we were fetching from legacy decoder, therefore both caches were disabled. 
@@ -2132,6 +2133,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         decoder[tid]->resetDecoder();
                         switchToSpecUopCachePipeline = true;
                         switchToDecodePipeline = false;
+                        break;
                     
                     } 
                     // Scenario #3: In this cycle we were fetching from legacy decoder, therefore both caches were disabled. 
@@ -2146,6 +2148,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         decoder[tid]->resetDecoder();
                         switchToSpecUopCachePipeline = true;
                         switchToDecodePipeline = false;
+                        break;
                         
                     }
                     // Scenario #4: In this cycle we were fetching from legacy decoder, therefore both caches were disabled. 
@@ -2170,6 +2173,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         decoder[tid]->resetDecoder();
                         switchToSpecUopCachePipeline = false;
                         switchToDecodePipeline = false;
+                        fetchBufferValid[tid] = false;
                         
                     }
                     // Scenario #6: In this cycle we were fetching from uop cache. Therefore, only uop cache is enabled.
@@ -2184,6 +2188,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         decoder[tid]->resetDecoder();
                         switchToSpecUopCachePipeline = false;
                         switchToDecodePipeline = true;
+                        fetchBufferValid[tid] = false;
+                        break;
                         
                     }
                     else 
