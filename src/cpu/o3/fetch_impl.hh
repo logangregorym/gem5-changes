@@ -79,6 +79,7 @@
 #include "sim/eventq.hh"
 #include "sim/full_system.hh"
 #include "sim/system.hh"
+#include "debug/TraceQueue.hh"
 
 #include <iostream>
 using namespace std;
@@ -1995,6 +1996,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	    pcOffset = 0;
                     	}
                         // Try to queue a new trace if this is macroop is hot!
+                        if (isUopCachePresent && staticInst->isStreamedFromUOpCache())
+                            DPRINTF(TraceQueue, "%#x\n", thisPC.instAddr());
                         if (isSuperOptimizationPresent && staticInst->isStreamedFromUOpCache() && staticInst->isUOpCacheHotTrace()) 
                         {
                             decoder[tid]->traceConstructor->QueueHotTraceForSuperOptimization(thisPC);

@@ -15,6 +15,7 @@
 #include "debug/TraceGen.hh"
 #include "cpu/reg_class.hh"
 #include "debug/TraceEviction.hh"
+#include "debug/TraceQueue.hh"
 
 using namespace X86ISA;
 using namespace std;
@@ -173,7 +174,7 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
         return false;
     }
 
-
+    DPRINTF(TraceQueue, "%#x %#x\n", addr, baseAddr);
     newTrace.id = SpecTrace::traceIDCounter++;
     traceMap[newTrace.id] = newTrace;
     traceQueue.push(newTrace);
