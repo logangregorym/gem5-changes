@@ -118,6 +118,9 @@ struct SpecTrace
         
         // (idx, way, uop) of head of the optimized trace
         FullCacheIdx optimizedHead;
+
+        // whether an inst from this trace is in any stage of cpu
+        bool inTransit;
     
     public:
 
@@ -126,6 +129,9 @@ struct SpecTrace
 
     FullUopAddr getTraceHeadAddr() {return headAddr;}
     FullCacheIdx getOptimizedHead() {return optimizedHead;}
+
+    bool isInTransit() {return inTransit;}
+    void setInTransit(bool state) {inTransit = state;}
     
 
 
@@ -170,6 +176,12 @@ struct SpecTrace
     PredictionSource controlSources[2];
     // Total number of times trace is misspredicted (controlSources[2])
     uint64_t totalNumOfTimesControlSourcesAreMisspredicted;
+
+    // Total number of microops commited from this trace
+    uint64_t totalNumOfMicroopsCommitedFromTrace;
+
+    // Total number of microops fetched from this trace
+    uint64_t totalNumOfMicroopsFetchedFromTrace;
 
     enum State {
         Invalid,
@@ -229,6 +241,9 @@ struct SpecTrace
         insertion_tick = 0;
         eviction_tick = 0;
         validPredSources = 0;
+        inTransit= false;
+        totalNumOfMicroopsCommitedFromTrace = 0;
+        totalNumOfMicroopsFetchedFromTrace = 0;
     }
 };
 #endif // __ARCH_X86_DECODER_STRUCTS__

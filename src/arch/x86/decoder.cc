@@ -1272,6 +1272,16 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
             continue;
         }
 
+        // if the trace is in flight, dont evict it
+        assert (speculativeValidArray[idx][way]);
+        
+        assert(speculativeTraceIDArray[idx][way]);
+        assert(traceConstructor->traceMap.find(speculativeTraceIDArray[idx][way]) != traceConstructor->traceMap.end());
+            
+        if (traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].isInTransit()) 
+            continue;
+    
+
         // LRU based eviction algorithm 
         if (speculativeLRUArray[idx][way] < lruWay) {
             DPRINTF(Decoder, "lruWay = %d,  speculativeLRUArray[%d][%d] = %d\n", lruWay, idx, way, speculativeLRUArray[idx][way]);
@@ -1340,7 +1350,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
         assert(traceConstructor->traceMap[evictedTraceID].eviction_tick != 0);
         
         // Dump some debug analysis information for evicted traces
-        DPRINTF(TraceEviction, "@ %d,%d,%d,%d,%d,%d,%x,%x,%d,%d,%d,%d\n", 
+        DPRINTF(TraceEviction, "@ %d,%d,%d,%d,%d,%d,%x,%x,%d,%d,%d,%d,%d,%d\n", 
                                     traceConstructor->traceMap[evictedTraceID].id, 
                                     traceConstructor->traceMap[evictedTraceID].insertion_tick,
                                     traceConstructor->traceMap[evictedTraceID].eviction_tick,
@@ -1352,41 +1362,43 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                                     traceConstructor->traceMap[evictedTraceID].branchesFolded,
                                     traceConstructor->traceMap[evictedTraceID].validPredSources,
                                     traceConstructor->traceMap[evictedTraceID].totalNumOfTimesControlSourcesAreMisspredicted,
-                                    traceConstructor->traceMap[evictedTraceID].totalNumOfTimesPredictionSourcesAreMisspredicted
+                                    traceConstructor->traceMap[evictedTraceID].totalNumOfTimesPredictionSourcesAreMisspredicted,
+                                    traceConstructor->traceMap[evictedTraceID].totalNumOfMicroopsFetchedFromTrace,
+                                    traceConstructor->traceMap[evictedTraceID].totalNumOfMicroopsCommitedFromTrace
                                     );
 
-        if(Debug::TraceEviction.status())
-        {
-            traceConstructor->dumpTrace(traceConstructor->traceMap[evictedTraceID]);
-            for (int i=0; i<4; i++) 
-            {
-                DPRINTF(TraceEviction, "Prediction Source %i: %d\n", i, traceConstructor->traceMap[evictedTraceID].source[i].valid);
-                if (traceConstructor->traceMap[evictedTraceID].source[i].valid) {
-                    // set the predecitions sources in spec$
-                    DPRINTF(TraceEviction, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i, numOfTimesMisspredicted:%d\n",
-                                            traceConstructor->traceMap[evictedTraceID].source[i].addr.pcAddr,  
-                                            traceConstructor->traceMap[evictedTraceID].source[i].addr.uopAddr,
-                                            traceConstructor->traceMap[evictedTraceID].source[i].value, 
-                                            traceConstructor->traceMap[evictedTraceID].source[i].confidence,
-                                            traceConstructor->traceMap[evictedTraceID].source[i].latency,
-                                            traceConstructor->traceMap[evictedTraceID].source[i].numOfTimesMisspredicted);
-                }
-            }
-            for (int i=0; i<2; i++) 
-            {
-                DPRINTF(TraceEviction, "Control Source %i: %d\n", i, traceConstructor->traceMap[evictedTraceID].controlSources[i].valid);
-                if (traceConstructor->traceMap[evictedTraceID].controlSources[i].valid) {
-                    // set the predecitions sources in spec$
-                    DPRINTF(TraceEviction, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i, numOfTimesMisspredicted:%d\n",
-                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].addr.pcAddr,  
-                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].addr.uopAddr,
-                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].value, 
-                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].confidence,
-                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].latency,
-                                            traceConstructor->traceMap[evictedTraceID].controlSources[i].numOfTimesMisspredicted);
-                }
-            }
-        }
+        // if(Debug::TraceEviction.status())
+        // {
+        //     traceConstructor->dumpTrace(traceConstructor->traceMap[evictedTraceID]);
+        //     for (int i=0; i<4; i++) 
+        //     {
+        //         DPRINTF(TraceEviction, "Prediction Source %i: %d\n", i, traceConstructor->traceMap[evictedTraceID].source[i].valid);
+        //         if (traceConstructor->traceMap[evictedTraceID].source[i].valid) {
+        //             // set the predecitions sources in spec$
+        //             DPRINTF(TraceEviction, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i, numOfTimesMisspredicted:%d\n",
+        //                                     traceConstructor->traceMap[evictedTraceID].source[i].addr.pcAddr,  
+        //                                     traceConstructor->traceMap[evictedTraceID].source[i].addr.uopAddr,
+        //                                     traceConstructor->traceMap[evictedTraceID].source[i].value, 
+        //                                     traceConstructor->traceMap[evictedTraceID].source[i].confidence,
+        //                                     traceConstructor->traceMap[evictedTraceID].source[i].latency,
+        //                                     traceConstructor->traceMap[evictedTraceID].source[i].numOfTimesMisspredicted);
+        //         }
+        //     }
+        //     for (int i=0; i<2; i++) 
+        //     {
+        //         DPRINTF(TraceEviction, "Control Source %i: %d\n", i, traceConstructor->traceMap[evictedTraceID].controlSources[i].valid);
+        //         if (traceConstructor->traceMap[evictedTraceID].controlSources[i].valid) {
+        //             // set the predecitions sources in spec$
+        //             DPRINTF(TraceEviction, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i, numOfTimesMisspredicted:%d\n",
+        //                                     traceConstructor->traceMap[evictedTraceID].controlSources[i].addr.pcAddr,  
+        //                                     traceConstructor->traceMap[evictedTraceID].controlSources[i].addr.uopAddr,
+        //                                     traceConstructor->traceMap[evictedTraceID].controlSources[i].value, 
+        //                                     traceConstructor->traceMap[evictedTraceID].controlSources[i].confidence,
+        //                                     traceConstructor->traceMap[evictedTraceID].controlSources[i].latency,
+        //                                     traceConstructor->traceMap[evictedTraceID].controlSources[i].numOfTimesMisspredicted);
+        //         }
+        //     }
+        // }
 
 
         traceConstructor->traceMap.erase(evictedTraceID);
@@ -1521,6 +1533,27 @@ Decoder::isTraceAvailable(FullUopAddr addr) {
 
     if (addr.uopAddr != 0) return 0;
 
+    //before searching for a trace, first evict traces with high squash rate
+    std::vector<uint64_t> removedTraces;
+    for (auto it = traceConstructor->traceMap.begin(); it != traceConstructor->traceMap.end(); it++)
+    {
+        if (currentActiveTraceID == it->second.id) continue;
+        if (it->second.isInTransit()) continue;
+
+        if (it->second.totalNumOfTimesControlSourcesAreMisspredicted >= 10 || it->second.totalNumOfTimesPredictionSourcesAreMisspredicted >= 10)
+        {
+            removedTraces.push_back(it->second.id);
+        }
+
+    }
+
+    for (auto& traceId : removedTraces)
+    {
+
+        invalidateSpecTrace(traceConstructor->traceMap[traceId].getOptimizedHead(), traceId );
+
+    }
+
     for (auto it = traceConstructor->traceMap.begin(); it != traceConstructor->traceMap.end(); it++) {
         SpecTrace trace = it->second;
         if (trace.getTraceHeadAddr().pcAddr == addr.pcAddr) {
@@ -1584,16 +1617,16 @@ Decoder::isTraceAvailable(FullUopAddr addr) {
                 continue;
             }
 
-            // if (trace.totalNumOfTimesPredictionSourcesAreMisspredicted >= 10)
-            // {
-            //     DPRINTF(Decoder, "Trace %d overall missprediction of the trace is high!  totalNumOfTimesPredictionSourcesAreMisspredicted = %d\n", trace.id, trace.totalNumOfTimesPredictionSourcesAreMisspredicted);
-            //     continue;
-            // }
-            // else if (trace.totalNumOfTimesControlSourcesAreMisspredicted >= 10)
-            // {
-            //     DPRINTF(Decoder, "Trace %d overall missprediction of the trace is high!  totalNumOfTimesControlSourcesAreMisspredicted = %d\n", trace.id, trace.totalNumOfTimesControlSourcesAreMisspredicted);
-            //     continue;
-            // }
+            if (trace.totalNumOfTimesPredictionSourcesAreMisspredicted >= 10)
+            {
+                DPRINTF(Decoder, "Trace %d overall missprediction of the trace is high!  totalNumOfTimesPredictionSourcesAreMisspredicted = %d\n", trace.id, trace.totalNumOfTimesPredictionSourcesAreMisspredicted);
+                continue;
+            }
+            else if (trace.totalNumOfTimesControlSourcesAreMisspredicted >= 10)
+            {
+                DPRINTF(Decoder, "Trace %d overall missprediction of the trace is high!  totalNumOfTimesControlSourcesAreMisspredicted = %d\n", trace.id, trace.totalNumOfTimesControlSourcesAreMisspredicted);
+                continue;
+            }
 
             // taking product because we want the highest confidence, latency, and shrinkage
             // we don't include hotness here as that is considered while generating a trace
@@ -1664,10 +1697,10 @@ Decoder::invalidateSpecTrace(Addr addr, unsigned uop) {
 }
 
 void
-Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t trace_id) 
+Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t evictedTraceID) 
 {
     
-    assert(trace_id);
+    assert(evictedTraceID);
     
     /*
      * 1. Find tag match in spec cache
@@ -1680,14 +1713,15 @@ Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t trace_id)
     int evict_way = addr.way;
     uint64_t evictTag = speculativeTagArray[idx][evict_way];
     
+    DPRINTF(Decoder, "Removing trace %d from Trace Map.  Tag :%#x\n", evictedTraceID, evictTag);
     assert(evictTag);
-    assert(speculativeTraceIDArray[idx][evict_way] == trace_id);
+    assert(speculativeTraceIDArray[idx][evict_way] == evictedTraceID);
 
     for (int w = 0; w < SPEC_CACHE_NUM_WAYS; w++) 
     {
 
         if (speculativeValidArray[idx][w] && 
-            speculativeTraceIDArray[idx][w] == trace_id) 
+            speculativeTraceIDArray[idx][w] == evictedTraceID) 
         {
                 //assert(speculativeTagArray[idx][w] == evictTag);
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) {
@@ -1700,6 +1734,7 @@ Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t trace_id)
                 speculativeTraceIDArray[idx][w] = 0;
                 speculativeTagArray[idx][w] = 0;
                 speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
+                specHotnessArray[idx][w].reset();
                 StaticInstPtr macroOp = speculativeCache[idx][w][0]->macroOp;
                 if (macroOp) {
                     macroOp->deleteMicroOps();
@@ -1708,6 +1743,34 @@ Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t trace_id)
         }
     
     }
+
+    DPRINTF(Decoder, "Removing trace %d from Trace Map.  Tag :%#x\n", evictedTraceID, evictTag);
+    assert(traceConstructor->traceMap.find(evictedTraceID) != traceConstructor->traceMap.end());
+        
+    // Update the eviction tick
+    assert(traceConstructor->traceMap[evictedTraceID].eviction_tick == 0);
+    traceConstructor->traceMap[evictedTraceID].eviction_tick = cpu->numCycles.value();
+    assert(traceConstructor->traceMap[evictedTraceID].eviction_tick != 0);
+        
+    // Dump some debug analysis information for evicted traces
+    DPRINTF(TraceEviction, "@ %d,%d,%d,%d,%d,%d,%x,%x,%d,%d,%d,%d,%d,%d\n", 
+                                    traceConstructor->traceMap[evictedTraceID].id, 
+                                    traceConstructor->traceMap[evictedTraceID].insertion_tick,
+                                    traceConstructor->traceMap[evictedTraceID].eviction_tick,
+                                    traceConstructor->traceMap[evictedTraceID].hotness,
+                                    traceConstructor->traceMap[evictedTraceID].length,
+                                    traceConstructor->traceMap[evictedTraceID].shrunkLength,
+                                    traceConstructor->traceMap[evictedTraceID].getTraceHeadAddr().pcAddr,
+                                    traceConstructor->traceMap[evictedTraceID].end.pcAddr,
+                                    traceConstructor->traceMap[evictedTraceID].branchesFolded,
+                                    traceConstructor->traceMap[evictedTraceID].validPredSources,
+                                    traceConstructor->traceMap[evictedTraceID].totalNumOfTimesControlSourcesAreMisspredicted,
+                                    traceConstructor->traceMap[evictedTraceID].totalNumOfTimesPredictionSourcesAreMisspredicted,
+                                    traceConstructor->traceMap[evictedTraceID].totalNumOfMicroopsFetchedFromTrace,
+                                    traceConstructor->traceMap[evictedTraceID].totalNumOfMicroopsCommitedFromTrace
+                                    );
+    
+    traceConstructor->traceMap.erase(evictedTraceID);
     
 }
 
@@ -1808,6 +1871,12 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
 
     StaticInstPtr curInst = speculativeCache[idx][way][uop];
     increaseSpecWayHotness(idx,way);
+
+
+    assert(curInst->getTraceID());
+    assert(traceConstructor->traceMap.find(curInst->getTraceID()) != traceConstructor->traceMap.end());
+    traceConstructor->traceMap[curInst->getTraceID()].totalNumOfMicroopsFetchedFromTrace++;
+
     /// dump all the micropps in the way and then assert!
     if (!curInst)
     {

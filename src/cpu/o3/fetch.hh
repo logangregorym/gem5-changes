@@ -382,6 +382,7 @@ class DefaultFetch
         return (addr & ~(fetchBufferMask));
     }
 
+    bool isSuperOptmizationEnabled() {return isSuperOptimizationPresent;}
     /** The decoder. */
     TheISA::Decoder *decoder[Impl::MaxThreads];
 

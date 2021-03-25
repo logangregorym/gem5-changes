@@ -1375,6 +1375,8 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
         ++specCacheMissOps;
     }
 
+    
+
  
         
 

@@ -1585,6 +1585,24 @@ template <class Impl>
 typename FullO3CPU<Impl>::ListIt
 FullO3CPU<Impl>::addInst(DynInstPtr &inst)
 {
+
+    //set the trace in transit if the instruction is coming from it
+    if (fetch.isSuperOptmizationEnabled())
+    {
+        
+        if (inst->isStreamedFromSpeculativeCache())
+        {
+            uint64_t traceId = inst->staticInst->getTraceID();
+            uint64_t tid = inst->threadNumber;
+            assert(traceId);
+            //we should always find the trace
+            assert(fetch.decoder[tid]->traceConstructor->traceMap.find(traceId) != fetch.decoder[tid]->traceConstructor->traceMap.end());
+            fetch.decoder[tid]->traceConstructor->traceMap[traceId].setInTransit(true);
+
+        } 
+        
+    }
+
     instList.push_back(inst);
 
     return --(instList.end());
@@ -1778,10 +1796,44 @@ FullO3CPU<Impl>::cleanUpRemovedInsts()
                 (*removeList.front())->seqNum,
                 (*removeList.front())->pcState());
 
+        // first unset traces that their insturciotns are removed
+        if (fetch.isSuperOptmizationEnabled())
+        {
+            if ((*removeList.front())->isStreamedFromSpeculativeCache())
+            {
+                uint64_t traceId = (*removeList.front())->staticInst->getTraceID();
+                uint64_t tid = (*removeList.front())->threadNumber;
+                assert(traceId);
+                //we should always find the trace
+                assert(fetch.decoder[tid]->traceConstructor->traceMap.find(traceId) != fetch.decoder[tid]->traceConstructor->traceMap.end());
+                fetch.decoder[tid]->traceConstructor->traceMap[traceId].setInTransit(false);
+            }
+        }
+        
+
         instList.erase(removeList.front());
 
         removeList.pop();
     }
+
+    //then go through all active instructions and set traces that still have in flight instructions
+    if (fetch.isSuperOptmizationEnabled())
+    {
+        for (auto const &elem: instList)
+        {
+            if (elem->isStreamedFromSpeculativeCache())
+            {
+                uint64_t traceId = elem->staticInst->getTraceID();
+                uint64_t tid = elem->threadNumber;
+                assert(traceId);
+                //we should always find the trace
+                assert(fetch.decoder[tid]->traceConstructor->traceMap.find(traceId) != fetch.decoder[tid]->traceConstructor->traceMap.end());
+                fetch.decoder[tid]->traceConstructor->traceMap[traceId].setInTransit(true);
+
+            } 
+        }
+    }
+
 
     removeInstsThisCycle = false;
 }

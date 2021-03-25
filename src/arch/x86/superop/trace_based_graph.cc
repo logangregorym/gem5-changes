@@ -167,7 +167,7 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
     uint64_t hotness = decoder->uopHotnessArray[uop_cache_idx][baseWay].read();
     newTrace.hotness = hotness;
     uint64_t length = computeLength(newTrace);
-    if (hotness < 7 || length < 4) { // TODO: revisit: pretty low bar
+    if (hotness != 15 || length < 4) { // TODO: revisit: pretty low bar
         DPRINTF(TraceGen, "Rejecting trace request to optimize trace at uop[%i][%i][%i]\n", uop_cache_idx, baseWay, 0);
         DPRINTF(TraceGen, "hotness:%i length=%i\n", hotness, length);
         return false;
@@ -572,7 +572,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
             }
             // Insufficent superoptimization
-            else if ((currentTrace.length == currentTrace.shrunkLength))
+            else if ((currentTrace.length - currentTrace.shrunkLength) <= 1)
             {
                 // remove it from traceMap
                 DPRINTF(TraceGen, "Removing trace: %d from Trace Map because of insufficent super-optimization!.\n", currentTrace.id );
@@ -829,7 +829,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "fbld" || decodedMacroOp->getName() == "ficomp" || 
             decodedMacroOp->getName() == "fcom" || decodedMacroOp->getName() == "fisttp" ||
             decodedMacroOp->getName() == "fwait" || decodedMacroOp->getName() == "frstor" ||
-            decodedMacroOp->getName() == "xsave" || decodedMacroOp->getName() == "call_far_Mp") {
+            decodedMacroOp->getName() == "xsave" || decodedMacroOp->getName() == "call_far_Mp" ||
+            decodedMacroOp->getName() == "fiadd") {
             currentTrace.length++;
             if (currentTrace.prevNonEliminatedInst) {
                 currentTrace.prevNonEliminatedInst->shrunkenLength++;
@@ -850,7 +851,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 decodedMacroOp->getName() == "fbld" || decodedMacroOp->getName() == "ficomp" ||
                 decodedMacroOp->getName() == "fcom" || decodedMacroOp->getName() == "fisttp" ||
                 decodedMacroOp->getName() == "fwait" || decodedMacroOp->getName() == "frstor" || 
-                decodedMacroOp->getName() == "xsave"|| decodedMacroOp->getName() == "call_far_Mp") {
+                decodedMacroOp->getName() == "xsave"|| decodedMacroOp->getName() == "call_far_Mp" ||
+                decodedMacroOp->getName() == "fiadd") {
                 currentTrace.length++;
                 if (currentTrace.prevNonEliminatedInst) {
                     currentTrace.prevNonEliminatedInst->shrunkenLength++;

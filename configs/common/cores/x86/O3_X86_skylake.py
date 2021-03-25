@@ -132,7 +132,7 @@ class O3_X86_skylake_1(DerivO3CPU):
     trapLatency = 13
     backComSize = 6
     forwardComSize = 6
-    numPhysIntRegs =260
+    numPhysIntRegs =780
     numPhysFloatRegs = 168
     numPhysVecRegs = 168
     numIQEntries = 64

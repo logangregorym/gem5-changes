@@ -1342,6 +1342,10 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             assert( head_inst->staticInst->getTraceID()); 
             assert( head_inst->staticInst->getTraceLength());
             numCommittedSuperoptmizedInstDist.sample(head_inst->staticInst->getTraceLength(),1);
+
+           
+            assert(cpu->fetch.decoder[tid]->traceConstructor->traceMap.find(head_inst->staticInst->getTraceID()) != cpu->fetch.decoder[tid]->traceConstructor->traceMap.end());
+            cpu->fetch.decoder[tid]->traceConstructor->traceMap[head_inst->staticInst->getTraceID()].totalNumOfMicroopsCommitedFromTrace++;
         }
 
         if ((numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value()) >= checkpointAtInstr && checkpointAtInstr) {
@@ -1352,7 +1356,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
                 if (it.second.state == SpecTrace::Complete)
                 {   
                     // Dump some debug analysis information for evicted traces
-                    DPRINTF(TraceEviction, "@ %d,%d,%d,%d,%d,%d,%x,%x,%d,%d,%d,%d\n", 
+                    DPRINTF(TraceEviction, "@ %d,%d,%d,%d,%d,%d,%x,%x,%d,%d,%d,%d,%d,%d\n", 
                                     it.second.id, 
                                     it.second.insertion_tick,
                                     it.second.eviction_tick,
@@ -1364,7 +1368,9 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
                                     it.second.branchesFolded,
                                     it.second.validPredSources,
                                     it.second.totalNumOfTimesControlSourcesAreMisspredicted,
-                                    it.second.totalNumOfTimesPredictionSourcesAreMisspredicted
+                                    it.second.totalNumOfTimesPredictionSourcesAreMisspredicted,
+                                    it.second.totalNumOfMicroopsFetchedFromTrace,
+                                    it.second.totalNumOfMicroopsCommitedFromTrace
                             );
                 }
             }
