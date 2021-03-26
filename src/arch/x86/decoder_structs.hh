@@ -12,22 +12,27 @@
 struct FullUopAddr {
 	Addr pcAddr;
 	unsigned uopAddr;
+    bool valid;
 
 	FullUopAddr(Addr p, unsigned u) {
 		pcAddr = p;
 		uopAddr = u;
+        valid = true;
 	}
 
 	FullUopAddr() {
 		pcAddr = 0;
 		uopAddr = 0;
+        valid = false;
 	}
 
 	bool operator==(const FullUopAddr& rhs) {
+        assert(rhs.valid);
 		return (pcAddr == rhs.pcAddr) && (uopAddr == rhs.uopAddr);
 	}
 
 	bool operator!=(const FullUopAddr& rhs) {
+        assert(rhs.valid);
 		return (pcAddr != rhs.pcAddr) || (uopAddr != rhs.uopAddr);
 	}
 };

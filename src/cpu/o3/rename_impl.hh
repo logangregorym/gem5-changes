@@ -141,6 +141,10 @@ DefaultRename<Impl>::regStats()
         .name(name() + ".FullRegisterEvents")
         .desc("Number of times there has been no free registers")
         .prereq(renameFullRegistersEvents);
+    blockedDueToStallFromIEW
+        .name(name() + ".blockedDueToStallFromIEW")
+        .desc("Number of times rename blocked due to stall from IEW")
+        .prereq(blockedDueToStallFromIEW);
     renameRenamedOperands
         .name(name() + ".RenamedOperands")
         .desc("Number of destination operands rename has renamed")
@@ -1211,6 +1215,7 @@ DefaultRename<Impl>::checkStall(ThreadID tid)
     bool ret_val = false;
 
     if (stalls[tid].iew) {
+        ++blockedDueToStallFromIEW;
         DPRINTF(Rename,"[tid:%i]: Stall from IEW stage detected.\n", tid);
         ret_val = true;
     } else if (calcFreeROBEntries(tid) <= 0) {

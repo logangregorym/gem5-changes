@@ -507,6 +507,9 @@ class DefaultRename
     /** Stat for total number of times that rename runs out of free registers
      * to use to rename. */
     Stats::Scalar renameFullRegistersEvents;
+
+    Stats::Scalar blockedDueToStallFromIEW;
+
     /** Stat for total number of renamed destination registers. */
     Stats::Scalar renameRenamedOperands;
     /** Stat for total number of source register rename lookups. */

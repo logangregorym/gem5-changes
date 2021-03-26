@@ -174,7 +174,7 @@ class DefaultDecode
     bool checkSignalsAndUpdate(ThreadID tid);
 
     /** Checks all stall signals, and returns if any are true. */
-    bool checkStall(ThreadID tid) const;
+    bool checkStall(ThreadID tid) ;
 
     /** Returns if there any instructions from fetch on this cycle. */
     inline bool fetchInstsValid();
@@ -316,6 +316,8 @@ class DefaultDecode
     Stats::Scalar decodeDecodedInsts;
     /** Stat for total number of squashed instructions. */
     Stats::Scalar decodeSquashedInsts;
+
+    Stats::Scalar blockedDueToStallFromRename;
 };
 
 #endif // __CPU_O3_DECODE_HH__

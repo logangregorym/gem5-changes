@@ -20,6 +20,7 @@
 #include "sim/sim_object.hh"
 #include <queue>
 #include <gperftools/heap-profiler.h>
+#include "cpu/pred/big_sat_counter.hh"
 
 using namespace std;
 
@@ -86,6 +87,8 @@ class TraceBasedGraph : public SimObject
 
     BPredUnit* branchPred;
     LVPredUnit *loadPred;
+
+    std::map<uint64_t, BigSatCounter> blackList;
 
     // Dump live outs
     void dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs);

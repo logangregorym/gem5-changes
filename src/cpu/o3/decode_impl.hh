@@ -150,6 +150,10 @@ DefaultDecode<Impl>::regStats()
         .name(name() + ".SquashedInsts")
         .desc("Number of squashed instructions handled by decode")
         .prereq(decodeSquashedInsts);
+    blockedDueToStallFromRename
+        .name(name() + ".blockedDueToStallFromRename")
+        .desc("Number of times rename blocked due to stall from Rename")
+        .prereq(blockedDueToStallFromRename);
 }
 
 template<class Impl>
@@ -218,11 +222,12 @@ DefaultDecode<Impl>::isDrained() const
 
 template<class Impl>
 bool
-DefaultDecode<Impl>::checkStall(ThreadID tid) const
+DefaultDecode<Impl>::checkStall(ThreadID tid) 
 {
     bool ret_val = false;
 
     if (stalls[tid].rename) {
+        ++blockedDueToStallFromRename;
         DPRINTF(Decode,"[tid:%i]: Stall fom Rename stage detected.\n", tid);
         ret_val = true;
     }

@@ -125,6 +125,12 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
 bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& pc)
 {
 
+    if (traceQueue.size() >= 5) 
+    {
+        DPRINTF(TraceGen, "Not enough space in trace queue! Trace Queue Size: %d\n", traceQueue.size());
+        return false;
+    }
+
     uint64_t addr = pc.instAddr();
 
     DPRINTF(TraceGen, "Trying to queue a new hot trace for inst addr=%#x\n", addr);
@@ -144,9 +150,23 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
         }
     }
 
+    // check if this base addr is in black list
+    if (blackList.find(baseAddr) != blackList.end())
+    {
+        blackList[baseAddr].increment();
+        if (blackList[baseAddr].read() == 63)
+        {
+            blackList.erase(baseAddr);
+        }
+        else 
+        {
+            return false;
+        }
+    }
+
     // check to see if there is trace with this head address
     for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
-        
+        //DPRINTF(TraceQueue, "Trace: %d %#x:%d %#x\n",it->second.id, it->second.getTraceHeadAddr().pcAddr,it->second.getTraceHeadAddr().uopAddr , baseAddr);
         if (it->second.getTraceHeadAddr() == FullUopAddr(baseAddr, 0))
         {
             DPRINTF(TraceGen, "Trace Map already holds a trace with id %d for this head address! addr = %#x\n", it->first , addr);
@@ -156,7 +176,8 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
     }
 
 
-
+    // if we decided to insert this into the trace map, creat a black list for it
+    blackList[baseAddr] = BigSatCounter(6);
 
     SpecTrace newTrace;
     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
@@ -174,13 +195,16 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
         return false;
     }
 
-    DPRINTF(TraceQueue, "%#x %#x\n", addr, baseAddr);
+    DPRINTF(TraceQueue, "Insert: Fetch Addr: %#x Base Addr: %#x\n", addr, baseAddr);
+    for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
+        DPRINTF(TraceQueue, "Trace: %d Trace Head Addr: %#x:%d\n",it->second.id, it->second.getTraceHeadAddr().pcAddr,it->second.getTraceHeadAddr().uopAddr);
+    }
     newTrace.id = SpecTrace::traceIDCounter++;
     traceMap[newTrace.id] = newTrace;
     traceQueue.push(newTrace);
     DPRINTF(TraceGen, "Queueing up new trace request %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, uop_cache_idx, baseWay, 0);
     DPRINTF(TraceGen, "hotness:%i length=%i\n", hotness, length);
-    dumpTrace(newTrace);
+    //dumpTrace(newTrace);
     return true;
 
     
