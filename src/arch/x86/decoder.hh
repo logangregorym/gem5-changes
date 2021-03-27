@@ -169,6 +169,39 @@ class Decoder
     void increaseSpecWayHotness(int idx, int way) {specHotnessArray[idx][way].increment();}
     void decreaseSpecWayHotness(int idx, int way) {specHotnessArray[idx][way].decrement();}
 
+    void setUopTraceProfitableForSuperOptimization(Addr addr, bool state)
+    {
+        uint64_t uop_cache_idx = (addr >> 5) & 0x1f;
+        uint64_t tag = (addr >> 10);
+        // find the the base way for this 32B code region
+        for (int way = 0; way < 8; way++) {
+            if ((uopValidArray[uop_cache_idx][way] && uopTagArray[uop_cache_idx][way] == tag)) {
+                
+                uopProfitableTrace[uop_cache_idx][way] = state;
+            
+            }
+        }
+    }
+
+    bool isUopTraceProfitableForSuperOptimization(Addr addr)
+    {
+        uint64_t uop_cache_idx = (addr >> 5) & 0x1f;
+        uint64_t tag = (addr >> 10);
+        // find the the base way for this 32B code region
+        for (int way = 0; way < 8; way++) {
+            if ((uopValidArray[uop_cache_idx][way] && 
+                uopTagArray[uop_cache_idx][way] == tag &&
+                uopProfitableTrace[uop_cache_idx][way] == false)) 
+            {
+                
+                return false;
+            
+            }
+        }
+
+        return true;
+    }
+
     BaseCPU *cpu;
     void setCPU(BaseCPU * newCPU, ThreadID tid=0);
    // vector<ArrayDependencyTracker::DependGraphEntry> victimCache;

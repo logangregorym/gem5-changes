@@ -125,7 +125,7 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
 bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& pc)
 {
 
-    if (traceQueue.size() >= 5) 
+    if (traceQueue.size() > 5) 
     {
         DPRINTF(TraceGen, "Not enough space in trace queue! Trace Queue Size: %d\n", traceQueue.size());
         return false;
@@ -134,6 +134,11 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
     uint64_t addr = pc.instAddr();
 
     DPRINTF(TraceGen, "Trying to queue a new hot trace for inst addr=%#x\n", addr);
+
+    if (!decoder->isUopTraceProfitableForSuperOptimization(addr))
+    {
+        DPRINTF(TraceGen, "Trace in uop cache is not profitable for superoptimization\n");
+    }
 
     uint64_t uop_cache_idx = (addr >> 5) & 0x1f;
     uint64_t tag = (addr >> 10);
@@ -531,6 +536,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 // remove it from traceMap
                 DPRINTF(TraceGen, "Removing trace: %d from Trace Map because of insufficent prediction sources!.\n", currentTrace.id );
                 assert(traceMap.find(currentTrace.id) != traceMap.end());
+                
+                // set the uop trace not-profitable until it gets evicted
+                decoder->setUopTraceProfitableForSuperOptimization(currentTrace.getTraceHeadAddr().pcAddr, false);
+                
                 traceMap.erase(currentTrace.id);
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
@@ -559,6 +568,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 // remove it from traceMap
                 DPRINTF(TraceGen, "Removing trace: %d from Trace Map because of insufficent space in spec cache for a trace longer than 18 micrrops. Trace length: %d!.\n", currentTrace.id ,  currentTrace.shrunkLength);
                 assert(traceMap.find(currentTrace.id) != traceMap.end());
+                
+                // set the uop trace not-profitable until it gets evicted
+                decoder->setUopTraceProfitableForSuperOptimization(currentTrace.getTraceHeadAddr().pcAddr, false);
+
                 traceMap.erase(currentTrace.id);
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
@@ -584,9 +597,14 @@ bool TraceBasedGraph::generateNextTraceInst() {
             // Insufficent superoptimization
             else if ((currentTrace.length - currentTrace.shrunkLength) <= 1)
             {
+                
                 // remove it from traceMap
                 DPRINTF(TraceGen, "Removing trace: %d from Trace Map because of insufficent super-optimization!.\n", currentTrace.id );
                 assert(traceMap.find(currentTrace.id) != traceMap.end());
+                
+                // set the uop trace not-profitable until it gets evicted
+                decoder->setUopTraceProfitableForSuperOptimization(currentTrace.getTraceHeadAddr().pcAddr, false);
+                
                 traceMap.erase(currentTrace.id);
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
