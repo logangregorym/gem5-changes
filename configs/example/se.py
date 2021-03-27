@@ -110,7 +110,7 @@ def get_processes(options):
         idx += 1
 
     if options.smt:
-        assert(options.cpu_type == "DerivO3CPU" or options.cpu_type == "O3_X86_sb_1" or options.cpu_type == "O3_X86_skylake_1")
+        assert(options.cpu_type == "DerivO3CPU" or options.cpu_type == "O3_X86_sb_1" or options.cpu_type == "O3_X86_skylake_1" or options.cpu_type == "O3_X86_icelake_1")
         return multiprocesses, idx
     else:
         return multiprocesses, 1

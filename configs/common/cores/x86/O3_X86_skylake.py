@@ -32,13 +32,13 @@ from m5.objects import *
 # Simple ALU Instructions have a latency of 1
 class O3_X86_skylake_Simple_Int(FUDesc):
     opList = [ OpDesc(opClass='IntAlu', opLat=1) ]
-    count = 6
+    count = 4
 
 # Complex ALU instructions have a variable latencies
 class O3_X86_skylake_Complex_Int(FUDesc):
     opList = [ OpDesc(opClass='IntMult', opLat=4, pipelined=True),
                OpDesc(opClass='IntDiv', opLat=5, pipelined=False) ]
-    count = 1
+    count = 2
 
 
 # Floating point and SIMD instructions
@@ -113,29 +113,29 @@ class O3_X86_skylake_1(DerivO3CPU):
     iewToRenameDelay = 1
     commitToRenameDelay = 1
     commitToIEWDelay = 1
-    fetchWidth = 8
+    fetchWidth = 6
     fetchBufferSize = 16
     fetchToDecodeDelay = 3
-    decodeWidth = 8
+    decodeWidth = 6
     decodeToRenameDelay = 2
-    renameWidth = 8
+    renameWidth = 6
     renameToIEWDelay = 1
     issueToExecuteDelay = 1
-    dispatchWidth = 6
-    issueWidth = 6
-    wbWidth = 6
+    dispatchWidth = 8
+    issueWidth = 8
+    wbWidth = 8
     fuPool = O3_X86_skylake_FUP()
     iewToCommitDelay = 1
     renameToROBDelay = 1
-    commitWidth = 6
-    squashWidth = 6
+    commitWidth = 8
+    squashWidth = 8
     trapLatency = 13
-    backComSize = 6
-    forwardComSize = 6
-    numPhysIntRegs =780
+    backComSize = 8
+    forwardComSize = 8
+    numPhysIntRegs = 780
     numPhysFloatRegs = 168
     numPhysVecRegs = 168
-    numIQEntries = 64
+    numIQEntries = 97
     numROBEntries = 224
 
     switched_out = False
