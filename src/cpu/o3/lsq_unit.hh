@@ -189,9 +189,11 @@ class LSQUnit {
 
     /** Returns the number of loads in the LQ. */
     int numLoads() { return loads; }
+    int numSpeculativeLoads() { return speculativeLoads; }
 
     /** Returns the number of stores in the SQ. */
     int numStores() { return stores; }
+    int numSpeculativeStores() { return speculativeStores; }
 
     /** Returns if either the LQ or SQ is full. */
     bool isFull() { return lqFull() || sqFull(); }
@@ -411,6 +413,9 @@ class LSQUnit {
     int loads;
     /** The number of store instructions in the SQ. */
     int stores;
+    int speculativeLoads;
+    int speculativeStores;
+    
     /** The number of store instructions in the SQ waiting to writeback. */
     int storesToWB;
 

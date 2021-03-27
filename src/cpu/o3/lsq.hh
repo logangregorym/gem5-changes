@@ -187,11 +187,17 @@ class LSQ {
     int numLoads(ThreadID tid)
     { return thread[tid].numLoads(); }
 
+    int numSpeculativeLoads(ThreadID tid)
+    { return thread[tid].numSpeculativeLoads(); }
+
     /** Returns the total number of stores in the store queue. */
     int numStores();
     /** Returns the total number of stores for a single thread. */
     int numStores(ThreadID tid)
     { return thread[tid].numStores(); }
+
+    int numSpeculativeStores(ThreadID tid)
+    { return thread[tid].numSpeculativeStores(); }
 
     /** Returns the number of free load entries. */
     unsigned numFreeLoadEntries();

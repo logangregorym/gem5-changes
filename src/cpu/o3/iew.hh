@@ -452,6 +452,10 @@ class DefaultIEW
     Stats::Scalar iewDispLoadInsts;
     /** Stat for total number of dispatched store instructions. */
     Stats::Scalar iewDispStoreInsts;
+    /** Stat for total number of dispatched load instructions. */
+    Stats::Scalar iewDispSpeculativeLoadInsts;
+    /** Stat for total number of dispatched store instructions. */
+    Stats::Scalar iewDispSpeculativeStoreInsts;
     /** Stat for total number of dispatched non speculative instructions. */
     Stats::Scalar iewDispNonSpecInsts;
     /** Stat for number of times the IQ becomes full. */
@@ -527,6 +531,10 @@ class DefaultIEW
 
     // Total number of times trace is misspredicted (prediction source[4])
     Stats::Scalar totalNumOfTimesPredictionSourcesOfTracesAreMisspredicted;
+
+
+    Stats::Distribution LQFullScenariosDist;
+    Stats::Distribution SQFullScenariosDist;
 
     /** Stat for total number of mispredicted branches detected at execute. */
     // this only includes the branchs. The one at the commit also counts the LVP misspredictions

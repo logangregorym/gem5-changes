@@ -144,7 +144,7 @@ LSQUnit<Impl>::completeDataAccess(PacketPtr pkt)
 
 template <class Impl>
 LSQUnit<Impl>::LSQUnit()
-    : loads(0), stores(0), storesToWB(0), cacheBlockMask(0), stalled(false),
+    : loads(0), stores(0), speculativeLoads(0), speculativeStores(0), storesToWB(0), cacheBlockMask(0), stalled(false),
       isStoreBlocked(false), storeInFlight(false), hasPendingPkt(false),
       pendingPkt(nullptr)
 {
@@ -190,6 +190,7 @@ void
 LSQUnit<Impl>::resetState()
 {
     loads = stores = storesToWB = 0;
+    speculativeLoads = speculativeStores = 0;
 
     loadHead = loadTail = 0;
 
@@ -378,6 +379,9 @@ LSQUnit<Impl>::insertLoad(DynInstPtr &load_inst)
     incrLdIdx(loadTail);
 
     ++loads;
+
+    if (load_inst->isStreamedFromSpeculativeCache())
+        ++speculativeLoads;
 }
 
 template <class Impl>
@@ -398,7 +402,11 @@ LSQUnit<Impl>::insertStore(DynInstPtr &store_inst)
 
     incrStIdx(storeTail);
 
+
     ++stores;
+
+    if (store_inst->isStreamedFromSpeculativeCache())
+        ++speculativeStores;
 }
 
 template <class Impl>
@@ -720,11 +728,15 @@ LSQUnit<Impl>::commitLoad()
     DPRINTF(LSQUnit, "Committing head load instruction, PC %s\n",
             loadQueue[loadHead]->pcState());
 
+    if (loadQueue[loadHead]->isStreamedFromSpeculativeCache())
+        --speculativeLoads;
+
     loadQueue[loadHead] = NULL;
 
     incrLdIdx(loadHead);
 
     --loads;
+
 }
 
 template <class Impl>
@@ -1019,6 +1031,10 @@ LSQUnit<Impl>::squash(const InstSeqNum &squashed_num, bool squashDueToLVP)
 
         // Clear the smart pointer to make sure it is decremented.
         loadQueue[load_idx]->setSquashed();
+
+        if (loadQueue[load_idx]->isStreamedFromSpeculativeCache())
+            --speculativeLoads;
+
         loadQueue[load_idx] = NULL;
         --loads;
 
@@ -1060,6 +1076,9 @@ LSQUnit<Impl>::squash(const InstSeqNum &squashed_num, bool squashDueToLVP)
         // if squashed because of LVP missprediction count it
         if (squashDueToLVP) 
             cpu->squashedDueToLVPAllStages++;
+
+        if (storeQueue[store_idx].inst->isStreamedFromSpeculativeCache())
+            --speculativeStores;
 
         // Clear the smart pointer to make sure it is decremented.
         storeQueue[store_idx].inst->setSquashed();
@@ -1200,9 +1219,14 @@ LSQUnit<Impl>::completeStore(int store_idx)
 
     if (store_idx == storeHead) {
         do {
-            incrStIdx(storeHead);
-
+            
+            if (storeQueue[storeHead].inst &&
+                storeQueue[storeHead].inst->isStreamedFromSpeculativeCache())
+                --speculativeStores;
+            
+            incrStIdx(storeHead);            
             --stores;
+
         } while (storeQueue[storeHead].completed &&
                  storeHead != storeTail);
 

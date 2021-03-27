@@ -186,6 +186,15 @@ DefaultIEW<Impl>::regStats()
         .name(name() + ".iewDispStoreInsts")
         .desc("Number of dispatched store instructions");
 
+    iewDispSpeculativeLoadInsts
+        .name(name() + ".iewDispSpeculativeLoadInsts")
+        .desc("Number of dispatched Speculative load instructions");
+
+    iewDispSpeculativeStoreInsts
+        .name(name() + ".iewDispSpeculativeStoreInsts")
+        .desc("Number of dispatched Speculative store instructions");
+
+
     iewDispNonSpecInsts
         .name(name() + ".iewDispNonSpecInsts")
         .desc("Number of dispatched non-speculative instructions");
@@ -383,6 +392,19 @@ DefaultIEW<Impl>::regStats()
     totalNumOfTimesPredictionSourcesOfTracesAreMisspredicted
         .name(name() + ".totalNumOfTimesPredictionSourcesOfTracesAreMisspredicted")
         .desc("total Number Of Times Prediction Sources Of Traces Are Misspredicted");
+
+    LQFullScenariosDist
+        .init(0,100,10)
+        .name(name() + ".LQFullScenariosDist")
+        .desc("Percentage of speculative to non-speculative loads in case of a LQ full event")
+        .flags(Stats::pdf)
+        ;
+    SQFullScenariosDist
+        .init(0,100,10)
+        .name(name() + ".SQFullScenariosDist")
+        .desc("Percentage of speculative to non-speculative stores in case of a SQ full event")
+        .flags(Stats::pdf)
+        ;
 
 }
 
@@ -1211,6 +1233,25 @@ DefaultIEW<Impl>::dispatchInsts(ThreadID tid)
             // get full in the IQ.
             toRename->iewUnblock[tid] = false;
 
+            // LQ Full
+            if (inst->isLoad() && ldstQueue.lqFull(tid))
+            {
+                int totalNumOfLoads = ldstQueue.numLoads(tid);
+                int totalNumOfSpeculativeLoads = ldstQueue.numSpeculativeLoads(tid);
+                double percentage = (double) (totalNumOfSpeculativeLoads * 100.0)/ ((double)totalNumOfLoads);
+                assert(percentage <= 100.0);
+                LQFullScenariosDist.sample((unsigned)percentage);
+            }
+            // SQ Full
+            else
+            {
+                int totalNumOfStores = ldstQueue.numStores(tid);
+                int totalNumOfSpeculativeStores = ldstQueue.numSpeculativeStores(tid);
+                double percentage = (double) (totalNumOfSpeculativeStores * 100.0)/ ((double)totalNumOfStores);
+                assert(percentage <= 100.0);
+                SQFullScenariosDist.sample((unsigned)percentage);
+            }
+
             ++iewLSQFullEvents;
             break;
         }
@@ -1224,7 +1265,16 @@ DefaultIEW<Impl>::dispatchInsts(ThreadID tid)
             // memory access.
             ldstQueue.insertLoad(inst);
 
-            ++iewDispLoadInsts;
+            if (inst->isStreamedFromSpeculativeCache())
+            {
+                ++iewDispSpeculativeLoadInsts;
+            }
+            else 
+            {
+                ++iewDispLoadInsts;
+            }
+
+            
 
             add_to_iq = true;
 
@@ -1235,7 +1285,16 @@ DefaultIEW<Impl>::dispatchInsts(ThreadID tid)
 
             ldstQueue.insertStore(inst);
 
-            ++iewDispStoreInsts;
+            if (inst->isStreamedFromSpeculativeCache())
+            {
+                ++iewDispSpeculativeStoreInsts;
+            }
+            else 
+            {
+                ++iewDispStoreInsts;
+            }
+
+            
 
             if (inst->isStoreConditional()) {
                 // Store conditionals need to be set as "canCommit()"
