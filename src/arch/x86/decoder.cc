@@ -73,8 +73,8 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
             uopPrevWayArray[idx][way] = 10;
             uopNextWayArray[idx][way] = 10;
             uopValidArray[idx][way] = false;
-            uopFullArray[idx][way] = false;
             uopProfitableTrace[idx][way] = true;
+            uopFullArray[idx][way] = false;
             uopCountArray[idx][way] = 0;
             uopLRUArray[idx][way] = way;
             uopHotnessArray[idx][way] = BigSatCounter(4);
@@ -989,6 +989,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                     // depTracker->microopAddrArray[idx][way][uop] = FullUopAddr(0,0);
                 }
                 uopValidArray[idx][way] = false;
+                uopProfitableTrace[idx][way] = true; // reset the profitable flag
                 uopCountArray[idx][way] = 0;
                 uopHotnessArray[idx][way] = BigSatCounter(4);
                 uopPrevWayArray[idx][way] = 10;
@@ -1010,6 +1011,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 DPRINTF(ConstProp, "way %i --> way %i\n", lastWay, way);
             }
             uopCountArray[idx][way] = numUops;
+            uopProfitableTrace[idx][way] = true; // reset profiatable flag
             uopValidArray[idx][way] = true;
             //uopFullArray[idx][way] = false;
             uopTagArray[idx][way] = tag;
@@ -1068,6 +1070,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                     uopConflictMisses++;
                 }
                 uopValidArray[idx][w] = false;
+                uopProfitableTrace[idx][w] = true; // reset profiatable flag
                 uopCountArray[idx][w] = 0;
                 uopHotnessArray[idx][w] = BigSatCounter(4);
                 uopPrevWayArray[idx][w] = 10;
