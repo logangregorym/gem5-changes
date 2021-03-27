@@ -150,24 +150,12 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
         }
     }
 
-    // check if this base addr is in black list
-    if (blackList.find(baseAddr) != blackList.end())
-    {
-        blackList[baseAddr].increment();
-        if (blackList[baseAddr].read() == 63)
-        {
-            blackList.erase(baseAddr);
-        }
-        else 
-        {
-            return false;
-        }
-    }
 
     // check to see if there is trace with this head address
     for (auto it = traceMap.begin(); it != traceMap.end(); it++) {
         //DPRINTF(TraceQueue, "Trace: %d %#x:%d %#x\n",it->second.id, it->second.getTraceHeadAddr().pcAddr,it->second.getTraceHeadAddr().uopAddr , baseAddr);
-        if (it->second.getTraceHeadAddr() == FullUopAddr(baseAddr, 0))
+        //if ((it->second.getTraceHeadAddr().pcAddr >> 5) == (FullUopAddr(baseAddr, 0).pcAddr >> 5))
+        if ((it->second.getTraceHeadAddr()) == (FullUopAddr(baseAddr, 0)))
         {
             DPRINTF(TraceGen, "Trace Map already holds a trace with id %d for this head address! addr = %#x\n", it->first , addr);
             return false;
@@ -175,9 +163,6 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
 
     }
 
-
-    // if we decided to insert this into the trace map, creat a black list for it
-    blackList[baseAddr] = BigSatCounter(6);
 
     SpecTrace newTrace;
     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;

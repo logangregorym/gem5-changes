@@ -74,6 +74,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
             uopNextWayArray[idx][way] = 10;
             uopValidArray[idx][way] = false;
             uopFullArray[idx][way] = false;
+            uopProfitableTrace[idx][way] = true;
             uopCountArray[idx][way] = 0;
             uopLRUArray[idx][way] = way;
             uopHotnessArray[idx][way] = BigSatCounter(4);
@@ -1132,7 +1133,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
     uint16_t uop = superoptimized_microop.instAddr.uopAddr; 
     uint64_t traceID = trace.id;
 
-    uint64_t spec_cache_idx = (addr >> SPEC_NUM_INDEX_BITS) & SPEC_INDEX_MASK;
+    uint64_t spec_cache_idx = (addr >> 5) & SPEC_INDEX_MASK;
     uint64_t tag = (addr >> ( SPEC_NUM_INDEX_BITS + 5 ));
     int numFullWays = 0;
     int lastWay = -1;
@@ -1651,35 +1652,36 @@ Decoder::doSquash(Addr addr) {
     traceConstructor->streamTrace.addr.valid = false;
     traceConstructor->streamTrace.id = 0;
 
-    int idx = (addr >> SPEC_NUM_INDEX_BITS) & SPEC_INDEX_MASK;
-    for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
-        if (speculativeValidArray[idx][way] && speculativeAddrArray[idx][way][0].pcAddr == addr && speculativePrevWayArray[idx][way] == 10) {
+    // int idx = (addr >> SPEC_NUM_INDEX_BITS) & SPEC_INDEX_MASK;
+    // for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
+    //     if (speculativeValidArray[idx][way] && speculativeAddrArray[idx][way][0].pcAddr == addr && speculativePrevWayArray[idx][way] == 10) {
 
-            assert(traceConstructor->traceMap.find(speculativeTraceIDArray[idx][way]) != traceConstructor->traceMap.end());
+    //         assert(traceConstructor->traceMap.find(speculativeTraceIDArray[idx][way]) != traceConstructor->traceMap.end());
 
-            //SpecTrace trace = traceConstructor->traceMap[speculativeTraceIDArray[idx][way]];
-            for (int i=0; i<4; i++) 
-            {
-                if (traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].valid && 
-                    traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].addr.pcAddr == addr) 
-                {
+    //         //SpecTrace trace = traceConstructor->traceMap[speculativeTraceIDArray[idx][way]];
+    //         for (int i=0; i<4; i++) 
+    //         {
+    //             if (traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].valid && 
+    //                 traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].addr.pcAddr == addr) 
+    //             {
                     
-                    // Is there a limit on confidence? I'm assuming 0.
-                    if (traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].confidence > 0) 
-                    {
-                        traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].confidence--;
-                        return;
-                    }
-                }
-                // we might have gotten squashed at the middle of the trace
-                //traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[0].confidence--;
-            }
-        }
-    }
+    //                 // Is there a limit on confidence? I'm assuming 0.
+    //                 if (traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].confidence > 0) 
+    //                 {
+    //                     traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[i].confidence--;
+    //                     return;
+    //                 }
+    //             }
+    //             // we might have gotten squashed at the middle of the trace
+    //             //traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].source[0].confidence--;
+    //         }
+    //     }
+    // }
 }
 
 void
 Decoder::invalidateSpecTrace(Addr addr, unsigned uop) {
+    assert(0);
     /*
      * 1. Find tag match in spec cache
      * 2. Clear out tag
@@ -1687,7 +1689,7 @@ Decoder::invalidateSpecTrace(Addr addr, unsigned uop) {
      * 4. If has a next line, clear that one too
      * Put the check for prev and next in the tag function to call recursively
      */
-    int idx = (addr >> SPEC_NUM_INDEX_BITS) & SPEC_INDEX_MASK;
+    int idx = (addr >> 5) & SPEC_INDEX_MASK;
     uint64_t tag = (addr >> (SPEC_NUM_INDEX_BITS + 5));
     for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
         if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {

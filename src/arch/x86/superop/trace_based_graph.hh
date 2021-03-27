@@ -88,8 +88,6 @@ class TraceBasedGraph : public SimObject
     BPredUnit* branchPred;
     LVPredUnit *loadPred;
 
-    std::map<uint64_t, BigSatCounter> blackList;
-
     // Dump live outs
     void dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs);
 
