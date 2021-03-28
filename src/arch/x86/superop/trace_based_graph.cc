@@ -90,6 +90,7 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
     bool isPredictableType =    (numOfIntDestRegs == 1) && 
                                 instruction->isInteger() && 
                                 !instruction->isVector() && 
+                                !instruction->isStore() && 
                                 !instruction->isFloating() &&
                                 /*!instruction->isCC()*/ 
                                 instruction->isStreamedFromUOpCache() &&
@@ -1192,6 +1193,7 @@ bool TraceBasedGraph::probePredictorForMakingPrediction()
         LVPredUnit::lvpReturnValues ret;
         if (loadPred->makePredictionForTraceGenStage(currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr, 0 , ret))
         {
+            assert(!currentTrace.inst->isStore());
             if ( ret.confidence >= predictionConfidenceThreshold)
             {
                 DPRINTF(TraceGen, "Found a high confidence prediction for address %#x:%d in the predictor! Confidence is %d! Predicted Value = %#x. This prediction source is a CC code? %d!\n", 
