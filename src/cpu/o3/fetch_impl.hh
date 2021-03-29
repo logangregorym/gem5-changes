@@ -362,7 +362,7 @@ DefaultFetch<Impl>::regStats()
         .name(name() + ".uopCacheHitrate")
         .desc("Uop Cache Hit Rate")
         .precision(6);
-    uopCacheHitRate = uopCacheHitOps/(uopCacheHitOps + uopCacheMissOps);
+    uopCacheHitRate = uopCacheHitOps/(fetchedOps);
 
     uopCacheInstHitRate
         .name(name() + ".uopCacheInstHitrate")
@@ -435,7 +435,7 @@ DefaultFetch<Impl>::regStats()
         .name(name() + ".specCacheHitRate")
         .desc("Spec Cache Hit Rate")
         .precision(6);
-    specCacheHitRate = specCacheHitOps/(specCacheHitOps + specCacheMissOps);
+    specCacheHitRate = specCacheHitOps/(fetchedOps);
 }
 
 template<class Impl>

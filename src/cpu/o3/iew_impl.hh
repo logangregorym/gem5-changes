@@ -1269,10 +1269,9 @@ DefaultIEW<Impl>::dispatchInsts(ThreadID tid)
             {
                 ++iewDispSpeculativeLoadInsts;
             }
-            else 
-            {
-                ++iewDispLoadInsts;
-            }
+        
+            ++iewDispLoadInsts;
+            
 
             
 
@@ -1289,11 +1288,9 @@ DefaultIEW<Impl>::dispatchInsts(ThreadID tid)
             {
                 ++iewDispSpeculativeStoreInsts;
             }
-            else 
-            {
-                ++iewDispStoreInsts;
-            }
-
+            
+            ++iewDispStoreInsts;
+            
             
 
             if (inst->isStoreConditional()) {
