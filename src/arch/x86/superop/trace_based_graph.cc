@@ -214,6 +214,8 @@ bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uin
 }
 
 bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
+
+    DPRINTF(SuperOp, "In advanceIfControlTransfer()\n");
     // don't do this for re-optimizations
     if (trace.state != SpecTrace::QueuedForFirstTimeOptimization  && trace.state != SpecTrace::OptimizationInProcess)
         return false;
@@ -221,6 +223,8 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
     // don't fold more than 2 branches
     if (trace.branchesFolded >= 2)
         return false;
+
+    //DPRINTF(SuperOp, "Not re-optimizing and < 2 branches folded\n");
 
     StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop]);
     StaticInstPtr decodedMicroOp = decodedMacroOp;
@@ -230,6 +234,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
         decodedMicroOp->macroOp = decodedMacroOp;
     }
 
+    //DPRINTF(SuperOp, "decodedMicroOp pc: %d.%u\n", decodedMicroOp.);
     // not a control transfer -- advance normally
     if (!decodedMicroOp->isControl()) {
         if (decodedMacroOp->isMacroop()) { 
@@ -238,6 +243,8 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 		}
         return false;
     }
+
+    DPRINTF(SuperOp, "Advancing control trace id:%d at uop cache:[%i][%i][%i]\n", trace.id, trace.addr.idx, trace.addr.way, trace.addr.uop);
 
     // end the trace if a return or a branch without a confident prediction is encountered
     Addr pcAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].pcAddr;
@@ -255,14 +262,18 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 
     // if it is a direct call or a jump, fold the branch (provided it is predicted taken)
     target = pcAddr + decodedMacroOp->machInst.instSize;
+    DPRINTF(SuperOp, "Advancing target by size of inst: target = %#x\n", target);
     if (disas.find("CALL_NEAR_I") != std::string::npos || disas.find("JMP_I") != std::string::npos || decodedMicroOp->isCondCtrl()) {
         target = pcAddr + decodedMacroOp->machInst.instSize + decodedMacroOp->machInst.immediate;
+        DPRINTF(SuperOp, "Advancing target folding branch: target = %#x\n", target);
     } 
 
     // not a taken branch -- advance normally
     bool predTaken = branchPred->lookupWithoutUpdate(0, pcAddr);
+    DPRINTF(SuperOp, "predTaken = %d\n", predTaken);
     if (!(disas.find("CALL_NEAR_I") != std::string::npos || disas.find("JMP_I") != std::string::npos) && !predTaken) {
         target = pcAddr + decodedMacroOp->machInst.instSize;
+        DPRINTF(SuperOp, "Branch not taken, advence normally: target = %#x\n", target);
     }
 
     // indirect branch -- lookup indirect predictor
@@ -270,6 +281,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
         TheISA::PCState targetPC;
         branchPred->iPred.lookup(pcAddr, branchPred->getGHR(0, NULL), targetPC, 0); // assuming tid = 0
         target = targetPC.instAddr();
+        DPRINTF(SuperOp, "Indirect branch: target = %#x\n", target);
     }
 
     // pivot to jump target if it is found in the uop cache
@@ -313,6 +325,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 
 Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
     Addr target = 0;
+    DPRINTF(SuperOp, "Advancing trace id:%d at uop cache:[%i][%i][%i]\n", trace.id, trace.addr.idx, trace.addr.way, trace.addr.uop);
     if (!usingControlTracking || !advanceIfControlTransfer(trace, target)) {
         trace.addr.uop++;
         trace.addr.valid = false;
@@ -320,15 +333,22 @@ Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
         if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
             FullUopAddr prevAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop-1];
             FullUopAddr nextAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop];
+            DPRINTF(SuperOp, "Advancing pc from %#x.%u to %#x.%u\n", prevAddr.pcAddr, prevAddr.uopAddr, nextAddr.pcAddr, nextAddr.uopAddr);
+            DPRINTF(SuperOp, "\t%#x.%u at uop cache:[%i][%i][%i]\n", prevAddr.pcAddr, prevAddr.uopAddr, trace.addr.idx, trace.addr.way, trace.addr.uop - 1);
+            DPRINTF(SuperOp, "\t%#x.%u at uop cache:[%i][%i][%i]\n", nextAddr.pcAddr, nextAddr.uopAddr, trace.addr.idx, trace.addr.way, trace.addr.uop);
             
             if (prevAddr.pcAddr == nextAddr.pcAddr) {
+                DPRINTF(SuperOp, "Same macro-op\n");
                 trace.addr.valid = true;
             } else {
                 nextAddr.pcAddr = prevAddr.pcAddr + decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop-1].instSize;
+                DPRINTF(SuperOp, "nextAddr= %#x.%u\n", nextAddr.pcAddr, nextAddr.uopAddr);
                 if (trace.addr.idx != ((nextAddr.pcAddr >> 5) & 0x1f)) { // we have exhausted all ways
+                    DPRINTF(SuperOp, "Exhausted all ways in uopCache (at a new index)\n");
                     return 0;
                 }
                 uint64_t tag = (nextAddr.pcAddr >> 10);
+                DPRINTF(SuperOp, "tag = %d\n", tag);
                 for (int way = 0; way < 8; way++) {
                     if (decoder->uopValidArray[trace.addr.idx][way] && decoder->uopTagArray[trace.addr.idx][way] == tag) {
                         for (int uop = 0; uop < decoder->uopCountArray[trace.addr.idx][way]; uop++) {
@@ -336,6 +356,7 @@ Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
                                 trace.addr.way = way;
                                 trace.addr.uop = uop;
                                 trace.addr.valid = true;
+                                DPRINTF(SuperOp, "Found pc %#x.%u at uop cache:[%i][%i][%i] (setting valid=true)\n", nextAddr.pcAddr, nextAddr.uopAddr, trace.addr.idx, trace.addr.way, trace.addr.uop);
                                 return 0;
                             }
                         }
@@ -343,6 +364,7 @@ Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
                 }
             }
         } else {
+            DPRINTF(SuperOp, "Trace Complete id:%d at uop cache:[%i][%i][%i]\n", trace.id, trace.addr.idx, trace.addr.way, trace.addr.uop);
             assert(trace.state == SpecTrace::Complete);
             assert((trace.addr.way < decoder->SPEC_CACHE_NUM_WAYS) && (trace.addr.idx < decoder->SPEC_CACHE_NUM_SETS));
             if (trace.addr.uop < decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]) {
@@ -353,8 +375,10 @@ Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
                 trace.addr.valid = true;
             }
         }
+        DPRINTF(SuperOp, "else: return 0;\n");
         return 0;
     }
+    DPRINTF(SuperOp, "else: return target;\n");
     return target;
 }
 
@@ -516,6 +540,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.state != SpecTrace::Invalid && 
             currentTrace.id != 0) 
         {
+//            if (currentTrace.id == 1427116) assert(0);
+
             DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
 
             // make sure always a super-optimized trace is shorter or equal to its original counterpart
