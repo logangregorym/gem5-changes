@@ -218,11 +218,18 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
     DPRINTF(SuperOp, "In advanceIfControlTransfer()\n");
     // don't do this for re-optimizations
     if (trace.state != SpecTrace::QueuedForFirstTimeOptimization  && trace.state != SpecTrace::OptimizationInProcess)
+    {    
+        DPRINTF(SuperOp, "Trace state is %d\n", trace.state);
         return false;
+    }
 
     // don't fold more than 2 branches
     if (trace.branchesFolded >= 2)
+    {    
+        DPRINTF(SuperOp, "Number of branches folded %d\n", trace.branchesFolded);
         return false;
+    
+    }
 
     //DPRINTF(SuperOp, "Not re-optimizing and < 2 branches folded\n");
 
@@ -237,10 +244,13 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
     //DPRINTF(SuperOp, "decodedMicroOp pc: %d.%u\n", decodedMicroOp.);
     // not a control transfer -- advance normally
     if (!decodedMicroOp->isControl()) {
+        
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
 			decodedMacroOp = NULL;
 		}
+
+        DPRINTF(SuperOp, "Not a control microop!\n");
         return false;
     }
 
@@ -320,7 +330,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 
     DPRINTF(TraceGen, "Ending trace -- uop cache miss at branch target\n");
     trace.addr.valid = false;
-    return false;
+    return true;
 }
 
 Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
@@ -540,7 +550,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.state != SpecTrace::Invalid && 
             currentTrace.id != 0) 
         {
-//            if (currentTrace.id == 1427116) assert(0);
+            //if (currentTrace.id == 1568516) assert(0);
 
             DPRINTF(SuperOp, "Done optimizing trace %i with actual length %i, shrunk to length %i\n", currentTrace.id, currentTrace.length, currentTrace.shrunkLength);
 

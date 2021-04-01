@@ -951,6 +951,13 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 uopCache[idx][way][uop] = emi;
                 DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d count:%d.\n", addr, tag, idx, way, uop, emi.instSize, uopCountArray[idx][way]);
             }
+
+            // invalidate all the empry space in way
+            assert(uopCountArray[idx][way] <= 6);
+            for (int uop = uopCountArray[idx][way]; uop < 6; uop++) {
+                uopAddrArray[idx][way][uop] = FullUopAddr();
+            }
+
             updateLRUBits(idx, way);
             uopCacheUpdates += numUops;
             return true;
@@ -985,8 +992,9 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
                     // DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][way][uop], true);
                     DPRINTF(ConstProp, "Decoder is invalidating way %i, so removing uop[%i][%i][%i]\n", way, idx, way, uop);
-                    // depTracker->removeAtIndex(idx, way, uop); // changed to spec
-                    // depTracker->microopAddrArray[idx][way][uop] = FullUopAddr(0,0);
+                }
+                for (int uop = 0; uop < 6; uop++) {
+                    uopAddrArray[idx][way][uop] = FullUopAddr();
                 }
                 uopValidArray[idx][way] = false;
                 uopProfitableTrace[idx][way] = true; // reset the profitable flag
@@ -995,6 +1003,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 uopPrevWayArray[idx][way] = 10;
                 uopNextWayArray[idx][way] = 10;
                 uopCacheWayInvalidations++;
+                
             }
         }
         return false;
@@ -1023,6 +1032,13 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 uopCache[idx][way][uop] = emi;
                 DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
             }
+
+            // invalidate all the empry space in way
+            assert(uopCountArray[idx][way] <= 6);
+            for (int uop = uopCountArray[idx][way]; uop < 6; uop++) {
+                uopAddrArray[idx][way][uop] = FullUopAddr();
+            }
+
             updateLRUBits(idx, way);
             uopCacheUpdates += numUops;
             return true;
@@ -1076,6 +1092,10 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 uopPrevWayArray[idx][w] = 10;
                 uopNextWayArray[idx][w] = 10;
                 uopCacheWayInvalidations++;
+                // invalidate all the empry space in way
+                for (int uop = 0; uop < 6; uop++) {
+                    uopAddrArray[idx][w][uop] = FullUopAddr();
+                }
             }
         }
         if (lastWay != -1) {
@@ -1095,6 +1115,11 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             emi.instSize = size;
             uopCache[idx][evictWay][uop] = emi;
             DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, evictWay, uop, emi.instSize);
+        }
+        // invalidate all the empry space in way
+        assert(uopCountArray[idx][evictWay] <= 6);
+        for (int uop = uopCountArray[idx][evictWay]; uop < 6; uop++) {
+            uopAddrArray[idx][evictWay][uop] = FullUopAddr();
         }
         updateLRUBits(idx, evictWay);
         uopCacheUpdates += numUops;

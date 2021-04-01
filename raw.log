@@ -1,0 +1,12 @@
+gem5 Simulator System.  http://gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 compiled Mar 29 2021 20:14:37
+gem5 started Mar 29 2021 21:50:00
+gem5 executing on portal01, pid 3149
+command line: /u/as3mx/gem5-changes/build/X86/gem5.opt --debug-flags=Exec --debug-file=raw.exec /u/as3mx/gem5-changes/configs/example/se.py -c ./tests/test-progs/hello/bin/x86/linux/hello --caches --l2cache --cpu-type=O3_X86_skylake_1 --mem-type=DDR4_2400_16x4 --mem-size=64GB --mem-channels=2 --enable-microop-cache --enable-micro-fusion
+
+Global frequency set at 1000000000000 ticks per second
+**** REAL SIMULATION ****
+Hello world!
+Exiting @ tick 26756500 because exiting with last active thread context

@@ -1,0 +1,1047 @@
+261c261,265
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+262a267,269
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+278c285,289
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+279a291,293
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+300c314,318
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+301a320,322
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+317c338,342
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+318a344,346
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+334c362,366
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+335a368,370
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+351c386,390
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+352a392,394
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+374c416,420
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+375a422,424
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+397c446,450
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+398a452,454
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+420c476,480
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+421a482,484
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+443c506,510
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+444a512,514
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+462c532,534
+< system.cpu T0 : 0x415b40	@_dl_aux_init+64.0  :   ADD_R_I : add   rdi, rdi, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b40	@_dl_aux_init+64    : add	rax, 0x10             
+> system.cpu T0 : 0x415b40	@_dl_aux_init+64.0  :   ADD_R_I : limm   t1, 0x10 : IntAlu :  D=0x0000000000000010
+> system.cpu T0 : 0x415b40	@_dl_aux_init+64.1  :   ADD_R_I : add   rdi, rdi, t1 : IntAlu :  D=0x0000000000000000
+466a539,541
+> system.cpu T0 : 0x415b4a	@_dl_aux_init+74    : jnz	0xffffffffffffffc4    
+> system.cpu T0 : 0x415b4a	@_dl_aux_init+74.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b4c
+> system.cpu T0 : 0x415b4a	@_dl_aux_init+74.1  :   JNZ_I : limm   t2, 0xffffffffffffffc4 : IntAlu :  D=0xffffffffffffffc4
+468c543,547
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+469a549,551
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+482c564,568
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+483a570,572
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+496c585,589
+< system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16    : sub	rax, 0x3              
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.0  :   SUB_R_I : limm   t1, 0x3 : IntAlu :  D=0x0000000000000003
+> system.cpu T0 : 0x415b10	@_dl_aux_init+16.1  :   SUB_R_I : sub   rax, rax, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20    : cmp	rax, 0x14             
+> system.cpu T0 : 0x415b14	@_dl_aux_init+20.0  :   CMP_R_I : limm   t1, 0x14 : IntAlu :  D=0x0000000000000014
+497a591,593
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24    : jnbe	0x26                 
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000415b1a
+> system.cpu T0 : 0x415b18	@_dl_aux_init+24.1  :   JNBE_I : limm   t2, 0x26 : IntAlu :  D=0x0000000000000026
+1094,1095c1190,1191
+< system.cpu T0 : 0x415c7a	@_dl_non_dynamic_init+10.0  :   RDTSC : rdtsc   t1d, %ctrl26,  : IntAlu :  D=0x0000000000001aeb
+< system.cpu T0 : 0x415c7a	@_dl_non_dynamic_init+10.1  :   RDTSC : mov   eax, eax, t1d : IntAlu :  D=0x0000000000001aeb
+---
+> system.cpu T0 : 0x415c7a	@_dl_non_dynamic_init+10.0  :   RDTSC : rdtsc   t1d, %ctrl26,  : IntAlu :  D=0x0000000000001af1
+> system.cpu T0 : 0x415c7a	@_dl_non_dynamic_init+10.1  :   RDTSC : mov   eax, eax, t1d : IntAlu :  D=0x0000000000001af1
+1100c1196
+< system.cpu T0 : 0x415c80	@_dl_non_dynamic_init+16.0  :   MOV_R_R : mov   eax, eax, eax : IntAlu :  D=0x0000000000001aeb
+---
+> system.cpu T0 : 0x415c80	@_dl_non_dynamic_init+16.0  :   MOV_R_R : mov   eax, eax, eax : IntAlu :  D=0x0000000000001af1
+1110c1206
+< system.cpu T0 : 0x415c8d	@_dl_non_dynamic_init+29.1  :   MOV_P_R : st   rdx, DS:[t7 + 0x17d82c] : MemWrite :  D=0x0000000000001aeb A=0x5934c0
+---
+> system.cpu T0 : 0x415c8d	@_dl_non_dynamic_init+29.1  :   MOV_P_R : st   rdx, DS:[t7 + 0x17d82c] : MemWrite :  D=0x0000000000001af1 A=0x5934c0
+1444a1541,1544
+> system.cpu T0 : 0x411d23	@strlen+19    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d27	@strlen+23    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d2a	@strlen+26    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d2d	@strlen+29    :   NOP                      : IntAlu : 
+1448a1549,1551
+> system.cpu T0 : 0x411d33	@strlen+35    : jz	0x367                  
+> system.cpu T0 : 0x411d33	@strlen+35.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d39
+> system.cpu T0 : 0x411d33	@strlen+35.1  :   JZ_I : limm   t2, 0x367  : IntAlu :  D=0x0000000000000367
+1453a1557,1559
+> system.cpu T0 : 0x411d3f	@strlen+47    : jnz	0xffffffffffffffef    
+> system.cpu T0 : 0x411d3f	@strlen+47.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d41
+> system.cpu T0 : 0x411d3f	@strlen+47.1  :   JNZ_I : limm   t2, 0xffffffffffffffef : IntAlu :  D=0xffffffffffffffef
+1456,1457c1562,1563
+< system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0x0000000000000000
+< system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000000044 A=0x45ed52
+---
+> system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0xffffffffffffff00
+> system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000411d44 A=0x45ed52
+1458a1565,1567
+> system.cpu T0 : 0x411d33	@strlen+35    : jz	0x367                  
+> system.cpu T0 : 0x411d33	@strlen+35.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d39
+> system.cpu T0 : 0x411d33	@strlen+35.1  :   JZ_I : limm   t2, 0x367  : IntAlu :  D=0x0000000000000367
+1463a1573,1575
+> system.cpu T0 : 0x411d3f	@strlen+47    : jnz	0xffffffffffffffef    
+> system.cpu T0 : 0x411d3f	@strlen+47.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d41
+> system.cpu T0 : 0x411d3f	@strlen+47.1  :   JNZ_I : limm   t2, 0xffffffffffffffef : IntAlu :  D=0xffffffffffffffef
+1466,1467c1578,1579
+< system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0x0000000000000000
+< system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x000000000000005f A=0x45ed53
+---
+> system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0xffffffffffffff00
+> system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000411d5f A=0x45ed53
+5521a5634,5635
+> system.cpu T0 : 0x40e114	@_int_malloc+916    : cmp	eax, 0x3              
+> system.cpu T0 : 0x40e114	@_int_malloc+916.0  :   CMP_R_I : limm   t1d, 0x3 : IntAlu :  D=0x0000000000000003
+5522a5637,5639
+> system.cpu T0 : 0x40e118	@_int_malloc+920    : jnbe	0xf5                 
+> system.cpu T0 : 0x40e118	@_int_malloc+920.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e11e
+> system.cpu T0 : 0x40e118	@_int_malloc+920.1  :   JNBE_I : limm   t2, 0xf5 : IntAlu :  D=0x00000000000000f5
+5527a5645,5650
+> system.cpu T0 : 0x40e129	@_int_malloc+937    : test	r10d, r10d           
+> system.cpu T0 : 0x40e129	@_int_malloc+937.0  :   TEST_R_R : and   t0d, r10d, r10d : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x40e12c	@_int_malloc+940    : jz	0xffffffffffffffe3     
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e12e
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.1  :   JZ_I : limm   t2, 0xffffffffffffffe3 : IntAlu :  D=0xffffffffffffffe3
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+5529c5652,5654
+< system.cpu T0 : 0x40e111	@_int_malloc+913.0  :   INC_R : addi   r8d, r8d, 0x1 : IntAlu :  D=0x0000000000000001
+---
+> system.cpu T0 : 0x40e111	@_int_malloc+913.0  :   INC_R : addi   r8d, r8d, 0x1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x40e114	@_int_malloc+916    : cmp	eax, 0x3              
+> system.cpu T0 : 0x40e114	@_int_malloc+916.0  :   CMP_R_I : limm   t1d, 0x3 : IntAlu :  D=0x0000000000000003
+5530a5656,5658
+> system.cpu T0 : 0x40e118	@_int_malloc+920    : jnbe	0xf5                 
+> system.cpu T0 : 0x40e118	@_int_malloc+920.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e11e
+> system.cpu T0 : 0x40e118	@_int_malloc+920.1  :   JNBE_I : limm   t2, 0xf5 : IntAlu :  D=0x00000000000000f5
+5535a5664,5669
+> system.cpu T0 : 0x40e129	@_int_malloc+937    : test	r10d, r10d           
+> system.cpu T0 : 0x40e129	@_int_malloc+937.0  :   TEST_R_R : and   t0d, r10d, r10d : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x40e12c	@_int_malloc+940    : jz	0xffffffffffffffe3     
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e12e
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.1  :   JZ_I : limm   t2, 0xffffffffffffffe3 : IntAlu :  D=0xffffffffffffffe3
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+5537c5671,5673
+< system.cpu T0 : 0x40e111	@_int_malloc+913.0  :   INC_R : addi   r8d, r8d, 0x1 : IntAlu :  D=0x0000000000000001
+---
+> system.cpu T0 : 0x40e111	@_int_malloc+913.0  :   INC_R : addi   r8d, r8d, 0x1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x40e114	@_int_malloc+916    : cmp	eax, 0x3              
+> system.cpu T0 : 0x40e114	@_int_malloc+916.0  :   CMP_R_I : limm   t1d, 0x3 : IntAlu :  D=0x0000000000000003
+5538a5675,5677
+> system.cpu T0 : 0x40e118	@_int_malloc+920    : jnbe	0xf5                 
+> system.cpu T0 : 0x40e118	@_int_malloc+920.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e11e
+> system.cpu T0 : 0x40e118	@_int_malloc+920.1  :   JNBE_I : limm   t2, 0xf5 : IntAlu :  D=0x00000000000000f5
+5543a5683,5688
+> system.cpu T0 : 0x40e129	@_int_malloc+937    : test	r10d, r10d           
+> system.cpu T0 : 0x40e129	@_int_malloc+937.0  :   TEST_R_R : and   t0d, r10d, r10d : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x40e12c	@_int_malloc+940    : jz	0xffffffffffffffe3     
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e12e
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.1  :   JZ_I : limm   t2, 0xffffffffffffffe3 : IntAlu :  D=0xffffffffffffffe3
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+5545a5691,5692
+> system.cpu T0 : 0x40e114	@_int_malloc+916    : cmp	eax, 0x3              
+> system.cpu T0 : 0x40e114	@_int_malloc+916.0  :   CMP_R_I : limm   t1d, 0x3 : IntAlu :  D=0x0000000000000003
+5546a5694,5696
+> system.cpu T0 : 0x40e118	@_int_malloc+920    : jnbe	0xf5                 
+> system.cpu T0 : 0x40e118	@_int_malloc+920.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e11e
+> system.cpu T0 : 0x40e118	@_int_malloc+920.1  :   JNBE_I : limm   t2, 0xf5 : IntAlu :  D=0x00000000000000f5
+6118a6269,6270
+> system.cpu T0 : 0x40e114	@_int_malloc+916    : cmp	eax, 0x3              
+> system.cpu T0 : 0x40e114	@_int_malloc+916.0  :   CMP_R_I : limm   t1d, 0x3 : IntAlu :  D=0x0000000000000003
+6119a6272,6274
+> system.cpu T0 : 0x40e118	@_int_malloc+920    : jnbe	0xf5                 
+> system.cpu T0 : 0x40e118	@_int_malloc+920.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e11e
+> system.cpu T0 : 0x40e118	@_int_malloc+920.1  :   JNBE_I : limm   t2, 0xf5 : IntAlu :  D=0x00000000000000f5
+6124a6280,6285
+> system.cpu T0 : 0x40e129	@_int_malloc+937    : test	r10d, r10d           
+> system.cpu T0 : 0x40e129	@_int_malloc+937.0  :   TEST_R_R : and   t0d, r10d, r10d : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x40e12c	@_int_malloc+940    : jz	0xffffffffffffffe3     
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e12e
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.1  :   JZ_I : limm   t2, 0xffffffffffffffe3 : IntAlu :  D=0xffffffffffffffe3
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+6126c6287,6289
+< system.cpu T0 : 0x40e111	@_int_malloc+913.0  :   INC_R : addi   r8d, r8d, 0x1 : IntAlu :  D=0x0000000000000001
+---
+> system.cpu T0 : 0x40e111	@_int_malloc+913.0  :   INC_R : addi   r8d, r8d, 0x1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x40e114	@_int_malloc+916    : cmp	eax, 0x3              
+> system.cpu T0 : 0x40e114	@_int_malloc+916.0  :   CMP_R_I : limm   t1d, 0x3 : IntAlu :  D=0x0000000000000003
+6127a6291,6293
+> system.cpu T0 : 0x40e118	@_int_malloc+920    : jnbe	0xf5                 
+> system.cpu T0 : 0x40e118	@_int_malloc+920.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e11e
+> system.cpu T0 : 0x40e118	@_int_malloc+920.1  :   JNBE_I : limm   t2, 0xf5 : IntAlu :  D=0x00000000000000f5
+6132a6299,6304
+> system.cpu T0 : 0x40e129	@_int_malloc+937    : test	r10d, r10d           
+> system.cpu T0 : 0x40e129	@_int_malloc+937.0  :   TEST_R_R : and   t0d, r10d, r10d : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x40e12c	@_int_malloc+940    : jz	0xffffffffffffffe3     
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e12e
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.1  :   JZ_I : limm   t2, 0xffffffffffffffe3 : IntAlu :  D=0xffffffffffffffe3
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+6134c6306,6308
+< system.cpu T0 : 0x40e111	@_int_malloc+913.0  :   INC_R : addi   r8d, r8d, 0x1 : IntAlu :  D=0x0000000000000001
+---
+> system.cpu T0 : 0x40e111	@_int_malloc+913.0  :   INC_R : addi   r8d, r8d, 0x1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x40e114	@_int_malloc+916    : cmp	eax, 0x3              
+> system.cpu T0 : 0x40e114	@_int_malloc+916.0  :   CMP_R_I : limm   t1d, 0x3 : IntAlu :  D=0x0000000000000003
+6135a6310,6312
+> system.cpu T0 : 0x40e118	@_int_malloc+920    : jnbe	0xf5                 
+> system.cpu T0 : 0x40e118	@_int_malloc+920.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e11e
+> system.cpu T0 : 0x40e118	@_int_malloc+920.1  :   JNBE_I : limm   t2, 0xf5 : IntAlu :  D=0x00000000000000f5
+6140a6318,6323
+> system.cpu T0 : 0x40e129	@_int_malloc+937    : test	r10d, r10d           
+> system.cpu T0 : 0x40e129	@_int_malloc+937.0  :   TEST_R_R : and   t0d, r10d, r10d : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x40e12c	@_int_malloc+940    : jz	0xffffffffffffffe3     
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e12e
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.1  :   JZ_I : limm   t2, 0xffffffffffffffe3 : IntAlu :  D=0xffffffffffffffe3
+> system.cpu T0 : 0x40e12c	@_int_malloc+940.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+6142a6326,6327
+> system.cpu T0 : 0x40e114	@_int_malloc+916    : cmp	eax, 0x3              
+> system.cpu T0 : 0x40e114	@_int_malloc+916.0  :   CMP_R_I : limm   t1d, 0x3 : IntAlu :  D=0x0000000000000003
+6143a6329,6331
+> system.cpu T0 : 0x40e118	@_int_malloc+920    : jnbe	0xf5                 
+> system.cpu T0 : 0x40e118	@_int_malloc+920.0  :   JNBE_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040e11e
+> system.cpu T0 : 0x40e118	@_int_malloc+920.1  :   JNBE_I : limm   t2, 0xf5 : IntAlu :  D=0x00000000000000f5
+7325a7514,7517
+> system.cpu T0 : 0x411d23	@strlen+19    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d27	@strlen+23    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d2a	@strlen+26    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d2d	@strlen+29    :   NOP                      : IntAlu : 
+7329a7522,7524
+> system.cpu T0 : 0x411d33	@strlen+35    : jz	0x367                  
+> system.cpu T0 : 0x411d33	@strlen+35.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d39
+> system.cpu T0 : 0x411d33	@strlen+35.1  :   JZ_I : limm   t2, 0x367  : IntAlu :  D=0x0000000000000367
+7334a7530,7532
+> system.cpu T0 : 0x411d3f	@strlen+47    : jnz	0xffffffffffffffef    
+> system.cpu T0 : 0x411d3f	@strlen+47.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d41
+> system.cpu T0 : 0x411d3f	@strlen+47.1  :   JNZ_I : limm   t2, 0xffffffffffffffef : IntAlu :  D=0xffffffffffffffef
+7337,7338c7535,7536
+< system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0x0000000000000000
+< system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000000044 A=0x45ed6e
+---
+> system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0xffffffffffffff00
+> system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000411d44 A=0x45ed6e
+7339a7538,7540
+> system.cpu T0 : 0x411d33	@strlen+35    : jz	0x367                  
+> system.cpu T0 : 0x411d33	@strlen+35.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d39
+> system.cpu T0 : 0x411d33	@strlen+35.1  :   JZ_I : limm   t2, 0x367  : IntAlu :  D=0x0000000000000367
+7344a7546,7548
+> system.cpu T0 : 0x411d3f	@strlen+47    : jnz	0xffffffffffffffef    
+> system.cpu T0 : 0x411d3f	@strlen+47.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d41
+> system.cpu T0 : 0x411d3f	@strlen+47.1  :   JNZ_I : limm   t2, 0xffffffffffffffef : IntAlu :  D=0xffffffffffffffef
+7347,7348c7551,7552
+< system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0x0000000000000000
+< system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x000000000000005f A=0x45ed6f
+---
+> system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0xffffffffffffff00
+> system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000411d5f A=0x45ed6f
+7558a7763,7766
+> system.cpu T0 : 0x411d23	@strlen+19    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d27	@strlen+23    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d2a	@strlen+26    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d2d	@strlen+29    :   NOP                      : IntAlu : 
+7562a7771,7773
+> system.cpu T0 : 0x411d33	@strlen+35    : jz	0x367                  
+> system.cpu T0 : 0x411d33	@strlen+35.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d39
+> system.cpu T0 : 0x411d33	@strlen+35.1  :   JZ_I : limm   t2, 0x367  : IntAlu :  D=0x0000000000000367
+7567a7779,7781
+> system.cpu T0 : 0x411d3f	@strlen+47    : jnz	0xffffffffffffffef    
+> system.cpu T0 : 0x411d3f	@strlen+47.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d41
+> system.cpu T0 : 0x411d3f	@strlen+47.1  :   JNZ_I : limm   t2, 0xffffffffffffffef : IntAlu :  D=0xffffffffffffffef
+7570,7571c7784,7785
+< system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0x0000000000000000
+< system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000000044 A=0x45ed7b
+---
+> system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0xffffffffffffff00
+> system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000411d44 A=0x45ed7b
+7572a7787,7789
+> system.cpu T0 : 0x411d33	@strlen+35    : jz	0x367                  
+> system.cpu T0 : 0x411d33	@strlen+35.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d39
+> system.cpu T0 : 0x411d33	@strlen+35.1  :   JZ_I : limm   t2, 0x367  : IntAlu :  D=0x0000000000000367
+7577a7795,7797
+> system.cpu T0 : 0x411d3f	@strlen+47    : jnz	0xffffffffffffffef    
+> system.cpu T0 : 0x411d3f	@strlen+47.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d41
+> system.cpu T0 : 0x411d3f	@strlen+47.1  :   JNZ_I : limm   t2, 0xffffffffffffffef : IntAlu :  D=0xffffffffffffffef
+7580,7581c7800,7801
+< system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0x0000000000000000
+< system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x000000000000005f A=0x45ed7c
+---
+> system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0xffffffffffffff00
+> system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000411d5f A=0x45ed7c
+7670a7891,7893
+> system.cpu T0 : 0x412072	@strlen+866    : jz	0x2c                   
+> system.cpu T0 : 0x412072	@strlen+866.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000412074
+> system.cpu T0 : 0x412072	@strlen+866.1  :   JZ_I : limm   t2, 0x2c   : IntAlu :  D=0x000000000000002c
+7707a7931,7933
+> system.cpu T0 : 0x412072	@strlen+866    : jz	0x2c                   
+> system.cpu T0 : 0x412072	@strlen+866.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000412074
+> system.cpu T0 : 0x412072	@strlen+866.1  :   JZ_I : limm   t2, 0x2c   : IntAlu :  D=0x000000000000002c
+7721a7948,7950
+> system.cpu T0 : 0x4120a4	@strlen+916.2  :   RET_NEAR : wripi   , t1, 0 : IntAlu : 
+> system.cpu T0 : 0x41a345	@getenv+37    : mov	rdx, DS:[rip + 0x178aac]
+> system.cpu T0 : 0x41a345	@getenv+37.0  :   MOV_R_P : rdip   t7, %ctrl153,  : IntAlu :  D=0x000000000041a34c
+7726a7956,7958
+> system.cpu T0 : 0x41a352	@getenv+50    : jz	0x9                    
+> system.cpu T0 : 0x41a352	@getenv+50.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a354
+> system.cpu T0 : 0x41a352	@getenv+50.1  :   JZ_I : limm   t2, 0x9    : IntAlu :  D=0x0000000000000009
+7740a7973,7975
+> system.cpu T0 : 0x41a386	@getenv+102    : jnz	0x2e                  
+> system.cpu T0 : 0x41a386	@getenv+102.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a388
+> system.cpu T0 : 0x41a386	@getenv+102.1  :   JNZ_I : limm   t2, 0x2e  : IntAlu :  D=0x000000000000002e
+7750c7985,7987
+< system.cpu T0 : 0x41a3c2	@getenv+162.0  :   ADD_R_I : add   r12, r12, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x41a3c2	@getenv+162    : add	rax, 0x2              
+> system.cpu T0 : 0x41a3c2	@getenv+162.0  :   ADD_R_I : limm   t1, 0x2 : IntAlu :  D=0x0000000000000002
+> system.cpu T0 : 0x41a3c2	@getenv+162.1  :   ADD_R_I : add   r12, r12, t1 : IntAlu :  D=0x0000000000000000
+7754a7992,7994
+> system.cpu T0 : 0x41a3cc	@getenv+172    : jz	0xffffffffffffff8f     
+> system.cpu T0 : 0x41a3cc	@getenv+172.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a3ce
+> system.cpu T0 : 0x41a3cc	@getenv+172.1  :   JZ_I : limm   t2, 0xffffffffffffff8f : IntAlu :  D=0xffffffffffffff8f
+7755a7996,7997
+> system.cpu T0 : 0x41a35d	@getenv+61    : xor	eax, eax              
+> system.cpu T0 : 0x41a35d	@getenv+61.0  :   XOR_R_R : xor   eax, eax, eax : IntAlu :  D=0x0000000000000000
+7781c8023
+< system.cpu T0 : 0x415d31	@_dl_non_dynamic_init+193.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415d31	@_dl_non_dynamic_init+193.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0xffffffffffffff00
+7835a8078,8081
+> system.cpu T0 : 0x411d23	@strlen+19    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d27	@strlen+23    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d2a	@strlen+26    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d2d	@strlen+29    :   NOP                      : IntAlu : 
+7839a8086,8088
+> system.cpu T0 : 0x411d33	@strlen+35    : jz	0x367                  
+> system.cpu T0 : 0x411d33	@strlen+35.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d39
+> system.cpu T0 : 0x411d33	@strlen+35.1  :   JZ_I : limm   t2, 0x367  : IntAlu :  D=0x0000000000000367
+7844a8094,8096
+> system.cpu T0 : 0x411d3f	@strlen+47    : jnz	0xffffffffffffffef    
+> system.cpu T0 : 0x411d3f	@strlen+47.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d41
+> system.cpu T0 : 0x411d3f	@strlen+47.1  :   JNZ_I : limm   t2, 0xffffffffffffffef : IntAlu :  D=0xffffffffffffffef
+7847,7848c8099,8100
+< system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0x0000000000000000
+< system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000000044 A=0x45ed87
+---
+> system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0xffffffffffffff00
+> system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000411d44 A=0x45ed87
+7849a8102,8104
+> system.cpu T0 : 0x411d33	@strlen+35    : jz	0x367                  
+> system.cpu T0 : 0x411d33	@strlen+35.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d39
+> system.cpu T0 : 0x411d33	@strlen+35.1  :   JZ_I : limm   t2, 0x367  : IntAlu :  D=0x0000000000000367
+7854a8110,8112
+> system.cpu T0 : 0x411d3f	@strlen+47    : jnz	0xffffffffffffffef    
+> system.cpu T0 : 0x411d3f	@strlen+47.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d41
+> system.cpu T0 : 0x411d3f	@strlen+47.1  :   JNZ_I : limm   t2, 0xffffffffffffffef : IntAlu :  D=0xffffffffffffffef
+7889a8148,8150
+> system.cpu T0 : 0x411d86	@strlen+118    : jnb	0x2e4                 
+> system.cpu T0 : 0x411d86	@strlen+118.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d8c
+> system.cpu T0 : 0x411d86	@strlen+118.1  :   JNB_I : limm   t2, 0x2e4 : IntAlu :  D=0x00000000000002e4
+7896a8158,8160
+> system.cpu T0 : 0x411d95	@strlen+133    : jnz	0x2d5                 
+> system.cpu T0 : 0x411d95	@strlen+133.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d9b
+> system.cpu T0 : 0x411d95	@strlen+133.1  :   JNZ_I : limm   t2, 0x2d5 : IntAlu :  D=0x00000000000002d5
+7899a8164,8166
+> system.cpu T0 : 0x412072	@strlen+866    : jz	0x2c                   
+> system.cpu T0 : 0x412072	@strlen+866.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000412074
+> system.cpu T0 : 0x412072	@strlen+866.1  :   JZ_I : limm   t2, 0x2c   : IntAlu :  D=0x000000000000002c
+7904a8172,8174
+> system.cpu T0 : 0x412079	@strlen+873    : jz	0x25                   
+> system.cpu T0 : 0x412079	@strlen+873.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041207b
+> system.cpu T0 : 0x412079	@strlen+873.1  :   JZ_I : limm   t2, 0x25   : IntAlu :  D=0x0000000000000025
+7907a8178,8179
+> system.cpu T0 : 0x41207e	@strlen+878    : test	eax, 0xff0000        
+> system.cpu T0 : 0x41207e	@strlen+878.0  :   TEST_R_I : limm   t1d, 0xff0000 : IntAlu :  D=0x0000000000ff0000
+7931a8204,8206
+> system.cpu T0 : 0x412072	@strlen+866    : jz	0x2c                   
+> system.cpu T0 : 0x412072	@strlen+866.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000412074
+> system.cpu T0 : 0x412072	@strlen+866.1  :   JZ_I : limm   t2, 0x2c   : IntAlu :  D=0x000000000000002c
+7945a8221,8223
+> system.cpu T0 : 0x4120a4	@strlen+916.2  :   RET_NEAR : wripi   , t1, 0 : IntAlu : 
+> system.cpu T0 : 0x41a345	@getenv+37    : mov	rdx, DS:[rip + 0x178aac]
+> system.cpu T0 : 0x41a345	@getenv+37.0  :   MOV_R_P : rdip   t7, %ctrl153,  : IntAlu :  D=0x000000000041a34c
+7950a8229,8231
+> system.cpu T0 : 0x41a352	@getenv+50    : jz	0x9                    
+> system.cpu T0 : 0x41a352	@getenv+50.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a354
+> system.cpu T0 : 0x41a352	@getenv+50.1  :   JZ_I : limm   t2, 0x9    : IntAlu :  D=0x0000000000000009
+7964a8246,8248
+> system.cpu T0 : 0x41a386	@getenv+102    : jnz	0x2e                  
+> system.cpu T0 : 0x41a386	@getenv+102.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a388
+> system.cpu T0 : 0x41a386	@getenv+102.1  :   JNZ_I : limm   t2, 0x2e  : IntAlu :  D=0x000000000000002e
+7974c8258,8260
+< system.cpu T0 : 0x41a3c2	@getenv+162.0  :   ADD_R_I : add   r12, r12, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x41a3c2	@getenv+162    : add	rax, 0x2              
+> system.cpu T0 : 0x41a3c2	@getenv+162.0  :   ADD_R_I : limm   t1, 0x2 : IntAlu :  D=0x0000000000000002
+> system.cpu T0 : 0x41a3c2	@getenv+162.1  :   ADD_R_I : add   r12, r12, t1 : IntAlu :  D=0x0000000000000000
+7978a8265,8267
+> system.cpu T0 : 0x41a3cc	@getenv+172    : jz	0xffffffffffffff8f     
+> system.cpu T0 : 0x41a3cc	@getenv+172.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a3ce
+> system.cpu T0 : 0x41a3cc	@getenv+172.1  :   JZ_I : limm   t2, 0xffffffffffffff8f : IntAlu :  D=0xffffffffffffff8f
+7979a8269,8270
+> system.cpu T0 : 0x41a35d	@getenv+61    : xor	eax, eax              
+> system.cpu T0 : 0x41a35d	@getenv+61.0  :   XOR_R_R : xor   eax, eax, eax : IntAlu :  D=0x0000000000000000
+8007c8298
+< system.cpu T0 : 0x415d53	@_dl_non_dynamic_init+227.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x415d53	@_dl_non_dynamic_init+227.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0xffffffffffffff00
+8058a8350,8353
+> system.cpu T0 : 0x411d23	@strlen+19    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d27	@strlen+23    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d2a	@strlen+26    :   NOP                      : IntAlu : 
+> system.cpu T0 : 0x411d2d	@strlen+29    :   NOP                      : IntAlu : 
+8062a8358,8360
+> system.cpu T0 : 0x411d33	@strlen+35    : jz	0x367                  
+> system.cpu T0 : 0x411d33	@strlen+35.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d39
+> system.cpu T0 : 0x411d33	@strlen+35.1  :   JZ_I : limm   t2, 0x367  : IntAlu :  D=0x0000000000000367
+8067a8366,8368
+> system.cpu T0 : 0x411d3f	@strlen+47    : jnz	0xffffffffffffffef    
+> system.cpu T0 : 0x411d3f	@strlen+47.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d41
+> system.cpu T0 : 0x411d3f	@strlen+47.1  :   JNZ_I : limm   t2, 0xffffffffffffffef : IntAlu :  D=0xffffffffffffffef
+8070,8071c8371,8372
+< system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0x0000000000000000
+< system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000000044 A=0x45ed97
+---
+> system.cpu T0 : 0x411d30	@strlen+32.0  :   CMP_M_I : limm   t2b, 0  : IntAlu :  D=0xffffffffffffff00
+> system.cpu T0 : 0x411d30	@strlen+32.1  :   CMP_M_I : ld   t1b, DS:[rsi] : MemRead :  D=0x0000000000411d44 A=0x45ed97
+8072a8374,8376
+> system.cpu T0 : 0x411d33	@strlen+35    : jz	0x367                  
+> system.cpu T0 : 0x411d33	@strlen+35.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d39
+> system.cpu T0 : 0x411d33	@strlen+35.1  :   JZ_I : limm   t2, 0x367  : IntAlu :  D=0x0000000000000367
+8077a8382,8384
+> system.cpu T0 : 0x411d3f	@strlen+47    : jnz	0xffffffffffffffef    
+> system.cpu T0 : 0x411d3f	@strlen+47.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d41
+> system.cpu T0 : 0x411d3f	@strlen+47.1  :   JNZ_I : limm   t2, 0xffffffffffffffef : IntAlu :  D=0xffffffffffffffef
+8112a8420,8422
+> system.cpu T0 : 0x411d86	@strlen+118    : jnb	0x2e4                 
+> system.cpu T0 : 0x411d86	@strlen+118.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d8c
+> system.cpu T0 : 0x411d86	@strlen+118.1  :   JNB_I : limm   t2, 0x2e4 : IntAlu :  D=0x00000000000002e4
+8155a8466,8468
+> system.cpu T0 : 0x412072	@strlen+866    : jz	0x2c                   
+> system.cpu T0 : 0x412072	@strlen+866.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000412074
+> system.cpu T0 : 0x412072	@strlen+866.1  :   JZ_I : limm   t2, 0x2c   : IntAlu :  D=0x000000000000002c
+8187a8501,8503
+> system.cpu T0 : 0x4120a4	@strlen+916.2  :   RET_NEAR : wripi   , t1, 0 : IntAlu : 
+> system.cpu T0 : 0x41a345	@getenv+37    : mov	rdx, DS:[rip + 0x178aac]
+> system.cpu T0 : 0x41a345	@getenv+37.0  :   MOV_R_P : rdip   t7, %ctrl153,  : IntAlu :  D=0x000000000041a34c
+8192a8509,8511
+> system.cpu T0 : 0x41a352	@getenv+50    : jz	0x9                    
+> system.cpu T0 : 0x41a352	@getenv+50.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a354
+> system.cpu T0 : 0x41a352	@getenv+50.1  :   JZ_I : limm   t2, 0x9    : IntAlu :  D=0x0000000000000009
+8206a8526,8528
+> system.cpu T0 : 0x41a386	@getenv+102    : jnz	0x2e                  
+> system.cpu T0 : 0x41a386	@getenv+102.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a388
+> system.cpu T0 : 0x41a386	@getenv+102.1  :   JNZ_I : limm   t2, 0x2e  : IntAlu :  D=0x000000000000002e
+8212,8214c8534,8541
+< system.cpu T0 : 0x41a3be	@getenv+158.1  :   SUB_R_I : sub   r14, r14, t1 : IntAlu :  D=0x0000000000000000
+< system.cpu T0 : 0x41a3c2	@getenv+162.0  :   ADD_R_I : add   r12, r12, t1 : IntAlu :  D=0x0000000000000000
+< system.cpu T0 : 0x41a3c6	@getenv+166    : mov	rbp, rdx              
+---
+> system.cpu T0 : 0x41a3b9	@getenv+153.1  :   MOVZX_W_R_M : zexti   r13d, t1d, 0xf : IntAlu :  D=0x000000000000444c
+> system.cpu T0 : 0x41a3be	@getenv+158    : sub	rax, 0x2              
+> system.cpu T0 : 0x41a3be	@getenv+158.0  :   SUB_R_I : limm   t1, 0x2 : IntAlu :  D=0x0000000000000002
+> system.cpu T0 : 0x41a3be	@getenv+158.1  :   SUB_R_I : sub   r14, r14, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x41a3c2	@getenv+162    : add	rax, 0x2              
+> system.cpu T0 : 0x41a3c2	@getenv+162.0  :   ADD_R_I : limm   t1, 0x2 : IntAlu :  D=0x0000000000000002
+> system.cpu T0 : 0x41a3c2	@getenv+162.1  :   ADD_R_I : add   r12, r12, t1 : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x41a3c6	@getenv+166    : mov	rbp, rdx              
+8217a8545,8547
+> system.cpu T0 : 0x41a3cc	@getenv+172    : jz	0xffffffffffffff8f     
+> system.cpu T0 : 0x41a3cc	@getenv+172.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a3ce
+> system.cpu T0 : 0x41a3cc	@getenv+172.1  :   JZ_I : limm   t2, 0xffffffffffffff8f : IntAlu :  D=0xffffffffffffff8f
+8218a8549,8550
+> system.cpu T0 : 0x41a35d	@getenv+61    : xor	eax, eax              
+> system.cpu T0 : 0x41a35d	@getenv+61.0  :   XOR_R_R : xor   eax, eax, eax : IntAlu :  D=0x0000000000000000
+8411a8744,8746
+> system.cpu T0 : 0x411d86	@strlen+118    : jnb	0x2e4                 
+> system.cpu T0 : 0x411d86	@strlen+118.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d8c
+> system.cpu T0 : 0x411d86	@strlen+118.1  :   JNB_I : limm   t2, 0x2e4 : IntAlu :  D=0x00000000000002e4
+8418a8754,8756
+> system.cpu T0 : 0x411d95	@strlen+133    : jnz	0x2d5                 
+> system.cpu T0 : 0x411d95	@strlen+133.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000411d9b
+> system.cpu T0 : 0x411d95	@strlen+133.1  :   JNZ_I : limm   t2, 0x2d5 : IntAlu :  D=0x00000000000002d5
+8443a8782,8784
+> system.cpu T0 : 0x412072	@strlen+866    : jz	0x2c                   
+> system.cpu T0 : 0x412072	@strlen+866.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000412074
+> system.cpu T0 : 0x412072	@strlen+866.1  :   JZ_I : limm   t2, 0x2c   : IntAlu :  D=0x000000000000002c
+8451c8792,8794
+< system.cpu T0 : 0x41a345	@getenv+37.0  :   MOV_R_P : ld   rdx, DS:[t7 + 0x178aac] : MemRead :  D=0x00007fffffffee38 A=0x592df8
+---
+> system.cpu T0 : 0x41a345	@getenv+37    : mov	rdx, DS:[rip + 0x178aac]
+> system.cpu T0 : 0x41a345	@getenv+37.0  :   MOV_R_P : rdip   t7, %ctrl153,  : IntAlu :  D=0x000000000041a34c
+> system.cpu T0 : 0x41a345	@getenv+37.1  :   MOV_R_P : ld   rdx, DS:[t7 + 0x178aac] : MemRead :  D=0x00007fffffffee38 A=0x592df8
+8455a8799,8801
+> system.cpu T0 : 0x41a352	@getenv+50    : jz	0x9                    
+> system.cpu T0 : 0x41a352	@getenv+50.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a354
+> system.cpu T0 : 0x41a352	@getenv+50.1  :   JZ_I : limm   t2, 0x9    : IntAlu :  D=0x0000000000000009
+8469a8816,8818
+> system.cpu T0 : 0x41a386	@getenv+102    : jnz	0x2e                  
+> system.cpu T0 : 0x41a386	@getenv+102.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a388
+> system.cpu T0 : 0x41a386	@getenv+102.1  :   JNZ_I : limm   t2, 0x2e  : IntAlu :  D=0x000000000000002e
+8474a8824,8826
+> system.cpu T0 : 0x41a3b9	@getenv+153.1  :   MOVZX_W_R_M : zexti   r13d, t1d, 0xf : IntAlu :  D=0x000000000000444c
+> system.cpu T0 : 0x41a3be	@getenv+158    : sub	rax, 0x2              
+> system.cpu T0 : 0x41a3be	@getenv+158.0  :   SUB_R_I : limm   t1, 0x2 : IntAlu :  D=0x0000000000000002
+8476c8828,8830
+< system.cpu T0 : 0x41a3c2	@getenv+162.0  :   ADD_R_I : add   r12, r12, t1 : IntAlu :  D=0x0000000000000000
+---
+> system.cpu T0 : 0x41a3c2	@getenv+162    : add	rax, 0x2              
+> system.cpu T0 : 0x41a3c2	@getenv+162.0  :   ADD_R_I : limm   t1, 0x2 : IntAlu :  D=0x0000000000000002
+> system.cpu T0 : 0x41a3c2	@getenv+162.1  :   ADD_R_I : add   r12, r12, t1 : IntAlu :  D=0x0000000000000000
+8480a8835,8837
+> system.cpu T0 : 0x41a3cc	@getenv+172    : jz	0xffffffffffffff8f     
+> system.cpu T0 : 0x41a3cc	@getenv+172.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000041a3ce
+> system.cpu T0 : 0x41a3cc	@getenv+172.1  :   JZ_I : limm   t2, 0xffffffffffffff8f : IntAlu :  D=0xffffffffffffff8f
+8481a8839,8840
+> system.cpu T0 : 0x41a35d	@getenv+61    : xor	eax, eax              
+> system.cpu T0 : 0x41a35d	@getenv+61.0  :   XOR_R_R : xor   eax, eax, eax : IntAlu :  D=0x0000000000000000
+9319a9679,9681
+> system.cpu T0 : 0x429de8	@index+40    : jnz	0xffffffffffffffe6    
+> system.cpu T0 : 0x429de8	@index+40.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429dea
+> system.cpu T0 : 0x429de8	@index+40.1  :   JNZ_I : limm   t2, 0xffffffffffffffe6 : IntAlu :  D=0xffffffffffffffe6
+9457a9820,9822
+> system.cpu T0 : 0x429de8	@index+40    : jnz	0xffffffffffffffe6    
+> system.cpu T0 : 0x429de8	@index+40.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429dea
+> system.cpu T0 : 0x429de8	@index+40.1  :   JNZ_I : limm   t2, 0xffffffffffffffe6 : IntAlu :  D=0xffffffffffffffe6
+9462a9828,9830
+> system.cpu T0 : 0x429dd5	@index+21    : jz	0x185                  
+> system.cpu T0 : 0x429dd5	@index+21.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429ddb
+> system.cpu T0 : 0x429dd5	@index+21.1  :   JZ_I : limm   t2, 0x185  : IntAlu :  D=0x0000000000000185
+9465a9834,9836
+> system.cpu T0 : 0x429ddd	@index+29    : jz	0x115                  
+> system.cpu T0 : 0x429ddd	@index+29.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429de3
+> system.cpu T0 : 0x429ddd	@index+29.1  :   JZ_I : limm   t2, 0x115  : IntAlu :  D=0x0000000000000115
+9470a9842,9844
+> system.cpu T0 : 0x429de8	@index+40    : jnz	0xffffffffffffffe6    
+> system.cpu T0 : 0x429de8	@index+40.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429dea
+> system.cpu T0 : 0x429de8	@index+40.1  :   JNZ_I : limm   t2, 0xffffffffffffffe6 : IntAlu :  D=0xffffffffffffffe6
+9475a9850,9852
+> system.cpu T0 : 0x429dd5	@index+21    : jz	0x185                  
+> system.cpu T0 : 0x429dd5	@index+21.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429ddb
+> system.cpu T0 : 0x429dd5	@index+21.1  :   JZ_I : limm   t2, 0x185  : IntAlu :  D=0x0000000000000185
+9478a9856,9858
+> system.cpu T0 : 0x429ddd	@index+29    : jz	0x115                  
+> system.cpu T0 : 0x429ddd	@index+29.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429de3
+> system.cpu T0 : 0x429ddd	@index+29.1  :   JZ_I : limm   t2, 0x115  : IntAlu :  D=0x0000000000000115
+9483a9864,9866
+> system.cpu T0 : 0x429de8	@index+40    : jnz	0xffffffffffffffe6    
+> system.cpu T0 : 0x429de8	@index+40.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429dea
+> system.cpu T0 : 0x429de8	@index+40.1  :   JNZ_I : limm   t2, 0xffffffffffffffe6 : IntAlu :  D=0xffffffffffffffe6
+9488a9872,9874
+> system.cpu T0 : 0x429dd5	@index+21    : jz	0x185                  
+> system.cpu T0 : 0x429dd5	@index+21.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429ddb
+> system.cpu T0 : 0x429dd5	@index+21.1  :   JZ_I : limm   t2, 0x185  : IntAlu :  D=0x0000000000000185
+9546a9933,9935
+> system.cpu T0 : 0x429de8	@index+40    : jnz	0xffffffffffffffe6    
+> system.cpu T0 : 0x429de8	@index+40.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429dea
+> system.cpu T0 : 0x429de8	@index+40.1  :   JNZ_I : limm   t2, 0xffffffffffffffe6 : IntAlu :  D=0xffffffffffffffe6
+9714a10104,10106
+> system.cpu T0 : 0x429de8	@index+40    : jnz	0xffffffffffffffe6    
+> system.cpu T0 : 0x429de8	@index+40.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429dea
+> system.cpu T0 : 0x429de8	@index+40.1  :   JNZ_I : limm   t2, 0xffffffffffffffe6 : IntAlu :  D=0xffffffffffffffe6
+9719a10112,10114
+> system.cpu T0 : 0x429dd5	@index+21    : jz	0x185                  
+> system.cpu T0 : 0x429dd5	@index+21.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429ddb
+> system.cpu T0 : 0x429dd5	@index+21.1  :   JZ_I : limm   t2, 0x185  : IntAlu :  D=0x0000000000000185
+9722a10118,10120
+> system.cpu T0 : 0x429ddd	@index+29    : jz	0x115                  
+> system.cpu T0 : 0x429ddd	@index+29.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429de3
+> system.cpu T0 : 0x429ddd	@index+29.1  :   JZ_I : limm   t2, 0x115  : IntAlu :  D=0x0000000000000115
+9727a10126,10128
+> system.cpu T0 : 0x429de8	@index+40    : jnz	0xffffffffffffffe6    
+> system.cpu T0 : 0x429de8	@index+40.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429dea
+> system.cpu T0 : 0x429de8	@index+40.1  :   JNZ_I : limm   t2, 0xffffffffffffffe6 : IntAlu :  D=0xffffffffffffffe6
+9732a10134,10136
+> system.cpu T0 : 0x429dd5	@index+21    : jz	0x185                  
+> system.cpu T0 : 0x429dd5	@index+21.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429ddb
+> system.cpu T0 : 0x429dd5	@index+21.1  :   JZ_I : limm   t2, 0x185  : IntAlu :  D=0x0000000000000185
+9735a10140,10142
+> system.cpu T0 : 0x429ddd	@index+29    : jz	0x115                  
+> system.cpu T0 : 0x429ddd	@index+29.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429de3
+> system.cpu T0 : 0x429ddd	@index+29.1  :   JZ_I : limm   t2, 0x115  : IntAlu :  D=0x0000000000000115
+9740a10148,10150
+> system.cpu T0 : 0x429de8	@index+40    : jnz	0xffffffffffffffe6    
+> system.cpu T0 : 0x429de8	@index+40.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000429dea
+> system.cpu T0 : 0x429de8	@index+40.1  :   JNZ_I : limm   t2, 0xffffffffffffffe6 : IntAlu :  D=0xffffffffffffffe6
+10570c10980
+< system.cpu T0 : 0x40a0be	@__guard_setup+14.2  :   CMP_P_I : ld   t1, DS:[t7 + 0x187f22] : MemRead :  D=0x0b010c216dd2e697 A=0x591fe8
+---
+> system.cpu T0 : 0x40a0be	@__guard_setup+14.2  :   CMP_P_I : ld   t1, DS:[t7 + 0x187f22] : MemRead :  D=0x28e22f7d0e58d206 A=0x591fe8
+12678a13089,13091
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43    : jnb	0x3a                  
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b7cd
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.1  :   JNB_I : limm   t2, 0x3a  : IntAlu :  D=0x000000000000003a
+12681a13095,13097
+> system.cpu T0 : 0x40b80a	@_IO_default_xsputn+106    : jz	0x1c                   
+> system.cpu T0 : 0x40b80a	@_IO_default_xsputn+106.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b80c
+> system.cpu T0 : 0x40b80a	@_IO_default_xsputn+106.1  :   JZ_I : limm   t2, 0x1c   : IntAlu :  D=0x000000000000001c
+12691a13108,13109
+> system.cpu T0 : 0x40b81c	@_IO_default_xsputn+124    : call	DS:[rax + 0x18]      
+> system.cpu T0 : 0x40b81c	@_IO_default_xsputn+124.0  :   CALL_NEAR_M : rdip   t7, %ctrl153,  : IntAlu :  D=0x000000000040b81f
+12803c13221,13224
+< system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+---
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129    : jz	0x5                    
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b823
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.1  :   JZ_I : limm   t2, 0x5    : IntAlu :  D=0x0000000000000005
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+12805a13227,13230
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134    : jmp	0xffffffffffffff98    
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.0  :   JMP_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b828
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.1  :   JMP_I : limm   t2, 0xffffffffffffff98 : IntAlu :  D=0xffffffffffffff98
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.2  :   JMP_I : wrip   , t1, t2  : IntAlu : 
+12811a13237,13239
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43    : jnb	0x3a                  
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b7cd
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.1  :   JNB_I : limm   t2, 0x3a  : IntAlu :  D=0x000000000000003a
+12941c13369,13372
+< system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+---
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129    : jz	0x5                    
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b823
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.1  :   JZ_I : limm   t2, 0x5    : IntAlu :  D=0x0000000000000005
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+12943a13375,13378
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134    : jmp	0xffffffffffffff98    
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.0  :   JMP_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b828
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.1  :   JMP_I : limm   t2, 0xffffffffffffff98 : IntAlu :  D=0xffffffffffffff98
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.2  :   JMP_I : wrip   , t1, t2  : IntAlu : 
+12949a13385,13387
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43    : jnb	0x3a                  
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b7cd
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.1  :   JNB_I : limm   t2, 0x3a  : IntAlu :  D=0x000000000000003a
+13037a13476,13478
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180    : jnz	0x10                  
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428ae6
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.1  :   JNZ_I : limm   t2, 0x10  : IntAlu :  D=0x0000000000000010
+13040a13482,13485
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185    : xor	eax, eax              
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185.0  :   XOR_R_R : xor   eax, eax, eax : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187    : cmp	eax, 0xa              
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187.0  :   CMP_R_I : limm   t1d, 0xa : IntAlu :  D=0x000000000000000a
+13046a13492,13494
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196    : jz	0x14                   
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428af6
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.1  :   JZ_I : limm   t2, 0x14   : IntAlu :  D=0x0000000000000014
+13049c13497
+< system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x0000000000000077
+---
+> system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x0000000000428a77
+13069c13517,13520
+< system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+---
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129    : jz	0x5                    
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b823
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.1  :   JZ_I : limm   t2, 0x5    : IntAlu :  D=0x0000000000000005
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+13071a13523,13526
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134    : jmp	0xffffffffffffff98    
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.0  :   JMP_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b828
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.1  :   JMP_I : limm   t2, 0xffffffffffffff98 : IntAlu :  D=0xffffffffffffff98
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.2  :   JMP_I : wrip   , t1, t2  : IntAlu : 
+13077a13533,13535
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43    : jnb	0x3a                  
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b7cd
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.1  :   JNB_I : limm   t2, 0x3a  : IntAlu :  D=0x000000000000003a
+13124a13583,13585
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23    : jnz	0xc6                  
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428a4d
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.1  :   JNZ_I : limm   t2, 0xc6  : IntAlu :  D=0x00000000000000c6
+13129a13591,13593
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234    : jz	0xffffffffffffff38     
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b20
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.1  :   JZ_I : limm   t2, 0xffffffffffffff38 : IntAlu :  D=0xffffffffffffff38
+13130a13595,13596
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240    : cmp	eax, 0xffffffffffffffff
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240.0  :   CMP_R_I : limm   t1d, 0xffffffffffffffff : IntAlu :  D=0x00000000ffffffff
+13133a13600,13602
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248    : jnz	0xffffffffffffff9c    
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b2a
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.1  :   JNZ_I : limm   t2, 0xffffffffffffff9c : IntAlu :  D=0xffffffffffffff9c
+13154a13624,13626
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180    : jnz	0x10                  
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428ae6
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.1  :   JNZ_I : limm   t2, 0x10  : IntAlu :  D=0x0000000000000010
+13157a13630,13633
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185    : xor	eax, eax              
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185.0  :   XOR_R_R : xor   eax, eax, eax : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187    : cmp	eax, 0xa              
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187.0  :   CMP_R_I : limm   t1d, 0xa : IntAlu :  D=0x000000000000000a
+13163a13640,13642
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196    : jz	0x14                   
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428af6
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.1  :   JZ_I : limm   t2, 0x14   : IntAlu :  D=0x0000000000000014
+13166c13645
+< system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x000000000000006f
+---
+> system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x0000000000428a6f
+13186c13665,13668
+< system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+---
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129    : jz	0x5                    
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b823
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.1  :   JZ_I : limm   t2, 0x5    : IntAlu :  D=0x0000000000000005
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+13188a13671,13674
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134    : jmp	0xffffffffffffff98    
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.0  :   JMP_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b828
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.1  :   JMP_I : limm   t2, 0xffffffffffffff98 : IntAlu :  D=0xffffffffffffff98
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.2  :   JMP_I : wrip   , t1, t2  : IntAlu : 
+13194a13681,13683
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43    : jnb	0x3a                  
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b7cd
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.1  :   JNB_I : limm   t2, 0x3a  : IntAlu :  D=0x000000000000003a
+13241a13731,13733
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23    : jnz	0xc6                  
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428a4d
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.1  :   JNZ_I : limm   t2, 0xc6  : IntAlu :  D=0x00000000000000c6
+13246a13739,13741
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234    : jz	0xffffffffffffff38     
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b20
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.1  :   JZ_I : limm   t2, 0xffffffffffffff38 : IntAlu :  D=0xffffffffffffff38
+13247a13743,13744
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240    : cmp	eax, 0xffffffffffffffff
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240.0  :   CMP_R_I : limm   t1d, 0xffffffffffffffff : IntAlu :  D=0x00000000ffffffff
+13250a13748,13750
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248    : jnz	0xffffffffffffff9c    
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b2a
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.1  :   JNZ_I : limm   t2, 0xffffffffffffff9c : IntAlu :  D=0xffffffffffffff9c
+13271a13772,13774
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180    : jnz	0x10                  
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428ae6
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.1  :   JNZ_I : limm   t2, 0x10  : IntAlu :  D=0x0000000000000010
+13274a13778,13781
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185    : xor	eax, eax              
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185.0  :   XOR_R_R : xor   eax, eax, eax : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187    : cmp	eax, 0xa              
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187.0  :   CMP_R_I : limm   t1d, 0xa : IntAlu :  D=0x000000000000000a
+13280a13788,13790
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196    : jz	0x14                   
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428af6
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.1  :   JZ_I : limm   t2, 0x14   : IntAlu :  D=0x0000000000000014
+13283c13793
+< system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x0000000000000072
+---
+> system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x0000000000428a72
+13303c13813,13816
+< system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+---
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129    : jz	0x5                    
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b823
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.1  :   JZ_I : limm   t2, 0x5    : IntAlu :  D=0x0000000000000005
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+13305a13819,13822
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134    : jmp	0xffffffffffffff98    
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.0  :   JMP_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b828
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.1  :   JMP_I : limm   t2, 0xffffffffffffff98 : IntAlu :  D=0xffffffffffffff98
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.2  :   JMP_I : wrip   , t1, t2  : IntAlu : 
+13311a13829,13831
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43    : jnb	0x3a                  
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b7cd
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.1  :   JNB_I : limm   t2, 0x3a  : IntAlu :  D=0x000000000000003a
+13358a13879,13881
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23    : jnz	0xc6                  
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428a4d
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.1  :   JNZ_I : limm   t2, 0xc6  : IntAlu :  D=0x00000000000000c6
+13363a13887,13889
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234    : jz	0xffffffffffffff38     
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b20
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.1  :   JZ_I : limm   t2, 0xffffffffffffff38 : IntAlu :  D=0xffffffffffffff38
+13364a13891,13892
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240    : cmp	eax, 0xffffffffffffffff
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240.0  :   CMP_R_I : limm   t1d, 0xffffffffffffffff : IntAlu :  D=0x00000000ffffffff
+13367a13896,13898
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248    : jnz	0xffffffffffffff9c    
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b2a
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.1  :   JNZ_I : limm   t2, 0xffffffffffffff9c : IntAlu :  D=0xffffffffffffff9c
+13388a13920,13922
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180    : jnz	0x10                  
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428ae6
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.1  :   JNZ_I : limm   t2, 0x10  : IntAlu :  D=0x0000000000000010
+13391a13926,13929
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185    : xor	eax, eax              
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185.0  :   XOR_R_R : xor   eax, eax, eax : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187    : cmp	eax, 0xa              
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187.0  :   CMP_R_I : limm   t1d, 0xa : IntAlu :  D=0x000000000000000a
+13397a13936,13938
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196    : jz	0x14                   
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428af6
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.1  :   JZ_I : limm   t2, 0x14   : IntAlu :  D=0x0000000000000014
+13400c13941
+< system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x000000000000006c
+---
+> system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x0000000000428a6c
+13420c13961,13964
+< system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+---
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129    : jz	0x5                    
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b823
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.1  :   JZ_I : limm   t2, 0x5    : IntAlu :  D=0x0000000000000005
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+13422a13967,13970
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134    : jmp	0xffffffffffffff98    
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.0  :   JMP_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b828
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.1  :   JMP_I : limm   t2, 0xffffffffffffff98 : IntAlu :  D=0xffffffffffffff98
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.2  :   JMP_I : wrip   , t1, t2  : IntAlu : 
+13428a13977,13979
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43    : jnb	0x3a                  
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b7cd
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.1  :   JNB_I : limm   t2, 0x3a  : IntAlu :  D=0x000000000000003a
+13475a14027,14029
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23    : jnz	0xc6                  
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428a4d
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.1  :   JNZ_I : limm   t2, 0xc6  : IntAlu :  D=0x00000000000000c6
+13480a14035,14037
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234    : jz	0xffffffffffffff38     
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b20
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.1  :   JZ_I : limm   t2, 0xffffffffffffff38 : IntAlu :  D=0xffffffffffffff38
+13481a14039,14040
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240    : cmp	eax, 0xffffffffffffffff
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240.0  :   CMP_R_I : limm   t1d, 0xffffffffffffffff : IntAlu :  D=0x00000000ffffffff
+13484a14044,14046
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248    : jnz	0xffffffffffffff9c    
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b2a
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.1  :   JNZ_I : limm   t2, 0xffffffffffffff9c : IntAlu :  D=0xffffffffffffff9c
+13505a14068,14070
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180    : jnz	0x10                  
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428ae6
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.1  :   JNZ_I : limm   t2, 0x10  : IntAlu :  D=0x0000000000000010
+13508a14074,14077
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185    : xor	eax, eax              
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185.0  :   XOR_R_R : xor   eax, eax, eax : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187    : cmp	eax, 0xa              
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187.0  :   CMP_R_I : limm   t1d, 0xa : IntAlu :  D=0x000000000000000a
+13514a14084,14086
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196    : jz	0x14                   
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428af6
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.1  :   JZ_I : limm   t2, 0x14   : IntAlu :  D=0x0000000000000014
+13517c14089
+< system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x0000000000000064
+---
+> system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x0000000000428a64
+13537c14109,14112
+< system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+---
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129    : jz	0x5                    
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b823
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.1  :   JZ_I : limm   t2, 0x5    : IntAlu :  D=0x0000000000000005
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+13539a14115,14118
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134    : jmp	0xffffffffffffff98    
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.0  :   JMP_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b828
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.1  :   JMP_I : limm   t2, 0xffffffffffffff98 : IntAlu :  D=0xffffffffffffff98
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.2  :   JMP_I : wrip   , t1, t2  : IntAlu : 
+13545a14125,14127
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43    : jnb	0x3a                  
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b7cd
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.1  :   JNB_I : limm   t2, 0x3a  : IntAlu :  D=0x000000000000003a
+13592a14175,14177
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23    : jnz	0xc6                  
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428a4d
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.1  :   JNZ_I : limm   t2, 0xc6  : IntAlu :  D=0x00000000000000c6
+13597a14183,14185
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234    : jz	0xffffffffffffff38     
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b20
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.1  :   JZ_I : limm   t2, 0xffffffffffffff38 : IntAlu :  D=0xffffffffffffff38
+13598a14187,14188
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240    : cmp	eax, 0xffffffffffffffff
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240.0  :   CMP_R_I : limm   t1d, 0xffffffffffffffff : IntAlu :  D=0x00000000ffffffff
+13601a14192,14194
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248    : jnz	0xffffffffffffff9c    
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b2a
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.1  :   JNZ_I : limm   t2, 0xffffffffffffff9c : IntAlu :  D=0xffffffffffffff9c
+13622a14216,14218
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180    : jnz	0x10                  
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428ae6
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.1  :   JNZ_I : limm   t2, 0x10  : IntAlu :  D=0x0000000000000010
+13625a14222,14225
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185    : xor	eax, eax              
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185.0  :   XOR_R_R : xor   eax, eax, eax : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187    : cmp	eax, 0xa              
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187.0  :   CMP_R_I : limm   t1d, 0xa : IntAlu :  D=0x000000000000000a
+13631a14232,14234
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196    : jz	0x14                   
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428af6
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.1  :   JZ_I : limm   t2, 0x14   : IntAlu :  D=0x0000000000000014
+13634c14237
+< system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x0000000000000021
+---
+> system.cpu T0 : 0x428b0a	@_IO_file_overflow+218.0  :   MOVZX_B_R_R : mov   t1b, t1b, r12b : IntAlu :  D=0x0000000000428a21
+13654c14257,14260
+< system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+---
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129    : jz	0x5                    
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b823
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.1  :   JZ_I : limm   t2, 0x5    : IntAlu :  D=0x0000000000000005
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+13656a14263,14266
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134    : jmp	0xffffffffffffff98    
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.0  :   JMP_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b828
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.1  :   JMP_I : limm   t2, 0xffffffffffffff98 : IntAlu :  D=0xffffffffffffff98
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.2  :   JMP_I : wrip   , t1, t2  : IntAlu : 
+13662a14273,14275
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43    : jnb	0x3a                  
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b7cd
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.1  :   JNB_I : limm   t2, 0x3a  : IntAlu :  D=0x000000000000003a
+13709a14323,14325
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23    : jnz	0xc6                  
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428a4d
+> system.cpu T0 : 0x428a47	@_IO_file_overflow+23.1  :   JNZ_I : limm   t2, 0xc6  : IntAlu :  D=0x00000000000000c6
+13714a14331,14333
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234    : jz	0xffffffffffffff38     
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b20
+> system.cpu T0 : 0x428b1a	@_IO_file_overflow+234.1  :   JZ_I : limm   t2, 0xffffffffffffff38 : IntAlu :  D=0xffffffffffffff38
+13715a14335,14336
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240    : cmp	eax, 0xffffffffffffffff
+> system.cpu T0 : 0x428b20	@_IO_file_overflow+240.0  :   CMP_R_I : limm   t1d, 0xffffffffffffffff : IntAlu :  D=0x00000000ffffffff
+13718a14340,14342
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248    : jnz	0xffffffffffffff9c    
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428b2a
+> system.cpu T0 : 0x428b28	@_IO_file_overflow+248.1  :   JNZ_I : limm   t2, 0xffffffffffffff9c : IntAlu :  D=0xffffffffffffff9c
+13739a14364,14366
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180    : jnz	0x10                  
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.0  :   JNZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428ae6
+> system.cpu T0 : 0x428ae4	@_IO_file_overflow+180.1  :   JNZ_I : limm   t2, 0x10  : IntAlu :  D=0x0000000000000010
+13742a14370,14373
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185    : xor	eax, eax              
+> system.cpu T0 : 0x428ae9	@_IO_file_overflow+185.0  :   XOR_R_R : xor   eax, eax, eax : IntAlu :  D=0x0000000000000000
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187    : cmp	eax, 0xa              
+> system.cpu T0 : 0x428aeb	@_IO_file_overflow+187.0  :   CMP_R_I : limm   t1d, 0xa : IntAlu :  D=0x000000000000000a
+13748a14380,14382
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196    : jz	0x14                   
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x0000000000428af6
+> system.cpu T0 : 0x428af4	@_IO_file_overflow+196.1  :   JZ_I : limm   t2, 0x14   : IntAlu :  D=0x0000000000000014
+14065c14699,14702
+< system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+---
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129    : jz	0x5                    
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.0  :   JZ_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b823
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.1  :   JZ_I : limm   t2, 0x5    : IntAlu :  D=0x0000000000000005
+> system.cpu T0 : 0x40b821	@_IO_default_xsputn+129.2  :   JZ_I : wrip   , t1, t2   : IntAlu : 
+14067a14705,14708
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134    : jmp	0xffffffffffffff98    
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.0  :   JMP_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b828
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.1  :   JMP_I : limm   t2, 0xffffffffffffff98 : IntAlu :  D=0xffffffffffffff98
+> system.cpu T0 : 0x40b826	@_IO_default_xsputn+134.2  :   JMP_I : wrip   , t1, t2  : IntAlu : 
+14073a14715,14717
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43    : jnb	0x3a                  
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.0  :   JNB_I : rdip   t1, %ctrl153,  : IntAlu :  D=0x000000000040b7cd
+> system.cpu T0 : 0x40b7cb	@_IO_default_xsputn+43.1  :   JNB_I : limm   t2, 0x3a  : IntAlu :  D=0x000000000000003a
