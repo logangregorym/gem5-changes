@@ -123,6 +123,7 @@ class Decoder
     bool isSuperOptimizationPresent;
     ExtMachInst uopCache[32][8][6]; // 48, 8, 6
     FullUopAddr uopAddrArray[32][8][6];
+    bool uopSlotReserved[32][8][6];
     uint64_t uopTagArray[32][8];
     int uopPrevWayArray[32][8];
     int uopNextWayArray[32][8];

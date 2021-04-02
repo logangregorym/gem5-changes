@@ -1443,6 +1443,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
 
             std::cout <<
             "--------------------START OF EPOCH----------------------------" <<
+           // std::endl << std::dec << "Ticks: " << (uint64_t)head_inst->traceData->getWhen() <<
             std::endl << std::dec << "NumOfInsts: " << (uint64_t)cpu->committedInsts[tid].value() <<
             std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   
 		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << 

@@ -80,6 +80,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
             uopHotnessArray[idx][way] = BigSatCounter(4);
             for (int uop = 0; uop < 6; uop++) {
                 uopAddrArray[idx][way][uop] = FullUopAddr();
+                uopSlotReserved[idx][way][uop] = false;
             }
         }
     }
