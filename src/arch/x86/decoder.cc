@@ -80,7 +80,6 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
             uopHotnessArray[idx][way] = BigSatCounter(4);
             for (int uop = 0; uop < 6; uop++) {
                 uopAddrArray[idx][way][uop] = FullUopAddr();
-                uopSlotReserved[idx][way][uop] = false;
             }
         }
     }
@@ -927,17 +926,26 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     }
     /* Trace traversal is circular, rather than linear. */
     for (int way = baseWay; waysVisited < 8 && numFullWays < 3; way = (way + 1) % 8) {
-        /*if (uopFullArray[idx][way]) {
-            DPRINTF(Decoder, "uop[[%i][%i] is full\n", idx, way);
-            numFullWays++;
-        } else*/ if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
+        
+        if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
             /* Check if this way can accommodate the uops that correspond
                  to this instruction. */
+
+            // check to see if this way is already set as full
+            if (uopFullArray[idx][way])
+            {
+                // this means this way no longer should be check for empty space
+                lastWay = way;
+                numFullWays++;
+                waysVisited++;
+                continue;
+            }
+
             int waySize = uopCountArray[idx][way];
             DPRINTF(Decoder, "uop[[%i][%i] has %i uops\n", idx, way, waySize);
             if ((waySize + numUops) > 6) {
                 lastWay = way;
-                //uopFullArray[idx][way] = true;
+                uopFullArray[idx][way] = true;
                 numFullWays++;
                 waysVisited++;
                 continue;
@@ -951,6 +959,12 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 emi.instSize = size;
                 uopCache[idx][way][uop] = emi;
                 DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d count:%d.\n", addr, tag, idx, way, uop, emi.instSize, uopCountArray[idx][way]);
+            }
+
+            // if all the slots are used, then set it as full array. Otherwise, in the next cycle if there is not enough space for inserting new microops we will set it as full array
+            if (uopCountArray[idx][way] == 6)
+            {
+                uopFullArray[idx][way] = true;
             }
 
             // invalidate all the empry space in way
@@ -998,6 +1012,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                     uopAddrArray[idx][way][uop] = FullUopAddr();
                 }
                 uopValidArray[idx][way] = false;
+                uopFullArray[idx][way] = false;
                 uopProfitableTrace[idx][way] = true; // reset the profitable flag
                 uopCountArray[idx][way] = 0;
                 uopHotnessArray[idx][way] = BigSatCounter(4);
@@ -1023,7 +1038,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             uopCountArray[idx][way] = numUops;
             uopProfitableTrace[idx][way] = true; // reset profiatable flag
             uopValidArray[idx][way] = true;
-            //uopFullArray[idx][way] = false;
+            uopFullArray[idx][way] = false;
             uopTagArray[idx][way] = tag;
             DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, way, tag);
             for (int uop = 0; uop < numUops; uop++) {
@@ -1034,6 +1049,10 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, way, uop, emi.instSize);
             }
 
+            if (uopCountArray[idx][way] == 6)
+            {
+                uopFullArray[idx][way] = true;
+            }
             // invalidate all the empry space in way
             assert(uopCountArray[idx][way] <= 6);
             for (int uop = uopCountArray[idx][way]; uop < 6; uop++) {
@@ -1090,6 +1109,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 uopProfitableTrace[idx][w] = true; // reset profiatable flag
                 uopCountArray[idx][w] = 0;
                 uopHotnessArray[idx][w] = BigSatCounter(4);
+                uopFullArray[idx][w] = false;
                 uopPrevWayArray[idx][w] = 10;
                 uopNextWayArray[idx][w] = 10;
                 uopCacheWayInvalidations++;
@@ -1107,7 +1127,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         }
         uopCountArray[idx][evictWay] = numUops;
         uopValidArray[idx][evictWay] = true;
-        //uopFullArray[idx][evictWay] = false;
+        uopFullArray[idx][evictWay] = false;
         uopTagArray[idx][evictWay] = tag;
         DPRINTF(ConstProp, "Set uopTagArray[%i][%i] to %x\n", idx, evictWay, tag);
         for (int uop = 0; uop < numUops; uop++) {
@@ -1117,6 +1137,11 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             uopCache[idx][evictWay][uop] = emi;
             DPRINTF(Decoder, "Updating microop in the microop cache: %#x tag:%#x idx:%#x way:%#x uop:%d size:%d.\n", addr, tag, idx, evictWay, uop, emi.instSize);
         }
+        if (uopCountArray[idx][evictWay] == 6)
+        {
+            uopFullArray[idx][evictWay] = true;
+        }
+
         // invalidate all the empry space in way
         assert(uopCountArray[idx][evictWay] <= 6);
         for (int uop = uopCountArray[idx][evictWay]; uop < 6; uop++) {

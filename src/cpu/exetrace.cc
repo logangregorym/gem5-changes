@@ -60,8 +60,8 @@ ExeTracerRecord::dumpTicks(ostream &outs)
 void
 Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
 {
-    //if (!inst->isStore()) return;
-    //if (!(inst->getName() == "and")) return;
+    //if (!inst->isStore() || inst->isMacroop()) return;
+    if (!(inst->getName() == "and") || inst->isMacroop()) return;
     ostream &outs = Trace::output();
 
     if (!Debug::ExecUser || !Debug::ExecKernel) {
