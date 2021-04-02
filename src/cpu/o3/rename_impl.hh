@@ -75,7 +75,7 @@ DefaultRename<Impl>::DefaultRename(O3CPU *_cpu, DerivO3CPUParams *params)
              renameWidth, static_cast<int>(Impl::MaxWidth));
 
     // @todo: Make into a parameter.
-    skidBufferMax = (decodeToRenameDelay + 1) * params->decodeWidth;
+    skidBufferMax = (decodeToRenameDelay + 4) * params->decodeWidth;
 }
 
 template <class Impl>

@@ -113,7 +113,7 @@ DefaultIEW<Impl>::DefaultIEW(O3CPU *_cpu, DerivO3CPUParams *params)
 
     updateLSQNextCycle = false;
 
-    skidBufferMax = (renameToIEWDelay + 1) * params->renameWidth;
+    skidBufferMax = (renameToIEWDelay + 4) * params->renameWidth;
 
     loadPred = params->loadPred;
 }
