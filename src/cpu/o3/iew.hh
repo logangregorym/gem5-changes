@@ -462,6 +462,11 @@ class DefaultIEW
     Stats::Scalar iewIQFullEvents;
     /** Stat for number of times the LSQ becomes full. */
     Stats::Scalar iewLSQFullEvents;
+
+    Stats::Scalar blockingDueToBandwidthFull;
+    Stats::Scalar stalledDueToCommit;
+    Stats::Scalar stalledDueToIQFull;
+
     /** Stat for total number of memory ordering violation events. */
     Stats::Scalar memOrderViolationEvents;
     /** Stat for total number of incorrect predicted taken branches. */
