@@ -88,6 +88,7 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
 
 
     bool isPredictableType =    (numOfIntDestRegs == 1) && 
+                                !instruction->isControl() &&
                                 instruction->isInteger() && 
                                 !instruction->isVector() && 
                                 !instruction->isStore() && 
@@ -515,26 +516,84 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                 }
         }
 
+        // if the instruction is updating the CC regs, then dont insert new ones!
+        // For example, if the instructions is prediction source, then it will update the some of the CC regs
+        // these are CC flags for x86 
+        // CCREG_ZAPS = 0
+        // CCREG_CFOF = 1
+        // CCREG_DF   = 2
+        // CCREG_ECF  = 3
+        // CCREG_EZF  = 4
+        bool dumpCCFlags[5] = {true};
+        if (ccValid)
+        {
+            assert(currentTrace.inst->numCCDestRegs() == currentTrace.inst->_numCCDestRegsOrig);
+            if (currentTrace.inst->numCCDestRegs() > 0)
+            {
+                for (int idx = 0; idx < currentTrace.inst->numDestRegs(); idx++)
+                {
+                    if (currentTrace.inst->destRegIdx(idx).isCCReg())
+                    {
+                        uint16_t cc_reg_idx = currentTrace.inst->destRegIdx(idx).index();
+                        // always should be less than 5 as we just have 5 CSR regs in x86
+                        assert(cc_reg_idx < 5);
+                        dumpCCFlags[cc_reg_idx] = false;
+                    }
+                        
+                }
+            }
+        }
         // always dump all the CC regs no matter what
         if (ccValid) {
                 DPRINTF(TraceGen, "Dumping CCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x\n", PredccFlagBits, PredcfofBits, PreddfBit, PredecfBit, PredezfBit);
-                inst->liveOut[inst->numDestRegs()] = PredccFlagBits;
-                inst->liveOutPredicted[inst->numDestRegs()] = true;
-                inst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
-                inst->liveOut[inst->numDestRegs()] = PredcfofBits;
-                inst->liveOutPredicted[inst->numDestRegs()] = true;
-                inst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
-                inst->liveOut[inst->numDestRegs()] = PreddfBit;
-                inst->liveOutPredicted[inst->numDestRegs()] = true;
-                inst->addDestReg(RegId(CCRegClass, CCREG_DF));
-                inst->liveOut[inst->numDestRegs()] = PredecfBit;
-                inst->liveOutPredicted[inst->numDestRegs()] = true;
-                inst->addDestReg(RegId(CCRegClass, CCREG_ECF));
-                inst->liveOut[inst->numDestRegs()] = PredezfBit;
-                inst->liveOutPredicted[inst->numDestRegs()] = true;
-                inst->addDestReg(RegId(CCRegClass, CCREG_EZF));
-                inst->_numCCDestRegs += 5;
-                inst->setCarriesLiveOut(true);
+                if (dumpCCFlags[0]) //CCREG_ZAPS
+                {
+                    inst->liveOut[inst->numDestRegs()] = PredccFlagBits;
+                    inst->liveOutPredicted[inst->numDestRegs()] = true;
+                    inst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
+                    inst->_numCCDestRegs += 1;
+                    inst->setCarriesLiveOut(true);
+                }
+
+                if (dumpCCFlags[1]) //CCREG_CFOF
+                {
+                    inst->liveOut[inst->numDestRegs()] = PredcfofBits;
+                    inst->liveOutPredicted[inst->numDestRegs()] = true;
+                    inst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
+                    inst->_numCCDestRegs += 1;
+                    inst->setCarriesLiveOut(true);
+                }
+
+                if (dumpCCFlags[2]) //CCREG_DF
+                {
+                    inst->liveOut[inst->numDestRegs()] = PreddfBit;
+                    inst->liveOutPredicted[inst->numDestRegs()] = true;
+                    inst->addDestReg(RegId(CCRegClass, CCREG_DF));
+                    inst->_numCCDestRegs += 1;
+                    inst->setCarriesLiveOut(true);
+                }
+
+                if (dumpCCFlags[3]) //CCREG_ECF
+                {
+                    inst->liveOut[inst->numDestRegs()] = PredecfBit;
+                    inst->liveOutPredicted[inst->numDestRegs()] = true;
+                    inst->addDestReg(RegId(CCRegClass, CCREG_ECF));
+                    inst->_numCCDestRegs += 1;
+                    inst->setCarriesLiveOut(true);
+                }
+
+                if (dumpCCFlags[4]) //CCREG_EZF
+                {
+                    inst->liveOut[inst->numDestRegs()] = PredezfBit;
+                    inst->liveOutPredicted[inst->numDestRegs()] = true;
+                    inst->addDestReg(RegId(CCRegClass, CCREG_EZF));
+                    inst->_numCCDestRegs += 1;
+                    inst->setCarriesLiveOut(true);
+                }
+                
+
+
+                
         }
     }
 }
@@ -954,6 +1013,20 @@ bool TraceBasedGraph::generateNextTraceInst() {
     bool propagated = false;
     bool folded = false;
     bool unknownType = false;
+
+
+    // sanity check, do we have an instruction that updates the CC regs but it's not CC ?!
+    // dumpLivesOut functions adds to the number of CC dest regs, but here we have the orignal microop, therefore this assertion should always be true
+    panic_if((!currentTrace.inst->isCC() && currentTrace.inst->numCCDestRegs() > 0), 
+            "Insturction has CC reg dests and, i.e., updates the CC regs but it's not CC! This can potenially cause bugs! Inst. type = %s\n " , currentTrace.inst->getName());
+
+    //sanity check. Are "mov" or "movi" control microops?! "br" is control but do we execute it?! It can cause bugs
+    panic_if((currentTrace.inst->isControl() && (currentTrace.inst->getName() != "wrip" && currentTrace.inst->getName() != "wripi")), 
+            "Insturction is Control and is not wrip or wripi! Inst. type = %s\n " , currentTrace.inst->getName());
+    //update number of original CC regs
+    currentTrace.inst->_numCCDestRegsOrig = currentTrace.inst->numCCDestRegs();
+
+
     // Propagate predicted values
     if (type == "mov") {
             DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
@@ -976,10 +1049,12 @@ bool TraceBasedGraph::generateNextTraceInst() {
     } else if (type == "movi") {
             DPRINTF(ConstProp, "Found a MOVI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateMovI(currentTrace.inst);
-    } else if (type == "and") {
+    } 
+    /*else if (type == "and") {
             DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAnd(currentTrace.inst);
-    } else if (type == "add") {
+    }*/ 
+    else if (type == "add") {
             DPRINTF(ConstProp, "Found an ADD at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAdd(currentTrace.inst);
     } else if (type == "sub") {
@@ -1088,37 +1163,12 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
             assert(numIntDestRegs == 1);
 
-            dumpLiveOuts(currentTrace.inst, currentTrace.inst->isFirstMicroop());
-
-            // We can predict some of the Condition Code instructions based on whether they need source registers to 
-            // generate the flags or not
-            // Update the flags for these instructions
-            
-
             // set this as a source of prediction so we can verify it later
             currentTrace.inst->setTracePredictionSource(true);
 
-            //now if the instruction is CC we need to update the CC flags
-            // if (currentTrace.inst->isCC() && !isPredictiableCC(currentTrace.inst))
-                // {
-            //     // Because we can't propagate AF, PF, and CF flags, from now on they are not valid
-            //     // valid_CF_AF_OF_flags will be set by any instruction that can generate all the flags 
-            //     // if we hit wrip and wripi microops and valid_CF_AF_OF_flags is not valid, then we will decide to 
-            //     // whether fold or not fold it 
-            //     valid_CF_AF_OF_flags = false;
+            dumpLiveOuts(currentTrace.inst, currentTrace.inst->isFirstMicroop());
 
-            //     assert(usingCCTracking);
-            //     DPRINTF(ConstProp, "From now on CF, AF, and OF flags are invalid dude to a condition code prediction source.\n");
-            //     updateCCFlagsForPredictedSource(currentTrace.inst);
 
-            // }
-            // else if (currentTrace.inst->isCC() && isPredictiableCC(currentTrace.inst))
-            // {
-            //     // based on my observation all of the CC codes that we can predict, they set AF, PF, and CF flgas
-            //     // https://www.gem5.org/documentation/general_docs/architecture_support/x86_microop_isa/
-            //     // therefore, if we are here it means that my assumption is wrong and we need to propagate these flags
-            //     assert(0);
-            // }
         } else {
             for (int i=0; i<currentTrace.inst->numDestRegs(); i++) {
                 RegId destReg = currentTrace.inst->destRegIdx(i);
@@ -1132,13 +1182,26 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 }
             }
         }
+
         currentTrace.inst->shrunkenLength = currentTrace.interveningDeadInsts;
         currentTrace.interveningDeadInsts = 0;
         currentTrace.prevNonEliminatedInst = currentTrace.inst;
+
     } else {
         currentTrace.prevEliminatedInst = currentTrace.inst;
         currentTrace.interveningDeadInsts++;
     }
+
+    
+
+    // If we are here, it means instruction is not propagated and after this instruction all the CC flags should get invalidated
+    // if the orignal number of CC dest regs are grater than zero, then this instruction is updating them
+    // we have "_numCCDestRegsOrig" variable beacuse sometime dumpLivesOut function adds to the CC regs
+    // by this time, we already have used the propagated CC flags in sourcePredicted regs
+    if (!isDeadCode && !folded && currentTrace.inst->_numCCDestRegsOrig > 0) {
+        ccValid = false;
+    }
+
     // Simulate a stall if update to speculative cache wasn't successful
     if (updateSuccessful) {
         currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr;
@@ -1154,6 +1217,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.end.uopAddr = 0;
         } 
         else if (type == "CPUID") {
+            warn("unsupported instruction without macro-op : CPUID\n");
             //panic("unsupported instruction without macro-op: %s", type);
         }
         else 
@@ -1272,6 +1336,7 @@ bool TraceBasedGraph::probePredictorForMakingPrediction()
 
 void TraceBasedGraph::updateCCFlagsForPredictedSource(StaticInstPtr inst)
 {
+    assert(0);
     uint16_t ext = inst->getExt();
     if (inst->getName() == "and" )
     {
@@ -1347,7 +1412,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     }*/
 
     string type = trace.inst->getName();
-    isDeadCode = (type == "rdip") || (allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"));
+    isDeadCode = (type == "rdip") || (allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" /*|| type == "and"*/ || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"));
 
     // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC
     uint64_t value;

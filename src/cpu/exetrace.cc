@@ -56,10 +56,12 @@ ExeTracerRecord::dumpTicks(ostream &outs)
     ccprintf(outs, "%7d: ", when);
 }
 
+
 void
 Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
 {
-    if (!inst->isStore()) return;
+    //if (!inst->isStore() || inst->isMacroop()) return;
+    if (!(inst->getName() == "and") || inst->isMacroop()) return;
     ostream &outs = Trace::output();
 
     if (!Debug::ExecUser || !Debug::ExecKernel) {

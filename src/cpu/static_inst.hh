@@ -115,6 +115,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     int8_t _numFPDestRegs;
     int8_t _numIntDestRegs;
     int8_t _numCCDestRegs;
+    int8_t _numCCDestRegsOrig;
     //@}
 
     /** To use in architectures with vector register file. */
