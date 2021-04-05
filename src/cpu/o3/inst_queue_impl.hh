@@ -1822,7 +1822,7 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
             {
                 new_inst->markSrcRegReady(src_reg_idx);
             } 
-            else if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent &&
+            else if (cpu->fetch.decoder[new_inst->threadNumber]->isSuperOptimizationPresent &&
                     !regScoreboard[src_reg->flatIndex()] && 
                     new_inst->srcRegIdx(src_reg_idx).isIntReg() &&
                     new_inst->staticInst->sourcesPredicted[src_reg_idx])
@@ -1836,7 +1836,7 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
                 // Mark a register ready within the instruction.
                 new_inst->markSrcRegReady(src_reg_idx);
             }
-            else if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent &&
+            else if (cpu->fetch.decoder[new_inst->threadNumber]->isSuperOptimizationPresent &&
                     !regScoreboard[src_reg->flatIndex()] && 
                     new_inst->srcRegIdx(src_reg_idx).isCCReg() &&
                     new_inst->staticInst->isCCFlagPropagated[propagated_cc_reg_idx])
