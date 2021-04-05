@@ -51,7 +51,10 @@ class OpClass(Enum):
             'SimdFloatCvt', 'SimdFloatDiv', 'SimdFloatMisc', 'SimdFloatMult',
             'SimdFloatMultAcc', 'SimdFloatSqrt',
             'MemRead', 'MemWrite', 'FloatMemRead', 'FloatMemWrite',
-            'IprAccess', 'InstPrefetch']
+            'IprAccess', 'InstPrefetch', 
+            'SquahedAndCommited', 'LoadSquahedAndCommited', 'ArithmeticSquashedAndCommited' , 
+            'AND', 'ANDI', 'OR', 'ORI', 'XOR', 'XORI' ,'ADD', 'ADDI', 
+            'SUB','SUBI', 'SLLI', 'SRLI', 'LEA', 'SEXTI', 'ZEXTI', 'LIMM', "RDIP"]
 
 class OpDesc(SimObject):
     type = 'OpDesc'

@@ -100,7 +100,9 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
         // don't pullote predictor with instructions that we already know thier values
     if (instruction->getName() == "rdip" || 
         instruction->getName() == "limm" ||  
-        instruction->getName() == "movi") 
+        instruction->getName() == "movi" /*|| 
+        instruction->getName() == "and" ||
+        instruction->getName() == "lea"*/) 
     {
         isPredictableType = false;
     }
@@ -527,14 +529,14 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
         bool dumpCCFlags[5] = {true};
         if (ccValid)
         {
-            assert(currentTrace.inst->numCCDestRegs() == currentTrace.inst->_numCCDestRegsOrig);
-            if (currentTrace.inst->numCCDestRegs() > 0)
+            assert(inst->numCCDestRegs() == inst->_numCCDestRegsOrig);
+            if (inst->numCCDestRegs() > 0)
             {
-                for (int idx = 0; idx < currentTrace.inst->numDestRegs(); idx++)
+                for (int idx = 0; idx < inst->numDestRegs(); idx++)
                 {
-                    if (currentTrace.inst->destRegIdx(idx).isCCReg())
+                    if (inst->destRegIdx(idx).isCCReg())
                     {
-                        uint16_t cc_reg_idx = currentTrace.inst->destRegIdx(idx).index();
+                        uint16_t cc_reg_idx = inst->destRegIdx(idx).index();
                         // always should be less than 5 as we just have 5 CSR regs in x86
                         assert(cc_reg_idx < 5);
                         dumpCCFlags[cc_reg_idx] = false;
@@ -553,6 +555,12 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
+                    inst->forwardedCCLiveValueExists[0] = false;
+                }
+                else 
+                {
+                    inst->forwardedCCLiveValueExists[0] = true;
+                    inst->forwardedCCLiveValue[0] = PredccFlagBits;
                 }
 
                 if (dumpCCFlags[1]) //CCREG_CFOF
@@ -562,6 +570,12 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
+                    inst->forwardedCCLiveValueExists[1] = false;
+                }
+                else 
+                {
+                    inst->forwardedCCLiveValueExists[1] = true;
+                    inst->forwardedCCLiveValue[1] = PredcfofBits;
                 }
 
                 if (dumpCCFlags[2]) //CCREG_DF
@@ -571,6 +585,12 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->addDestReg(RegId(CCRegClass, CCREG_DF));
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
+                    inst->forwardedCCLiveValueExists[2] = false;
+                }
+                else 
+                {
+                    inst->forwardedCCLiveValueExists[2] = true;
+                    inst->forwardedCCLiveValue[2] = PreddfBit;
                 }
 
                 if (dumpCCFlags[3]) //CCREG_ECF
@@ -580,6 +600,12 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->addDestReg(RegId(CCRegClass, CCREG_ECF));
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
+                    inst->forwardedCCLiveValueExists[3] = false;
+                }
+                else 
+                {
+                    inst->forwardedCCLiveValueExists[3] = true;
+                    inst->forwardedCCLiveValue[3] = PredecfBit;
                 }
 
                 if (dumpCCFlags[4]) //CCREG_EZF
@@ -589,6 +615,12 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->addDestReg(RegId(CCRegClass, CCREG_EZF));
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
+                    inst->forwardedCCLiveValueExists[4] = false;
+                }
+                else 
+                {
+                    inst->forwardedCCLiveValueExists[4] = true;
+                    inst->forwardedCCLiveValue[4] = PredezfBit;
                 }
                 
 
@@ -1050,10 +1082,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
             DPRINTF(ConstProp, "Found a MOVI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateMovI(currentTrace.inst);
     } 
-    /*else if (type == "and") {
+    else if (type == "and") {
             DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", idx, way, uop);
-            propagated = propagateAnd(currentTrace.inst);
-    }*/ 
+            //propagated = propagateAnd(currentTrace.inst);
+    } 
     else if (type == "add") {
             DPRINTF(ConstProp, "Found an ADD at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAdd(currentTrace.inst);
@@ -1138,6 +1170,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // if it's a prediction source, then do the same thin as before
         if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) 
         {
+            // panic_if(currentTrace.inst->getName() == "and" ||
+            //          currentTrace.inst->getName() == "lea" ||
+            //          currentTrace.inst->isStore(), "Predicting a non-predictable instruction!\n");
             // Mark prediction source as valid in register context block.    
             int numIntDestRegs = 0;
             for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {

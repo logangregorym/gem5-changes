@@ -61,7 +61,9 @@ void
 Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
 {
     //if (!inst->isStore() || inst->isMacroop()) return;
-    if (!(inst->getName() == "and") || inst->isMacroop()) return;
+    //if ((!(inst->getName() == "and") && !(inst->getName() == "lea")) || inst->isMacroop()) return;
+    //if (!(inst->getName() == "lea") || inst->isMacroop()) return;
+    //if (!(inst->getName() == "sub") || inst->isMacroop()) return;
     ostream &outs = Trace::output();
 
     if (!Debug::ExecUser || !Debug::ExecKernel) {
@@ -100,6 +102,9 @@ Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
     // } else {
     //     outs << "   ";
     // }
+
+    outs << " ["  << dec << inst->isSquashedAndCommited() << "] ";
+
 
     outs << " : ";
 

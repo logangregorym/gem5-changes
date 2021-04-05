@@ -634,6 +634,7 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
         toCommit->mispredictInst[tid] = inst; // not a branch misprediction
         toCommit->includeSquashInst[tid] = false;
         inst->forwardOldRegs();
+        inst->setSquashedAndCommited(true);
         toCommit->squashDueToLVP[tid] = true;
 
         wroteToTimeBuffer = true;
