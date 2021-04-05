@@ -100,9 +100,9 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
         // don't pullote predictor with instructions that we already know thier values
     if (instruction->getName() == "rdip" || 
         instruction->getName() == "limm" ||  
-        instruction->getName() == "movi" || 
-        instruction->getName() == "and" ||
-        instruction->getName() == "lea") 
+        instruction->getName() == "movi" /*|| 
+        instruction->getName() == "sub" ||
+        instruction->getName() == "lea"*/) 
     {
         isPredictableType = false;
     }
@@ -1084,7 +1084,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     } 
     else if (type == "and") {
             DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", idx, way, uop);
-            //propagated = propagateAnd(currentTrace.inst);
+            propagated = propagateAnd(currentTrace.inst);
     } 
     else if (type == "add") {
             DPRINTF(ConstProp, "Found an ADD at [%i][%i][%i], compacting...\n", idx, way, uop);
@@ -1170,8 +1170,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // if it's a prediction source, then do the same thin as before
         if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) 
         {
-            panic_if(currentTrace.inst->getName() == "and" ||
-                     currentTrace.inst->getName() == "lea" ||
+            panic_if(/*currentTrace.inst->getName() == "sub" ||
+                     currentTrace.inst->getName() == "lea" ||*/
                      currentTrace.inst->isStore(), "Predicting a non-predictable instruction!\n");
             // Mark prediction source as valid in register context block.    
             int numIntDestRegs = 0;
@@ -1447,7 +1447,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     }*/
 
     string type = trace.inst->getName();
-    isDeadCode = (type == "rdip") || (allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" /*|| type == "and"*/ || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"));
+    isDeadCode = (type == "rdip") || (allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"));
 
     // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC
     uint64_t value;
