@@ -463,6 +463,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     // propagated cc flags for wrip and wripi microops
     uint64_t propgatedCCFlags[5] = {0};
     bool isCCFlagPropagated[5] = {false};
+    
     TheISA::PCState predictedTarget;
     bool predictedTaken = false;
     int predSourceRegIdx;

@@ -100,9 +100,9 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
         // don't pullote predictor with instructions that we already know thier values
     if (instruction->getName() == "rdip" || 
         instruction->getName() == "limm" ||  
-        instruction->getName() == "movi" /*|| 
+        instruction->getName() == "movi" || 
         instruction->getName() == "and" ||
-        instruction->getName() == "lea"*/) 
+        instruction->getName() == "lea") 
     {
         isPredictableType = false;
     }
@@ -1170,9 +1170,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // if it's a prediction source, then do the same thin as before
         if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) 
         {
-            // panic_if(currentTrace.inst->getName() == "and" ||
-            //          currentTrace.inst->getName() == "lea" ||
-            //          currentTrace.inst->isStore(), "Predicting a non-predictable instruction!\n");
+            panic_if(currentTrace.inst->getName() == "and" ||
+                     currentTrace.inst->getName() == "lea" ||
+                     currentTrace.inst->isStore(), "Predicting a non-predictable instruction!\n");
             // Mark prediction source as valid in register context block.    
             int numIntDestRegs = 0;
             for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {

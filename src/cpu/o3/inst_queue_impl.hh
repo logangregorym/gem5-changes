@@ -1153,6 +1153,7 @@ template<class Impl>
 bool
 InstructionQueue<Impl>::forwardNonLoadValuePredictionToDependents(DynInstPtr &inst) {
 
+    assert(0);
     assert(!inst->isStore());
     assert(inst->isInteger());
 
@@ -1245,6 +1246,7 @@ template<class Impl>
 bool
 InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst) {
 
+    assert(0);
         // this function is only for loads! We should have a diffrent function for non-loads instructions
     assert(inst->isLoad());
 
@@ -1793,15 +1795,63 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
         if (!new_inst->isReadySrcRegIdx(src_reg_idx)) {
             PhysRegIdPtr src_reg = new_inst->renamedSrcRegIdx(src_reg_idx);
 
+            // BE CAREFULL! 
+            // src_reg_idx is the array index to src regs of the instructions and should be used for sourcesPredicted[]
+            // propagated_cc_reg_idx is the register index and is different from src_reg_idx
+
+            // These are for x86 
+            // CCREG_ZAPS = 0
+            // CCREG_CFOF = 1
+            // CCREG_DF   = 2
+            // CCREG_ECF  = 3
+            // CCREG_EZF  = 4
+            // propagated_cc_reg_idx is used to check whether there is a propagated value for this CC src reg or not
+            uint16_t propagated_cc_reg_idx = new_inst->srcRegIdx(src_reg_idx).index();
+            // always should be less than 5 as we just have 5 CSR regs in x86
+            panic_if((new_inst->srcRegIdx(src_reg_idx).isCCReg()) && (propagated_cc_reg_idx >= 5), 
+                    "Src reg is a CC reg class type and its index is not less than 5! This can cause implict/explicit overflows!\n");
+
             // Check the IQ's scoreboard to make sure the register
             // hasn't become ready while the instruction was in flight
             // between stages.  Only if it really isn't ready should
             // it be added to the dependency graph.
             if (src_reg->isFixedMapping()) {
                 continue;
-            } else if (new_inst->srcRegIdx(src_reg_idx) == RegId(IntRegClass, TheISA::ZeroReg)) {
+            } 
+            else if (new_inst->srcRegIdx(src_reg_idx) == RegId(IntRegClass, TheISA::ZeroReg)) 
+            {
                 new_inst->markSrcRegReady(src_reg_idx);
-            } else if (!regScoreboard[src_reg->flatIndex()]) {
+            } 
+            else if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent &&
+                    !regScoreboard[src_reg->flatIndex()] && 
+                    new_inst->srcRegIdx(src_reg_idx).isIntReg() &&
+                    new_inst->staticInst->sourcesPredicted[src_reg_idx])
+            {
+                // only for super-optimized instructions
+                assert(new_inst->isStreamedFromSpeculativeCache());
+                DPRINTF(IQ, "Instruction PC %s has src reg %i (%s) that "
+                        "is predicted and propagated during super-optimization!\n",
+                        new_inst->pcState(), src_reg->index(),
+                        src_reg->className());
+                // Mark a register ready within the instruction.
+                new_inst->markSrcRegReady(src_reg_idx);
+            }
+            else if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent &&
+                    !regScoreboard[src_reg->flatIndex()] && 
+                    new_inst->srcRegIdx(src_reg_idx).isCCReg() &&
+                    new_inst->staticInst->isCCFlagPropagated[propagated_cc_reg_idx])
+            {
+                // only for super-optimized instructions
+                assert(new_inst->isStreamedFromSpeculativeCache());
+                DPRINTF(IQ, "Instruction PC %s has src reg %i (%s) that "
+                        "is predicted and propagated during super-optimization!\n",
+                        new_inst->pcState(), src_reg->index(),
+                        src_reg->className());
+                // Mark a register ready within the instruction.
+                new_inst->markSrcRegReady(src_reg_idx);
+            }            
+            else if (!regScoreboard[src_reg->flatIndex()]) 
+            {
                 DPRINTF(IQ, "Instruction PC %s has src reg %i (%s) that "
                         "is being added to the dependency chain.\n",
                         new_inst->pcState(), src_reg->index(),
@@ -1812,7 +1862,10 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
                 // Change the return value to indicate that something
                 // was added to the dependency graph.
                 return_val = true;
-            } else {
+            } 
+
+            else 
+            {
                 DPRINTF(IQ, "Instruction PC %s has src reg %i (%s) that "
                         "became ready before it reached the IQ.\n",
                         new_inst->pcState(), src_reg->index(),
