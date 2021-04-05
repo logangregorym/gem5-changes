@@ -207,6 +207,18 @@ DefaultIEW<Impl>::regStats()
         .name(name() + ".iewLSQFullEvents")
         .desc("Number of times the LSQ has become full, causing a stall");
 
+    blockingDueToBandwidthFull
+        .name(name() + ".blockingDueToBandwidthFull")
+        .desc("Number of times the we run out of instructions to run, causing a stall");
+
+    stalledDueToCommit
+        .name(name() + ".stalledDueToCommit")
+        .desc("Number of times we wait for ROB to finish squashing");
+
+    stalledDueToIQFull
+        .name(name() + ".stalledDueToIQFull")
+        .desc("Number of times the IQ is full forcing us to wait");
+
     memOrderViolationEvents
         .name(name() + ".memOrderViolationEvents")
         .desc("Number of memory order violations");
@@ -954,9 +966,11 @@ DefaultIEW<Impl>::checkStall(ThreadID tid)
     bool ret_val(false);
 
     if (fromCommit->commitInfo[tid].robSquashing) {
+        ++ stalledDueToCommit;
         DPRINTF(IEW,"[tid:%i]: Stall from Commit stage detected.\n",tid);
         ret_val = true;
     } else if (instQueue.isFull(tid)) {
+        ++ stalledDueToIQFull;
         DPRINTF(IEW,"[tid:%i]: Stall: IQ  is full.\n",tid);
         ret_val = true;
     }
@@ -990,8 +1004,7 @@ DefaultIEW<Impl>::checkSignalsAndUpdate(ThreadID tid)
     }
 
     if (fromCommit->commitInfo[tid].robSquashing) {
-        DPRINTF(IEW, "[tid:%i]: ROB is still squashing.\n", tid);
-
+         DPRINTF(IEW, "[tid:%i]: ROB is still squashing.\n", tid);
         dispatchStatus[tid] = Squashing;
         emptyRenameInsts(tid);
         wroteToTimeBuffer = true;
@@ -1366,6 +1379,7 @@ DefaultIEW<Impl>::dispatchInsts(ThreadID tid)
     }
 
     if (!insts_to_dispatch.empty()) {
+        ++ blockingDueToBandwidthFull;
         DPRINTF(IEW,"[tid:%i]: Issue: Bandwidth Full. Blocking.\n", tid);
         block(tid);
         toRename->iewUnblock[tid] = false;
