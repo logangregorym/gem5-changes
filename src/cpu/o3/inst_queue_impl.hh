@@ -393,6 +393,16 @@ InstructionQueue<Impl>::regStats()
         .desc("Number of vector instruction queue wakeup accesses")
         .flags(total);
 
+    highConfidenceInsts
+        .name(name() + ".highConfidenceInsts")
+        .desc("")
+        .flags(total);
+    
+    dependentInstsOnTracePredictionsOSurces
+        .name(name() + ".dependentInstsOnTracePredictionsOSurces")
+        .desc("")
+        .flags(total);
+
     intAluAccesses
         .name(name() + ".int_alu_accesses")
         .desc("Number of integer alu accesses")
@@ -457,6 +467,13 @@ InstructionQueue<Impl>::regStats()
     speculativeInstsAddedToProducersHistIntRegs
         .init(0,10,1)
         .name(name() + ".addToProducersHistIntRegs")
+        .desc("")
+        .flags(pdf | dist)
+        ;
+    
+    tracePredictionSourcesWithCCRegs
+        .init(5)
+        .name(name() + ".tracePredictionSourcesWithCCRegs")
         .desc("")
         .flags(pdf | dist)
         ;
@@ -1125,6 +1142,23 @@ InstructionQueue<Impl>::wakeDependents(DynInstPtr &completed_inst)
         PhysRegIdPtr dest_reg =
             completed_inst->renamedDestRegIdx(dest_reg_idx);
 
+
+        // BE CAREFULL! 
+        // src_reg_idx is the array index to src regs of the instructions and should be used for sourcesPredicted[]
+        // propagated_cc_reg_idx is the register index and is different from src_reg_idx
+
+        // These are for x86 
+        // CCREG_ZAPS = 0
+        // CCREG_CFOF = 1
+        // CCREG_DF   = 2
+        // CCREG_ECF  = 3
+        // CCREG_EZF  = 4
+        // propagated_cc_reg_idx is used to check whether there is a propagated value for this CC src reg or not
+        uint16_t propagated_cc_reg_idx = completed_inst->destRegIdx(dest_reg_idx).index();
+        // always should be less than 5 as we just have 5 CSR regs in x86
+        panic_if(completed_inst->destRegIdx(dest_reg_idx).isCCReg() && (propagated_cc_reg_idx >= 5), 
+                "Dest reg is a CC reg class type and its index is not less than 5! This can cause implict/explicit overflows!\n");
+
         // Special case of uniq or control registers.  They are not
         // handled by the IQ and thus have no dependency graph entry.
         if (dest_reg->isFixedMapping() || completed_inst->destRegIdx(dest_reg_idx) == RegId(IntRegClass, TheISA::ZeroReg)) {
@@ -1160,38 +1194,41 @@ InstructionQueue<Impl>::wakeDependents(DynInstPtr &completed_inst)
             ++dependents;
         }
 
+        if (completed_inst->staticInst->predictedLoad && completed_inst->staticInst->confidence >= 5)
+        {
+            ++highConfidenceInsts;
+        }
+            
+
+        if (completed_inst->isTracePredictionSource() && 
+            completed_inst->destRegIdx(dest_reg_idx).isCCReg() &&
+            !completed_inst->isDestRegLiveOut(dest_reg_idx)
+            )
+        {
+            // if this is a trace prediction source and the register is not a live out CC register, then count it
+            tracePredictionSourcesWithCCRegs[propagated_cc_reg_idx]++;
+            dependentInstsOnTracePredictionsOSurces += dependents;
+        }
+        else 
+        {
+            // is integer?
+        }
+
         if (completed_inst->isDestRegLiveOut(dest_reg_idx))
         {
             assert(completed_inst->isStreamedFromSpeculativeCache());
 
-            // BE CAREFULL! 
-            // src_reg_idx is the array index to src regs of the instructions and should be used for sourcesPredicted[]
-            // propagated_cc_reg_idx is the register index and is different from src_reg_idx
-
-            // These are for x86 
-            // CCREG_ZAPS = 0
-            // CCREG_CFOF = 1
-            // CCREG_DF   = 2
-            // CCREG_ECF  = 3
-            // CCREG_EZF  = 4
-            // propagated_cc_reg_idx is used to check whether there is a propagated value for this CC src reg or not
-            uint16_t propagated_cc_reg_idx = completed_inst->destRegIdx(dest_reg_idx).index();
-            // always should be less than 5 as we just have 5 CSR regs in x86
-            panic_if(completed_inst->destRegIdx(dest_reg_idx).isCCReg() && (propagated_cc_reg_idx >= 5), 
-                    "Dest reg is a CC reg class type and its index is not less than 5! This can cause implict/explicit overflows!\n");
-
-            
-
             if (completed_inst->destRegIdx(dest_reg_idx).isIntReg())
             {    
                 speculativeInstsAddedToProducers[5]  += dependents;
+                speculativeInstsAddedToProducersHistIntRegs.sample(dependents,1);
             }
             else if (completed_inst->destRegIdx(dest_reg_idx).isCCReg())
             {
                 speculativeInstsAddedToProducers[propagated_cc_reg_idx] += dependents;
             }
 
-            speculativeInstsAddedToProducersHistIntRegs.sample(dependents,1);
+            
 
         }
 

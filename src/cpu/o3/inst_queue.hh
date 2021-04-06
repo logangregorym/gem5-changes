@@ -571,6 +571,9 @@ class InstructionQueue
     Stats::Vector speculativeInstsAddedToDependents;
     Stats::Vector speculativeInstsAddedToProducers;
     Stats::Distribution speculativeInstsAddedToProducersHistIntRegs;
+    Stats::Scalar highConfidenceInsts;
+    Stats::Scalar dependentInstsOnTracePredictionsOSurces;
+    Stats::Vector tracePredictionSourcesWithCCRegs;
 
 };
 

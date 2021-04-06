@@ -1376,10 +1376,6 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
         ++specCacheMissOps;
     }
 
-    
-
- 
-        
 
 
     if (decoder[tid]->traceConstructor->IsValuePredictible(instruction->staticInst)) 
