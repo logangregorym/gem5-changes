@@ -567,6 +567,11 @@ class InstructionQueue
     Stats::Scalar reducableInsts;
     Stats::Formula averageShrinkage;
     Stats::Formula reducablePercent;
+
+    Stats::Vector speculativeInstsAddedToDependents;
+    Stats::Vector speculativeInstsAddedToProducers;
+    Stats::Distribution speculativeInstsAddedToProducersHistIntRegs;
+
 };
 
 #endif //__CPU_O3_INST_QUEUE_HH__

@@ -440,6 +440,26 @@ InstructionQueue<Impl>::regStats()
         .desc("Percent of dependencies that are reducible")
         ;
     reducablePercent = (reducableInsts / lvpDependencyChains) * 100;
+
+    speculativeInstsAddedToDependents
+        .init(6)
+        .name(name() + ".addToDependents")
+        .desc("")
+        .flags(pdf | dist)
+        ;
+    speculativeInstsAddedToProducers
+        .init(6)
+        .name(name() + ".addToProducers")
+        .desc("")
+        .flags(pdf | dist)
+        ;
+
+    speculativeInstsAddedToProducersHistIntRegs
+        .init(0,10,1)
+        .name(name() + ".addToProducersHistIntRegs")
+        .desc("")
+        .flags(pdf | dist)
+        ;
 }
 
 template <class Impl>
@@ -1117,6 +1137,8 @@ InstructionQueue<Impl>::wakeDependents(DynInstPtr &completed_inst)
                 dest_reg->index(),
                 dest_reg->className());
 
+        
+
         //Go through the dependency chain, marking the registers as
         //ready within the waiting instructions.
         DynInstPtr dep_inst = dependGraph.pop(dest_reg->flatIndex());
@@ -1136,6 +1158,41 @@ InstructionQueue<Impl>::wakeDependents(DynInstPtr &completed_inst)
             dep_inst = dependGraph.pop(dest_reg->flatIndex());
 
             ++dependents;
+        }
+
+        if (completed_inst->isDestRegLiveOut(dest_reg_idx))
+        {
+            assert(completed_inst->isStreamedFromSpeculativeCache());
+
+            // BE CAREFULL! 
+            // src_reg_idx is the array index to src regs of the instructions and should be used for sourcesPredicted[]
+            // propagated_cc_reg_idx is the register index and is different from src_reg_idx
+
+            // These are for x86 
+            // CCREG_ZAPS = 0
+            // CCREG_CFOF = 1
+            // CCREG_DF   = 2
+            // CCREG_ECF  = 3
+            // CCREG_EZF  = 4
+            // propagated_cc_reg_idx is used to check whether there is a propagated value for this CC src reg or not
+            uint16_t propagated_cc_reg_idx = completed_inst->destRegIdx(dest_reg_idx).index();
+            // always should be less than 5 as we just have 5 CSR regs in x86
+            panic_if(completed_inst->destRegIdx(dest_reg_idx).isCCReg() && (propagated_cc_reg_idx >= 5), 
+                    "Dest reg is a CC reg class type and its index is not less than 5! This can cause implict/explicit overflows!\n");
+
+            
+
+            if (completed_inst->destRegIdx(dest_reg_idx).isIntReg())
+            {    
+                speculativeInstsAddedToProducers[5]  += dependents;
+            }
+            else if (completed_inst->destRegIdx(dest_reg_idx).isCCReg())
+            {
+                speculativeInstsAddedToProducers[propagated_cc_reg_idx] += dependents;
+            }
+
+            speculativeInstsAddedToProducersHistIntRegs.sample(dependents,1);
+
         }
 
         // Reset the head node now that all of its dependents have
@@ -1859,6 +1916,19 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
 
                 dependGraph.insert(src_reg->flatIndex(), new_inst);
 
+             
+                if (new_inst->isStreamedFromSpeculativeCache())
+                {
+                    if (new_inst->srcRegIdx(src_reg_idx).isIntReg())
+                    {    
+                        speculativeInstsAddedToDependents[5]++;
+                    }
+                    else if (new_inst->srcRegIdx(src_reg_idx).isCCReg())
+                    {
+                        speculativeInstsAddedToDependents[propagated_cc_reg_idx]++;
+                    }
+                }
+                    
                 // Change the return value to indicate that something
                 // was added to the dependency graph.
                 return_val = true;

@@ -252,6 +252,9 @@ class StaticInst : public RefCounted, public StaticInstFlags
     /// add destRegIdx (live outs from superoptimization)
     void addDestReg(RegId reg) { _destRegIdx[_numDestRegs++] = reg; }
 
+    void setDestRegLiveOut(int i, bool state) {  _destRegIdx[i].setLiveOutReg(state); }
+    bool isDestRegLiveOut(int i) {return  _destRegIdx[i].isLiveOutReg();}
+
     /// Pointer to a statically allocated "null" instruction object.
     static StaticInstPtr nullStaticInstPtr;
 

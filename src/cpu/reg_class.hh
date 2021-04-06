@@ -81,6 +81,7 @@ class RegId {
     RegClass regClass;
     RegIndex regIdx;
     ElemIndex elemIdx;
+    bool liveOutReg = false;
     static constexpr size_t Scale = TheISA::NumVecElemPerVecReg;
     friend struct std::hash<RegId>;
   public:
@@ -125,7 +126,8 @@ class RegId {
     {
         return regClass != MiscRegClass;
     }
-
+    void setLiveOutReg(bool state) {liveOutReg = state;}
+    bool isLiveOutReg() {return liveOutReg;}
     /**
      * Check if this is the zero register.
      * Returns true if this register is a zero register (needs to have a
