@@ -244,8 +244,29 @@ class BaseO3DynInst : public BaseDynInst<Impl>
                                this->cpu->readVecElem(prev_phys_reg));
                 break;
               case CCRegClass:
-                this->setCCRegOperand(this->staticInst.get(), idx,
-                               this->cpu->readCCReg(prev_phys_reg));
+
+              {
+                    // these are for x86 
+                    // CCREG_ZAPS = 0
+                    // CCREG_CFOF = 1
+                    // CCREG_DF   = 2
+                    // CCREG_ECF  = 3
+                    // CCREG_EZF  = 4
+                    uint16_t liveout_reg_idx = this->staticInst->destRegIdx(idx).index();
+                    // always should be less than 5 as we just have 5 CSR regs in x86
+                    assert(liveout_reg_idx < 5);
+
+                    if (this->staticInst->forwardedCCLiveValueExists[liveout_reg_idx]) 
+                    {
+                        this->setCCRegOperand(this->staticInst.get(), idx,
+                                    this->staticInst->forwardedCCLiveValue[liveout_reg_idx]);
+                    } else {
+                        this->setCCRegOperand(this->staticInst.get(), idx,
+                                this->cpu->readCCReg(prev_phys_reg));
+                    }
+                
+              }
+             
                 break;
               case MiscRegClass:
                 // no need to forward misc reg values

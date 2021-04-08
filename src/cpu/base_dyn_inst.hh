@@ -522,6 +522,8 @@ class BaseDynInst : public ExecContext, public RefCounted
     void setUOpCacheHotTrace(bool state)      {staticInst->setUOpCacheHotTrace(state);}
     void setCarriesLiveOut(bool state) {staticInst->setCarriesLiveOut(state);} 
     bool isCarryingLivesOut() const {return staticInst->isCarryingLivesOut();}
+    void setSquashedAndCommited(bool state) {staticInst->setSquashedAndCommited(state);} 
+    bool isSquashedAndCommited() const {return staticInst->isSquashedAndCommited();}
 
     bool isNop()          const { return staticInst->isNop(); }
     bool isMemRef()       const { return staticInst->isMemRef(); }

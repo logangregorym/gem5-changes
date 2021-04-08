@@ -92,6 +92,7 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
                                 !instruction->isVector() && 
                                 !instruction->isStore() && 
                                 !instruction->isFloating() &&
+                                !instruction->isControl() &&
                                 /*!instruction->isCC()*/ 
                                 instruction->isStreamedFromUOpCache() &&
                                 !instruction->isStreamedFromSpeculativeCache();
@@ -515,26 +516,114 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                 }
         }
 
+       // if the instruction is updating the CC regs, then dont insert new ones!
+        // For example, if the instructions is prediction source, then it will update the some of the CC regs
+        // these are CC flags for x86 
+        // CCREG_ZAPS = 0
+        // CCREG_CFOF = 1
+        // CCREG_DF   = 2
+        // CCREG_ECF  = 3
+        // CCREG_EZF  = 4
+        bool dumpCCFlags[5] = {true};
+        if (ccValid)
+        {
+            assert(inst->numCCDestRegs() == inst->_numCCDestRegsOrig);
+            if (inst->numCCDestRegs() > 0)
+            {
+                for (int idx = 0; idx < inst->numDestRegs(); idx++)
+                {
+                    if (inst->destRegIdx(idx).isCCReg())
+                    {
+                        uint16_t cc_reg_idx = inst->destRegIdx(idx).index();
+                        // always should be less than 5 as we just have 5 CSR regs in x86
+                        assert(cc_reg_idx < 5);
+                        dumpCCFlags[cc_reg_idx] = false;
+                    }
+
+                }
+            }
+        }
+
         // always dump all the CC regs no matter what
         if (ccValid) {
-                DPRINTF(TraceGen, "Dumping CCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x\n", PredccFlagBits, PredcfofBits, PreddfBit, PredecfBit, PredezfBit);
+            DPRINTF(TraceGen, "Dumping CCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x\n", PredccFlagBits, PredcfofBits, PreddfBit, PredecfBit, PredezfBit);
+            if (dumpCCFlags[0]) //CCREG_ZAPS
+            {
                 inst->liveOut[inst->numDestRegs()] = PredccFlagBits;
                 inst->liveOutPredicted[inst->numDestRegs()] = true;
                 inst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
+                inst->_numCCDestRegs += 1;
+                inst->setCarriesLiveOut(true);
+                inst->forwardedCCLiveValueExists[0] = false;
+            }
+            else 
+            {
+                inst->forwardedCCLiveValueExists[0] = true;
+                inst->forwardedCCLiveValue[0] = PredccFlagBits;
+            }
+
+            
+            if (dumpCCFlags[1]) //CCREG_CFOF
+            {
                 inst->liveOut[inst->numDestRegs()] = PredcfofBits;
                 inst->liveOutPredicted[inst->numDestRegs()] = true;
                 inst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
+                inst->_numCCDestRegs += 1;
+                inst->setCarriesLiveOut(true);
+                inst->forwardedCCLiveValueExists[1] = false;
+            }
+            else 
+            {
+                inst->forwardedCCLiveValueExists[1] = true;
+                inst->forwardedCCLiveValue[1] = PredcfofBits;
+            }
+
+            if (dumpCCFlags[2]) //CCREG_DF
+            {
                 inst->liveOut[inst->numDestRegs()] = PreddfBit;
                 inst->liveOutPredicted[inst->numDestRegs()] = true;
                 inst->addDestReg(RegId(CCRegClass, CCREG_DF));
+                inst->_numCCDestRegs += 1;
+                inst->setCarriesLiveOut(true);
+                inst->forwardedCCLiveValueExists[2] = false;
+            }
+            else 
+            {
+                inst->forwardedCCLiveValueExists[2] = true;
+                inst->forwardedCCLiveValue[2] = PreddfBit;
+            }
+                
+            if (dumpCCFlags[3]) //CCREG_ECF
+            {
                 inst->liveOut[inst->numDestRegs()] = PredecfBit;
                 inst->liveOutPredicted[inst->numDestRegs()] = true;
                 inst->addDestReg(RegId(CCRegClass, CCREG_ECF));
+                inst->_numCCDestRegs += 1;
+                inst->setCarriesLiveOut(true);
+                inst->forwardedCCLiveValueExists[3] = false;
+            }
+            else 
+            {
+                inst->forwardedCCLiveValueExists[3] = true;
+                inst->forwardedCCLiveValue[0] = PredecfBit;
+                
+            }
+
+            if (dumpCCFlags[4]) //CCREG_EZF
+            {
                 inst->liveOut[inst->numDestRegs()] = PredezfBit;
                 inst->liveOutPredicted[inst->numDestRegs()] = true;
                 inst->addDestReg(RegId(CCRegClass, CCREG_EZF));
-                inst->_numCCDestRegs += 5;
+                inst->_numCCDestRegs += 1;
                 inst->setCarriesLiveOut(true);
+                inst->forwardedCCLiveValueExists[4] = false;
+            }
+            else 
+            {
+                inst->forwardedCCLiveValueExists[4] = true;
+                inst->forwardedCCLiveValue[4] = PredezfBit;
+            }
+
         }
     }
 }
@@ -954,6 +1043,21 @@ bool TraceBasedGraph::generateNextTraceInst() {
     bool propagated = false;
     bool folded = false;
     bool unknownType = false;
+
+
+
+    // sanity check, do we have an instruction that updates the CC regs but it's not CC ?!
+    // dumpLivesOut functions adds to the number of CC dest regs, but here we have the orignal microop, therefore this assertion should always be true
+    panic_if((!currentTrace.inst->isCC() && currentTrace.inst->numCCDestRegs() > 0), 
+            "Insturction has CC reg dests and, i.e., updates the CC regs but it's not CC! This can potenially cause bugs! Inst. type = %s\n " , currentTrace.inst->getName());
+
+    //sanity check. Are "mov" or "movi" control microops?! "br" is control but do we execute it?! It can cause bugs
+    panic_if((currentTrace.inst->isControl() && (currentTrace.inst->getName() != "wrip" && currentTrace.inst->getName() != "wripi")), 
+            "Insturction is Control and is not wrip or wripi! Inst. type = %s\n " , currentTrace.inst->getName());
+    //update number of original CC regs
+    currentTrace.inst->_numCCDestRegsOrig = currentTrace.inst->numCCDestRegs();
+
+
     // Propagate predicted values
     if (type == "mov") {
             DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
@@ -1063,6 +1167,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
         // if it's a prediction source, then do the same thin as before
         if (isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency)) 
         {
+            panic_if(/*currentTrace.inst->getName() == "and" ||
+                     currentTrace.inst->getName() == "lea" ||*/
+                     currentTrace.inst->isStore(), "Predicting a non-predictable instruction!\n");
             // Mark prediction source as valid in register context block.    
             int numIntDestRegs = 0;
             for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
@@ -1139,6 +1246,16 @@ bool TraceBasedGraph::generateNextTraceInst() {
         currentTrace.prevEliminatedInst = currentTrace.inst;
         currentTrace.interveningDeadInsts++;
     }
+
+
+    // If we are here, it means instruction is not propagated and after this instruction all the CC flags should get invalidated
+    // if the orignal number of CC dest regs are grater than zero, then this instruction is updating them
+    // we have "_numCCDestRegsOrig" variable beacuse sometime dumpLivesOut function adds to the CC regs
+    // by this time, we already have used the propagated CC flags in sourcePredicted regs
+    if (!isDeadCode && !folded && currentTrace.inst->_numCCDestRegsOrig > 0) {
+        ccValid = false;
+    }
+
     // Simulate a stall if update to speculative cache wasn't successful
     if (updateSuccessful) {
         currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr;

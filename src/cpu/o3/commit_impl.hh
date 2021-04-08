@@ -1089,6 +1089,59 @@ DefaultCommit<Impl>::commitInsts()
             if (commit_success) {
                 ++num_committed;
                 statCommittedInstType[tid][head_inst->opClass()]++;
+
+
+                panic_if(head_inst->isSquashedAndCommited() && !head_inst->isTracePredictionSource(), "A none prediction source instruction is getting suqashed and commited!\n");
+                panic_if(head_inst->isSquashedAndCommited() && !head_inst->isStreamedFromSpeculativeCache(), "A non-speculative instruction is getting suqashed and commited!\n");
+                if (head_inst->isStreamedFromSpeculativeCache() && head_inst->isTracePredictionSource() && head_inst->isSquashedAndCommited() )
+                {
+                    statCommittedInstType[tid][OpClass::SquahedAndCommited]++;
+
+                    if (head_inst->isLoad())
+                        statCommittedInstType[tid][OpClass::LoadSquahedAndCommited]++;
+                    else
+                        statCommittedInstType[tid][OpClass::ArithmeticSquashedAndCommited]++;
+                }
+
+                // only count insts that are not suqashed and committed due to speculative execution
+                if (!head_inst->isSquashedAndCommited())
+                {
+                    if (head_inst->getName() == "and")
+                        statCommittedInstType[tid][OpClass::AND]++;
+                    else if (head_inst->getName() == "andi")
+                        statCommittedInstType[tid][OpClass::ANDI]++;
+                    else if ( head_inst->getName() == "or")
+                        statCommittedInstType[tid][OpClass::OR]++;
+                    else if ( head_inst->getName() == "ori")
+                        statCommittedInstType[tid][OpClass::ORI]++;
+                    else if ( head_inst->getName() == "xor")
+                        statCommittedInstType[tid][OpClass::XOR]++;
+                    else if ( head_inst->getName() == "xori")
+                        statCommittedInstType[tid][OpClass::XORI]++;
+                    else if ( head_inst->getName() == "sub")
+                        statCommittedInstType[tid][OpClass::SUB]++;
+                    else if ( head_inst->getName() == "subi")
+                        statCommittedInstType[tid][OpClass::SUBI]++;
+                    else if ( head_inst->getName() == "add")
+                        statCommittedInstType[tid][OpClass::ADD]++;
+                    else if ( head_inst->getName() == "addi")
+                        statCommittedInstType[tid][OpClass::ADDI]++;
+                    else if ( head_inst->getName() == "slli")
+                        statCommittedInstType[tid][OpClass::SLLI]++;
+                    else if ( head_inst->getName() == "srli")
+                        statCommittedInstType[tid][OpClass::SRLI]++;
+                    else if ( head_inst->getName() == "lea")
+                        statCommittedInstType[tid][OpClass::LEA]++;
+                    else if ( head_inst->getName() == "sexti")
+                        statCommittedInstType[tid][OpClass::SEXTI]++;
+                    else if ( head_inst->getName() == "zexti")
+                        statCommittedInstType[tid][OpClass::ZEXTI]++;
+                    else if ( head_inst->getName() == "limm")
+                        statCommittedInstType[tid][OpClass::LIMM]++;
+                    else if ( head_inst->getName() == "rdip")
+                        statCommittedInstType[tid][OpClass::RDIP]++;
+                }
+            
                 ppCommit->notify(head_inst);
 
                 changedROBNumEntries[tid] = true;
