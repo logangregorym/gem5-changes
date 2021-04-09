@@ -1132,6 +1132,8 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
 
 void
 Decoder::updateStreamTrace(uint64_t traceID, X86ISA::PCState &thisPC) {
+    
+    assert(traceConstructor->traceMap.find(traceID) != traceConstructor->traceMap.end());
     traceConstructor->streamTrace = traceConstructor->traceMap[traceID];
     int idx = traceConstructor->streamTrace.getOptimizedHead().idx;
     int baseWay = traceConstructor->streamTrace.getOptimizedHead().way;
@@ -1361,11 +1363,22 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                 speculativeTagArray[idx][w] = 0;
                 speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
                 specHotnessArray[idx][w].reset();
-                StaticInstPtr macroOp = speculativeCache[idx][w][0]->macroOp;
-                if (macroOp) {
-                    macroOp->deleteMicroOps();
-                    macroOp = NULL;
+
+                for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) 
+                {
+                    StaticInstPtr macroOp = speculativeCache[idx][w][uop]->macroOp;
+                    if (macroOp) {
+                        macroOp->deleteMicroOps();
+                        macroOp = NULL;
+                    }
+                    else 
+                    {
+                        speculativeCache[idx][w][uop] = NULL;
+                    }
                 }
+
+                
+                
             }
         }
         // trace map should always hold it
@@ -1765,11 +1778,19 @@ Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t evictedTraceID)
                 speculativeTagArray[idx][w] = 0;
                 speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
                 specHotnessArray[idx][w].reset();
-                StaticInstPtr macroOp = speculativeCache[idx][w][0]->macroOp;
-                if (macroOp) {
-                    macroOp->deleteMicroOps();
-                    macroOp = NULL;
+                for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) 
+                {
+                    StaticInstPtr macroOp = speculativeCache[idx][w][uop]->macroOp;
+                    if (macroOp) {
+                        macroOp->deleteMicroOps();
+                        macroOp = NULL;
+                    }
+                    else 
+                    {
+                        speculativeCache[idx][w][uop] = NULL;
+                    }
                 }
+                
         }
     
     }
@@ -1824,6 +1845,7 @@ Decoder::invalidateSpecCacheLine(int idx, int way) {
 
 unsigned
 Decoder::minConfidence(uint64_t traceId) {
+    assert(traceConstructor->traceMap.find(traceId) != traceConstructor->traceMap.end());
     unsigned minConf = traceConstructor->traceMap[traceId].source[0].confidence;
     for (int i = 0; i < 4; i++) {
         assert(traceConstructor->traceMap.find(traceId) != traceConstructor->traceMap.end());
@@ -1837,10 +1859,10 @@ Decoder::minConfidence(uint64_t traceId) {
 
 unsigned
 Decoder::maxLatency(uint64_t traceId) {
+    assert(traceConstructor->traceMap.find(traceId) != traceConstructor->traceMap.end());
     unsigned maxLat = 0;
     for (int i = 0; i < 4; i++) {
         if (traceConstructor->traceMap[traceId].source[i].valid) {
-            assert(traceConstructor->traceMap.find(traceId) != traceConstructor->traceMap.end());
             unsigned sourceLat = traceConstructor->traceMap[traceId].source[i].latency;
             if (sourceLat > maxLat) { maxLat = sourceLat; }
         }
@@ -1852,6 +1874,8 @@ Decoder::maxLatency(uint64_t traceId) {
 // In case of a folded branch, nextPC and predict_taken should be set by the function
 StaticInstPtr 
 Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86ISA::PCState &nextPC, bool &predict_taken) {
+
+    assert(traceConstructor->traceMap.find(traceID) != traceConstructor->traceMap.end());
     int idx = traceConstructor->traceMap[traceID].addr.idx;
     int way = traceConstructor->traceMap[traceID].addr.way;
     int uop = traceConstructor->traceMap[traceID].addr.uop;
@@ -1927,7 +1951,8 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
         predict_taken = traceConstructor->branchPred->lookupWithoutUpdate(0, instAddr.pcAddr);
     }
 
-    assert(curInst->macroOp);
+    
+    panic_if(!curInst->macroOp, "Inst. without macroop! %s\n", curInst->getName());
     thisPC.size(curInst->macroOp->getMacroopSize());
     thisPC._npc = thisPC._pc + curInst->macroOp->getMacroopSize();
     thisPC._nupc = thisPC._upc + 1;

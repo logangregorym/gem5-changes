@@ -249,6 +249,14 @@ struct SpecTrace
         inTransit= false;
         totalNumOfMicroopsCommitedFromTrace = 0;
         totalNumOfMicroopsFetchedFromTrace = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            source[i].valid = source[i].isBranch= false;
+        }
+        for (int i = 0; i < 2; i++)
+        {
+            controlSources[i].valid = controlSources[i].isBranch = false;
+        }
     }
 };
 #endif // __ARCH_X86_DECODER_STRUCTS__

@@ -1355,7 +1355,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                               TheISA::PCState nextPC, bool trace)
 {
     assert(staticInst);
-
+    assert(tid == 0);
     // Get a sequence number.
     InstSeqNum seq;
     seq = cpu->getAndIncrementInstSeq();
@@ -1375,11 +1375,6 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
     } else {
         ++specCacheMissOps;
     }
-
-    
-
- 
-        
 
 
     if (decoder[tid]->traceConstructor->IsValuePredictible(instruction->staticInst)) 
@@ -1485,6 +1480,7 @@ DefaultFetch<Impl>::isStreamingFromSpeculativeCache(TheISA::PCState thisPC)
 {
     // check the speculative cache even before the microop cache
     ThreadID tid = getFetchingThread(fetchPolicy);
+    assert(tid == 0);
     if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive() && thisPC.upc() == 0) {
 
         currentTraceID = decoder[tid]->isTraceAvailable(FullUopAddr(thisPC.instAddr(), thisPC.upc()));
@@ -1528,6 +1524,7 @@ DefaultFetch<Impl>::isStreamingFromUopCache(TheISA::PCState thisPC)
     // Check the micro-op cache.  If we already find a translation
     // in the micro-op cache, bypass icache fetch and decode.
     ThreadID tid = getFetchingThread(fetchPolicy);
+    assert(tid == 0);
     if (isUopCachePresent && decoder[tid]->isHitInUopCache(thisPC.instAddr())) {
         DPRINTF(Fetch, "isStreamingFromUopCache: Setting microop cache active at Pc %s.\n", thisPC);
         //decoder[tid]->setUopCacheActive(true);
@@ -1566,6 +1563,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     DPRINTF(Fetch, "Attempting to fetch from [tid:%i]\n", tid);
 
     // The current PC.
+    assert(tid == 0);
     TheISA::PCState thisPC = pc[tid];
 
     Addr pcOffset = fetchOffset[tid];
@@ -1922,10 +1920,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             
                             blkOffset = (fetchAddr - fetchBufferPC[tid]) / instSize;
 
-                            DPRINTF(Fetch, "fetchBuffer is not valid with PC: %#x fetchAddr: %#x fetchBufferPC: %#x blkoffset: %d fetchBuffer: 0x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x\n", thisPC.instAddr() ,fetchAddr, fetchBufferPC[tid], blkOffset,
-                                fetchBuffer[tid][0],fetchBuffer[tid][1],fetchBuffer[tid][2],fetchBuffer[tid][3],fetchBuffer[tid][4],fetchBuffer[tid][5],fetchBuffer[tid][6],fetchBuffer[tid][7],
-                                fetchBuffer[tid][8],fetchBuffer[tid][9],fetchBuffer[tid][10],fetchBuffer[tid][11],fetchBuffer[tid][12],fetchBuffer[tid][13],fetchBuffer[tid][14],fetchBuffer[tid][15]            
-                            );
+                            // DPRINTF(Fetch, "fetchBuffer is not valid with PC: %#x fetchAddr: %#x fetchBufferPC: %#x blkoffset: %d fetchBuffer: 0x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x\n", thisPC.instAddr() ,fetchAddr, fetchBufferPC[tid], blkOffset,
+                            //     fetchBuffer[tid][0],fetchBuffer[tid][1],fetchBuffer[tid][2],fetchBuffer[tid][3],fetchBuffer[tid][4],fetchBuffer[tid][5],fetchBuffer[tid][6],fetchBuffer[tid][7],
+                            //     fetchBuffer[tid][8],fetchBuffer[tid][9],fetchBuffer[tid][10],fetchBuffer[tid][11],fetchBuffer[tid][12],fetchBuffer[tid][13],fetchBuffer[tid][14],fetchBuffer[tid][15]            
+                            // );
                             // when we break, we need to make sure that decoder[tid]->instReady() always return false;
                             // otherwise we will go into a loop!
                             // if this assert gets activated we need to reset instReady manualy in decoder.  

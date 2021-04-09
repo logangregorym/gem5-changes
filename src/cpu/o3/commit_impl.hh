@@ -1052,6 +1052,7 @@ DefaultCommit<Impl>::commitInsts()
         head_inst = rob->readHeadInst(commit_thread);
 
         ThreadID tid = head_inst->threadNumber;
+        assert(tid == 0);
 
         assert(tid == commit_thread);
 
@@ -1252,6 +1253,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     assert(head_inst);
 
     ThreadID tid = head_inst->threadNumber;
+    assert(tid == 0);
 
     // If the instruction is not executed yet, then it will need extra
     // handling.  Signal backwards that it should be executed.
@@ -1472,7 +1474,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
   
         DPRINTF(SuperOpSanityCheck, "%s\n", reg_values.str());
     }
-    // else if (head_inst->isStore())
+    // else if ( head_inst->isStore())
     // {
     //     DPRINTF(SuperOpSanityCheck, "%x\n", head_inst->instAddr());
     // }
