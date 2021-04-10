@@ -252,6 +252,10 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 			decodedMacroOp->deleteMicroOps();
 			decodedMacroOp = NULL;
 		}
+        else 
+        {
+            decodedMacroOp = NULL;
+        }
 
         DPRINTF(SuperOp, "Not a control microop!\n");
         return false;
@@ -268,6 +272,10 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 			decodedMacroOp->deleteMicroOps();
 			decodedMacroOp = NULL;
 		}
+        else 
+        {
+            decodedMacroOp = NULL;
+        }        
         return true;
     }
 
@@ -312,6 +320,10 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
                         decodedMacroOp->deleteMicroOps();
                         decodedMacroOp = NULL;
                     }
+                    else 
+                    {
+                        decodedMacroOp = NULL;
+                    }
                     DPRINTF(TraceGen, "Control Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, uop_cache_idx, way, uop);
                     
                     trace.controlSources[trace.branchesFolded].confidence = 9;
@@ -328,6 +340,10 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 
     if (decodedMacroOp->isMacroop()) { 
         decodedMacroOp->deleteMicroOps();
+        decodedMacroOp = NULL;
+    }
+    else 
+    {
         decodedMacroOp = NULL;
     }
 
@@ -439,6 +455,10 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
 			decodedMacroOp->deleteMicroOps();
 			decodedMacroOp = NULL;
 		}
+        else 
+        {
+            decodedMacroOp = NULL;
+        }
     } else {
 
         panic_if(trace.state != SpecTrace::Complete, "Trace State is %d\n", trace.state);
@@ -682,6 +702,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 // clear spec cache write queue
                 for (auto &micro: decoder->specCacheWriteQueue)
                 {
+                    if (!micro.inst->macroOp)
+                    {
+                        assert(!micro.inst->isMacroop());
+                        micro.inst = NULL;
+                        continue;
+                    }
+
                     StaticInstPtr macro = NULL;
                     if (micro.inst->macroOp && micro.inst->macroOp->isMacroop())
                     {
@@ -714,6 +741,12 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 // clear spec cache write queue
                 for (auto &micro: decoder->specCacheWriteQueue)
                 {
+                    if (!micro.inst->macroOp)
+                    {
+                        assert(!micro.inst->isMacroop());
+                        micro.inst = NULL;
+                        continue;
+                    }
                     StaticInstPtr macro = NULL;
                     if (micro.inst->macroOp && micro.inst->macroOp->isMacroop())
                     {
@@ -747,6 +780,12 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 // clear spec cache write queue
                 for (auto &micro: decoder->specCacheWriteQueue)
                 {
+                    if (!micro.inst->macroOp)
+                    {
+                        assert(!micro.inst->isMacroop());
+                        micro.inst = NULL;
+                        continue;
+                    }
                     StaticInstPtr macro = NULL;
                     if (micro.inst->macroOp && micro.inst->macroOp->isMacroop())
                     {
@@ -949,6 +988,12 @@ bool TraceBasedGraph::generateNextTraceInst() {
             // clear spec cahce write queue
             for (auto &micro: decoder->specCacheWriteQueue)
             {
+                if (!micro.inst->macroOp)
+                {
+                    assert(!micro.inst->isMacroop());
+                    micro.inst = NULL;
+                    continue;
+                }
                 StaticInstPtr macro = NULL;
                 if (micro.inst->macroOp && micro.inst->macroOp->isMacroop())
                 {
@@ -993,7 +1038,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "fcom" || decodedMacroOp->getName() == "fisttp" ||
             decodedMacroOp->getName() == "fwait" || decodedMacroOp->getName() == "frstor" ||
             decodedMacroOp->getName() == "xsave" || decodedMacroOp->getName() == "call_far_Mp" ||
-            decodedMacroOp->getName() == "fiadd") {
+            decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") {
             currentTrace.length++;
             if (currentTrace.prevNonEliminatedInst) {
                 currentTrace.prevNonEliminatedInst->shrunkenLength++;
@@ -1015,7 +1060,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 decodedMacroOp->getName() == "fcom" || decodedMacroOp->getName() == "fisttp" ||
                 decodedMacroOp->getName() == "fwait" || decodedMacroOp->getName() == "frstor" || 
                 decodedMacroOp->getName() == "xsave"|| decodedMacroOp->getName() == "call_far_Mp" ||
-                decodedMacroOp->getName() == "fiadd") {
+                decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") {
                 currentTrace.length++;
                 if (currentTrace.prevNonEliminatedInst) {
                     currentTrace.prevNonEliminatedInst->shrunkenLength++;
@@ -1073,6 +1118,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     } else if (type == "rdip") {
             DPRINTF(ConstProp, "Found an RDIP at [%i][%i][%i], compacting...\n", idx, way, uop);
             RegId destReg = currentTrace.inst->destRegIdx(0);
+            assert(destReg.flatIndex() < 38);
             regCtx[destReg.flatIndex()].value = currentTrace.instAddr.pcAddr + currentTrace.inst->macroOp->getMacroopSize();
             regCtx[destReg.flatIndex()].valid = propagated = true;
             DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", regCtx[destReg.flatIndex()].value, destReg.flatIndex());
@@ -1259,8 +1305,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.end.uopAddr = 0;
         } 
         else if (type == "CPUID") {
-            warn("unsupported instruction without macro-op : CPUID\n");
-            //panic("unsupported instruction without macro-op: %s", type);
+            //warn("unsupported instruction without macro-op : CPUID\n");
+            panic("unsupported instruction without macro-op: %s", type);
         }
         else 
         {
@@ -1508,6 +1554,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
                     //if (fold)  DPRINTF(ConstProp, "ConstProp: Found a folded register! Reg: %d \n", src_reg_idx);
                     DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i (arch: %d) at %#x:%d\n", regCtx[src_reg_idx].value, srcIdx, src_reg_idx, trace.instAddr.pcAddr, trace.instAddr.uopAddr);
                     DPRINTF(ConstProp, "ConstProp: Setting trace.inst sourcePrediction to %#x\n", regCtx[src_reg_idx].value);
+                    assert( i < 38);
                     trace.inst->sourcePredictions[i] = regCtx[src_reg_idx].value;
                     trace.inst->sourcesPredicted[i] = true;
                 } 

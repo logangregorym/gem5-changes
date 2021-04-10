@@ -1764,7 +1764,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     // to make sure that we always have the macroop for every microop
                     //assert(staticInst->macroOp != StaticInst::nullStaticInstPtr);
 
-                    assert(staticInst->macroOp);
+                    panic_if(/*staticInst->getName() != "syscall" &&*/ !staticInst->macroOp, "Microop without macroOp! %s\n",staticInst->getName());
                     staticInst->setStreamedFromSpeculativeCache(true);
 
                     /* Micro-fusion. */

@@ -129,7 +129,7 @@ class Decoder
     bool uopValidArray[32][8];
     int uopCountArray[32][8];
     int uopLRUArray[32][8];
-    bool uopFullArray[32][8];
+    //bool uopFullArray[32][8];
     BigSatCounter uopHotnessArray[32][8];
     bool uopProfitableTrace[32][8];
     // Parallel cache for optimized micro-ops
