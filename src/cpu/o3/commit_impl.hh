@@ -1249,6 +1249,7 @@ bool
 DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
 {
     assert(head_inst);
+    assert(head_inst->staticInst);
 
     ThreadID tid = head_inst->threadNumber;
 

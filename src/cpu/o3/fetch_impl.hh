@@ -1733,7 +1733,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
         // Extract as many instructions and/or microops as we can from
         // the memory we've processed so far.
-        
+        StaticInstPtr prevSpecInst = NULL;
         do {
                 bool newMacro = false, fused = false;
 
@@ -1766,8 +1766,20 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                     assert(staticInst->macroOp);
                     staticInst->setStreamedFromSpeculativeCache(true);
+
+                    /* Micro-fusion. */
+                    if (isMicroFusionPresent && prevSpecInst && prevSpecInst->isStreamedFromSpeculativeCache()) {
+                        if ((staticInst->isInteger() || staticInst->isNop() ||
+                            staticInst->isControl() || staticInst->isMicroBranch()) &&
+                            prevSpecInst->isLoad() && !prevSpecInst->isRipRel()) {
+                            fused = true;
+                        }
+                    }
+                    prevSpecInst = staticInst;
+ 
                     DynInstPtr instruction = buildInst(tid, staticInst, staticInst->macroOp,
                                                         thisPC, nextPC, true);
+                    instruction->fused = fused;
 
                     //std::cout << "IsSpecCacheActive = " << decoder[tid]->isSpeculativeCacheActive() << " IsUopCacheActive = " << decoder[tid]->isUopCacheActive() << std::endl;
                 
