@@ -1292,6 +1292,25 @@ bool TraceBasedGraph::generateNextTraceInst() {
         currentTrace.prevNonEliminatedInst = currentTrace.inst;
 
     } else {
+        currentTrace.inst->eliminated = true;
+        if (currentTrace.prevEliminatedInst && currentTrace.prevEliminatedInst->macroOp) {
+            bool allEliminated = true;
+            StaticInstPtr macroOp = currentTrace.prevEliminatedInst->macroOp;
+            DPRINTF(TraceGen, "Previous eliminated instruction is %s from macro-op %s with %i uops\n",
+                              currentTrace.prevEliminatedInst->getName(), macroOp->getName(), macroOp->getNumMicroops());
+            for (int i = 0; i < macroOp->getNumMicroops(); i++) {
+                StaticInstPtr si = macroOp->fetchMicroop(i);
+                DPRINTF(TraceGen, "uop[%i]: %s is %s\n", i, si->getName(), si->eliminated ? "eliminated" : "not eliminated");
+                if (!si->eliminated) {
+                    allEliminated = false;
+                    break;
+                }
+            }
+            if (allEliminated) {
+                macroOp->deleteMicroOps();
+                macroOp = NULL;
+            }
+        }
         currentTrace.prevEliminatedInst = currentTrace.inst;
         currentTrace.interveningDeadInsts++;
     }
