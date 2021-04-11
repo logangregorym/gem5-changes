@@ -454,6 +454,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     uint64_t confidence = 0; // could be using BigSC
     bool predictedLoad = false;
     bool dummyMicroop = false;
+    bool eliminated = false;
     
     uint64_t shrunkenLength = 0;
 
