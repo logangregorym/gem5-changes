@@ -100,10 +100,9 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
         // don't pullote predictor with instructions that we already know thier values
     if (instruction->getName() == "rdip" || 
         instruction->getName() == "limm" ||  
-        instruction->getName() == "movi" /* ||
-        instruction->getName() == "lea"|| 
+        instruction->getName() == "movi" /*|| 
         instruction->getName() == "and" ||
-        */) 
+        instruction->getName() == "lea"*/) 
     {
         isPredictableType = false;
     }
@@ -573,7 +572,6 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                 DPRINTF(TraceGen, "Dumping CCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x\n", PredccFlagBits, PredcfofBits, PreddfBit, PredecfBit, PredezfBit);
                 if (dumpCCFlags[0]) //CCREG_ZAPS
                 {
-                    DPRINTF(TraceGen, "Dumping PredccFlagBits:%#x\n", PredccFlagBits);
                     inst->liveOut[inst->numDestRegs()] = PredccFlagBits;
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
@@ -584,14 +582,12 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                 }
                 else 
                 {
-                    DPRINTF(TraceGen, "Cannot Dump PredccFlagBits:%#x as it's parrt of the orignal instruction CC regs!\n", PredccFlagBits);
                     inst->forwardedCCLiveValueExists[0] = true;
                     inst->forwardedCCLiveValue[0] = PredccFlagBits;
                 }
 
                 if (dumpCCFlags[1]) //CCREG_CFOF
                 {
-                    DPRINTF(TraceGen, "Dumping PredcfofBits:%#x\n", PredcfofBits);
                     inst->liveOut[inst->numDestRegs()] = PredcfofBits;
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
@@ -602,14 +598,12 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                 }
                 else 
                 {
-                    DPRINTF(TraceGen, "Cannot Dump PredcfofBits:%#x as it's parrt of the orignal instruction CC regs!\n", PredcfofBits);
                     inst->forwardedCCLiveValueExists[1] = true;
                     inst->forwardedCCLiveValue[1] = PredcfofBits;
                 }
 
                 if (dumpCCFlags[2]) //CCREG_DF
                 {
-                    DPRINTF(TraceGen, "Dumping PreddfBit:%#x\n", PreddfBit);
                     inst->liveOut[inst->numDestRegs()] = PreddfBit;
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_DF));
@@ -620,14 +614,12 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                 }
                 else 
                 {
-                    DPRINTF(TraceGen, "Cannot Dump PreddfBit:%#x as it's parrt of the orignal instruction CC regs!\n", PreddfBit);
                     inst->forwardedCCLiveValueExists[2] = true;
                     inst->forwardedCCLiveValue[2] = PreddfBit;
                 }
 
                 if (dumpCCFlags[3]) //CCREG_ECF
                 {
-                    DPRINTF(TraceGen, "Dumping PredecfBit:%#x\n", PredecfBit);
                     inst->liveOut[inst->numDestRegs()] = PredecfBit;
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_ECF));
@@ -638,14 +630,12 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                 }
                 else 
                 {
-                    DPRINTF(TraceGen, "Cannot Dump PredecfBit:%#x as it's parrt of the orignal instruction CC regs!\n", PredecfBit);
                     inst->forwardedCCLiveValueExists[3] = true;
                     inst->forwardedCCLiveValue[3] = PredecfBit;
                 }
 
                 if (dumpCCFlags[4]) //CCREG_EZF
                 {
-                    DPRINTF(TraceGen, "Dumping PredezfBit:%#x\n", PredezfBit);
                     inst->liveOut[inst->numDestRegs()] = PredezfBit;
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_EZF));
@@ -656,15 +646,13 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                 }
                 else 
                 {
-                    DPRINTF(TraceGen, "Cannot Dump PredezfBit:%#x as it's parrt of the orignal instruction CC regs!\n", PredezfBit);
                     inst->forwardedCCLiveValueExists[4] = true;
                     inst->forwardedCCLiveValue[4] = PredezfBit;
                 }
                 
-        }
-        else 
-        {
-            DPRINTF(TraceGen, "CC regs are not valid!\n");
+
+
+                
         }
     }
 }
@@ -828,10 +816,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     currentTrace.prevEliminatedInst->shrunkenLength = currentTrace.interveningDeadInsts - 1; // excluding the current one
                     currentTrace.interveningDeadInsts = 0;
                     currentTrace.prevNonEliminatedInst = currentTrace.prevEliminatedInst;
-
-
-                    // panic_if(currentTrace.prevEliminatedInst->getName() == "wrip" || currentTrace.prevEliminatedInst->getName() == "wripi", 
-                    //     "TODO: Fix this! For folded branches we don't propagate sources because updateSpecTrace is never called! This is a bug because we are going to execute this instruction and we don't have the source registers values!\n");
                 }
 
                 for (auto &microop: decoder->specCacheWriteQueue)
@@ -1556,9 +1540,6 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
         DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not a dead code as its data size is less than 4/8 bytes!\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
     }
 
-
-
-
     // Inst will never already be in this trace, single pass
     if (isDeadCode) {
         DPRINTF(ConstProp, "Dead code at %#x:%#x\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
@@ -1626,7 +1607,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
 
     //uint16_t src1 = inst->srcRegIdx(0).flatIndex(); src1 = src1;
     //uint16_t src2 = inst->srcRegIdx(1).flatIndex(); // this is the soruce reg in 4 or 8 byte moves
-    //uint16_t src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0)); src1 = src1;
+    uint16_t src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0)); src1 = src1;
     uint16_t src2 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(1));
     //assert(src1 < 38); 
     assert(src2 < 38);
@@ -1658,22 +1639,6 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     } else {
         return true;
     }
-
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src2 < 38 );
-    assert(regCtx[src2].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src2].value, src2, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src2].value);
-    inst->sourcePredictions[1] = regCtx[src2].value;
-    inst->sourcesPredicted[1] = true;
-                        
-
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-         //panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "MOV: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
-    }
-
 
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
@@ -1731,13 +1696,6 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
 		forwardVal = x86_inst->merge(regCtx[dest_reg_idx].value, imm, dataSize);
 	} else if (dataSize < 4) { 
         return false; 
-    }
-
-
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-        // panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "LIMM: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
     }
 
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
@@ -1840,22 +1798,6 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
         PreddfBit = newFlags & DFBit;
         PredccFlagBits = newFlags & ccFlagMask;
         ccValid = true;
-    }
-
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 && src2 < 38);
-    assert(regCtx[src1].valid && regCtx[src2].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i and constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, regCtx[src2].value,  src2, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src2].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-    inst->sourcePredictions[1] = regCtx[src2].value;
-    inst->sourcesPredicted[1] = true;
-    for (int i=0; i< inst->numSrcRegs(); i++) 
-    {
-         //panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "ADD: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -1961,23 +1903,6 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
         ccValid = true;
     }
 
-
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 && src2 < 38);
-    assert(regCtx[src1].valid && regCtx[src2].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i and constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, regCtx[src2].value,  src2, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src2].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-    inst->sourcePredictions[1] = regCtx[src2].value;
-    inst->sourcesPredicted[1] = true;
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-         //panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "SUB: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
-    }
-
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
@@ -2081,22 +2006,6 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
         ccValid = true;
     }
 
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 && src2 < 38);
-    assert(regCtx[src1].valid && regCtx[src2].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i and constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, regCtx[src2].value,  src2, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src2].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-    inst->sourcePredictions[1] = regCtx[src2].value;
-    inst->sourcesPredicted[1] = true;
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-         //panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "AND: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
-    }
-
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
@@ -2197,22 +2106,6 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
         PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
         PredecfBit = PredecfBit & ~(ECFBit & ext);
         ccValid = true;
-    }
-
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 && src2 < 38);
-    assert(regCtx[src1].valid && regCtx[src2].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i and constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, regCtx[src2].value,  src2, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src2].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-    inst->sourcePredictions[1] = regCtx[src2].value;
-    inst->sourcesPredicted[1] = true;
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-        //panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "OR: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2325,20 +2218,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
         ccValid = true;
     }
 
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 && src2 < 38);
-    assert(regCtx[src1].valid && regCtx[src2].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i and constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, regCtx[src2].value,  src2, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src2].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-    inst->sourcePredictions[1] = regCtx[src2].value;
-    inst->sourcesPredicted[1] = true;
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-        //panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "XOR: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-    }
+
     
 
     RegId destReg = inst->destRegIdx(0);
@@ -2355,8 +2235,6 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
 }
 
 bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
-    
-    //assert(0);
     string type = inst->getName();
     assert(type == "movi");
     
@@ -2489,22 +2367,6 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
         ccValid = true;
     }
 
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 );
-    assert(regCtx[src1].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-                        
-    // wrip and wripi microops always have CC regs sources therfore we need to propagate them
-
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-       // panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "SUBI: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
-    }
-
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
@@ -2600,22 +2462,6 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
         PreddfBit = newFlags & DFBit;
         PredccFlagBits = newFlags & ccFlagMask;
         ccValid = true;
-    }
-
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 );
-    assert(regCtx[src1].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-                        
-    // wrip and wripi microops always have CC regs sources therfore we need to propagate them
-
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-      //  panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "ADDI: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2715,22 +2561,6 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
         ccValid = true;
     }
 
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 );
-    assert(regCtx[src1].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-                        
-    // wrip and wripi microops always have CC regs sources therfore we need to propagate them
-
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-       // panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "ANDI: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
-    }
-
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
@@ -2825,22 +2655,6 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
         PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
         PredecfBit = PredecfBit & ~(ECFBit & ext);
         ccValid = true;
-    }
-
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 );
-    assert(regCtx[src1].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-                        
-    // wrip and wripi microops always have CC regs sources therfore we need to propagate them
-
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-        //panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "ORI: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2939,22 +2753,6 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
         PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
         PredecfBit = PredecfBit & ~(ECFBit & ext);
         ccValid = true;
-    }
-
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 );
-    assert(regCtx[src1].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-                        
-    // wrip and wripi microops always have CC regs sources therfore we need to propagate them
-
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-        //panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "XORI: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -3075,22 +2873,6 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
         ccValid = true;
     }
 
-
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 );
-    assert(regCtx[src1].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-                        
-    // wrip and wripi microops always have CC regs sources therfore we need to propagate them
-
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-        //panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "SLLI: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));   
-    }
-
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
@@ -3208,21 +2990,6 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
         ccValid = true;
     }
 
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 );
-    assert(regCtx[src1].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-                        
-
-    for (int i=0; i< inst->numSrcRegs(); i++) 
-    {
-        //panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "SRLI: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-    }
-
-
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
@@ -3337,23 +3104,6 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
         }
     }
 
-
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 );
-    assert(regCtx[src1].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-       // panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "SEXTI: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
-    }
-
-    
-
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
@@ -3427,26 +3177,10 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
 		forwardVal = x86_inst->merge(DestReg, bits(psrc1, imm8, 0), dataSize);
     }
 
-
-    // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-    assert(src1 < 38 );
-    assert(regCtx[src1].valid);
-    DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-    DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-    inst->sourcePredictions[0] = regCtx[src1].value;
-    inst->sourcesPredicted[0] = true;
-                        
-    for (int i=0; i<inst->numSrcRegs(); i++) 
-    {
-        // panic_if(inst->srcRegIdx(i).classValue() == CCRegClass, "ZEXTI: Microop has CC soruce regs and they should be propagated! src id:%d=%s\n",i,inst->srcRegIdx(i));
-            
-    }
-
-    
-
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
+
     DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
     assert(dest_reg_idx < 38);
     regCtx[dest_reg_idx].value = forwardVal;
@@ -3563,33 +3297,6 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
 
                         currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
-
-                        // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-                        assert(src1 < 38 && src2 < 38);
-                        assert(regCtx[src1].valid && regCtx[src2].valid);
-                        DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i and constant %#x in reg %i at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, regCtx[src2].value,  src2, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-                        DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-                        DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src2].value);
-                        inst->sourcePredictions[0] = regCtx[src1].value;
-                        inst->sourcesPredicted[0] = true;
-                        inst->sourcePredictions[1] = regCtx[src2].value;
-                        inst->sourcesPredicted[1] = true;
-                        
-                        // wrip and wripi microops always have CC regs sources therfore we need to propagate them
-                        if (ccValid) {
-                            DPRINTF(ConstProp, "Propagating CC flags with propagated wripi microop!\n");
-                            inst->propgatedCCFlags[0] = PredccFlagBits;
-                            inst->isCCFlagPropagated[0] = true;
-                            inst->propgatedCCFlags[1] = PredcfofBits;
-                            inst->isCCFlagPropagated[1] = true;
-                            inst->propgatedCCFlags[2] = PreddfBit;
-                            inst->isCCFlagPropagated[2] = true;
-                            inst->propgatedCCFlags[3] = PredecfBit;
-                            inst->isCCFlagPropagated[3] = true;
-                            inst->propgatedCCFlags[4] = PredezfBit;
-                            inst->isCCFlagPropagated[4] = true;
-                        }
-
                         return true;
                     }
                 }
@@ -3734,32 +3441,6 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
 
                         currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
-
-
-                        
-                        // propagate soruce regs in case this inst became a last dummy eliminated microop of the trace 
-                        assert(src1 < 38);
-                        assert(regCtx[src1].valid);
-                        DPRINTF(ConstProp, "ConstProp: Propagated constant %#x in reg %i (arch: %d) at %#x:%d for a propagated microop!\n", regCtx[src1].value, src1, src1, currentTrace.instAddr.pcAddr, currentTrace.instAddr.uopAddr);
-                        DPRINTF(ConstProp, "ConstProp: Setting sourcePrediction of propagated instruction to %#x\n", regCtx[src1].value);
-                        inst->sourcePredictions[0] = regCtx[src1].value;
-                        inst->sourcesPredicted[0] = true;
-                        
-                        // wrip and wripi microops always have CC regs sources therfore we need to propagate them
-                        if (ccValid) {
-                            DPRINTF(ConstProp, "Propagating CC flags with propagated wripi microop!\n");
-                            inst->propgatedCCFlags[0] = PredccFlagBits;
-                            inst->isCCFlagPropagated[0] = true;
-                            inst->propgatedCCFlags[1] = PredcfofBits;
-                            inst->isCCFlagPropagated[1] = true;
-                            inst->propgatedCCFlags[2] = PreddfBit;
-                            inst->isCCFlagPropagated[2] = true;
-                            inst->propgatedCCFlags[3] = PredecfBit;
-                            inst->isCCFlagPropagated[3] = true;
-                            inst->propgatedCCFlags[4] = PredezfBit;
-                            inst->isCCFlagPropagated[4] = true;
-                        }
-
                         return true;
                     }
                 }
