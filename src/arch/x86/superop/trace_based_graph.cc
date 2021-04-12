@@ -816,6 +816,23 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     currentTrace.prevEliminatedInst->shrunkenLength = currentTrace.interveningDeadInsts - 1; // excluding the current one
                     currentTrace.interveningDeadInsts = 0;
                     currentTrace.prevNonEliminatedInst = currentTrace.prevEliminatedInst;
+                } else if (currentTrace.prevEliminatedInst && currentTrace.prevEliminatedInst->macroOp) {
+                    bool allEliminated = true;
+                    StaticInstPtr macroOp = currentTrace.prevEliminatedInst->macroOp;
+                    DPRINTF(TraceGen, "Previous eliminated instruction is %s from macro-op %s with %i uops\n",
+                                      currentTrace.prevEliminatedInst->getName(), macroOp->getName(), macroOp->getNumMicroops());
+                    for (int i = 0; i < macroOp->getNumMicroops(); i++) {
+                        StaticInstPtr si = macroOp->fetchMicroop(i);
+                        DPRINTF(TraceGen, "uop[%i]: %s is %s\n", i, si->getName(), si->eliminated ? "eliminated" : "not eliminated");
+                        if (!si->eliminated) {
+                            allEliminated = false;
+                            break;
+                        }
+                    }
+                    if (allEliminated) {
+                        macroOp->deleteMicroOps();
+                        macroOp = NULL;
+                    }
                 }
 
                 for (auto &microop: decoder->specCacheWriteQueue)
@@ -1377,6 +1394,22 @@ bool TraceBasedGraph::generateNextTraceInst() {
     } else {
         DPRINTF(SuperOp, "No live out CC\n");
     }
+    for (int i=0; i<4; i++) {
+        DPRINTF(SuperOp, "Value Prediction Source %i\n", i);
+        if (currentTrace.source[i].valid) {
+            DPRINTF(SuperOp, "Address=%#x:%i, Value=%#x, Confidence=%i, Latency=%i\n",
+                            currentTrace.source[i].addr.pcAddr,  currentTrace.source[i].addr.uopAddr,
+                            currentTrace.source[i].value, currentTrace.source[i].confidence,
+                            currentTrace.source[i].latency);
+        }
+    }
+    for (int i=0; i<2; i++) {
+        DPRINTF(SuperOp, "Control Prediction Source %i\n", i);
+        if (currentTrace.controlSources[i].valid) {
+            DPRINTF(SuperOp, "Target=%#x, Confidence=%i\n",
+                            currentTrace.controlSources[i].value, currentTrace.controlSources[i].confidence);
+        }
+    }
 
     return true;
     //HeapProfilerStop();
@@ -1528,16 +1561,16 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     bool isPredSource = isPredictionSource(trace, trace.instAddr, value, confidence, latency) ;
     //assert(!isPredSource);
     
-    isDeadCode &= (propagated && !isPredSource && !((!usingCCTracking && trace.inst->isCC()) || trace.inst->isReturn()));
+    isDeadCode &= (propagated && !((!usingCCTracking && trace.inst->isCC()) || trace.inst->isReturn()));
 
     DPRINTF(ConstProp, "isDeadCode:%d propagated:%d isPredSource:%d CC:%d Return:%d\n", isDeadCode, propagated, isPredSource, (/*!usingCCTracking &&*/ trace.inst->isCC()), trace.inst->isReturn());
     if (allSrcsReady && (!usingCCTracking && trace.inst->isCC()))
     {
-        DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not a dead code as it's a CC inst!\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+        DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not dead code as it's a CC inst!\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
     }
     else if (allSrcsReady && !propagated)
     {
-        DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not a dead code as its data size is less than 4/8 bytes!\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
+        DPRINTF(ConstProp, "All sources are ready for instruction at %#x:%#x but it is not dead code as its data size is less than 4/8 bytes!\n", trace.instAddr.pcAddr, trace.instAddr.uopAddr);
     }
 
     // Inst will never already be in this trace, single pass

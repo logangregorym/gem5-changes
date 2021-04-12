@@ -1476,9 +1476,7 @@ DefaultIEW<Impl>::executeInsts()
 
         ThreadID tid = inst->threadNumber;
         // First dump all live outs if this instruction is 
-        if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent)
-        {
-            
+        if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent) {
             for (int i = 0; i < inst->numDestRegs(); i++) {
                 PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
                 if (inst->staticInst->liveOutPredicted[i]) {
@@ -1501,8 +1499,7 @@ DefaultIEW<Impl>::executeInsts()
 
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
-                if (false && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache()))
-                {
+                if (false && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache())) {
                     assert(!inst->isSquashed());
                     
                     inst->memoryAccessStartCycle = cpu->numCycles.value();
@@ -1576,9 +1573,11 @@ DefaultIEW<Impl>::executeInsts()
             // If we execute the instruction (even if it's a nop) the fault
             // will be replaced and we will lose it.
             if (inst->getFault() == NoFault) {
-                inst->execute(); // this is op specific! so need to read dest reg to get returned value
+                if (!inst->staticInst->dummyMicroop) {
+                    inst->execute(); // this is op specific! so need to read dest reg to get returned value
+                }
 
-                if (!inst->readPredicate()) {
+                if (!inst->readPredicate() || inst->staticInst->dummyMicroop) {
                     inst->forwardOldRegs();
 		        }
 
