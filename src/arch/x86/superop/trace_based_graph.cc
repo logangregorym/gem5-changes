@@ -1057,7 +1057,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "xsave" || decodedMacroOp->getName() == "call_far_Mp" ||
             decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") {
             currentTrace.length++;
-            if (currentTrace.prevNonEliminatedInst) {
+            if (currentTrace.prevNonEliminatedInst &&
+                !currentTrace.prevNonEliminatedInst->isNop() && !currentTrace.prevNonEliminatedInst->isInstPrefetch()) {
                 currentTrace.prevNonEliminatedInst->shrunkenLength++;
             }
             advanceTrace(currentTrace);
@@ -1079,7 +1080,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 decodedMacroOp->getName() == "xsave"|| decodedMacroOp->getName() == "call_far_Mp" ||
                 decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") {
                 currentTrace.length++;
-                if (currentTrace.prevNonEliminatedInst) {
+                if (currentTrace.prevNonEliminatedInst &&
+                    !currentTrace.prevNonEliminatedInst->isNop() && !currentTrace.prevNonEliminatedInst->isInstPrefetch()) {
                     currentTrace.prevNonEliminatedInst->shrunkenLength++;
                 }
                 advanceTrace(currentTrace);
@@ -1151,12 +1153,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
     } else if (type == "movi") {
             DPRINTF(ConstProp, "Found a MOVI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateMovI(currentTrace.inst);
-    } 
-    else if (type == "and") {
+    } else if (type == "and") {
             DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAnd(currentTrace.inst);
-    } 
-    else if (type == "add") {
+    } else if (type == "andi") {
+            DPRINTF(ConstProp, "Found an ANDI at [%i][%i][%i], compacting...\n", idx, way, uop);
+            propagated = propagateAndI(currentTrace.inst);
+    } else if (type == "add") {
             DPRINTF(ConstProp, "Found an ADD at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAdd(currentTrace.inst);
     } else if (type == "sub") {
@@ -1165,9 +1168,15 @@ bool TraceBasedGraph::generateNextTraceInst() {
     } else if (type == "xor") {
             DPRINTF(ConstProp, "Found an XOR at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateXor(currentTrace.inst);
+    } else if (type == "xori") {
+            DPRINTF(ConstProp, "Found an XORI at [%i][%i][%i], compacting...\n", idx, way, uop);
+            propagated = propagateXorI(currentTrace.inst);
     } else if (type == "or") {
             DPRINTF(ConstProp, "Found an OR at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateOr(currentTrace.inst);
+    } else if (type == "ori") {
+            DPRINTF(ConstProp, "Found an ORI at [%i][%i][%i], compacting...\n", idx, way, uop);
+            propagated = propagateOrI(currentTrace.inst);
     } else if (type == "subi") {
             DPRINTF(ConstProp, "Found a SUBI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateSubI(currentTrace.inst);
@@ -1616,6 +1625,19 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     }
 
 
+    if (ccValid) {
+        DPRINTF(ConstProp, "Propagating CC flags with wripi microop!\n");
+        trace.inst->propgatedCCFlags[0] = PredccFlagBits;
+        trace.inst->isCCFlagPropagated[0] = true;
+        trace.inst->propgatedCCFlags[1] = PredcfofBits;
+        trace.inst->isCCFlagPropagated[1] = true;
+        trace.inst->propgatedCCFlags[2] = PreddfBit;
+        trace.inst->isCCFlagPropagated[2] = true;
+        trace.inst->propgatedCCFlags[3] = PredecfBit;
+        trace.inst->isCCFlagPropagated[3] = true;
+        trace.inst->propgatedCCFlags[4] = PredezfBit;
+        trace.inst->isCCFlagPropagated[4] = true;
+    }
 
     return updateSuccessful;
 }
