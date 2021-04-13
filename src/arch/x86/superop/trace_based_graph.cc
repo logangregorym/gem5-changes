@@ -469,7 +469,8 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
         StaticInstPtr decodedMicroOp = decoder->speculativeCache[idx][way][uop];
         //assert(decodedMicroOp);
         //DPRINTF(TraceEviction, "%p:%i -- spec[%i][%i][%i] -- %s -- isCC = %d -- isPredictionSource = %d -- isDummyMicroop = %d\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr), decodedMicroOp->isCC(), decodedMicroOp->isTracePredictionSource(), decodedMicroOp->dummyMicroop);   
-        DPRINTF(TraceGen, "%p:%i -- spec[%i][%i][%i] -- %s -- isCC = %d -- isPredictionSource = %d -- isDummyMicroop = %d\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr), decodedMicroOp->isCC(), decodedMicroOp->isTracePredictionSource(), decodedMicroOp->dummyMicroop);   
+        DPRINTF(TraceGen, "%p:%i -- spec[%i][%i][%i] -- %s -- isCC = %d -- isPredictionSource = %d -- isDummyMicroop = %d shrunkenLength = %d\n", 
+            pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr), decodedMicroOp->isCC(), decodedMicroOp->isTracePredictionSource(), decodedMicroOp->dummyMicroop, decodedMicroOp->shrunkenLength);   
 		for (int i=0; i<decodedMicroOp->numSrcRegs(); i++) {
 			// LAYNE : TODO : print predicted inputs (checking syntax)
 			if (decodedMicroOp->sourcesPredicted[i]) {
@@ -1055,8 +1056,11 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "fcom" || decodedMacroOp->getName() == "fisttp" ||
             decodedMacroOp->getName() == "fwait" || decodedMacroOp->getName() == "frstor" ||
             decodedMacroOp->getName() == "xsave" || decodedMacroOp->getName() == "call_far_Mp" ||
-            decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") {
+            decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") 
+        {
             currentTrace.length++;
+            // if (inst->getName() == "NOP"|| inst->getName() == "fault") 
+            //     currentTrace.interveningDeadInsts++;
             if (currentTrace.prevNonEliminatedInst &&
                 !currentTrace.prevNonEliminatedInst->isNop() && !currentTrace.prevNonEliminatedInst->isInstPrefetch()) {
                 currentTrace.prevNonEliminatedInst->shrunkenLength++;
@@ -1078,8 +1082,12 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 decodedMacroOp->getName() == "fcom" || decodedMacroOp->getName() == "fisttp" ||
                 decodedMacroOp->getName() == "fwait" || decodedMacroOp->getName() == "frstor" || 
                 decodedMacroOp->getName() == "xsave"|| decodedMacroOp->getName() == "call_far_Mp" ||
-                decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") {
+                decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") 
+            {
                 currentTrace.length++;
+                // if (inst->getName() == "NOP"|| inst->getName() == "fault") 
+                //     currentTrace.interveningDeadInsts++;
+
                 if (currentTrace.prevNonEliminatedInst &&
                     !currentTrace.prevNonEliminatedInst->isNop() && !currentTrace.prevNonEliminatedInst->isInstPrefetch()) {
                     currentTrace.prevNonEliminatedInst->shrunkenLength++;

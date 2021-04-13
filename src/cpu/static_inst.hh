@@ -234,8 +234,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isUOpCacheHotTrace() const {return isUopCacheHotTrace;}
     void setCarriesLiveOut(bool state) {carriesLiveOut = state;} 
     bool isCarryingLivesOut() const {return carriesLiveOut;}
-    void setSquashedAndCommited(bool state) {squashedAndCommited = state;} 
-    bool isSquashedAndCommited() const {return squashedAndCommited;}
+
 
     /// Operation class.  Used to select appropriate function unit in issue.
     OpClass opClass()     const { return _opClass; }
@@ -308,7 +307,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
         isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false; forwardedLiveValueExists = false; 
-        squashedAndCommited = false;
+        
         
         for (size_t i = 0; i < 5; i++)
         {
@@ -324,7 +323,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
         isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false; forwardedLiveValueExists = false; 
-        squashedAndCommited = false;
+        
 
         for (size_t i = 0; i < 5; i++)
         {
@@ -473,7 +472,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     int predSourceRegIdx;
     uint64_t forwardedLiveValue;
     bool forwardedLiveValueExists = false;
-    bool squashedAndCommited = false;
+  
 
     bool forwardedCCLiveValueExists[5] = {false};
     uint64_t forwardedCCLiveValue[5];

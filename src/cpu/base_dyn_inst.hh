@@ -186,6 +186,8 @@ class BaseDynInst : public ExecContext, public RefCounted
      */
     std::bitset<MaxInstSrcRegs> _readySrcRegIdx;
 
+    bool squashedAndCommited;
+
   public:
     /** The thread this instruction is from. */
     ThreadID threadNumber;
@@ -522,8 +524,8 @@ class BaseDynInst : public ExecContext, public RefCounted
     void setUOpCacheHotTrace(bool state)      {staticInst->setUOpCacheHotTrace(state);}
     void setCarriesLiveOut(bool state) {staticInst->setCarriesLiveOut(state);} 
     bool isCarryingLivesOut() const {return staticInst->isCarryingLivesOut();}
-    void setSquashedAndCommited(bool state) {staticInst->setSquashedAndCommited(state);} 
-    bool isSquashedAndCommited() const {return staticInst->isSquashedAndCommited();}
+    void setSquashedAndCommited(bool state) { squashedAndCommited = state;} 
+    bool isSquashedAndCommited() const {return squashedAndCommited;}
 
     bool isNop()          const { return staticInst->isNop(); }
     bool isMemRef()       const { return staticInst->isMemRef(); }

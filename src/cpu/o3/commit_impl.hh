@@ -1391,6 +1391,8 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
 
             numMicroopsShrunken += head_inst->staticInst->shrunkenLength;
 
+            if (head_inst->isSquashedAndCommited()) numMicroopsShrunken--;
+
             // gather some stats about this superoptmized instrcution
             assert( head_inst->staticInst->getTraceID()); 
             assert( head_inst->staticInst->getTraceLength());
@@ -1433,7 +1435,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     }
     
     //dumping int arch regs for sanity check
-    if (head_inst->isReturn() || head_inst->isCall())
+    if (false &&( head_inst->isReturn() || head_inst->isCall()))
     {   
         
         stringstream reg_values;
@@ -1472,10 +1474,10 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
   
         DPRINTF(SuperOpSanityCheck, "%s\n", reg_values.str());
     }
-    // else if (head_inst->isStore())
-    // {
-    //     DPRINTF(SuperOpSanityCheck, "%x\n", head_inst->instAddr());
-    // }
+    else if (head_inst->isStore())
+    {
+        DPRINTF(SuperOpSanityCheck, "%#x %d\n", head_inst->instAddr(), numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value());
+    }
 
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->committedInsts[tid].value() % 100000 == 0 &&
