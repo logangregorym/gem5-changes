@@ -453,7 +453,13 @@ InstructionQueue<Impl>::regStats()
 
     speculativeInstsAddedToDependents
         .init(6)
-        .name(name() + ".addToDependents")
+        .name(name() + ".speculativeInstsAddedToDependents")
+        .desc("")
+        .flags(pdf | dist)
+        ;
+    nonspeculativeInstsAddedToDependents
+        .init(6)
+        .name(name() + ".nonSpeculativeInstsAddedToDependents")
         .desc("")
         .flags(pdf | dist)
         ;
@@ -1962,6 +1968,14 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
                         speculativeInstsAddedToDependents[5]++;
                     } else if (new_inst->srcRegIdx(src_reg_idx).isCCReg()) {
                         speculativeInstsAddedToDependents[propagated_cc_reg_idx]++;
+                    }
+                }
+                else 
+                {
+                    if (new_inst->srcRegIdx(src_reg_idx).isIntReg()) {    
+                        nonspeculativeInstsAddedToDependents[5]++;
+                    } else if (new_inst->srcRegIdx(src_reg_idx).isCCReg()) {
+                        nonspeculativeInstsAddedToDependents[propagated_cc_reg_idx]++;
                     }
                 }
                     

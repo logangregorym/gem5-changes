@@ -569,6 +569,7 @@ class InstructionQueue
     Stats::Formula reducablePercent;
 
     Stats::Vector speculativeInstsAddedToDependents;
+    Stats::Vector nonspeculativeInstsAddedToDependents;
     Stats::Vector speculativeInstsAddedToProducers;
     Stats::Distribution speculativeInstsAddedToProducersHistIntRegs;
     Stats::Scalar highConfidenceInsts;
