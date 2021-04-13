@@ -548,7 +548,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
         // CCREG_DF   = 2
         // CCREG_ECF  = 3
         // CCREG_EZF  = 4
-        bool dumpCCFlags[5] = {true};
+        bool dumpCCFlags[5] = {true, true, true, true, true};
         if (ccValid)
         {
             assert(inst->numCCDestRegs() == inst->_numCCDestRegsOrig);
