@@ -1161,6 +1161,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
     } else if (type == "movi") {
             DPRINTF(ConstProp, "Found a MOVI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateMovI(currentTrace.inst);
+    } else if (type == "lea") {
+            DPRINTF(ConstProp, "Found a LEA at [%i][%i][%i], compacting...\n", idx, way, uop);
+            propagated = propagateLea(currentTrace.inst);
     } else if (type == "and") {
             DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAnd(currentTrace.inst);
@@ -1569,7 +1572,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     }*/
 
     string type = trace.inst->getName();
-    isDeadCode = (type == "rdip") || (allSrcsReady && (type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"));
+    isDeadCode = (type == "rdip") || (allSrcsReady && (type == "lea" || type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"));
 
     // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC
     uint64_t value;
@@ -2170,6 +2173,57 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
         PredecfBit = PredecfBit & ~(ECFBit & ext);
         ccValid = true;
     }
+
+    RegId destReg = inst->destRegIdx(0);
+    RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
+    assert(destReg.isIntReg());
+
+    DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", forwardVal, dest_reg_idx);
+    assert(dest_reg_idx < 38);
+    regCtx[dest_reg_idx].value = forwardVal;
+    regCtx[dest_reg_idx].valid = true;
+    regCtx[dest_reg_idx].source = false;
+    
+    return true;
+}
+
+bool TraceBasedGraph::propagateLea(StaticInstPtr inst) {
+    string type = inst->getName();
+    assert(type == "lea");
+
+    X86ISA::MemOp * inst_memop = (X86ISA::MemOp * )inst.get(); 
+    const uint8_t dataSize = inst_memop->dataSize;
+    const uint8_t addressSize = inst_memop->addressSize;
+
+    X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get();
+    unsigned src1 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(0));
+    unsigned src2 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(1));
+    unsigned src3 = x86_inst->getUnflattenRegIndex(inst->srcRegIdx(2));
+    assert(src1 < 38);
+    assert(src2 < 38);
+    assert(src3 < 38);
+
+    if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
+        DPRINTF(ConstProp, "Source reg %i and/or reg %i is invalid\n", src1, src2);
+        return false;
+    }
+
+    if ((!regCtx[src3].valid) && dataSize < 8) {
+        DPRINTF(ConstProp, "Source reg %i is invalid and data size is %d\n", src3, dataSize);
+        return false;
+    }
+
+    uint64_t Index = regCtx[src1].value;
+    uint64_t Base = regCtx[src2].value;
+    const uint8_t scale = inst_memop->scale;
+    const uint64_t disp = inst_memop->disp;
+
+    uint64_t Data = regCtx[src3].value;
+
+    Addr EA = bits(scale * Index + Base + disp, addressSize * 8 - 1, 0);
+    DPRINTF(ConstProp, "The address is %#x\n", EA);
+
+    uint64_t forwardVal = x86_inst->merge(Data, EA, dataSize);;
 
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));

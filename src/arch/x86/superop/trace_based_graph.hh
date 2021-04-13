@@ -92,7 +92,7 @@ class TraceBasedGraph : public SimObject
     void dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs);
 
     // Propagation Functions
-    bool propagateLastUse(StaticInstPtr inst);
+    bool propagateLea(StaticInstPtr inst);
     bool propagateMov(StaticInstPtr inst);
     bool propagateMovI(StaticInstPtr inst);
     bool propagateLimm(StaticInstPtr inst);
