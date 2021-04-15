@@ -63,7 +63,7 @@ Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
     if (inst->isMacroop()) return;
     //if (inst->getName() != "mulel") return;
     //if (!inst->isStore() || inst->isMacroop()) return;
-    //if ((!(inst->isStore()) && !(inst->getName() == "lea")) || inst->isMacroop()) return;
+    //if ((!(inst->isStore()))) return;
     //if (!(inst->getName() == "lea") || inst->isMacroop()) return;
     //if (!(inst->getName() == "sub") || inst->isMacroop()) return;
     ostream &outs = Trace::output();

@@ -814,6 +814,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     decoder->specCacheWriteQueue.push_back(SuperOptimizedMicroop(currentTrace.prevEliminatedInst, currentTrace.lastAddr));
 
                     currentTrace.shrunkLength++;
+                    DPRINTF(TraceGen, "DUMMY MICROOP: interveningDeadInsts: %d\n",currentTrace.interveningDeadInsts - 1);
                     currentTrace.prevEliminatedInst->shrunkenLength = currentTrace.interveningDeadInsts - 1; // excluding the current one
                     currentTrace.interveningDeadInsts = 0;
                     currentTrace.prevNonEliminatedInst = currentTrace.prevEliminatedInst;
@@ -1059,12 +1060,23 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") 
         {
             currentTrace.length++;
-            // if (inst->getName() == "NOP"|| inst->getName() == "fault") 
-            //     currentTrace.interveningDeadInsts++;
-            if (currentTrace.prevNonEliminatedInst &&
-                !currentTrace.prevNonEliminatedInst->isNop() && !currentTrace.prevNonEliminatedInst->isInstPrefetch()) {
-                currentTrace.prevNonEliminatedInst->shrunkenLength++;
-            }
+                if (currentTrace.prevNonEliminatedInst /*&&
+                    !currentTrace.prevNonEliminatedInst->isNop()*/ && 
+                    (decodedMacroOp->getName() == "NOP"|| decodedMacroOp->getName() == "fault") &&
+                    !currentTrace.prevNonEliminatedInst->isInstPrefetch()) 
+                {
+                    currentTrace.prevNonEliminatedInst->shrunkenLength++;
+                    DPRINTF(TraceGen, "NOP-FAULT: Increasing shrunkenLength: %d\n",currentTrace.prevNonEliminatedInst->shrunkenLength);
+                }
+                else if (!currentTrace.prevNonEliminatedInst)
+                {
+                    if (decodedMacroOp->getName() == "NOP"|| decodedMacroOp->getName() == "fault") 
+                    {
+                        currentTrace.interveningDeadInsts++;
+                        DPRINTF(TraceGen, "NOP-FAULT: Increasing interveningDeadInsts: %d\n",currentTrace.interveningDeadInsts);
+                    }
+                        
+                }
             advanceTrace(currentTrace);
             return true;
         }
@@ -1085,13 +1097,26 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") 
             {
                 currentTrace.length++;
-                // if (inst->getName() == "NOP"|| inst->getName() == "fault") 
-                //     currentTrace.interveningDeadInsts++;
 
-                if (currentTrace.prevNonEliminatedInst &&
-                    !currentTrace.prevNonEliminatedInst->isNop() && !currentTrace.prevNonEliminatedInst->isInstPrefetch()) {
+                if (currentTrace.prevNonEliminatedInst /*&&
+                    !currentTrace.prevNonEliminatedInst->isNop()*/ && 
+                    (inst->getName() == "NOP"|| inst->getName() == "fault") &&
+                    !currentTrace.prevNonEliminatedInst->isInstPrefetch()) 
+                {
+                    
                     currentTrace.prevNonEliminatedInst->shrunkenLength++;
+                    DPRINTF(TraceGen, "NOP-FAULT: Increasing shrunkenLength: %d\n",currentTrace.prevNonEliminatedInst->shrunkenLength);
                 }
+                else if (!currentTrace.prevNonEliminatedInst)
+                {
+                    if (inst->getName() == "NOP"|| inst->getName() == "fault") 
+                    {
+                        currentTrace.interveningDeadInsts++;
+                        DPRINTF(TraceGen, "NOP-FAULT: Increasing interveningDeadInsts: %d\n",currentTrace.interveningDeadInsts);
+                    }
+                        
+                }
+
                 advanceTrace(currentTrace);
                 return true;
             }
@@ -1308,6 +1333,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
         }
 
+        DPRINTF(TraceGen, "NON-ELIMINATED MICROOP: interveningDeadInsts: %d\n",currentTrace.interveningDeadInsts);
         currentTrace.inst->shrunkenLength = currentTrace.interveningDeadInsts;
         currentTrace.interveningDeadInsts = 0;
         currentTrace.prevNonEliminatedInst = currentTrace.inst;
@@ -1334,6 +1360,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         }
         currentTrace.prevEliminatedInst = currentTrace.inst;
         currentTrace.interveningDeadInsts++;
+        DPRINTF(TraceGen, "ELIMINATED MICROOP: interveningDeadInsts: %d\n",currentTrace.interveningDeadInsts);
     }
 
     
@@ -1637,7 +1664,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
 
 
     if (ccValid) {
-        DPRINTF(ConstProp, "Propagating CC flags with wripi microop!\n");
+        DPRINTF(ConstProp, "Propagating CC flags with microop!\n");
         trace.inst->propgatedCCFlags[0] = PredccFlagBits;
         trace.inst->isCCFlagPropagated[0] = true;
         trace.inst->propgatedCCFlags[1] = PredcfofBits;
@@ -1685,6 +1712,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
 
 
     if (/*(!regCtx[src1].valid) ||*/ (!regCtx[src2].valid)) {
+        DPRINTF(ConstProp, "src2 reg is not valid in regCtx!\n");
         return false;
     }
 
@@ -1703,7 +1731,8 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     if (!inst->isCC() || inst->checkCondition(PredccFlagBits | PredcfofBits | PreddfBit | PredecfBit | PredezfBit, ext)) {
         forwardVal = x86_inst->merge(forwardVal, psrc2, dataSize);
     } else {
-        return true;
+        DPRINTF(ConstProp, "Check Condition failed!\n");
+        return false;
     }
 
     RegId destReg = inst->destRegIdx(0);

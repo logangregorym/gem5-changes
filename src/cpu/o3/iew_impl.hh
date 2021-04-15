@@ -1578,6 +1578,10 @@ DefaultIEW<Impl>::executeInsts()
                 }
 
                 if (!inst->readPredicate() || inst->staticInst->dummyMicroop) {
+                    
+                    if (inst->staticInst->dummyMicroop)
+                        DPRINTF(IEW, "Instruction is a dummy microop at the end of super-optimized trace! Not executing it! PC=%s\n", inst->pcState());
+
                     inst->forwardOldRegs();
 		        }
 

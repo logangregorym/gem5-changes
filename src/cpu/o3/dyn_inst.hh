@@ -212,21 +212,26 @@ class BaseO3DynInst : public BaseDynInst<Impl>
 
     void forwardOldRegs()
     {
-
+        
         for (int idx = 0; idx < this->numDestRegs(); idx++) {
             if (this->staticInst->liveOutPredicted[idx]) {
                 continue;
             }
+            
             PhysRegIdPtr prev_phys_reg = this->prevDestRegIdx(idx);
             const RegId& original_dest_reg =
                 this->staticInst->destRegIdx(idx);
             switch (original_dest_reg.classValue()) {
               case IntRegClass:
+                
                 if (this->staticInst->forwardedLiveValueExists &&
-                    this->staticInst->predSourceRegIdx == idx) {
+                    this->staticInst->predSourceRegIdx == idx) 
+                {
+                    DPRINTF(IEW, "SuperOptimizer: forwarding INT live value %#x for dest reg %d\n", this->staticInst->forwardedLiveValue, idx); 
                     this->setIntRegOperand(this->staticInst.get(), idx,
                                    this->staticInst->forwardedLiveValue);
-                } else {
+                } 
+                else {
                     this->setIntRegOperand(this->staticInst.get(), idx,
                                    this->cpu->readIntReg(prev_phys_reg));
                 }
@@ -254,12 +259,14 @@ class BaseO3DynInst : public BaseDynInst<Impl>
                     uint16_t liveout_reg_idx = this->staticInst->destRegIdx(idx).index();
                     // always should be less than 5 as we just have 5 CSR regs in x86
                     assert(liveout_reg_idx < 5);
-
+                    
                     if (this->staticInst->forwardedCCLiveValueExists[liveout_reg_idx]) 
                     {
+                        DPRINTF(IEW, "SuperOptimizer: forwarding CC live value %#x for dest reg %d\n", this->staticInst->forwardedCCLiveValue[liveout_reg_idx], liveout_reg_idx); 
                         this->setCCRegOperand(this->staticInst.get(), idx,
                                     this->staticInst->forwardedCCLiveValue[liveout_reg_idx]);
-                    } else {
+                    } 
+                    else {
                         this->setCCRegOperand(this->staticInst.get(), idx,
                                 this->cpu->readCCReg(prev_phys_reg));
                     }
