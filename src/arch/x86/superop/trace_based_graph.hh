@@ -82,8 +82,9 @@ class TraceBasedGraph : public SimObject
     uint64_t PreddfBit;
     uint64_t PredecfBit;
     uint64_t PredezfBit;
+    uint64_t oldCCRegs[5];
     bool ccValid;
-    bool valid_CF_AF_OF_flags;
+    bool oldCCValid = false;
 
     BPredUnit* branchPred;
     LVPredUnit *loadPred;

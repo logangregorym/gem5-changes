@@ -571,7 +571,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
         // always dump all the CC regs no matter what
         if (ccValid) {
                 DPRINTF(TraceGen, "Dumping CCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x\n", PredccFlagBits, PredcfofBits, PreddfBit, PredecfBit, PredezfBit);
-                if (dumpCCFlags[0]) //CCREG_ZAPS
+                DPRINTF(TraceGen, "Dumping oldCCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x\n", oldCCRegs[0], oldCCRegs[1], oldCCRegs[2], oldCCRegs[3], oldCCRegs[4]);
+                // if (!oldValid && dump) || (oldValid && dump && old != new)
+                if (dumpCCFlags[0] && (!oldCCValid || (oldCCValid && PredccFlagBits != oldCCRegs[0]))) //CCREG_ZAPS
                 {
                     inst->liveOut[inst->numDestRegs()] = PredccFlagBits;
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
@@ -587,7 +589,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->forwardedCCLiveValue[0] = PredccFlagBits;
                 }
 
-                if (dumpCCFlags[1]) //CCREG_CFOF
+                if (dumpCCFlags[1] && (!oldCCValid || (oldCCValid && PredcfofBits != oldCCRegs[1]))) //CCREG_CFOF
                 {
                     inst->liveOut[inst->numDestRegs()] = PredcfofBits;
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
@@ -603,7 +605,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->forwardedCCLiveValue[1] = PredcfofBits;
                 }
 
-                if (dumpCCFlags[2]) //CCREG_DF
+                if (dumpCCFlags[2] && (!oldCCValid || (oldCCValid && PreddfBit != oldCCRegs[2]))) //CCREG_DF
                 {
                     inst->liveOut[inst->numDestRegs()] = PreddfBit;
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
@@ -619,7 +621,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->forwardedCCLiveValue[2] = PreddfBit;
                 }
 
-                if (dumpCCFlags[3]) //CCREG_ECF
+                if (dumpCCFlags[3] && (!oldCCValid || (oldCCValid && PredecfBit != oldCCRegs[3]))) //CCREG_ECF 
                 {
                     inst->liveOut[inst->numDestRegs()] = PredecfBit;
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
@@ -635,7 +637,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->forwardedCCLiveValue[3] = PredecfBit;
                 }
 
-                if (dumpCCFlags[4]) //CCREG_EZF
+                if (dumpCCFlags[4] && (!oldCCValid || (oldCCValid && PredezfBit != oldCCRegs[4]))) //CCREG_EZF
                 {
                     inst->liveOut[inst->numDestRegs()] = PredezfBit;
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
@@ -650,10 +652,15 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->forwardedCCLiveValueExists[4] = true;
                     inst->forwardedCCLiveValue[4] = PredezfBit;
                 }
-                
 
-
-                
+                if (oldCCValid){
+                    oldCCRegs[0] = PredccFlagBits;
+                    oldCCRegs[1] = PredcfofBits;
+                    oldCCRegs[2] = PreddfBit;
+                    oldCCRegs[3] = PredecfBit;
+                    oldCCRegs[4] = PredezfBit;
+                    oldCCValid = true;
+                }
         }
     }
 }
