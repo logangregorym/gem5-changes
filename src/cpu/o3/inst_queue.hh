@@ -465,6 +465,9 @@ class InstructionQueue
      */
     std::vector<bool> regScoreboard;
 
+    // a map to track which physical regs are live out reg for superoptimizer 
+    std::vector<bool> isLiveOutPhyReg;
+
     /** Adds an instruction to the dependency graph, as a consumer. */
     bool addToDependents(DynInstPtr &new_inst);
 
@@ -568,8 +571,10 @@ class InstructionQueue
     Stats::Formula averageShrinkage;
     Stats::Formula reducablePercent;
 
-    Stats::Vector speculativeInstsAddedToDependents;
-    Stats::Vector nonspeculativeInstsAddedToDependents;
+    Stats::Vector speculativeInstsAddedToDependentsDueToLiveOutRegDependency;
+    Stats::Vector nonspeculativeInstsAddedToDependentsDueToLiveOutRegDependency;
+    Stats::Vector speculativeInstsAddedToDependentsDueToOriginalRegDependency;
+    Stats::Vector nonspeculativeInstsAddedToDependentsDueToOriginalRegDependency;
     Stats::Vector speculativeInstsAddedToProducers;
     Stats::Distribution speculativeInstsAddedToProducersHistIntRegs;
     Stats::Scalar highConfidenceInsts;

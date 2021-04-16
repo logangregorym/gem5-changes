@@ -759,6 +759,7 @@ template<class Impl>
 bool
 DefaultIEW<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
 {   
+    assert(0);
     assert(inst->isLoad()); // just to make sure we are not using it by mistake!
 
     bool forwarded = false;

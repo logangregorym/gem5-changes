@@ -119,6 +119,7 @@ InstructionQueue<Impl>::InstructionQueue(O3CPU *cpu_ptr, IEW *iew_ptr,
 
     // Resize the register scoreboard.
     regScoreboard.resize(numPhysRegs);
+    isLiveOutPhyReg.resize(numPhysRegs);
 
     //Initialize Mem Dependence Units
     for (ThreadID tid = 0; tid < numThreads; tid++) {
@@ -451,18 +452,31 @@ InstructionQueue<Impl>::regStats()
         ;
     reducablePercent = (reducableInsts / lvpDependencyChains) * 100;
 
-    speculativeInstsAddedToDependents
+    speculativeInstsAddedToDependentsDueToLiveOutRegDependency
         .init(6)
-        .name(name() + ".speculativeInstsAddedToDependents")
+        .name(name() + ".speculativeInstsAddedToDependentsDueToLiveOutRegDependency")
         .desc("")
         .flags(pdf | dist)
         ;
-    nonspeculativeInstsAddedToDependents
+    nonspeculativeInstsAddedToDependentsDueToLiveOutRegDependency
         .init(6)
-        .name(name() + ".nonSpeculativeInstsAddedToDependents")
+        .name(name() + ".nonspeculativeInstsAddedToDependentsDueToLiveOutRegDependency")
         .desc("")
         .flags(pdf | dist)
         ;
+    speculativeInstsAddedToDependentsDueToOriginalRegDependency
+        .init(6)
+        .name(name() + ".speculativeInstsAddedToDependentsDueToOriginalRegDependency")
+        .desc("")
+        .flags(pdf | dist)
+        ;
+    nonspeculativeInstsAddedToDependentsDueToOriginalRegDependency
+        .init(6)
+        .name(name() + ".nonspeculativeInstsAddedToDependentsDueToOriginalRegDependency")
+        .desc("")
+        .flags(pdf | dist)
+        ;
+
     speculativeInstsAddedToProducers
         .init(6)
         .name(name() + ".addToProducers")
@@ -506,6 +520,11 @@ InstructionQueue<Impl>::resetState()
     for (int i = 0; i < numPhysRegs; ++i) {
         regScoreboard[i] = false;
     }
+
+    for (int i = 0; i < numPhysRegs; ++i) {
+        isLiveOutPhyReg[i] = false;
+    }
+
 
     for (ThreadID tid = 0; tid < numThreads; ++tid) {
         squashedSeqNum[tid] = 0;
@@ -1245,6 +1264,7 @@ InstructionQueue<Impl>::wakeDependents(DynInstPtr &completed_inst)
 
         // Mark the scoreboard as having that register ready.
         regScoreboard[dest_reg->flatIndex()] = true;
+        isLiveOutPhyReg[dest_reg->flatIndex()] = false;
     }
     return dependents;
 }
@@ -1334,6 +1354,8 @@ InstructionQueue<Impl>::forwardNonLoadValuePredictionToDependents(DynInstPtr &in
     assert(dependGraph.empty(dest_reg->flatIndex()));
     dependGraph.clearInst(dest_reg->flatIndex());
     regScoreboard[dest_reg->flatIndex()] = true;
+    isLiveOutPhyReg[dest_reg->flatIndex()] = false;
+
 
     
     DPRINTF(LVP, "LVP-NonLoad: %d dependents woken\n", dependentCount);
@@ -1581,6 +1603,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
         assert(dependGraph.empty(dest_reg->flatIndex()));
         dependGraph.clearInst(dest_reg->flatIndex());
         regScoreboard[dest_reg->flatIndex()] = true;
+        isLiveOutPhyReg[dest_reg->flatIndex()] = false;
 
     
     DPRINTF(LVP, "LVP: %d dependents woken\n", dependentCount);
@@ -1962,23 +1985,42 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
 
                 dependGraph.insert(src_reg->flatIndex(), new_inst);
 
-             
-                if (new_inst->isStreamedFromSpeculativeCache()) {
-                    if (new_inst->srcRegIdx(src_reg_idx).isIntReg()) {    
-                        speculativeInstsAddedToDependents[5]++;
-                    } else if (new_inst->srcRegIdx(src_reg_idx).isCCReg()) {
-                        speculativeInstsAddedToDependents[propagated_cc_reg_idx]++;
+                if (isLiveOutPhyReg[src_reg->flatIndex()])
+                {
+                    if (new_inst->isStreamedFromSpeculativeCache()) {
+                        if (new_inst->srcRegIdx(src_reg_idx).isIntReg()) {    
+                            speculativeInstsAddedToDependentsDueToLiveOutRegDependency[5]++;
+                        } else if (new_inst->srcRegIdx(src_reg_idx).isCCReg()) {
+                            speculativeInstsAddedToDependentsDueToLiveOutRegDependency[propagated_cc_reg_idx]++;
+                        }
+                    }
+                    else 
+                    {
+                        if (new_inst->srcRegIdx(src_reg_idx).isIntReg()) {    
+                            nonspeculativeInstsAddedToDependentsDueToLiveOutRegDependency[5]++;
+                        } else if (new_inst->srcRegIdx(src_reg_idx).isCCReg()) {
+                            nonspeculativeInstsAddedToDependentsDueToLiveOutRegDependency[propagated_cc_reg_idx]++;
+                        }
                     }
                 }
                 else 
                 {
-                    if (new_inst->srcRegIdx(src_reg_idx).isIntReg()) {    
-                        nonspeculativeInstsAddedToDependents[5]++;
-                    } else if (new_inst->srcRegIdx(src_reg_idx).isCCReg()) {
-                        nonspeculativeInstsAddedToDependents[propagated_cc_reg_idx]++;
+                    if (new_inst->isStreamedFromSpeculativeCache()) {
+                        if (new_inst->srcRegIdx(src_reg_idx).isIntReg()) {    
+                            speculativeInstsAddedToDependentsDueToOriginalRegDependency[5]++;
+                        } else if (new_inst->srcRegIdx(src_reg_idx).isCCReg()) {
+                            speculativeInstsAddedToDependentsDueToOriginalRegDependency[propagated_cc_reg_idx]++;
+                        }
+                    }
+                    else 
+                    {
+                        if (new_inst->srcRegIdx(src_reg_idx).isIntReg()) {    
+                            nonspeculativeInstsAddedToDependentsDueToOriginalRegDependency[5]++;
+                        } else if (new_inst->srcRegIdx(src_reg_idx).isCCReg()) {
+                            nonspeculativeInstsAddedToDependentsDueToOriginalRegDependency[propagated_cc_reg_idx]++;
+                        }
                     }
                 }
-                    
                 // Change the return value to indicate that something
                 // was added to the dependency graph.
                 return_val = true;
@@ -2031,6 +2073,7 @@ InstructionQueue<Impl>::addToProducers(DynInstPtr &new_inst)
 
         // Mark the scoreboard to say it's not yet ready.
         regScoreboard[dest_reg->flatIndex()] = false;
+        isLiveOutPhyReg[dest_reg->flatIndex()] = new_inst->isDestRegLiveOut(dest_reg_idx);
     }
 }
 
