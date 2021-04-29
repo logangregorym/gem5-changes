@@ -653,14 +653,12 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->forwardedCCLiveValue[4] = PredezfBit;
                 }
 
-                if (oldCCValid){
-                    oldCCRegs[0] = PredccFlagBits;
-                    oldCCRegs[1] = PredcfofBits;
-                    oldCCRegs[2] = PreddfBit;
-                    oldCCRegs[3] = PredecfBit;
-                    oldCCRegs[4] = PredezfBit;
-                    oldCCValid = true;
-                }
+                oldCCRegs[0] = PredccFlagBits;
+                oldCCRegs[1] = PredcfofBits;
+                oldCCRegs[2] = PreddfBit;
+                oldCCRegs[3] = PredecfBit;
+                oldCCRegs[4] = PredezfBit;
+                oldCCValid = true;
         }
     }
 }
@@ -985,7 +983,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
         /* Clear Reg Context Block. */
         for (int i=0; i<38; i++) {
-            regCtx[i].valid = regCtx[i].source = ccValid = false;
+            regCtx[i].valid = regCtx[i].source = ccValid = oldCCValid = false;
             PredccFlagBits = PredcfofBits = PreddfBit = PredecfBit = PredezfBit = 0;
         }
         
