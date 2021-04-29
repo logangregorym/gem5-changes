@@ -1500,6 +1500,8 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             "--------------------START OF EPOCH----------------------------" <<
            // std::endl << std::dec << "Ticks: " << (uint64_t)head_inst->traceData->getWhen() <<
             std::endl << std::dec << "NumOfInsts: " << (uint64_t)cpu->committedInsts[tid].value() <<
+            std::endl << std::dec << "CPI: " << (double) cpu->cpi.total() <<
+            std::endl << std::dec << "Total CPI: " << (double) cpu->totalCpi.total() <<
             std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   
 		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << 
             std::endl << std::dec << "Shrinkage Ratio: " << ((double)numMicroopsShrunken / (double)(numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value())) * 100 << std::endl;       
@@ -1563,6 +1565,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             "--------------------START OF EPOCH----------------------------" <<
            // std::endl << std::dec << "Ticks: " << (uint64_t)head_inst->traceData->getWhen() <<
             std::endl << std::dec << "NumOfInsts: " << (uint64_t)cpu->committedInsts[tid].value() <<
+            std::endl << std::dec << "Total CPI: " << (double) cpu->totalCpi.total() <<
             std::endl;
     }
 
