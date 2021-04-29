@@ -53,8 +53,8 @@ class OpClass(Enum):
             'MemRead', 'MemWrite', 'FloatMemRead', 'FloatMemWrite',
             'IprAccess', 'InstPrefetch', 
             'SquahedAndCommited', 'LoadSquahedAndCommited', 'ArithmeticSquashedAndCommited' , 
-            'AND', 'ANDI', 'OR', 'ORI', 'XOR', 'XORI' ,'ADD', 'ADDI', 
-            'SUB','SUBI', 'SLLI', 'SRLI', 'LEA', 'SEXTI', 'ZEXTI', 'LIMM', "RDIP"]
+            'AND', 'ANDI', 'OR', 'ORI', 'XOR', 'XORI' ,'ADD', 'ADDI', 'SUB', 'SUBI', 
+            'SLLI', 'SRLI', 'LEA', 'SEXTI', 'ZEXTI', 'LIMM', 'RDIP', 'MOV', 'MOVI', 'NOP', 'PredSource']
 
 class OpDesc(SimObject):
     type = 'OpDesc'

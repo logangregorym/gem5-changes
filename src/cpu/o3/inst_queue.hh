@@ -581,6 +581,17 @@ class InstructionQueue
     Stats::Scalar dependentInstsOnTracePredictionsOSurces;
     Stats::Vector tracePredictionSourcesWithCCRegs;
 
+
+    /** Int LiveOut Dependencies by instruction type (OpClass) for insts streamed from spec cache*/
+    Stats::Vector2d speculativeIntLiveOutInstType;
+    /** Int LiveOut Dependencies by instruction type (OpClass) for insts not streamed from spec cache*/
+    Stats::Vector2d nonspeculativeIntLiveOutInstType;
+
+        /** CC LiveOut Dependencies by instruction type (OpClass) for insts streamed from spec cache*/
+    Stats::Vector2d speculativeCCLiveOutInstType;
+    /** CC LiveOut Dependencies by instruction type (OpClass) for insts not streamed from spec cache*/
+    Stats::Vector2d nonspeculativeCCLiveOutInstType;
+
 };
 
 #endif //__CPU_O3_INST_QUEUE_HH__

@@ -83,6 +83,7 @@ class TraceBasedGraph : public SimObject
     uint64_t PredecfBit;
     uint64_t PredezfBit;
     uint64_t oldCCRegs[5];
+    OpClass ccRegFrom = No_OpClass;
     bool ccValid;
     bool oldCCValid = false;
 

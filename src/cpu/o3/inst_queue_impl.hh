@@ -497,6 +497,38 @@ InstructionQueue<Impl>::regStats()
         .desc("")
         .flags(pdf | dist)
         ;
+
+    speculativeIntLiveOutInstType
+        .init(numThreads,Enums::Num_OpClass)
+        .name(name() + ".speculativeIntLiveOutInstType")
+        .desc("Int Reg LiveOut dependencies by instruction type (OpClass) for insts streamed from spec cache")
+        .flags(total | pdf | dist)
+        ;
+    speculativeIntLiveOutInstType.ysubnames(Enums::OpClassStrings);
+    
+    nonspeculativeIntLiveOutInstType
+        .init(numThreads,Enums::Num_OpClass)
+        .name(name() + ".nonspeculativeIntLiveOutInstType")
+        .desc("Int Reg LiveOut dependencies by instruction type (OpClass) for insts not streamed from spec cache")
+        .flags(total | pdf | dist)
+        ;
+    nonspeculativeIntLiveOutInstType.ysubnames(Enums::OpClassStrings);
+
+    speculativeCCLiveOutInstType
+        .init(numThreads,Enums::Num_OpClass)
+        .name(name() + ".speculativeCCLiveOutInstType")
+        .desc("CC Reg LiveOut dependencies by instruction type (OpClass) for insts streamed from spec cache")
+        .flags(total | pdf | dist)
+        ;
+    speculativeCCLiveOutInstType.ysubnames(Enums::OpClassStrings);
+    
+    nonspeculativeCCLiveOutInstType
+        .init(numThreads,Enums::Num_OpClass)
+        .name(name() + ".nonspeculativeCCLiveOutInstType")
+        .desc("CC Reg LiveOut dependencies by instruction type (OpClass) for insts not streamed from spec cache")
+        .flags(total | pdf | dist)
+        ;
+    nonspeculativeCCLiveOutInstType.ysubnames(Enums::OpClassStrings);
 }
 
 template <class Impl>
@@ -2021,6 +2053,23 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
                         }
                     }
                 }
+
+                if (isLiveOutPhyReg[src_reg->flatIndex()]){
+                    if (new_inst->srcRegIdx(src_reg_idx).isIntReg()) {   
+                        if (new_inst->staticInst->isStreamedFromSpeculativeCache()) {
+                            speculativeIntLiveOutInstType[0][new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx)]++;
+                        } else {
+                            nonspeculativeIntLiveOutInstType[0][new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx)]++;
+                        }
+                    } else if (new_inst->srcRegIdx(src_reg_idx).isCCReg()) { 
+                        if (new_inst->staticInst->isStreamedFromSpeculativeCache()) {
+                            speculativeCCLiveOutInstType[0][new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx)]++;
+                        } else {
+                            nonspeculativeCCLiveOutInstType[0][new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx)]++;
+                        }
+                    }
+                }
+
                 // Change the return value to indicate that something
                 // was added to the dependency graph.
                 return_val = true;

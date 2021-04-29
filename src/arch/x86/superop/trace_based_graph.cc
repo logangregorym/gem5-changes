@@ -519,6 +519,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                         inst->liveOutPredicted[inst->numDestRegs()] = true;
                         inst->addDestReg(RegId(IntRegClass, i));
                         inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
+                        assert(regCtx[i].fromInstType != OpClass::No_OpClass);
+                        inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, regCtx[i].fromInstType);
+                        assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == regCtx[i].fromInstType);
                         inst->_numIntDestRegs++;
                         inst->setCarriesLiveOut(true);
                     }
@@ -535,6 +538,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                         inst->liveOutPredicted[inst->numDestRegs()] = true;
                         inst->addDestReg(RegId(IntRegClass, i));
                         inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
+                        assert(regCtx[i].fromInstType != OpClass::No_OpClass);
+                        inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, regCtx[i].fromInstType);
+                        assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == regCtx[i].fromInstType);
                         inst->_numIntDestRegs++;
                         inst->setCarriesLiveOut(true);
                     }
@@ -579,6 +585,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
                     inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
+                    assert(ccRegFrom != OpClass::No_OpClass);
+                    inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, ccRegFrom);
+                    assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
                     inst->forwardedCCLiveValueExists[0] = false;
@@ -595,6 +604,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
                     inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
+                    assert(ccRegFrom != OpClass::No_OpClass);
+                    inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, ccRegFrom);
+                    assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
                     inst->forwardedCCLiveValueExists[1] = false;
@@ -611,6 +623,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_DF));
                     inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
+                    assert(ccRegFrom != OpClass::No_OpClass);
+                    inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, ccRegFrom);
+                    assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
                     inst->forwardedCCLiveValueExists[2] = false;
@@ -627,6 +642,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_ECF));
                     inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
+                    assert(ccRegFrom != OpClass::No_OpClass);
+                    inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, ccRegFrom);
+                    assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
                     inst->forwardedCCLiveValueExists[3] = false;
@@ -643,6 +661,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_EZF));
                     inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
+                    assert(ccRegFrom != OpClass::No_OpClass);
+                    inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, ccRegFrom);
+                    assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
                     inst->forwardedCCLiveValueExists[4] = false;
@@ -985,6 +1006,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         for (int i=0; i<38; i++) {
             regCtx[i].valid = regCtx[i].source = ccValid = oldCCValid = false;
             PredccFlagBits = PredcfofBits = PreddfBit = PredecfBit = PredezfBit = 0;
+            regCtx[i].fromInstType = ccRegFrom = OpClass::No_OpClass;
         }
         
     } else { 
@@ -1178,6 +1200,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             assert(destReg.flatIndex() < 38);
             regCtx[destReg.flatIndex()].value = currentTrace.instAddr.pcAddr + currentTrace.inst->macroOp->getMacroopSize();
             regCtx[destReg.flatIndex()].valid = propagated = true;
+            regCtx[destReg.flatIndex()].fromInstType = OpClass::RDIP;
             DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", regCtx[destReg.flatIndex()].value, destReg.flatIndex());
     } else if (type == "wrip") {
             DPRINTF(ConstProp, "Found a WRIP branch at [%i][%i][%i], compacting...\n", idx, way, uop);
@@ -1312,6 +1335,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     currentTrace.inst->predictedValue = value;
                     regCtx[dest_reg_idx].valid = true;
                     regCtx[dest_reg_idx].source = true;
+                    regCtx[dest_reg_idx].fromInstType = OpClass::PredSource;
                     // currentTrace.inst->predictedLoad = true; // this should never set for trace prediction sources!
                     currentTrace.inst->confidence = confidence;
                 }
@@ -1557,6 +1581,7 @@ void TraceBasedGraph::updateCCFlagsForPredictedSource(StaticInstPtr inst)
         assert(PredcfofBits == 0 && PredecfBit == 0);
 
         ccValid = true;
+        ccRegFrom = OpClass::AND;
 
     }
     else if (inst->getName() == "xor")
@@ -1751,6 +1776,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::MOV;
 
     return true;
 
@@ -1803,6 +1829,7 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::LIMM;
         
     return true;
 }
@@ -1898,6 +1925,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
         PreddfBit = newFlags & DFBit;
         PredccFlagBits = newFlags & ccFlagMask;
         ccValid = true;
+        ccRegFrom = OpClass::ADD;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -1909,6 +1937,7 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::ADD;
 
     
     return true;
@@ -2001,6 +2030,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
         PreddfBit = newFlags & DFBit;
         PredccFlagBits = newFlags & ccFlagMask;
         ccValid = true;
+        ccRegFrom = OpClass::SUB;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2012,6 +2042,7 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::SUB;
     
     return true;
 }
@@ -2104,6 +2135,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
         PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
         PredecfBit = PredecfBit & ~(ECFBit & ext);
         ccValid = true;
+        ccRegFrom = OpClass::AND;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2115,6 +2147,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::AND;
 
     return true;
 }
@@ -2206,6 +2239,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
         PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
         PredecfBit = PredecfBit & ~(ECFBit & ext);
         ccValid = true;
+        ccRegFrom = OpClass::OR;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2217,6 +2251,7 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::OR;
     
     return true;
 }
@@ -2268,6 +2303,7 @@ bool TraceBasedGraph::propagateLea(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::LEA;
     
     return true;
 }
@@ -2302,6 +2338,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
         DPRINTF(ConstProp, "NOP: (src1:%d == src2:%d)\n", src1, src2);
         regCtx[src1].value = regCtx[src2].value = 0;
         regCtx[src1].valid = regCtx[src2].valid = true;
+        regCtx[src1].fromInstType = regCtx[src2].fromInstType = OpClass::NOP;
     }
 
     if ((!regCtx[src1].valid) || (!regCtx[src2].valid)) {
@@ -2367,6 +2404,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
         PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
         PredecfBit = PredecfBit & ~(ECFBit & ext);
         ccValid = true;
+        ccRegFrom = OpClass::XOR;
     }
 
 
@@ -2381,6 +2419,7 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::XOR;
     
     return true;
 }
@@ -2425,6 +2464,7 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::MOVI;
 
     
     return true;
@@ -2516,6 +2556,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
         PreddfBit = newFlags & DFBit;
         PredccFlagBits = newFlags & ccFlagMask;
         ccValid = true;
+        ccRegFrom = OpClass::SUBI;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2527,6 +2568,7 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::SUBI;
 
     return true;
 }
@@ -2613,6 +2655,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
         PreddfBit = newFlags & DFBit;
         PredccFlagBits = newFlags & ccFlagMask;
         ccValid = true;
+        ccRegFrom = OpClass::ADDI;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2624,6 +2667,7 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::ADDI;
 
     return true;
 }
@@ -2710,6 +2754,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
         PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
         PredecfBit = PredecfBit & ~(ECFBit & ext);
         ccValid = true;
+        ccRegFrom = OpClass::ANDI;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2721,6 +2766,7 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::ANDI;
 
     return true;
 }
@@ -2806,6 +2852,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
         PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
         PredecfBit = PredecfBit & ~(ECFBit & ext);
         ccValid = true;
+        ccRegFrom = OpClass::ORI;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2817,6 +2864,7 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::ORI;
 
     return true;
 }
@@ -2904,6 +2952,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
         PredcfofBits = PredcfofBits & ~((CFBit | OFBit) & ext);
         PredecfBit = PredecfBit & ~(ECFBit & ext);
         ccValid = true;
+        ccRegFrom = OpClass::XORI;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -2915,6 +2964,7 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::XORI;
     
     return true;
 }
@@ -3022,6 +3072,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
         PreddfBit = newFlags & DFBit;
         PredccFlagBits = newFlags & ccFlagMask;
         ccValid = true;
+        ccRegFrom = OpClass::SLLI;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -3033,6 +3084,7 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::SLLI;
 
     return true;
 }
@@ -3139,6 +3191,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
         PreddfBit = newFlags & DFBit;
         PredccFlagBits = newFlags & ccFlagMask;
         ccValid = true;
+        ccRegFrom = OpClass::SRLI;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -3150,6 +3203,7 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::SRLI;
     
     return true;
 }
@@ -3228,7 +3282,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
 		val = sign_bit ? (val | ~maskVal) : (val & maskVal);
 		forwardVal = x86_inst->merge(DestReg, val, dataSize);
     }
-    
+
     if (usingCCTracking && inst->isCC())
     {
         uint16_t ext = inst->getExt();
@@ -3253,6 +3307,8 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
             PredecfBit = PredecfBit | (ext & ECFBit);
             PredezfBit = PredezfBit | (ext & EZFBit);
         }
+        ccValid = true;
+        ccRegFrom = OpClass::SEXTI;
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -3264,6 +3320,7 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::SEXTI;
     
     return true;
 }
@@ -3337,6 +3394,7 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
     regCtx[dest_reg_idx].value = forwardVal;
     regCtx[dest_reg_idx].valid = true;
     regCtx[dest_reg_idx].source = false;
+    regCtx[dest_reg_idx].fromInstType = OpClass::ZEXTI;
     
     return true;
 }

@@ -110,8 +110,9 @@ struct RegisterContext {
     uint64_t value;
     bool valid;
     bool source;
+    OpClass fromInstType;
 
-    RegisterContext() {value = 0; valid = false; source = false;}
+    RegisterContext() {value = 0; valid = false; source = false; fromInstType = OpClass::No_OpClass;}
 };
 
 // Speculative Trace

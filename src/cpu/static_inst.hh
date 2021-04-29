@@ -254,6 +254,10 @@ class StaticInst : public RefCounted, public StaticInstFlags
     void setDestRegLiveOut(int i, bool state) {  _destRegIdx[i].setLiveOutReg(state); }
     bool isDestRegLiveOut(int i) {return  _destRegIdx[i].isLiveOutReg();}
 
+    void setDestRegLiveOutFrom(int i, OpClass op) { _destRegIdx[i].setLiveOutRegFrom(op); }
+    OpClass getDestRegLiveOutFrom(int i) {return  static_cast<OpClass>(_destRegIdx[i].getLiveOutRegFrom());}
+
+
     /// Pointer to a statically allocated "null" instruction object.
     static StaticInstPtr nullStaticInstPtr;
 

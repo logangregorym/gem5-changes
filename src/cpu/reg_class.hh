@@ -82,6 +82,7 @@ class RegId {
     RegIndex regIdx;
     ElemIndex elemIdx;
     bool liveOutReg = false;
+    int liveOutRegFrom = 0;//= OpClass::No_OpClass;
     static constexpr size_t Scale = TheISA::NumVecElemPerVecReg;
     friend struct std::hash<RegId>;
   public:
@@ -128,6 +129,10 @@ class RegId {
     }
     void setLiveOutReg(bool state) {liveOutReg = state;}
     bool isLiveOutReg() {return liveOutReg;}
+
+    void setLiveOutRegFrom(int op) {liveOutRegFrom = op;}
+    int getLiveOutRegFrom() {return liveOutRegFrom;}
+
     /**
      * Check if this is the zero register.
      * Returns true if this register is a zero register (needs to have a
