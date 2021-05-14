@@ -626,6 +626,8 @@ class BaseDynInst : public ExecContext, public RefCounted
     const RegId& destRegIdx(int i) const { return staticInst->destRegIdx(i); }
 
     bool isDestRegLiveOut(int i)  { return staticInst->isDestRegLiveOut(i); }
+    OpClass getDestRegLiveOutFrom(int i)  { return staticInst->getDestRegLiveOutFrom(i); }
+    
     /** Returns the logical register index of the i'th source register. */
     const RegId& srcRegIdx(int i) const { return staticInst->srcRegIdx(i); }
 

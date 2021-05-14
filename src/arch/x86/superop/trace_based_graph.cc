@@ -100,7 +100,7 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
         // don't pullote predictor with instructions that we already know thier values
     if (instruction->getName() == "rdip" || 
         instruction->getName() == "limm" ||  
-        instruction->getName() == "movi" /*|| 
+        instruction->getName() == "movi" /*|| // TODO add ori
         instruction->getName() == "and" ||
         instruction->getName() == "lea"*/) 
     {
@@ -524,6 +524,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                         assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == regCtx[i].fromInstType);
                         inst->_numIntDestRegs++;
                         inst->setCarriesLiveOut(true);
+                        //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     }
                 }
         } else {
@@ -543,6 +544,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                         assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == regCtx[i].fromInstType);
                         inst->_numIntDestRegs++;
                         inst->setCarriesLiveOut(true);
+                        //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     }
                 }
         }
@@ -590,6 +592,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
+                    //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     inst->forwardedCCLiveValueExists[0] = false;
                 }
                 else 
@@ -609,6 +612,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
+                    //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     inst->forwardedCCLiveValueExists[1] = false;
                 }
                 else 
@@ -628,6 +632,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
+                    //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     inst->forwardedCCLiveValueExists[2] = false;
                 }
                 else 
@@ -647,6 +652,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
+                    //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     inst->forwardedCCLiveValueExists[3] = false;
                 }
                 else 
@@ -666,6 +672,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
+                    //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     inst->forwardedCCLiveValueExists[4] = false;
                 }
                 else 
@@ -1629,6 +1636,7 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     }*/
 
     string type = trace.inst->getName();
+    // TODO disable here
     isDeadCode = (type == "rdip") || (allSrcsReady && (type == "lea" || type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"));
 
     // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC

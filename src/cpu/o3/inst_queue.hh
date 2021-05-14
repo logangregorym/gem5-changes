@@ -467,6 +467,7 @@ class InstructionQueue
 
     // a map to track which physical regs are live out reg for superoptimizer 
     std::vector<bool> isLiveOutPhyReg;
+    std::vector<OpClass> liveOutPhyRegFrom;
 
     /** Adds an instruction to the dependency graph, as a consumer. */
     bool addToDependents(DynInstPtr &new_inst);

@@ -120,6 +120,7 @@ InstructionQueue<Impl>::InstructionQueue(O3CPU *cpu_ptr, IEW *iew_ptr,
     // Resize the register scoreboard.
     regScoreboard.resize(numPhysRegs);
     isLiveOutPhyReg.resize(numPhysRegs);
+    liveOutPhyRegFrom.resize(numPhysRegs);
 
     //Initialize Mem Dependence Units
     for (ThreadID tid = 0; tid < numThreads; tid++) {
@@ -555,6 +556,10 @@ InstructionQueue<Impl>::resetState()
 
     for (int i = 0; i < numPhysRegs; ++i) {
         isLiveOutPhyReg[i] = false;
+    }
+
+    for (int i = 0; i < numPhysRegs; ++i) {
+        liveOutPhyRegFrom[i] = OpClass::No_OpClass;
     }
 
 
@@ -1297,6 +1302,7 @@ InstructionQueue<Impl>::wakeDependents(DynInstPtr &completed_inst)
         // Mark the scoreboard as having that register ready.
         regScoreboard[dest_reg->flatIndex()] = true;
         isLiveOutPhyReg[dest_reg->flatIndex()] = false;
+        liveOutPhyRegFrom[dest_reg->flatIndex()] = OpClass::No_OpClass;
     }
     return dependents;
 }
@@ -1387,6 +1393,7 @@ InstructionQueue<Impl>::forwardNonLoadValuePredictionToDependents(DynInstPtr &in
     dependGraph.clearInst(dest_reg->flatIndex());
     regScoreboard[dest_reg->flatIndex()] = true;
     isLiveOutPhyReg[dest_reg->flatIndex()] = false;
+    liveOutPhyRegFrom[dest_reg->flatIndex()] =OpClass::No_OpClass;
 
 
     
@@ -1636,6 +1643,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
         dependGraph.clearInst(dest_reg->flatIndex());
         regScoreboard[dest_reg->flatIndex()] = true;
         isLiveOutPhyReg[dest_reg->flatIndex()] = false;
+        liveOutPhyRegFrom[dest_reg->flatIndex()] =OpClass::No_OpClass;
 
     
     DPRINTF(LVP, "LVP: %d dependents woken\n", dependentCount);
@@ -2055,17 +2063,23 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
                 }
 
                 if (isLiveOutPhyReg[src_reg->flatIndex()]){
+                    //cout << src_reg_idx << "\t" << src_reg->flatIndex();
+                //if (new_inst->isDestRegLiveOut(src_reg_idx)){
                     if (new_inst->srcRegIdx(src_reg_idx).isIntReg()) {   
                         if (new_inst->staticInst->isStreamedFromSpeculativeCache()) {
-                            speculativeIntLiveOutInstType[0][new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx)]++;
+                    //        cout << "instq int spec: " << new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx) << endl;
+                            speculativeIntLiveOutInstType[0][liveOutPhyRegFrom[src_reg->flatIndex()]]++;
                         } else {
-                            nonspeculativeIntLiveOutInstType[0][new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx)]++;
+                    //        cout << "instq int nonspec: " << new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx) << endl;
+                            nonspeculativeIntLiveOutInstType[0][liveOutPhyRegFrom[src_reg->flatIndex()]]++;
                         }
                     } else if (new_inst->srcRegIdx(src_reg_idx).isCCReg()) { 
                         if (new_inst->staticInst->isStreamedFromSpeculativeCache()) {
-                            speculativeCCLiveOutInstType[0][new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx)]++;
+                    //        cout << "instq cc spec: " << new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx) << endl;
+                            speculativeCCLiveOutInstType[0][liveOutPhyRegFrom[src_reg->flatIndex()]]++;
                         } else {
-                            nonspeculativeCCLiveOutInstType[0][new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx)]++;
+                    //        cout << "instq cc nonspec: " << new_inst->staticInst->getDestRegLiveOutFrom(src_reg_idx) << endl;
+                            nonspeculativeCCLiveOutInstType[0][liveOutPhyRegFrom[src_reg->flatIndex()]]++;
                         }
                     }
                 }
@@ -2123,6 +2137,7 @@ InstructionQueue<Impl>::addToProducers(DynInstPtr &new_inst)
         // Mark the scoreboard to say it's not yet ready.
         regScoreboard[dest_reg->flatIndex()] = false;
         isLiveOutPhyReg[dest_reg->flatIndex()] = new_inst->isDestRegLiveOut(dest_reg_idx);
+        liveOutPhyRegFrom[dest_reg->flatIndex()] = new_inst->getDestRegLiveOutFrom(dest_reg_idx);
     }
 }
 
