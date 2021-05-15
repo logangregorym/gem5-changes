@@ -151,7 +151,7 @@ DefaultCommit<Impl>::DefaultCommit(O3CPU *_cpu, DerivO3CPUParams *params)
     interrupt = NoFault;
 
     checkpointAtInstr = params->checkpoint_at_instr;
-    afterExecCnt = params->after_exec_cnt;
+    afterExecCnt = 1;
 
     numMicroopsShrunken = 0;
 }
@@ -1477,6 +1477,18 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     else if (head_inst->isStore())
     {
         DPRINTF(SuperOpSanityCheck, "%#x %d\n", head_inst->instAddr(), numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value());
+    }
+
+    if ((afterExecCnt == ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken)/100000) &&
+        ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken) % 100000 >= 0 && 
+        ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken) % 100000 <= 20)
+    {
+        afterExecCnt++;
+        std::cout <<
+        std::dec  << ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken) << 
+        " " << std::dec  << ((double) ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken)) / (double) cpu->numCycles.value()  << 
+        std::endl;
+
     }
 
     if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
