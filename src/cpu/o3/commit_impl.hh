@@ -1391,7 +1391,13 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
 
             numMicroopsShrunken += head_inst->staticInst->shrunkenLength;
 
-            if (head_inst->isSquashedAndCommited()) numMicroopsShrunken--;
+            DPRINTF(Commit, "Number of shrunken microops after commiting this instruction %d. Number of total commited microops: %d\n", numMicroopsShrunken, ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken));
+            if (head_inst->isSquashedAndCommited()) 
+            {
+                numMicroopsShrunken--;
+                DPRINTF(Commit, "Found a suqashed and commited instruction! numMicroopsShrunken: %d\n", numMicroopsShrunken);
+                DPRINTF(Commit, "Number of shrunken microops after commiting this instruction %d. Number of total commited microops: %d\n", numMicroopsShrunken, ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken));
+            }
 
             // gather some stats about this superoptmized instrcution
             assert( head_inst->staticInst->getTraceID()); 
@@ -1477,9 +1483,11 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     else if (head_inst->isStore())
     {
         DPRINTF(SuperOpSanityCheck, "%#x %d\n", head_inst->instAddr(), numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value());
+        //DPRINTF(SuperOpSanityCheck, "%#x\n", head_inst->instAddr());
     }
 
-    if ((afterExecCnt == ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken)/100000) &&
+    if (false &&
+        (afterExecCnt == ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken)/100000) &&
         ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken) % 100000 >= 0 && 
         ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken) % 100000 <= 20)
     {
@@ -1491,7 +1499,8 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
 
     }
 
-    if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
+    if (true && 
+        cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->committedInsts[tid].value() % 100000 == 0 &&
             !head_inst->isNop() &&
             !head_inst->isInstPrefetch() &&
@@ -1566,7 +1575,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             
 
     }
-    else if (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
+    else if (true && !cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->committedInsts[tid].value() % 100000 == 0 &&
             !head_inst->isNop() &&
             !head_inst->isInstPrefetch() &&
@@ -1689,7 +1698,9 @@ DefaultCommit<Impl>::updateComInstStats(DynInstPtr &inst)
 
     // To match the old model, don't count nops and instruction
     // prefetches towards the total commit count.
-    if (!inst->isNop() && !inst->isInstPrefetch()) {
+    if (!(inst->getName() == "NOP" || inst->getName() == "fault") && 
+        !inst->isNop() && !inst->isInstPrefetch()) 
+    {
         cpu->instDone(tid, inst);
     }
 

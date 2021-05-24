@@ -1944,6 +1944,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
 
     updateLRUBitsSpeculative(idx, way);
     thisPC._pc = speculativeAddrArray[idx][way][uop].pcAddr;
+    thisPC._upc = speculativeAddrArray[idx][way][uop].uopAddr;
 
     StaticInstPtr curInst = speculativeCache[idx][way][uop];
     increaseSpecWayHotness(idx,way);
