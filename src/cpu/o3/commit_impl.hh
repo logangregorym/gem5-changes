@@ -1498,6 +1498,16 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         std::endl;
 
     }
+    
+    uint64_t uops_plus_shrunken = (uint64_t)cpu->committedOps[tid].value();
+    if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent) {
+        uops_plus_shrunken += numMicroopsShrunken;
+    }
+
+    if (uops_plus_shrunken % 100000 == 0) {
+        std::cout << "NumOfUops: " << uops_plus_shrunken << std::endl;
+        std::cout << "CPuops: " << std::dec << (((double) cpu->numCycles.value()) / ((double) uops_plus_shrunken)) << std::endl;
+    }
 
     if (true && 
         cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
@@ -1516,13 +1526,12 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
                     }
                 }
             }
-
+            uint64_t uops_plus_shrunken = ((uint64_t)cpu->committedOps[tid].value()) + numMicroopsShrunken;
             std::cout <<
             "--------------------START OF EPOCH----------------------------" <<
            // std::endl << std::dec << "Ticks: " << (uint64_t)head_inst->traceData->getWhen() <<
             std::endl << std::dec << "NumOfInsts: " << (uint64_t)cpu->committedInsts[tid].value() <<
-            std::endl << std::dec << "CPI: " << (double) cpu->cpi.total() <<
-            std::endl << std::dec << "Total CPI: " << (double) cpu->totalCpi.total() <<
+            std::endl << std::dec << "CPUop: " << (((double) cpu->numCycles.value()) / ((double) uops_plus_shrunken)) <<
             std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   
 		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << 
             std::endl << std::dec << "Shrinkage Ratio: " << ((double)numMicroopsShrunken / (double)(numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value())) * 100 << std::endl;       
