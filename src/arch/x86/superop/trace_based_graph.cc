@@ -1093,24 +1093,24 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "xsave" || decodedMacroOp->getName() == "call_far_Mp" ||
             decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") 
         {
-            currentTrace.length++;
-                if (currentTrace.prevNonEliminatedInst /*&&
-                    !currentTrace.prevNonEliminatedInst->isNop()*/ && 
-                    (decodedMacroOp->getName() == "NOP"|| decodedMacroOp->getName() == "fault") &&
-                    !currentTrace.prevNonEliminatedInst->isInstPrefetch()) 
-                {
-                    currentTrace.prevNonEliminatedInst->shrunkenLength++;
-                    DPRINTF(TraceGen, "NOP-FAULT: Increasing shrunkenLength: %d\n",currentTrace.prevNonEliminatedInst->shrunkenLength);
-                }
-                else if (!currentTrace.prevNonEliminatedInst)
-                {
-                    if (decodedMacroOp->getName() == "NOP"|| decodedMacroOp->getName() == "fault") 
-                    {
-                        currentTrace.interveningDeadInsts++;
-                        DPRINTF(TraceGen, "NOP-FAULT: Increasing interveningDeadInsts: %d\n",currentTrace.interveningDeadInsts);
-                    }
+            // currentTrace.length++;
+            //     if (currentTrace.prevNonEliminatedInst /*&&
+            //         !currentTrace.prevNonEliminatedInst->isNop()*/ && 
+            //         (decodedMacroOp->getName() == "NOP"|| decodedMacroOp->getName() == "fault") &&
+            //         !currentTrace.prevNonEliminatedInst->isInstPrefetch()) 
+            //     {
+            //         currentTrace.prevNonEliminatedInst->shrunkenLength++;
+            //         DPRINTF(TraceGen, "NOP-FAULT: Increasing shrunkenLength: %d\n",currentTrace.prevNonEliminatedInst->shrunkenLength);
+            //     }
+            //     else if (!currentTrace.prevNonEliminatedInst)
+            //     {
+            //         if (decodedMacroOp->getName() == "NOP"|| decodedMacroOp->getName() == "fault") 
+            //         {
+            //             currentTrace.interveningDeadInsts++;
+            //             DPRINTF(TraceGen, "NOP-FAULT: Increasing interveningDeadInsts: %d\n",currentTrace.interveningDeadInsts);
+            //         }
                         
-                }
+            //     }
             advanceTrace(currentTrace);
             return true;
         }
@@ -1130,26 +1130,26 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 decodedMacroOp->getName() == "xsave"|| decodedMacroOp->getName() == "call_far_Mp" ||
                 decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") 
             {
-                currentTrace.length++;
+                // currentTrace.length++;
 
-                if (currentTrace.prevNonEliminatedInst /*&&
-                    !currentTrace.prevNonEliminatedInst->isNop()*/ && 
-                    (inst->getName() == "NOP"|| inst->getName() == "fault") &&
-                    !currentTrace.prevNonEliminatedInst->isInstPrefetch()) 
-                {
+                // if (currentTrace.prevNonEliminatedInst /*&&
+                //     !currentTrace.prevNonEliminatedInst->isNop()*/ && 
+                //     (inst->getName() == "NOP"|| inst->getName() == "fault") &&
+                //     !currentTrace.prevNonEliminatedInst->isInstPrefetch()) 
+                // {
                     
-                    currentTrace.prevNonEliminatedInst->shrunkenLength++;
-                    DPRINTF(TraceGen, "NOP-FAULT: Increasing shrunkenLength: %d\n",currentTrace.prevNonEliminatedInst->shrunkenLength);
-                }
-                else if (!currentTrace.prevNonEliminatedInst)
-                {
-                    if (inst->getName() == "NOP"|| inst->getName() == "fault") 
-                    {
-                        currentTrace.interveningDeadInsts++;
-                        DPRINTF(TraceGen, "NOP-FAULT: Increasing interveningDeadInsts: %d\n",currentTrace.interveningDeadInsts);
-                    }
+                //     currentTrace.prevNonEliminatedInst->shrunkenLength++;
+                //     DPRINTF(TraceGen, "NOP-FAULT: Increasing shrunkenLength: %d\n",currentTrace.prevNonEliminatedInst->shrunkenLength);
+                // }
+                // else if (!currentTrace.prevNonEliminatedInst)
+                // {
+                //     if (inst->getName() == "NOP"|| inst->getName() == "fault") 
+                //     {
+                //         currentTrace.interveningDeadInsts++;
+                //         DPRINTF(TraceGen, "NOP-FAULT: Increasing interveningDeadInsts: %d\n",currentTrace.interveningDeadInsts);
+                //     }
                         
-                }
+                // }
 
                 advanceTrace(currentTrace);
                 return true;
