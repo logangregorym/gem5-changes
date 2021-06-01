@@ -226,14 +226,6 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
         return false;
     }
 
-    // don't fold more than 2 branches
-    if (trace.branchesFolded >= 2)
-    {    
-        DPRINTF(SuperOp, "Number of branches folded %d\n", trace.branchesFolded);
-        return false;
-    
-    }
-
     //DPRINTF(SuperOp, "Not re-optimizing and < 2 branches folded\n");
 
     StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop]);
@@ -259,6 +251,23 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 
         DPRINTF(SuperOp, "Not a control microop!\n");
         return false;
+    }
+
+    // don't fold more than 2 branches
+    if (trace.branchesFolded >= 2)
+    {    
+        DPRINTF(TraceGen, "Ending trace -- Number of branches folded %d\n", trace.branchesFolded);
+        trace.addr.valid = false;
+        if (decodedMacroOp->isMacroop()) { 
+			decodedMacroOp->deleteMicroOps();
+			decodedMacroOp = NULL;
+		}
+        else 
+        {
+            decodedMacroOp = NULL;
+        }        
+        return true;
+    
     }
 
     DPRINTF(SuperOp, "Advancing control trace id:%d at uop cache:[%i][%i][%i]\n", trace.id, trace.addr.idx, trace.addr.way, trace.addr.uop);

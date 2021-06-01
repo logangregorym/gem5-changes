@@ -382,7 +382,7 @@ class DefaultFetch
         return (addr & ~(fetchBufferMask));
     }
 
-    bool isSuperOptmizationEnabled() {return isSuperOptimizationPresent;}
+    bool isSuperOptmizationEnabled() {return isSuperOptimizationActivated;}
     /** The decoder. */
     TheISA::Decoder *decoder[Impl::MaxThreads];
 
@@ -502,6 +502,10 @@ class DefaultFetch
 
     /** Does the CPU support speculative superoptimization? */
     bool isSuperOptimizationPresent;
+    bool isSuperOptimizationActivated;
+
+    /** Warmup before activating superoptimization. */
+    unsigned warmupCycles;
 
     /** The width of decode in instructions. */
     unsigned decodeWidth;

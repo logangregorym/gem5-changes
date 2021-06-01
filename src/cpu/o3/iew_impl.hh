@@ -2195,6 +2195,7 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
 
         // Check for missprediction
         uint64_t reg_value;
+        int64_t mask = -1;
         int numIntDestRegs = 0 ;
         for (int i=0; i<inst->numDestRegs(); i++) {
             PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
@@ -2211,7 +2212,13 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
                     }
                     numIntDestRegs++;
                     reg_value = cpu->readIntReg(dest_reg);     
-                    inst->lvMispred = (reg_value != inst->staticInst->predictedValue); 
+                   
+                    if (inst->staticInst->getDataSize() != 8) { 
+                        mask = (1ull << (inst->staticInst->getDataSize()*8)) - 1;
+                    }
+                    DPRINTF(LVP, "before masking: predicted value=%#x actual value=%#x\n", inst->staticInst->predictedValue, reg_value);
+                    DPRINTF(LVP, "after masking: predicted value=%#x actual value=%#x data size=%i\n", inst->staticInst->predictedValue & mask, reg_value & mask, inst->staticInst->getDataSize());
+                    inst->lvMispred = ((reg_value & mask) != (inst->staticInst->predictedValue & mask)); 
                     break;
                             
                 case CCRegClass:

@@ -98,6 +98,7 @@ DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
       isUopCachePresent(params->enable_microop_cache),
       isMicroFusionPresent(params->enable_micro_fusion),
       isSuperOptimizationPresent(params->enable_superoptimization),
+      warmupCycles(params->superoptimization_warmup_cycles),
       decodeWidth(params->decodeWidth),
       retryPkt(NULL),
       retryTid(InvalidThreadID),
@@ -170,11 +171,12 @@ DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
     // constantLoadAddrs = {0};
     // constantLoadValidBits = {0};
 
+    isSuperOptimizationActivated = false;
     for (ThreadID tid = 0; tid < numThreads; tid++) {
         decoder[tid] = new TheISA::Decoder(params->isa[tid], params);
         decoder[tid]->setUopCachePresent(isUopCachePresent);
-        decoder[tid]->setSpeculativeCachePresent(isSuperOptimizationPresent);
-        decoder[tid]->setSuperOptimizationPresent(isSuperOptimizationPresent);
+        decoder[tid]->setSpeculativeCachePresent(isSuperOptimizationActivated);
+        decoder[tid]->setSuperOptimizationPresent(isSuperOptimizationActivated);
         decoder[tid]->setCPU(cpu, tid);
         // Create space to buffer the cache line data,
         // which may not hold the entire cache line.
@@ -1052,8 +1054,6 @@ template <class Impl>
 void
 DefaultFetch<Impl>::tick()
 {
-
-
     list<ThreadID>::iterator threads = activeThreads->begin();
     list<ThreadID>::iterator end = activeThreads->end();
     bool status_change = false;
@@ -1062,7 +1062,14 @@ DefaultFetch<Impl>::tick()
 
     for (ThreadID i = 0; i < numThreads; ++i) {
         issuePipelinedIfetch[i] = false;
+        if ((warmupCycles == 0) && !isSuperOptimizationActivated && isSuperOptimizationPresent) { 
+            std::cout << "Activating superoptimization\n";
+            isSuperOptimizationActivated = true;
+            decoder[i]->setSpeculativeCachePresent(isSuperOptimizationActivated);
+            decoder[i]->setSuperOptimizationPresent(isSuperOptimizationActivated);
+        }
     }
+    warmupCycles--;
 
     while (threads != end) {
         ThreadID tid = *threads++;
@@ -1164,7 +1171,7 @@ DefaultFetch<Impl>::tick()
 
     // if (!IsHeapProfilerRunning()) 
     //     HeapProfilerStart("SuperOptimizer");
-    if ( isSuperOptimizationPresent)
+    if (isSuperOptimizationActivated)
     {
         for (int tid = 0; tid < numThreads; tid++) {
             decoder[tid]->traceConstructor->generateNextTraceInst(); 
@@ -1481,7 +1488,7 @@ DefaultFetch<Impl>::isStreamingFromSpeculativeCache(TheISA::PCState thisPC)
 {
     // check the speculative cache even before the microop cache
     ThreadID tid = getFetchingThread(fetchPolicy);
-    if (isSuperOptimizationPresent && !decoder[tid]->isSpeculativeCacheActive() && thisPC.upc() == 0) {
+    if (isSuperOptimizationActivated && !decoder[tid]->isSpeculativeCacheActive() && thisPC.upc() == 0) {
 
         currentTraceID = decoder[tid]->isTraceAvailable(FullUopAddr(thisPC.instAddr(), thisPC.upc()));
 
@@ -1500,12 +1507,12 @@ DefaultFetch<Impl>::isStreamingFromSpeculativeCache(TheISA::PCState thisPC)
     }
 
     
-    if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive())
+    if (isSuperOptimizationActivated && decoder[tid]->isSpeculativeCacheActive())
     {
         DPRINTF(Fetch, "Continue fetching from speculative cache at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
         return true;
     }
-    if (isSuperOptimizationPresent && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
+    if (isSuperOptimizationActivated && currentTraceID && !decoder[tid]->redirectDueToLVPSquashing) 
     {
     
         DPRINTF(Fetch, "Setting speculative cache active at Pc %s. currentTraceID is %d\n", thisPC, currentTraceID);
@@ -1738,7 +1745,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 bool newMacro = false, fused = false;
 
                 //*****CHANGE START**********
-                if (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive()) {
+                if (isSuperOptimizationActivated && decoder[tid]->isSpeculativeCacheActive()) {
 
                     
                     // uop cache may be activated but the legacy decoder should never be active when spec or uop caches are active
@@ -1979,7 +1986,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                	    if (decoder[tid]->instReady() || decoder[tid]->isUopCacheActive()) 
                     {
                         // Spec cache should never be active if we are here
-                        if (isSuperOptimizationPresent) assert(!decoder[tid]->isSpeculativeCacheActive());
+                        if (isSuperOptimizationActivated) assert(!decoder[tid]->isSpeculativeCacheActive());
                         
                         // if uop cache is active it should always results in hit!
                         if (isUopCachePresent && decoder[tid]->isUopCacheActive()) assert(decoder[tid]->isHitInUopCache(thisPC.instAddr()));
@@ -2006,7 +2013,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         // Try to queue a new trace if this is macroop is hot!
                         if (isUopCachePresent && staticInst->isStreamedFromUOpCache())
                             DPRINTF(TraceQueue, "%#x\n", thisPC.instAddr());
-                        if (isSuperOptimizationPresent && staticInst->isStreamedFromUOpCache() && staticInst->isUOpCacheHotTrace()) 
+                        if (isSuperOptimizationActivated && staticInst->isStreamedFromUOpCache() && staticInst->isUOpCacheHotTrace()) 
                         {
                             decoder[tid]->traceConstructor->QueueHotTraceForSuperOptimization(thisPC);
                         }
@@ -2125,7 +2132,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     // Scenario #1: In this cycle we were fetching from uop cache. 
                     // Now isStreamingFromSpeculativeCache() tells us that we can start fetch from spec cache therefore we need to switch!
                     // but this doesnt have any kind of penalty as both caches are active and indexed at the same time
-                    if (isSuperOptimizationPresent && decoder[tid]->isUopCacheActive() && isStreamingFromSpeculativeCache(thisPC)) 
+                    if (isSuperOptimizationActivated && decoder[tid]->isUopCacheActive() && isStreamingFromSpeculativeCache(thisPC)) 
                     {
                         DPRINTF(Fetch, "Switching from Uop Cache to Spec Cache at PC:%s!\n", thisPC);
                         assert(decoder[tid]->isSpeculativeCacheActive());
@@ -2138,7 +2145,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     } 
                     // Scenario #2: In this cycle we were fetching from legacy decoder, therefore both caches were disabled. 
                     // Now isStreamingFromSpeculativeCache() tells us that we can start fetch from spec cache therefore we need to switch!
-                    else if (isSuperOptimizationPresent && !decoder[tid]->isUopCacheActive() && isStreamingFromSpeculativeCache(thisPC)) 
+                    else if (isSuperOptimizationActivated && !decoder[tid]->isUopCacheActive() && isStreamingFromSpeculativeCache(thisPC)) 
                     {
                         DPRINTF(Fetch, "Switching from Legacy Decoder to Spec Cache pipline at PC:%s!\n", thisPC);
                         assert(decoder[tid]->isSpeculativeCacheActive());
@@ -2219,7 +2226,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         } 
         while (
                   (
-                    (isSuperOptimizationPresent && decoder[tid]->isSpeculativeCacheActive()) ||  // for spec cache
+                    (isSuperOptimizationActivated && decoder[tid]->isSpeculativeCacheActive()) ||  // for spec cache
                     (isUopCachePresent && decoder[tid]->isUopCacheActive()) ||  // for uop cache
                     (curMacroop || decoder[tid]->instReady())  // for legacy decoder/uop cache
                   ) && 

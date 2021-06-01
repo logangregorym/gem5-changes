@@ -81,6 +81,7 @@ class DerivO3CPU(BaseCPU):
     enable_microop_cache = Param.Bool(True, "Does the CPU support a micro-op cache?")
     enable_micro_fusion = Param.Bool(True, "Does the CPU support micro-fusion?")
     enable_superoptimization = Param.Bool(False, "Does the CPU support speculative superoptimization?")
+    superoptimization_warmup_cycles = Param.Unsigned(0, "Warmup cycles for superoptimization")
     fetchQueueSize = Param.Unsigned(32, "Fetch queue size in micro-ops "
                                     "per-thread")
     constantBufferSize = Param.Unsigned(256, "Size of the buffer of constant load addresses")
