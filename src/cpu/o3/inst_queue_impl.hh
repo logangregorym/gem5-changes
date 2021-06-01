@@ -2139,46 +2139,64 @@ InstructionQueue<Impl>::addToProducers(DynInstPtr &new_inst)
         isLiveOutPhyReg[dest_reg->flatIndex()] = new_inst->isDestRegLiveOut(dest_reg_idx);
         liveOutPhyRegFrom[dest_reg->flatIndex()] = new_inst->getDestRegLiveOutFrom(dest_reg_idx);
     }
+    // First dump all live outs if this instruction is 
+    for (ThreadID tid = 0; tid < numThreads; ++tid) {
+        if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent) {
+            for (int i = 0; i < new_inst->numDestRegs(); i++) {
+                PhysRegIdPtr dest_reg = new_inst->renamedDestRegIdx(i);
+                if (new_inst->staticInst->liveOutPredicted[i]) {
+                    DPRINTF(IQ, "Setting Register Operand %i to live out value %#x\n", i, new_inst->staticInst->liveOut[i]);
+                    if (dest_reg->classValue() == IntRegClass) {
+                        new_inst->setIntRegOperand(new_inst->staticInst.get(), i, new_inst->staticInst->liveOut[i]);
+                    } else if (dest_reg->classValue() == CCRegClass) {
+                        new_inst->setCCRegOperand(new_inst->staticInst.get(), i, new_inst->staticInst->liveOut[i]);
+                    }
+                    iewStage->scoreboard->setReg(new_inst->renamedDestRegIdx(i));
+                    regScoreboard[dest_reg->flatIndex()] = true;
+                }
+            }
+        }
+    }
 }
 
 template <class Impl>
 void
 InstructionQueue<Impl>::addIfReady(DynInstPtr &inst)
 {
-    // If the instruction now has all of its source registers
-    // available, then add it to the list of ready instructions.
-    if (inst->readyToIssue()) {
+// If the instruction now has all of its source registers
+// available, then add it to the list of ready instructions.
+if (inst->readyToIssue()) {
 
-        //Add the instruction to the proper ready list.
-        if (inst->isMemRef()) {
+    //Add the instruction to the proper ready list.
+    if (inst->isMemRef()) {
 
-            DPRINTF(IQ, "Checking if memory instruction can issue.\n");
+        DPRINTF(IQ, "Checking if memory instruction can issue.\n");
 
-            // Message to the mem dependence unit that this instruction has
-            // its registers ready.
-            memDepUnit[inst->threadNumber].regsReady(inst);
+        // Message to the mem dependence unit that this instruction has
+        // its registers ready.
+        memDepUnit[inst->threadNumber].regsReady(inst);
 
-            return;
-        }
-
-        OpClass op_class = inst->opClass();
-
-        DPRINTF(IQ, "Instruction is ready to issue, putting it onto "
-                "the ready list, PC %s opclass:%i [sn:%lli].\n",
-                inst->pcState(), op_class, inst->seqNum);
-
-        readyInsts[op_class].push(inst);
-
-        // Will need to reorder the list if either a queue is not on the list,
-        // or it has an older instruction than last time.
-        if (!queueOnList[op_class]) {
-            addToOrderList(op_class);
-        } else if (readyInsts[op_class].top()->seqNum  <
-                   (*readyIt[op_class]).oldestInst) {
-            listOrder.erase(readyIt[op_class]);
-            addToOrderList(op_class);
-        }
+        return;
     }
+
+    OpClass op_class = inst->opClass();
+
+    DPRINTF(IQ, "Instruction is ready to issue, putting it onto "
+            "the ready list, PC %s opclass:%i [sn:%lli].\n",
+            inst->pcState(), op_class, inst->seqNum);
+
+    readyInsts[op_class].push(inst);
+
+    // Will need to reorder the list if either a queue is not on the list,
+    // or it has an older instruction than last time.
+    if (!queueOnList[op_class]) {
+        addToOrderList(op_class);
+    } else if (readyInsts[op_class].top()->seqNum  <
+               (*readyIt[op_class]).oldestInst) {
+        listOrder.erase(readyIt[op_class]);
+        addToOrderList(op_class);
+    }
+}
 }
 
 template <class Impl>
@@ -2186,34 +2204,34 @@ int
 InstructionQueue<Impl>::countInsts()
 {
 #if 0
-    //ksewell:This works but definitely could use a cleaner write
-    //with a more intuitive way of counting. Right now it's
-    //just brute force ....
-    // Change the #if if you want to use this method.
-    int total_insts = 0;
+//ksewell:This works but definitely could use a cleaner write
+//with a more intuitive way of counting. Right now it's
+//just brute force ....
+// Change the #if if you want to use this method.
+int total_insts = 0;
 
-    for (ThreadID tid = 0; tid < numThreads; ++tid) {
-        ListIt count_it = instList[tid].begin();
+for (ThreadID tid = 0; tid < numThreads; ++tid) {
+    ListIt count_it = instList[tid].begin();
 
-        while (count_it != instList[tid].end()) {
-            if (!(*count_it)->isSquashed() && !(*count_it)->isSquashedInIQ()) {
-                if (!(*count_it)->isIssued()) {
-                    ++total_insts;
-                } else if ((*count_it)->isMemRef() &&
-                           !(*count_it)->memOpDone) {
-                    // Loads that have not been marked as executed still count
-                    // towards the total instructions.
-                    ++total_insts;
-                }
+    while (count_it != instList[tid].end()) {
+        if (!(*count_it)->isSquashed() && !(*count_it)->isSquashedInIQ()) {
+            if (!(*count_it)->isIssued()) {
+                ++total_insts;
+            } else if ((*count_it)->isMemRef() &&
+                       !(*count_it)->memOpDone) {
+                // Loads that have not been marked as executed still count
+                // towards the total instructions.
+                ++total_insts;
             }
-
-            ++count_it;
         }
-    }
 
-    return total_insts;
+        ++count_it;
+    }
+}
+
+return total_insts;
 #else
-    return numEntries - freeEntries;
+return numEntries - freeEntries;
 #endif
 }
 
@@ -2221,42 +2239,42 @@ template <class Impl>
 void
 InstructionQueue<Impl>::dumpLists()
 {
-    for (int i = 0; i < Num_OpClasses; ++i) {
-        cprintf("Ready list %i size: %i\n", i, readyInsts[i].size());
-
-        cprintf("\n");
-    }
-
-    cprintf("Non speculative list size: %i\n", nonSpecInsts.size());
-
-    NonSpecMapIt non_spec_it = nonSpecInsts.begin();
-    NonSpecMapIt non_spec_end_it = nonSpecInsts.end();
-
-    cprintf("Non speculative list: ");
-
-    while (non_spec_it != non_spec_end_it) {
-        cprintf("%s [sn:%lli]", (*non_spec_it).second->pcState(),
-                (*non_spec_it).second->seqNum);
-        ++non_spec_it;
-    }
+for (int i = 0; i < Num_OpClasses; ++i) {
+    cprintf("Ready list %i size: %i\n", i, readyInsts[i].size());
 
     cprintf("\n");
+}
 
-    ListOrderIt list_order_it = listOrder.begin();
-    ListOrderIt list_order_end_it = listOrder.end();
-    int i = 1;
+cprintf("Non speculative list size: %i\n", nonSpecInsts.size());
 
-    cprintf("List order: ");
+NonSpecMapIt non_spec_it = nonSpecInsts.begin();
+NonSpecMapIt non_spec_end_it = nonSpecInsts.end();
 
-    while (list_order_it != list_order_end_it) {
-        cprintf("%i OpClass:%i [sn:%lli] ", i, (*list_order_it).queueType,
-                (*list_order_it).oldestInst);
+cprintf("Non speculative list: ");
 
-        ++list_order_it;
-        ++i;
-    }
+while (non_spec_it != non_spec_end_it) {
+    cprintf("%s [sn:%lli]", (*non_spec_it).second->pcState(),
+            (*non_spec_it).second->seqNum);
+    ++non_spec_it;
+}
 
-    cprintf("\n");
+cprintf("\n");
+
+ListOrderIt list_order_it = listOrder.begin();
+ListOrderIt list_order_end_it = listOrder.end();
+int i = 1;
+
+cprintf("List order: ");
+
+while (list_order_it != list_order_end_it) {
+    cprintf("%i OpClass:%i [sn:%lli] ", i, (*list_order_it).queueType,
+            (*list_order_it).oldestInst);
+
+    ++list_order_it;
+    ++i;
+}
+
+cprintf("\n");
 }
 
 
@@ -2264,55 +2282,13 @@ template <class Impl>
 void
 InstructionQueue<Impl>::dumpInsts()
 {
-    for (ThreadID tid = 0; tid < numThreads; ++tid) {
-        int num = 0;
-        int valid_num = 0;
-        ListIt inst_list_it = instList[tid].begin();
-
-        while (inst_list_it != instList[tid].end()) {
-            cprintf("Instruction:%i\n", num);
-            if (!(*inst_list_it)->isSquashed()) {
-                if (!(*inst_list_it)->isIssued()) {
-                    ++valid_num;
-                    cprintf("Count:%i\n", valid_num);
-                } else if ((*inst_list_it)->isMemRef() &&
-                           !(*inst_list_it)->memOpDone()) {
-                    // Loads that have not been marked as executed
-                    // still count towards the total instructions.
-                    ++valid_num;
-                    cprintf("Count:%i\n", valid_num);
-                }
-            }
-
-            cprintf("PC: %s\n[sn:%lli]\n[tid:%i]\n"
-                    "Issued:%i\nSquashed:%i\n",
-                    (*inst_list_it)->pcState(),
-                    (*inst_list_it)->seqNum,
-                    (*inst_list_it)->threadNumber,
-                    (*inst_list_it)->isIssued(),
-                    (*inst_list_it)->isSquashed());
-
-            if ((*inst_list_it)->isMemRef()) {
-                cprintf("MemOpDone:%i\n", (*inst_list_it)->memOpDone());
-            }
-
-            cprintf("\n");
-
-            inst_list_it++;
-            ++num;
-        }
-    }
-
-    cprintf("Insts to Execute list:\n");
-
+for (ThreadID tid = 0; tid < numThreads; ++tid) {
     int num = 0;
     int valid_num = 0;
-    ListIt inst_list_it = instsToExecute.begin();
+    ListIt inst_list_it = instList[tid].begin();
 
-    while (inst_list_it != instsToExecute.end())
-    {
-        cprintf("Instruction:%i\n",
-                num);
+    while (inst_list_it != instList[tid].end()) {
+        cprintf("Instruction:%i\n", num);
         if (!(*inst_list_it)->isSquashed()) {
             if (!(*inst_list_it)->isIssued()) {
                 ++valid_num;
@@ -2345,42 +2321,84 @@ InstructionQueue<Impl>::dumpInsts()
     }
 }
 
+cprintf("Insts to Execute list:\n");
+
+int num = 0;
+int valid_num = 0;
+ListIt inst_list_it = instsToExecute.begin();
+
+while (inst_list_it != instsToExecute.end())
+{
+    cprintf("Instruction:%i\n",
+            num);
+    if (!(*inst_list_it)->isSquashed()) {
+        if (!(*inst_list_it)->isIssued()) {
+            ++valid_num;
+            cprintf("Count:%i\n", valid_num);
+        } else if ((*inst_list_it)->isMemRef() &&
+                   !(*inst_list_it)->memOpDone()) {
+            // Loads that have not been marked as executed
+            // still count towards the total instructions.
+            ++valid_num;
+            cprintf("Count:%i\n", valid_num);
+        }
+    }
+
+    cprintf("PC: %s\n[sn:%lli]\n[tid:%i]\n"
+            "Issued:%i\nSquashed:%i\n",
+            (*inst_list_it)->pcState(),
+            (*inst_list_it)->seqNum,
+            (*inst_list_it)->threadNumber,
+            (*inst_list_it)->isIssued(),
+            (*inst_list_it)->isSquashed());
+
+    if ((*inst_list_it)->isMemRef()) {
+        cprintf("MemOpDone:%i\n", (*inst_list_it)->memOpDone());
+    }
+
+    cprintf("\n");
+
+    inst_list_it++;
+    ++num;
+}
+}
+
 template <class Impl>
 void
 InstructionQueue<Impl>::estimateChainReduction(DynInstPtr inst, vector<pair<DynInstPtr,unsigned>>& depChain) {
-    assert(inst);
-    vector<PhysRegIndex> known = vector<PhysRegIndex>();
-    for (int idx = 0; idx < inst->numDestRegs(); idx++) {
-        PhysRegIndex reg = inst->renamedDestRegIdx(idx)->flatIndex();
-        known.push_back(reg);
-    }
-    unsigned reducableDependents = 0;
-    for (int i = 0; i < depChain.size(); i++) {
-        DynInstPtr dep_inst = depChain[i].first;
-        assert(dep_inst);
-        bool reducable = true;
-        for (int idx = 0; idx < dep_inst->numSrcRegs(); idx++) {
-            PhysRegIdPtr reg = dep_inst->renamedSrcRegIdx(idx);
-            assert(reg);
-            if (reg->isIntPhysReg() || reg->isFloatPhysReg()) {
-                if (std::count(known.begin(), known.end(), reg->flatIndex()) == 0) {
-                    reducable = false;
-                }
+assert(inst);
+vector<PhysRegIndex> known = vector<PhysRegIndex>();
+for (int idx = 0; idx < inst->numDestRegs(); idx++) {
+    PhysRegIndex reg = inst->renamedDestRegIdx(idx)->flatIndex();
+    known.push_back(reg);
+}
+unsigned reducableDependents = 0;
+for (int i = 0; i < depChain.size(); i++) {
+    DynInstPtr dep_inst = depChain[i].first;
+    assert(dep_inst);
+    bool reducable = true;
+    for (int idx = 0; idx < dep_inst->numSrcRegs(); idx++) {
+        PhysRegIdPtr reg = dep_inst->renamedSrcRegIdx(idx);
+        assert(reg);
+        if (reg->isIntPhysReg() || reg->isFloatPhysReg()) {
+            if (std::count(known.begin(), known.end(), reg->flatIndex()) == 0) {
+                reducable = false;
             }
         }
-        if (reducable) {
-            // DPRINTF(SuperOp, "Reducable Inst: %s\n", dep_inst->staticInst->disassemble(dep_inst->instAddr()));
-            reducableDependents++;
-            for (int idx = 0; idx < inst->numDestRegs(); idx++) {
-                PhysRegIndex reg = dep_inst->renamedDestRegIdx(idx)->flatIndex();
-                known.push_back(reg);
-            }
-        } else {
-            // DPRINTF(SuperOp, "Irreducable Inst: %s\n", dep_inst->staticInst->disassemble(dep_inst->instAddr()));
-        }
     }
-    // DPRINTF(SuperOp, "\n");
-    // reducableInsts += reducableDependents;
+    if (reducable) {
+        // DPRINTF(SuperOp, "Reducable Inst: %s\n", dep_inst->staticInst->disassemble(dep_inst->instAddr()));
+        reducableDependents++;
+        for (int idx = 0; idx < inst->numDestRegs(); idx++) {
+            PhysRegIndex reg = dep_inst->renamedDestRegIdx(idx)->flatIndex();
+            known.push_back(reg);
+        }
+    } else {
+        // DPRINTF(SuperOp, "Irreducable Inst: %s\n", dep_inst->staticInst->disassemble(dep_inst->instAddr()));
+    }
+}
+// DPRINTF(SuperOp, "\n");
+// reducableInsts += reducableDependents;
 }
 
 #endif//__CPU_O3_INST_QUEUE_IMPL_HH__

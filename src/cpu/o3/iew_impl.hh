@@ -1476,21 +1476,6 @@ DefaultIEW<Impl>::executeInsts()
         Fault fault = NoFault;
 
         ThreadID tid = inst->threadNumber;
-        // First dump all live outs if this instruction is 
-        if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent) {
-            for (int i = 0; i < inst->numDestRegs(); i++) {
-                PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
-                if (inst->staticInst->liveOutPredicted[i]) {
-                    DPRINTF(IEW, "Setting Register Operand %i to live out value %#x\n", i, inst->staticInst->liveOut[i]);
-                    if (dest_reg->classValue() == IntRegClass) {
-                        inst->setIntRegOperand(inst->staticInst.get(), i, inst->staticInst->liveOut[i]);
-                    } else if (dest_reg->classValue() == CCRegClass) {
-                        inst->setCCRegOperand(inst->staticInst.get(), i, inst->staticInst->liveOut[i]);
-                    }
-                    scoreboard->setReg(inst->renamedDestRegIdx(i));
-                }
-            }
-        }
         // Execute instruction. 
         // Note that if the instruction faults, it will be handled
         // at the commit stage.
