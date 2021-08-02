@@ -39,6 +39,9 @@ TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p),
     DPRINTF(SuperOp, "Number of ways for speculative cache: %i\n", specCacheNumWays);
     DPRINTF(SuperOp, "Number of sets for speculative cache: %i\n", specCacheNumSets);
     DPRINTF(SuperOp, "Number of prediction sources in a super optimized trace: %i\n", numOfTracePredictionSources);
+    for (int i = 0; i < 38; i ++) {
+        oldIntValid[i] = false;
+    }
 }
 
 TraceBasedGraph* TraceBasedGraphParams::create() {
@@ -522,18 +525,17 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
         // if the current inst (predicted inst) is the first microop then just dump 16 arch registers and CCs
         if (dumpOnlyArchRegs) {
                 for (int i=0; i<16; i++) { // 16 int registers
-                    DPRINTF(TraceGen, "Trying to dump live out: regCts[%d]=%#x valid=%d source=%d\n", i, regCtx[i].value, regCtx[i].valid, regCtx[i].source);
-                    if (regCtx[i].valid && !regCtx[i].source) {
+                    DPRINTF(TraceGen, "Trying to dump live out: regCts[%d]=%#x valid=%d source=%d oldValue=%#x\n", i, regCtx[i].value, regCtx[i].valid, regCtx[i].source, oldIntRegs[i]);
+                    bool tmp_valid = regCtx[i].valid && !regCtx[i].source;
+                    if (tmp_valid && (!oldIntValid[i] || (oldIntValid[i] && regCtx[i].value != oldIntRegs[i]))) {
+                    //    if (tmp_valid && (!oldIntValid || (oldIntValid && regCtx[i].value != oldIntRegs[i]))) {
                         inst->liveOut[inst->numDestRegs()] = regCtx[i].value;
                         inst->liveOutPredicted[inst->numDestRegs()] = true;
                         inst->addDestReg(RegId(IntRegClass, i));
                         inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
-                        assert(regCtx[i].fromInstType != OpClass::No_OpClass);
                         inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, regCtx[i].fromInstType);
-                        assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == regCtx[i].fromInstType);
                         inst->_numIntDestRegs++;
                         inst->setCarriesLiveOut(true);
-                        //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     }
                 }
         } else {
@@ -542,20 +544,27 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
         // MOV_R_P : rdip   t7, %ctrl153,  (Propagated) (first microop)
         // MOV_R_P : ld   rax, DS:[t7 + 0x3cb4fa] (LVP predicted and currentTrace.inst)
                 for (int i=0; i<38; i++) { // 38 int registers
-                    DPRINTF(TraceGen, "Trying to dump live out: regCts[%d]=%#x valid=%d source=%d\n", i, regCtx[i].value, regCtx[i].valid, regCtx[i].source);
-                    if (regCtx[i].valid && !regCtx[i].source) {
+                    DPRINTF(TraceGen, "Trying to dump live out: regCts[%d]=%#x valid=%d source=%d oldValue=%#x\n", i, regCtx[i].value, regCtx[i].valid, regCtx[i].source, oldIntRegs[i]);
+                    bool tmp_valid = regCtx[i].valid && !regCtx[i].source;
+                    if (tmp_valid && (!oldIntValid[i] || (oldIntValid[i] && regCtx[i].value != oldIntRegs[i]))) {
                         inst->liveOut[inst->numDestRegs()] = regCtx[i].value;
                         inst->liveOutPredicted[inst->numDestRegs()] = true;
                         inst->addDestReg(RegId(IntRegClass, i));
                         inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
-                        assert(regCtx[i].fromInstType != OpClass::No_OpClass);
                         inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, regCtx[i].fromInstType);
-                        assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == regCtx[i].fromInstType);
                         inst->_numIntDestRegs++;
                         inst->setCarriesLiveOut(true);
-                        //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     }
                 }
+        }
+
+        for (int i =0; i<38; i ++){
+            if (dumpOnlyArchRegs && i >= 16){
+                oldIntValid[i] = false;
+            } else if (regCtx[i].valid) {
+                oldIntRegs[i] = regCtx[i].value;
+                oldIntValid[i] = true;
+            }
         }
 
         // if the instruction is updating the CC regs, then dont insert new ones!
@@ -596,12 +605,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_ZAPS));
                     inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
-                    assert(ccRegFrom != OpClass::No_OpClass);
                     inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, ccRegFrom);
-                    assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
-                    //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     inst->forwardedCCLiveValueExists[0] = false;
                 }
                 else 
@@ -616,12 +622,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_CFOF));
                     inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
-                    assert(ccRegFrom != OpClass::No_OpClass);
                     inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, ccRegFrom);
-                    assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
-                    //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     inst->forwardedCCLiveValueExists[1] = false;
                 }
                 else 
@@ -636,12 +639,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_DF));
                     inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
-                    assert(ccRegFrom != OpClass::No_OpClass);
                     inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, ccRegFrom);
-                    assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
-                    //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     inst->forwardedCCLiveValueExists[2] = false;
                 }
                 else 
@@ -656,12 +656,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_ECF));
                     inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
-                    assert(ccRegFrom != OpClass::No_OpClass);
                     inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, ccRegFrom);
-                    assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
-                    //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     inst->forwardedCCLiveValueExists[3] = false;
                 }
                 else 
@@ -676,12 +673,9 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                     inst->liveOutPredicted[inst->numDestRegs()] = true;
                     inst->addDestReg(RegId(CCRegClass, CCREG_EZF));
                     inst->setDestRegLiveOut(inst->numDestRegs()-1, true);
-                    assert(ccRegFrom != OpClass::No_OpClass);
                     inst->setDestRegLiveOutFrom(inst->numDestRegs()-1, ccRegFrom);
-                    assert(inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) == ccRegFrom);
                     inst->_numCCDestRegs += 1;
                     inst->setCarriesLiveOut(true);
-                    //cout << inst->getDestRegLiveOutFrom(inst->numDestRegs()-1) << endl;
                     inst->forwardedCCLiveValueExists[4] = false;
                 }
                 else 
@@ -1020,7 +1014,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
         /* Clear Reg Context Block. */
         for (int i=0; i<38; i++) {
-            regCtx[i].valid = regCtx[i].source = ccValid = oldCCValid = false;
+            regCtx[i].valid = regCtx[i].source = ccValid = oldCCValid = oldIntValid[i] = false;
             PredccFlagBits = PredcfofBits = PreddfBit = PredecfBit = PredezfBit = 0;
             regCtx[i].fromInstType = ccRegFrom = OpClass::No_OpClass;
         }
