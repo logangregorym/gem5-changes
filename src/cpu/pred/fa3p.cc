@@ -46,7 +46,7 @@ unsigned FA3P::getConfidence(TheISA::PCState pc) {
     Addr addr = pc.instAddr();
     for (int idx=0; idx < tableEntries; idx++) {
         if (predictor.LVT[idx].tag == addr && predictor.LVT[idx].tag == addr && predictor.LVT[idx].micropc == upc) {
-            return predictor.LVT[idx].confidence.read() - firstConst;
+            return predictor.LVT[idx].confidence.read();// - firstConst;
         }
     }
     return 0;
@@ -104,7 +104,7 @@ uint64_t FA3P::getValuePredicted(TheISA::PCState pc)
         status = -1;
     }
     DPRINTF(LVP, "Value for address %x is %llx\n", addr, value);
-    DPRINTF(LVP, "Status for address %x is %i\n", addr, status - firstConst);
+    DPRINTF(LVP, "Status for address %x is %i\n", addr, status);// - firstConst);
 
     return value;
 }
