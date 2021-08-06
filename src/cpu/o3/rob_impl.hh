@@ -363,6 +363,7 @@ ROB<Impl>::doSquash(ThreadID tid, bool squashDueToLVP)
         // Mark the instruction as squashed, and ready to commit so that
         // it can drain out of the pipeline.
         (*squashIt[tid])->setSquashed();
+        (*squashIt[tid])->lvMispredStat = squashDueToLVP;
 
         (*squashIt[tid])->setCanCommit();
 

@@ -924,6 +924,7 @@ class BaseDynInst : public ExecContext, public RefCounted
     unsigned memoryAccessStartCycle;
     unsigned memoryAccessEndCycle;
     bool lvMispred = false;
+    bool lvMispredStat = false;
     bool potentialLoopEnd = false;
     bool reducableAtFetch = false;
     bool squashDueToLVP = false;

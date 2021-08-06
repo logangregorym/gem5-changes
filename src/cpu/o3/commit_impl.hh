@@ -1097,19 +1097,19 @@ DefaultCommit<Impl>::commitInsts()
             ++commitSquashedInsts; //HERE   
 
             if (head_inst->isStreamedFromSpeculativeCache()){
-                if (head_inst->lvMispred){//squashDueToLVP){
+                if (head_inst->lvMispredStat || head_inst->lvMispred){//squashDueToLVP){
                     commitSquashedInstFromSpecLVP ++;
                 } else {
                     commitSquashedInstsFromSpecNotLVP ++;
                 }
             } else if (head_inst->isStreamedFromUOpCache()){
-                if (head_inst->lvMispred){//squashDueToLVP){
+                if (head_inst->lvMispredStat || head_inst->lvMispred){//squashDueToLVP){
                     commitSquashedInstFromUopLVP ++;
                 } else {
                     commitSquashedInstFromUopNotLVP ++;
                 }
             } else {
-                if (head_inst->lvMispred){//squashDueToLVP){
+                if (head_inst->lvMispredStat || head_inst->lvMispred){//squashDueToLVP){
                     commitSquashedInstFromICacheLVP ++;
                 } else {
                     commitSquashedInstFromICacheNotLVP ++;
