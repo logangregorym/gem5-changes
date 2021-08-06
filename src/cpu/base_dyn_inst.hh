@@ -926,6 +926,7 @@ class BaseDynInst : public ExecContext, public RefCounted
     bool lvMispred = false;
     bool potentialLoopEnd = false;
     bool reducableAtFetch = false;
+    bool squashDueToLVP = false;
 };
 
 template<class Impl>

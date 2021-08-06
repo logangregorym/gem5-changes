@@ -182,6 +182,30 @@ DefaultCommit<Impl>::regStats()
         .desc("The number of squashed insts skipped by commit")
         .prereq(commitSquashedInsts);
 
+    commitSquashedInstFromSpecLVP
+        .name(name() + ".commitSquashedInstFromSpecLVP")
+        .desc("The number of squashed insts skipped by commit, streamed from Speculative Cache, due to LVP");
+
+    commitSquashedInstsFromSpecNotLVP
+        .name(name() + ".commitSquashedInstsFromSpecNotLVP")
+        .desc("The number of squashed insts skipped by commit, streamed from Speculative Cache, not due to LVP");
+    
+    commitSquashedInstFromUopLVP
+        .name(name() + ".commitSquashedInstFromUopLVP")
+        .desc("The number of squashed insts skipped by commit, streamed from Uop Cache, due to LVP");
+
+    commitSquashedInstFromUopNotLVP
+        .name(name() + ".commitSquashedInstFromUopNotLVP")
+        .desc("The number of squashed insts skipped by commit, streamed from Uop Cache, not due to LVP");
+
+    commitSquashedInstFromICacheLVP
+        .name(name() + ".commitSquashedInstFromICacheLVP")
+        .desc("The number of squashed insts skipped by commit, streamed from Instruction Cache, due to LVP");
+
+    commitSquashedInstFromICacheNotLVP
+        .name(name() + ".commitSquashedInstFromICacheNotLVP")
+        .desc("The number of squashed insts skipped by commit, streamed from Instruction Cache, not due to LVP");
+
     commitNonSpecStalls
         .name(name() + ".commitNonSpecStalls")
         .desc("The number of times commit has been forced to stall to "
@@ -873,7 +897,7 @@ DefaultCommit<Impl>::commit()
     list<ThreadID>::iterator end = activeThreads->end();
 
     int num_squashing_threads = 0;
-
+    squashDueToLVP = false;
     while (threads != end) {
         ThreadID tid = *threads++;
 
@@ -922,7 +946,8 @@ DefaultCommit<Impl>::commit()
             InstSeqNum squashed_inst = fromIEW->squashedSeqNum[tid];
 
             //*****CHANGE START**********
-            toIEW->commitInfo[tid].squashDueToLVP = fromIEW->squashDueToLVP[tid];
+            squashDueToLVP = squashDueToLVP || fromIEW->squashDueToLVP[tid];
+            toIEW->commitInfo[tid].squashDueToLVP = fromIEW->squashDueToLVP[tid]; //HERE
             toIEW->commitInfo[tid].currentTraceID = fromIEW->currentTraceID[tid];
             //*****CHANGE END**********
 
@@ -967,11 +992,13 @@ DefaultCommit<Impl>::commit()
         }
     }
 
+
     // If commit is currently squashing, then it will have activity for the
     // next cycle. Set its next status as active.
     if (num_squashing_threads) {
         _nextStatus = Active;
     }
+    
 
     if (num_squashing_threads != numThreads) {
         // If we're not currently squashing, then get instructions.
@@ -1029,7 +1056,7 @@ DefaultCommit<Impl>::commitInsts()
     // it is writing in during this cycle.  Can't commit and squash
     // things at the same time...
     ////////////////////////////////////
-
+    
     DPRINTF(Commit, "Trying to commit instructions in the ROB.\n");
 
     unsigned num_committed = 0;
@@ -1067,7 +1094,30 @@ DefaultCommit<Impl>::commitInsts()
 
             rob->retireHead(commit_thread);
 
-            ++commitSquashedInsts;
+            ++commitSquashedInsts; //HERE   
+
+            if (head_inst->isStreamedFromSpeculativeCache()){
+                if (head_inst->lvMispred){//squashDueToLVP){
+                    commitSquashedInstFromSpecLVP ++;
+                } else {
+                    commitSquashedInstsFromSpecNotLVP ++;
+                }
+            } else if (head_inst->isStreamedFromUOpCache()){
+                if (head_inst->lvMispred){//squashDueToLVP){
+                    commitSquashedInstFromUopLVP ++;
+                } else {
+                    commitSquashedInstFromUopNotLVP ++;
+                }
+            } else {
+                if (head_inst->lvMispred){//squashDueToLVP){
+                    commitSquashedInstFromICacheLVP ++;
+                } else {
+                    commitSquashedInstFromICacheNotLVP ++;
+                } 
+            }
+            //6
+            //isStreamedFromUOpCache
+            //            toIEW->commitInfo[tid].squashDueToLVP = fromIEW->squashDueToLVP[tid]; //HERE
             // Notify potential listeners that this instruction is squashed
             ppSquash->notify(head_inst);
 

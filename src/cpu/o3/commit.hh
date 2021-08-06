@@ -482,12 +482,22 @@ class DefaultCommit
         a possible livelock senario.  */
     bool avoidQuiesceLiveLock;
 
+    bool squashDueToLVP;
+
     /** Updates commit stats based on this instruction. */
     void updateComInstStats(DynInstPtr &inst);
 
     /** Stat for the total number of squashed instructions discarded by commit.
      */
     Stats::Scalar commitSquashedInsts;
+
+    Stats::Scalar commitSquashedInstFromSpecLVP;
+    Stats::Scalar commitSquashedInstsFromSpecNotLVP;
+    Stats::Scalar commitSquashedInstFromUopLVP;
+    Stats::Scalar commitSquashedInstFromUopNotLVP;
+    Stats::Scalar commitSquashedInstFromICacheLVP;
+    Stats::Scalar commitSquashedInstFromICacheNotLVP;
+
     /** Stat for the total number of times commit has had to stall due to a non-
      * speculative instruction reaching the head of the ROB.
      */
