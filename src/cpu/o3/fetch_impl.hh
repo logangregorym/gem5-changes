@@ -1279,7 +1279,10 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
         // branch predictor with that instruction, otherwise just kill the
         // invalid state we generated in after sequence number
         if (fromCommit->commitInfo[tid].mispredictInst &&
-            fromCommit->commitInfo[tid].mispredictInst->isControl()) {
+            fromCommit->commitInfo[tid].mispredictInst->isControl() && 
+            (!(fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache()) || 
+            (fromCommit->commitInfo[tid].mispredictInst->isLastMicroop() &&
+            fromCommit->commitInfo[tid].mispredictInst->branchPredFromPredictor))) {
             branchPred->squash(fromCommit->commitInfo[tid].doneSeqNum,
                               fromCommit->commitInfo[tid].pc,
                               fromCommit->commitInfo[tid].branchTaken,
@@ -1302,7 +1305,11 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
                 "from decode.\n",tid);
 
         // Update the branch predictor.
-        if (fromDecode->decodeInfo[tid].branchMispredict) {
+        if (fromDecode->decodeInfo[tid].branchMispredict &&
+            fromDecode->commitInfo[tid].mispredictInst->isControl() && 
+            (!(fromDecode->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache()) || 
+            (fromDecode->commitInfo[tid].mispredictInst->isLastMicroop() &&
+            fromDecode->commitInfo[tid].mispredictInst->branchPredFromPredictor))) {
             branchPred->squash(fromDecode->decodeInfo[tid].doneSeqNum,
                               fromDecode->decodeInfo[tid].nextPC,
                               fromDecode->decodeInfo[tid].branchTaken,
@@ -1829,9 +1836,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             nextPC = bpred_nextPC;
                             instruction->setPredTarg(nextPC);
                             instruction->setPredTaken(predict_taken);
+                            instruction->branchPredFromPredictor = true;
                         } else {
                             instruction->setPredTarg(instruction->staticInst->predictedTarget);
                             instruction->setPredTaken(instruction->staticInst->predictedTaken);
+                            //instruction->branchPredFromPredictor = false;
                         }
                         
                         if (thisPC.branching()) {
