@@ -1179,8 +1179,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             "Insturction has CC reg dests and, i.e., updates the CC regs but it's not CC! This can potenially cause bugs! Inst. type = %s\n " , currentTrace.inst->getName());
 
     //sanity check. Are "mov" or "movi" control microops?! "br" is control but do we execute it?! It can cause bugs
-    panic_if((currentTrace.inst->isControl() && (currentTrace.inst->getName() != "wrip" && currentTrace.inst->getName() != "wripi")), 
-            "Insturction is Control and is not wrip or wripi! Inst. type = %s\n " , currentTrace.inst->getName());
+//    panic_if((currentTrace.inst->isControl() && (currentTrace.inst->getName() != "wrip" && currentTrace.inst->getName() != "wripi")), "Insturction is Control and is not wrip or wripi! Inst. type = %s\n " , currentTrace.inst->getName());
     //update number of original CC regs
     currentTrace.inst->_numCCDestRegsOrig = currentTrace.inst->numCCDestRegs();
 

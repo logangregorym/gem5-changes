@@ -1840,6 +1840,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         } else {
                             instruction->setPredTarg(instruction->staticInst->predictedTarget);
                             instruction->setPredTaken(instruction->staticInst->predictedTaken);
+                            predict_taken = instruction->staticInst->predictedTaken;
                             //instruction->branchPredFromPredictor = false;
                         }
                         

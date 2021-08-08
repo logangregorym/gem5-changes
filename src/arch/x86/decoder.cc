@@ -1970,10 +1970,6 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
     FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
     predict_taken = false;
 
-    if (curInst->isControl()) {
-        predict_taken = traceConstructor->branchPred->lookupWithoutUpdate(0, instAddr.pcAddr);
-    }
-
     uint32_t macroop_size;
     // syscall and CPUID (Add it later) doesnt have a macroOp, therefore we need to set the macrop size manually.
     // other instructions should have the macroop if they are implemented
