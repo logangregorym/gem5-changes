@@ -1954,14 +1954,14 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
             squashDueToBranch(inst, tid);
             updateTraceBranchConfidence(inst, tempPC ,false);    
 
-            if (!inst->isStreamedFromSpeculativeCache())
-            {
+            //if (!inst->isStreamedFromSpeculativeCache())
+            //{
                 if (inst->readPredTaken()) {
                     predictedTakenIncorrect++;
                 } else {
                     predictedNotTakenIncorrect++;
                 }
-            }
+            //}
 
         }
     }
