@@ -14,7 +14,7 @@ class BigSatCounter
     /**
      * Default constructor.
      */
-    BigSatCounter() : initialVal(0), counter(0) {}
+    BigSatCounter() : initialVal(0), maxVal(15), counter(0) {}
 
     /**
      * Constructor with size.
