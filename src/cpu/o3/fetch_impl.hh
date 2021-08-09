@@ -1840,6 +1840,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         } else {
                             instruction->setPredTarg(instruction->staticInst->predictedTarget);
                             instruction->setPredTaken(instruction->staticInst->predictedTaken);
+                            if (instruction->staticInst->predictedTarget.instAddr() == bpred_nextPC.instAddr() && instruction->staticInst->predictedTaken == bpred_predict_taken) {
+                                instruction->branchPredFromPredictor = true;
+                            }
                             predict_taken = instruction->staticInst->predictedTaken;
                             //instruction->branchPredFromPredictor = false;
                         }
