@@ -1967,7 +1967,6 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
         
     }
     assert(curInst);
-    FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
     predict_taken = false;
 
     uint32_t macroop_size;
