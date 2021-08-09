@@ -1291,6 +1291,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             branchPred->squash(fromCommit->commitInfo[tid].doneSeqNum,
                               tid);
         }
+        DPRINTF(Branch, "Squashing branch from commit at pc: %s\n", fromCommit->commitInfo[tid].mispredictInst->pc);
 
         return true;
     } else if (fromCommit->commitInfo[tid].doneSeqNum) {
@@ -1306,10 +1307,10 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
 
         // Update the branch predictor.
         if (fromDecode->decodeInfo[tid].branchMispredict &&
-            fromDecode->commitInfo[tid].mispredictInst->isControl() && 
-            (!(fromDecode->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache()) || 
-            (fromDecode->commitInfo[tid].mispredictInst->isLastMicroop() &&
-            fromDecode->commitInfo[tid].mispredictInst->branchPredFromPredictor))) {
+            fromDecode->decodeInfo[tid].mispredictInst->isControl() && 
+            (!(fromDecode->decodeInfo[tid].mispredictInst->isStreamedFromSpeculativeCache()) || 
+            (fromDecode->decodeInfo[tid].mispredictInst->isLastMicroop() &&
+            fromDecode->decodeInfo[tid].mispredictInst->branchPredFromPredictor))) {
             branchPred->squash(fromDecode->decodeInfo[tid].doneSeqNum,
                               fromDecode->decodeInfo[tid].nextPC,
                               fromDecode->decodeInfo[tid].branchTaken,
@@ -1318,6 +1319,8 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             branchPred->squash(fromDecode->decodeInfo[tid].doneSeqNum,
                               tid);
         }
+        DPRINTF(Branch, "Squashing branch from decode at pc: %s\n", fromDecode->decodeInfo[tid].mispredictInst->pc);
+
 
         if (fetchStatus[tid] != Squashing) {
 
