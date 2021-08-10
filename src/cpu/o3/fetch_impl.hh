@@ -1818,6 +1818,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     numInst++;
 
 
+                    bool thwartMisprediction = false;
                     if (!instruction->isControl()) {
                         //assert(thisPC.instAddr() == nextPC.instAddr());
                         instruction->setPredTarg(nextPC);
@@ -1842,12 +1843,19 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             instruction->setPredTaken(predict_taken);
                             instruction->branchPredFromPredictor = true;
                         } else {
-                            instruction->setPredTarg(instruction->staticInst->predictedTarget);
-                            instruction->setPredTaken(instruction->staticInst->predictedTaken);
                             if (instruction->staticInst->predictedTarget.instAddr() == bpred_nextPC.instAddr() && instruction->staticInst->predictedTaken == bpred_predict_taken) {
+                                instruction->setPredTarg(instruction->staticInst->predictedTarget);
+                                instruction->setPredTaken(instruction->staticInst->predictedTaken);
+                                instruction->branchPredFromPredictor = true;
+                                predict_taken = instruction->staticInst->predictedTaken;
+                            } else {
+                                thwartMisprediction = true;
+                                predict_taken = bpred_predict_taken;
+                                nextPC = bpred_nextPC;
+                                instruction->setPredTarg(nextPC);
+                                instruction->setPredTaken(predict_taken);
                                 instruction->branchPredFromPredictor = true;
                             }
-                            predict_taken = instruction->staticInst->predictedTaken;
                             //instruction->branchPredFromPredictor = false;
                         }
                         
@@ -1891,7 +1899,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         break;
                     }
 
-                    if (staticInst->isEndOfTrace()) {
+                    if (staticInst->isEndOfTrace() || thwartMisprediction) {
                         
                         decoder[tid]->setSpeculativeCacheActive(false);
                         decoder[tid]->setUopCacheActive(false);
@@ -1901,6 +1909,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         // fetchBufferPC[tid] is updated at the begining of streaming microops from speculative cache 
                         thisPC = nextPC; 
                         thisPC.upc(0); thisPC.nupc(1);
+                        decoder[tid]->traceConstructor->streamTrace.id = 0;
                         
                         // 
                         // When we are done with streaming from speculative cache we always know that we are at the 
