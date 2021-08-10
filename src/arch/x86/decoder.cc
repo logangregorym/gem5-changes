@@ -988,6 +988,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         for (int way = 0; way < 8; way++) {
             if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
                 if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+                    traceConstructor->currentTrace.currentIdx == idx && 
                     (traceConstructor->currentTrace.head.way == way || 
                      way == uopNextWayArray[idx][traceConstructor->currentTrace.head.way] ||
                      way == uopPrevWayArray[idx][traceConstructor->currentTrace.head.way] ||
@@ -996,6 +997,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                     return false;
                 }
                 if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+                    traceConstructor->currentTrace.currentIdx == idx && 
                     traceConstructor->currentTrace.addr.valid &&
                     (traceConstructor->currentTrace.addr.way == way || 
                      way == uopNextWayArray[idx][traceConstructor->currentTrace.addr.way] ||
@@ -1967,7 +1969,6 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
         
     }
     assert(curInst);
-    FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
     predict_taken = false;
 
     uint32_t macroop_size;

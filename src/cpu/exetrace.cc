@@ -48,12 +48,15 @@
 using namespace std;
 using namespace TheISA;
 
+bool resetTick = true;
+uint64_t baseTick = 0;
+
 namespace Trace {
 
 void
 ExeTracerRecord::dumpTicks(ostream &outs)
 {
-    ccprintf(outs, "%7d: ", when);
+    ccprintf(outs, "%7d: ", when - baseTick);
 }
 
 
@@ -91,6 +94,10 @@ Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
     if (debugSymbolTable && Debug::ExecSymbol &&
             (!FullSystem || !inUserMode(thread)) &&
             debugSymbolTable->findNearestSymbol(cur_pc, sym_str, sym_addr)) {
+        if (resetTick && sym_str == "_Z4sum1v") {
+            resetTick = false;
+            baseTick = when;            
+        }
         if (cur_pc != sym_addr)
             sym_str += csprintf("+%d",cur_pc - sym_addr);
         outs << "0x" << hex << cur_pc << "\t";

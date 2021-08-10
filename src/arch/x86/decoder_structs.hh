@@ -165,6 +165,9 @@ struct SpecTrace
     // address of the last instruction processed
     FullUopAddr lastAddr;
 
+    // current index being examined
+    int currentIdx;
+
     // instruction being optimized
     StaticInstPtr inst;
 
@@ -229,6 +232,9 @@ struct SpecTrace
     // Counter to assign trace IDs
     static uint64_t traceIDCounter;
 
+    // we do not handle micro branches (i.e., control transfer within a macro-op)
+    bool microBranchEncountered;
+
     SpecTrace() {
         id = 0;
         state = Invalid;
@@ -250,6 +256,7 @@ struct SpecTrace
         inTransit= false;
         totalNumOfMicroopsCommitedFromTrace = 0;
         totalNumOfMicroopsFetchedFromTrace = 0;
+        microBranchEncountered = false;
     }
 };
 #endif // __ARCH_X86_DECODER_STRUCTS__
