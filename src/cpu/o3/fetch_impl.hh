@@ -1287,11 +1287,11 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
                               fromCommit->commitInfo[tid].pc,
                               fromCommit->commitInfo[tid].branchTaken,
                               tid);
+            DPRINTF(Fetch, "Squashing branch from commit at pc: 0x%x\n", fromCommit->commitInfo[tid].mispredictInst->instAddr());
         } else {
             branchPred->squash(fromCommit->commitInfo[tid].doneSeqNum,
                               tid);
         }
-        DPRINTF(Fetch, "Squashing branch from commit at pc: %s\n", fromCommit->commitInfo[tid].mispredictInst->pc);
 
         return true;
     } else if (fromCommit->commitInfo[tid].doneSeqNum) {
@@ -1315,11 +1315,12 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
                               fromDecode->decodeInfo[tid].nextPC,
                               fromDecode->decodeInfo[tid].branchTaken,
                               tid);
+            DPRINTF(Fetch, "Squashing branch from decode at pc: 0x%x\n", fromDecode->decodeInfo[tid].mispredictInst->instAddr());
         } else {
             branchPred->squash(fromDecode->decodeInfo[tid].doneSeqNum,
                               tid);
         }
-        DPRINTF(Fetch, "Squashing branch from decode at pc: %s\n", fromDecode->decodeInfo[tid].mispredictInst->pc);
+        
 
 
         if (fetchStatus[tid] != Squashing) {
