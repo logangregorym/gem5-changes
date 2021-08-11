@@ -2039,8 +2039,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         // Try to queue a new trace if this is macroop is hot!
                         if (isUopCachePresent && staticInst->isStreamedFromUOpCache())
                             DPRINTF(TraceQueue, "%#x\n", thisPC.instAddr());
-                        if (isSuperOptimizationActivated && staticInst->isStreamedFromUOpCache() && staticInst->isUOpCacheHotTrace()) 
-                        {
+                        if (isSuperOptimizationActivated && staticInst->isStreamedFromUOpCache()
+                                && staticInst->isUOpCacheHotTrace() && thisPC.upc() == 0) {
                             decoder[tid]->traceConstructor->QueueHotTraceForSuperOptimization(thisPC);
                         }
                             

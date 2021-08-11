@@ -148,14 +148,21 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
     uint64_t tag = (addr >> 10);
     uint64_t baseAddr = addr;
     uint64_t baseWay = 0;
+    uint64_t baseUop = 0;
+    bool found = false;
     // find the the base way for this 32B code region
     for (int way = 0; way < 8; way++) {
-        if ((decoder->uopValidArray[uop_cache_idx][way] && decoder->uopTagArray[uop_cache_idx][way] == tag)) {//&& 
-//             (!baseAddr || decoder->uopAddrArray[uop_cache_idx][way][0].pcAddr <= baseAddr)) {
-            
-            baseWay = way;
-        
+        for (int uop = 0; uop < 6; uop++) {
+            if ((decoder->uopValidArray[uop_cache_idx][way] && decoder->uopTagArray[uop_cache_idx][way] == tag) && 
+                 (decoder->uopAddrArray[uop_cache_idx][way][uop].pcAddr == baseAddr)) {
+                
+                baseWay = way;
+                baseUop = uop;
+                found = true;
+                break;
+            }
         }
+        if (found) break;
     }
 
 
@@ -174,7 +181,7 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
 
     SpecTrace newTrace;
     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
-    newTrace.head = newTrace.addr = FullCacheIdx(uop_cache_idx, baseWay, 0);
+    newTrace.head = newTrace.addr = FullCacheIdx(uop_cache_idx, baseWay, baseUop);
     newTrace.currentIdx = uop_cache_idx;
     newTrace.setTraceHeadAddress(FullUopAddr(baseAddr, 0));
     newTrace.instAddr = FullUopAddr(0, 0);
@@ -184,7 +191,7 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
     newTrace.hotness = hotness;
     uint64_t length = computeLength(newTrace);
     if (hotness != 15 || length < 4) { // TODO: revisit: pretty low bar
-        DPRINTF(TraceGen, "Rejecting trace request to optimize trace at uop[%i][%i][%i]\n", uop_cache_idx, baseWay, 0);
+        DPRINTF(TraceGen, "Rejecting trace request to optimize trace at uop[%i][%i][%i]\n", uop_cache_idx, baseWay, baseUop);
         DPRINTF(TraceGen, "hotness:%i length=%i\n", hotness, length);
         return false;
     }
@@ -196,7 +203,7 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
     newTrace.id = SpecTrace::traceIDCounter++;
     traceMap[newTrace.id] = newTrace;
     traceQueue.push(newTrace);
-    DPRINTF(TraceGen, "Queueing up new trace request %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, uop_cache_idx, baseWay, 0);
+    DPRINTF(TraceGen, "Queueing up new trace request %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, uop_cache_idx, baseWay, baseUop);
     DPRINTF(TraceGen, "hotness:%i length=%i\n", hotness, length);
     //dumpTrace(newTrace);
     return true;
@@ -1175,7 +1182,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
     decodedMacroOp = NULL;
 
     if (newMacro) {
-        if (currentTrace.inst->macroOp && (currentTrace.inst->macroOp->getNumMicroops() + currentTrace.shrunkLength) > 18) {
+        if (!currentTrace.interveningDeadInsts &&
+             currentTrace.inst->macroOp &&
+             (currentTrace.inst->macroOp->getNumMicroops() + currentTrace.shrunkLength) > 18) {
             StaticInstPtr macroOp = currentTrace.inst->macroOp;
             currentTrace.addr.valid = false;
             macroOp->deleteMicroOps();
@@ -1455,7 +1464,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                             currentTrace.end.pcAddr, currentTrace.end.uopAddr);
        
         Addr target = 0;
-        if (!currentTrace.inst->isLastMicroop() || currentTrace.shrunkLength < 18) {
+        if (!currentTrace.inst->isLastMicroop() || currentTrace.shrunkLength < 18 || currentTrace.interveningDeadInsts) {
             target = advanceTrace(currentTrace);
         } else {
             currentTrace.addr.valid = false;
