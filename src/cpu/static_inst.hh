@@ -473,6 +473,10 @@ class StaticInst : public RefCounted, public StaticInstFlags
     
     TheISA::PCState predictedTarget;
     bool predictedTaken = false;
+    bool rasPushIndicator = false;
+    bool rasPopIndicator = false;
+    TheISA::PCState rasPushAddress;
+
     int predSourceRegIdx;
     uint64_t forwardedLiveValue;
     bool forwardedLiveValueExists = false;

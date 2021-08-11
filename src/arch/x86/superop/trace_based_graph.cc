@@ -1474,14 +1474,14 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.inst->predictedTarget._pc = target;
                 currentTrace.inst->predictedTarget._npc = target + 1;
                 currentTrace.inst->predictedTarget._upc = 0;
-                currentTrace.inst->predictedTarget._upc = 1;
+                currentTrace.inst->predictedTarget._nupc = 1;
                 currentTrace.inst->predictedTaken = true;
                 DPRINTF(TraceGen, "Predicted taken to: %s\n", currentTrace.inst->predictedTarget);
             } else {
                 currentTrace.inst->predictedTarget._pc = currentTrace.end.pcAddr;
                 currentTrace.inst->predictedTarget._npc = currentTrace.end.pcAddr + 1;
-                currentTrace.inst->predictedTarget._upc = currentTrace.end.uopAddr;
                 currentTrace.inst->predictedTarget._upc = currentTrace.end.uopAddr + 1;
+                currentTrace.inst->predictedTarget._nupc = 0;
                 currentTrace.inst->predictedTaken = false;
                 DPRINTF(TraceGen, "Predicted not taken to: %s\n", currentTrace.inst->predictedTarget);
             }
@@ -3547,6 +3547,19 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
 
                         currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+
+                        if (inst->isCall()) {
+                            currentTrace.prevNonEliminatedInst->rasPushIndicator = true;
+                            currentTrace.prevNonEliminatedInst->rasPushAddress._pc = currentTrace.instAddr.pcAddr;
+                            currentTrace.prevNonEliminatedInst->rasPushAddress._npc = currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize();
+                            currentTrace.prevNonEliminatedInst->rasPushAddress._upc = currentTrace.instAddr.uopAddr;
+                            currentTrace.prevNonEliminatedInst->rasPushAddress._nupc = 0;
+                            DPRINTF(ConstProp, "CC Tracking: RAS push indication to address %#x\n", currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize());
+                        } else if (inst->isReturn()) {
+                            currentTrace.prevNonEliminatedInst->rasPopIndicator = true;
+                            DPRINTF(ConstProp, "CC Tracking: RAS pop indication\n");
+                        }
+
                         return true;
                     }
                 }
@@ -3691,6 +3704,18 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
 
                         currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+
+                        if (inst->isCall()) {
+                            currentTrace.prevNonEliminatedInst->rasPushIndicator = true;
+                            currentTrace.prevNonEliminatedInst->rasPushAddress._pc = currentTrace.instAddr.pcAddr;
+                            currentTrace.prevNonEliminatedInst->rasPushAddress._npc = currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize();
+                            currentTrace.prevNonEliminatedInst->rasPushAddress._upc = currentTrace.instAddr.uopAddr;
+                            currentTrace.prevNonEliminatedInst->rasPushAddress._nupc = 0;
+                            DPRINTF(ConstProp, "CC Tracking: RAS push indication to address %#x\n", currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize());
+                        } else if (inst->isReturn()) {
+                            currentTrace.prevNonEliminatedInst->rasPopIndicator = true;
+                            DPRINTF(ConstProp, "CC Tracking: RAS pop indication\n");
+                        }
                         return true;
                     }
                 }

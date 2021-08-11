@@ -1816,7 +1816,14 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                     ppFetch->notify(instruction);
                     numInst++;
-
+                    
+                    if (staticInst->rasPushIndicator) {
+                        DPRINTF(Fetch, "RAS push indication received for branch to be folded: %s\n", staticInst->rasPushAddress);
+                        branchPred->RAS[tid].push(staticInst->rasPushAddress);
+                    } else if (staticInst->rasPopIndicator) {
+                        DPRINTF(Fetch, "RAS pop indication received for branch to be folded\n");
+                        branchPred->RAS[tid].pop();
+                    }
 
                     bool thwartMisprediction = false;
                     if (!instruction->isControl()) {
