@@ -1474,13 +1474,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.inst->predictedTarget._pc = target;
                 currentTrace.inst->predictedTarget._npc = target + 1;
                 currentTrace.inst->predictedTarget._upc = 0;
-                currentTrace.inst->predictedTarget._nupc = 1;
+                currentTrace.inst->predictedTarget._nupc = 0;
                 currentTrace.inst->predictedTaken = true;
                 DPRINTF(TraceGen, "Predicted taken to: %s\n", currentTrace.inst->predictedTarget);
             } else {
                 currentTrace.inst->predictedTarget._pc = currentTrace.end.pcAddr;
                 currentTrace.inst->predictedTarget._npc = currentTrace.end.pcAddr + 1;
-                currentTrace.inst->predictedTarget._upc = currentTrace.end.uopAddr + 1;
+                currentTrace.inst->predictedTarget._upc = currentTrace.end.uopAddr;
                 currentTrace.inst->predictedTarget._nupc = 0;
                 currentTrace.inst->predictedTaken = false;
                 DPRINTF(TraceGen, "Predicted not taken to: %s\n", currentTrace.inst->predictedTarget);
