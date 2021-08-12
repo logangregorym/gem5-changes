@@ -189,7 +189,7 @@ class O3_X86_skylakeL2(Cache):
     response_latency = 8
     mshrs = 16
     tgts_per_mshr = 8
-    size = '256KB'
+    size = '256kB'
     assoc = 8
     write_buffers = 16
     prefetch_on_access = True
