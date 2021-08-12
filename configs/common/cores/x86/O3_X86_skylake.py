@@ -184,13 +184,13 @@ class O3_X86_skylakeWalkCache(Cache):
 
 # L2 Cache
 class O3_X86_skylakeL2(Cache):
-    tag_latency = 39
-    data_latency = 39
-    response_latency =39
+    tag_latency = 8
+    data_latency = 8
+    response_latency = 8
     mshrs = 16
     tgts_per_mshr = 8
-    size = '8MB'
-    assoc = 16
+    size = '256KB'
+    assoc = 8
     write_buffers = 16
     prefetch_on_access = True
     clusivity = 'mostly_excl'
