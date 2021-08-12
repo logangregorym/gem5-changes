@@ -156,9 +156,9 @@ class O3_X86_skylake_ICache(Cache):
 
 # Data Cache
 class O3_X86_skylake_DCache(Cache):
-    tag_latency = 4
-    data_latency = 4
-    response_latency = 4
+    tag_latency = 1
+    data_latency = 1
+    response_latency = 1
     mshrs = 6
     tgts_per_mshr = 8
     size = '32kB'
@@ -184,9 +184,9 @@ class O3_X86_skylakeWalkCache(Cache):
 
 # L2 Cache
 class O3_X86_skylakeL2(Cache):
-    tag_latency = 42
-    data_latency = 42
-    response_latency =42
+    tag_latency = 39
+    data_latency = 39
+    response_latency =39
     mshrs = 16
     tgts_per_mshr = 8
     size = '8MB'
