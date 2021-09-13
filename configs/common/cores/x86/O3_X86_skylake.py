@@ -198,3 +198,21 @@ class O3_X86_skylakeL2(Cache):
     prefetcher = StridePrefetcher(degree=8, latency = 1)
     tags = BaseSetAssoc()
     repl_policy = RandomRP()
+
+
+# L3 Cache
+class O3_X86_skylakeL3(Cache):
+    tag_latency = 4
+    data_latency = 4
+    response_latency = 4
+    mshrs = 512
+    tgts_per_mshr = 20
+    size = '2MB'
+    assoc = 16
+    write_buffers = 256
+    prefetch_on_access = True
+    clusivity = 'mostly_excl'
+    # Simple stride prefetcher
+    #prefetcher = StridePrefetcher(degree=8, latency = 1)
+    tags = BaseSetAssoc()
+    repl_policy = RandomRP()

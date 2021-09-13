@@ -156,9 +156,9 @@ class O3_X86_icelake_ICache(Cache):
 
 # Data Cache
 class O3_X86_icelake_DCache(Cache):
-    tag_latency = 4
-    data_latency = 4
-    response_latency = 4
+    tag_latency = 1
+    data_latency = 1
+    response_latency = 1
     mshrs = 6
     tgts_per_mshr = 8
     size = '48kB'
@@ -184,17 +184,34 @@ class O3_X86_icelakeWalkCache(Cache):
 
 # L2 Cache
 class O3_X86_icelakeL2(Cache):
-    tag_latency = 42
-    data_latency = 42
-    response_latency =42
+    tag_latency = 8
+    data_latency = 8
+    response_latency = 8
     mshrs = 16
     tgts_per_mshr = 8
-    size = '16MB'
-    assoc = 32
+    size = '512kB'
+    assoc = 8
     write_buffers = 16
     prefetch_on_access = True
     clusivity = 'mostly_excl'
     # Simple stride prefetcher
     prefetcher = StridePrefetcher(degree=8, latency = 1)
+    tags = BaseSetAssoc()
+    repl_policy = RandomRP()
+
+    # L3 Cache
+class O3_X86_icelakeL3(Cache):
+    tag_latency = 8
+    data_latency = 8
+    response_latency = 8
+    mshrs = 512
+    tgts_per_mshr = 20
+    size = '2MB'
+    assoc = 16
+    write_buffers = 256
+    prefetch_on_access = True
+    clusivity = 'mostly_excl'
+    # Simple stride prefetcher
+    #prefetcher = StridePrefetcher(degree=8, latency = 1)
     tags = BaseSetAssoc()
     repl_policy = RandomRP()
