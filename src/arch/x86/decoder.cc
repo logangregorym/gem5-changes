@@ -1633,20 +1633,22 @@ Decoder::isTraceAvailable(FullUopAddr addr) {
 
             assert(trace.state == SpecTrace::Complete);
 
-            int numValidPredSources = 0; int numNotFoundPredSources = 0; int numMatchedPredSources = 0;
+            int numValidPredSources = 0; /*int numNotFoundPredSources = 0; */int numMatchedPredSources = 0;
             for (int i = 0; i < 4; i++)
             {
                 if (trace.source[i].valid)
                 {
                     numValidPredSources++;
-                    LVPredUnit::lvpReturnValues ret;
+                    /*LVPredUnit::lvpReturnValues ret;
                     if (traceConstructor->loadPred->makePredictionForTraceGenStage(trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, 0 , ret))
                     {
                         if (trace.source[i].value == ret.predictedValue && ret.confidence >= 5)
                         {
                             DPRINTF(Decoder, "Found the prediction source with address of %#x:%d in the predictor and the values match! Confidence is %d! trace.source[i].value = %#x ret.predictedValue = %#x\n", 
                                               trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, ret.confidence, trace.source[i].value, ret.predictedValue );
-                            numMatchedPredSources++;
+                            */
+                    numMatchedPredSources++;
+                            /*
                         }
                         else 
                         {
@@ -1658,7 +1660,7 @@ Decoder::isTraceAvailable(FullUopAddr addr) {
                     {
                         DPRINTF(Decoder, "Can't find prediction source with address of %#x:%d in the predictor!\n", trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr);
                         numNotFoundPredSources++;
-                    }
+                    }*/
                     
                 }
             }
