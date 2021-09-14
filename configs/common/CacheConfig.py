@@ -117,9 +117,11 @@ def config_cache(options, system):
         # Provide a clock for the L2 and the L1-to-L2 bus here as they
         # are not connected using addTwoLevelCacheHierarchy. Use the
         # same clock as the CPUs.
-        system.l2 = l2_cache_class(clk_domain=system.cpu_clk_domain,
-                                   size=options.l2_size,
-                                   assoc=options.l2_assoc)
+        system.l2 = l2_cache_class(clk_domain=system.cpu_clk_domain)
+        if options.l2_size != None:
+            system.l2.size = options.l2_size
+        if options.l2_assoc != None:
+            system.l2.size = options.l2_assoc
 
         system.tol2bus = L2XBar(clk_domain = system.cpu_clk_domain)
         system.l2.cpu_side = system.tol2bus.master
@@ -131,6 +133,10 @@ def config_cache(options, system):
             fatal("Use of the L3 cache requires an L2 Cache")
 
         system.l3 = l3_cache_class(clk_domain=system.cpu_clk_domain)
+        if options.l3_size != None:
+            system.l3.size = options.l3_size
+        if options.l3_assoc != None:
+            system.l3.size = options.l3_assoc
 
         system.tol3bus = L2XBar(clk_domain = system.cpu_clk_domain)
         system.l2.mem_side = system.tol3bus.slave
@@ -142,10 +148,17 @@ def config_cache(options, system):
 
     for i in xrange(options.num_cpus):
         if options.caches:
-            icache = icache_class(size=options.l1i_size,
-                                  assoc=options.l1i_assoc)
-            dcache = dcache_class(size=options.l1d_size,
-                                  assoc=options.l1d_assoc)
+            icache = icache_class()
+            if options.l1i_size != None:
+                icache.size = options.l1i_size
+            if options.l1i_assoc != None:
+                icache.size = options.l1i_assoc
+            
+            dcache = dcache_class()
+            if options.l1d_size != None:
+                dcache.size = options.l1d_size
+            if options.l1d_assoc != None:
+                dcache.size = options.l1d_assoc
 
             # If we have a walker cache specified, instantiate two
             # instances here

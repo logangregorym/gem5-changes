@@ -76,8 +76,8 @@ class O3_X86_icelake_FP(FUDesc):
 
 # Load/Store Units
 class O3_X86_icelake_Load(FUDesc):
-    opList = [ OpDesc(opClass='MemRead',opLat=3),
-               OpDesc(opClass='FloatMemRead',opLat=3) ]
+    opList = [ OpDesc(opClass='MemRead',opLat=4),
+               OpDesc(opClass='FloatMemRead',opLat=4) ]
     count = 2
 
 class O3_X86_icelake_Store(FUDesc):
@@ -201,9 +201,9 @@ class O3_X86_icelakeL2(Cache):
 
     # L3 Cache
 class O3_X86_icelakeL3(Cache):
-    tag_latency = 8
-    data_latency = 8
-    response_latency = 8
+    tag_latency = 29
+    data_latency = 29
+    response_latency = 29
     mshrs = 512
     tgts_per_mshr = 20
     size = '2MB'

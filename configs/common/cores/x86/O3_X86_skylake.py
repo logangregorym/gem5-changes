@@ -202,9 +202,9 @@ class O3_X86_skylakeL2(Cache):
 
 # L3 Cache
 class O3_X86_skylakeL3(Cache):
-    tag_latency = 4
-    data_latency = 4
-    response_latency = 4
+    tag_latency = 30
+    data_latency = 30
+    response_latency = 30
     mshrs = 512
     tgts_per_mshr = 20
     size = '2MB'
