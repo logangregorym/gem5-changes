@@ -115,7 +115,7 @@ class O3_X86_skylake_1(DerivO3CPU):
     commitToIEWDelay = 1
     fetchWidth = 6
     fetchBufferSize = 16
-    fetchToDecodeDelay = 3
+    fetchToDecodeDelay = 4
     decodeWidth = 6
     decodeToRenameDelay = 2
     renameWidth = 6
