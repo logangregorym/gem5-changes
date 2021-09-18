@@ -74,7 +74,7 @@ DefaultDecode<Impl>::DefaultDecode(O3CPU *_cpu, DerivO3CPUParams *params)
              decodeWidth, static_cast<int>(Impl::MaxWidth));
 
     // @todo: Make into a parameter
-    skidBufferMax = (fetchToDecodeDelay + 4) *  params->fetchWidth;
+    skidBufferMax = (fetchToDecodeDelay + 2) *  params->fetchWidth * 2;
 }
 
 template<class Impl>
