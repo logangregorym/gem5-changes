@@ -2051,7 +2051,6 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
 {
     ThreadID tid = inst->threadNumber;
     Addr addr = inst->pcState().instAddr();
-    //int idx = (addr >> 5) & 0x1f;
     uint64_t traceID = inst->staticInst->getTraceID();
     
     // this should never be zero

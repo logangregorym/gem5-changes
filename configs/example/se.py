@@ -148,6 +148,8 @@ parser.add_option("--predictionConfidenceThreshold", default=5, type="int", acti
 
 parser.add_option("--specCacheNumWays", default=8, type="int", action="store", help="Number of ways for speculative cache");
 parser.add_option("--specCacheNumSets", default=32, type="int", action="store", help="Number of sets for speculative cache");
+parser.add_option("--uopCacheNumWays", default=8, type="int", action="store", help="Number of ways for micro-op cache");
+parser.add_option("--uopCacheNumSets", default=32, type="int", action="store", help="Number of sets for micro-op cache");
 parser.add_option("--numOfTracePredictionSources", default=4, type="int", action="store", help="Number of prediction sources in a super optimized trace");
 
 parser.add_option("--maxRecursiveDepth", default=8, type="int", action="store", help="Maximum depth to recurse to when measuring dependency chains")
@@ -236,6 +238,8 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.traceConstructor.numOfTracePredictionSources = options.numOfTracePredictionSources
     CPUClass.checkpoint_at_instr = options.checkpoint_at_instr
     CPUClass.after_exec_cnt = options.after_exec_cnt
+    CPUClass.uopCacheNumWays = options.uopCacheNumWays
+    CPUClass.uopCacheNumSets = options.uopCacheNumSets
 
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
@@ -279,6 +283,8 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.branchPred.doStoragelessBranchConf = options.doStoragelessBranchConf
     FutureClass.after_exec_cnt = options.after_exec_cnt
     FutureClass.checkpoint_at_instr = options.checkpoint_at_instr
+    FutureClass.uopCacheNumWays = options.uopCacheNumWays
+    FutureClass.uopCacheNumSets = options.uopCacheNumSets
 
 # Check -- do not allow SMT with multiple CPUs
 if options.smt and options.num_cpus > 1:

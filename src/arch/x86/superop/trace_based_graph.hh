@@ -43,7 +43,7 @@ class TraceBasedGraph : public SimObject
 
     uint16_t predictionConfidenceThreshold = 5; 
     uint16_t specCacheNumWays = 8;
-    uint16_t specCacheNumSets = 32;
+    uint16_t specCacheNumSets = 32; 
     uint16_t numOfTracePredictionSources = 4;
 
     bool QueueHotTraceForSuperOptimization(const X86ISA::PCState& pc);

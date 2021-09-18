@@ -174,10 +174,10 @@ bool DependencyTrackingUnit::simplifyGraph() {
         while (it != speculativeDependencyGraph.end()) {
                 bool allReady = true;
                 int count = 0;
-                int idx = (it->thisInst.pcAddr >> 5) & 0x1f;
-                uint64_t tag = (it->thisInst.pcAddr >> 10);
+                int idx = (it->thisInst.pcAddr >> 5) % SPEC_CACHE_NUM_SETS;
+                uint64_t tag = (it->thisInst.pcAddr >> 5) / SPEC_CACHE_NUM_SETS;
                 StaticInstPtr staticInst = NULL;
-                for (int way = 0; way < 8; way++) {
+                for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
                         if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTagArray[idx][way] == tag && decoder->speculativeAddrArray[idx][way][it->thisInst.uopAddr] == it->thisInst.pcAddr) {
                                 staticInst = decoder->speculativeCache[idx][way][it->thisInst.uopAddr];
                         }

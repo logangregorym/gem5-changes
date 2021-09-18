@@ -68,22 +68,114 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
     speculativeCacheActive = false;
     currentActiveTraceID = 0;
     redirectDueToLVPSquashing = false;
-    for (int idx=0; idx<32; idx++) {
-        for (int way=0; way<8; way++) {
-            uopPrevWayArray[idx][way] = 10;
-            uopNextWayArray[idx][way] = 10;
-            uopValidArray[idx][way] = false;
-            uopProfitableTrace[idx][way] = true;
-            //uopFullArray[idx][way] = false;
-            uopCountArray[idx][way] = 0;
-            uopLRUArray[idx][way] = way;
-            uopHotnessArray[idx][way] = BigSatCounter(4);
-            for (int uop = 0; uop < 6; uop++) {
-                uopAddrArray[idx][way][uop] = FullUopAddr();
+
+    // Allocate UopCache arrays
+    if (params != nullptr)
+    {
+        // allocate spec cache
+        UOP_CACHE_NUM_WAYS = params->uopCacheNumWays;
+        UOP_CACHE_NUM_SETS = params->uopCacheNumSets;
+        UOP_CACHE_WAY_MAGIC_NUM = 2 + UOP_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
+
+        uopCache = new ExtMachInst ** [UOP_CACHE_NUM_SETS];
+        for (size_t set = 0; set < UOP_CACHE_NUM_SETS; set++)
+        {
+            uopCache[set] = new ExtMachInst * [UOP_CACHE_NUM_WAYS];
+            for (size_t way = 0; way < UOP_CACHE_NUM_WAYS; way++)
+            {
+                uopCache[set][way] = new ExtMachInst [6];
+            }
+        }
+
+        uopAddrArray = new FullUopAddr ** [UOP_CACHE_NUM_SETS];
+        for (size_t set = 0; set < UOP_CACHE_NUM_SETS; set++)
+        {
+            uopAddrArray[set] = new FullUopAddr * [UOP_CACHE_NUM_WAYS];
+            for (size_t way = 0; way < UOP_CACHE_NUM_WAYS; way++)
+            {
+                uopAddrArray[set][way] = new FullUopAddr [6];
+            }
+        }
+
+        uopTagArray = new uint64_t * [UOP_CACHE_NUM_SETS];
+        for (size_t set = 0; set < UOP_CACHE_NUM_SETS; set++)
+        {
+            uopTagArray[set] = new uint64_t [UOP_CACHE_NUM_WAYS];
+        
+        }
+
+        uopPrevWayArray = new int * [UOP_CACHE_NUM_SETS];
+        for (size_t set = 0; set < UOP_CACHE_NUM_SETS; set++)
+        {
+            uopPrevWayArray[set] = new int [UOP_CACHE_NUM_WAYS];
+        
+        }
+    
+        uopNextWayArray = new int * [UOP_CACHE_NUM_SETS];
+        for (size_t set = 0; set < UOP_CACHE_NUM_SETS; set++)
+        {
+            uopNextWayArray[set] = new int [UOP_CACHE_NUM_WAYS];
+        
+        }
+
+        uopValidArray = new bool * [UOP_CACHE_NUM_SETS];
+        for (size_t set = 0; set < UOP_CACHE_NUM_SETS; set++)
+        {
+            uopValidArray[set] = new bool [UOP_CACHE_NUM_WAYS];
+        
+        }
+
+        uopCountArray = new int * [UOP_CACHE_NUM_SETS];
+        for (size_t set = 0; set < UOP_CACHE_NUM_SETS; set++)
+        {
+            uopCountArray[set] = new int [UOP_CACHE_NUM_WAYS];
+        
+        }
+
+        uopLRUArray = new int * [UOP_CACHE_NUM_SETS];
+        for (size_t set = 0; set < UOP_CACHE_NUM_SETS; set++)
+        {
+            uopLRUArray[set] = new int [UOP_CACHE_NUM_WAYS];
+        
+        }
+
+        uopHotnessArray = new BigSatCounter * [UOP_CACHE_NUM_SETS];
+        for (size_t set = 0; set < UOP_CACHE_NUM_SETS; set++)
+        {
+            uopHotnessArray[set] = new BigSatCounter [UOP_CACHE_NUM_WAYS];
+        
+        }
+        
+        uopProfitableTrace = new bool * [UOP_CACHE_NUM_SETS];
+        for (size_t set = 0; set < UOP_CACHE_NUM_SETS; set++)
+        {
+            uopProfitableTrace[set] = new bool [UOP_CACHE_NUM_WAYS];
+        
+        }
+
+        //SPEC_INDEX_MASK = (SPEC_CACHE_NUM_SETS-1);
+        //SPEC_NUM_INDEX_BITS = std::log2(SPEC_CACHE_NUM_SETS);
+
+
+        for (int idx=0; idx< SPEC_CACHE_NUM_SETS; idx++) {
+            for (int way=0; way< UOP_CACHE_NUM_WAYS; way++) {
+                
+                // Parallel cache for optimized micro-ops
+                uopValidArray[idx][way] = false;
+                uopCountArray[idx][way] = 0;
+                uopLRUArray[idx][way] = way;
+                uopTagArray[idx][way] = 0;
+                uopPrevWayArray[idx][way] = UOP_CACHE_WAY_MAGIC_NUM;
+                uopNextWayArray[idx][way] = UOP_CACHE_WAY_MAGIC_NUM;
+                uopHotnessArray[idx][way] = BigSatCounter(64);
+                uopProfitableTrace[idx][way] = false;
+                for (int uop = 0; uop < 6; uop++) {
+                    uopAddrArray[idx][way][uop] = FullUopAddr();
+                    uopCache[idx][way][uop] = ExtMachInst();
+                }
             }
         }
     }
-
     
     if (params != nullptr){
 
@@ -105,8 +197,9 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
         SPEC_CACHE_NUM_SETS = traceConstructor->specCacheNumSets;
         SPEC_CACHE_WAY_MAGIC_NUM = 2 + SPEC_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
 
-        assert((SPEC_CACHE_NUM_WAYS & (SPEC_CACHE_NUM_WAYS - 1)) == 0);
-        assert((SPEC_CACHE_NUM_SETS & (SPEC_CACHE_NUM_SETS - 1)) == 0);
+        // Ensure that these are a power of 2
+        //assert((SPEC_CACHE_NUM_WAYS & (SPEC_CACHE_NUM_WAYS - 1)) == 0);
+        //assert((SPEC_CACHE_NUM_SETS & (SPEC_CACHE_NUM_SETS - 1)) == 0);
 
         speculativeCache = new StaticInstPtr ** [SPEC_CACHE_NUM_SETS];
         for (size_t set = 0; set < SPEC_CACHE_NUM_SETS; set++)
@@ -192,8 +285,8 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
         
         }
 
-        SPEC_INDEX_MASK = (SPEC_CACHE_NUM_SETS-1);
-        SPEC_NUM_INDEX_BITS = std::log2(SPEC_CACHE_NUM_SETS);
+        //SPEC_INDEX_MASK = (SPEC_CACHE_NUM_SETS-1);
+        //SPEC_NUM_INDEX_BITS = std::log2(SPEC_CACHE_NUM_SETS);
 
 
         for (int idx=0; idx< SPEC_CACHE_NUM_SETS; idx++) {
@@ -880,7 +973,7 @@ Decoder::decode(ExtMachInst mach_inst, Addr addr)
 void
 Decoder::updateLRUBits(int idx, int way)
 {
-    for (int lru = 0; lru < 8; lru++) {
+    for (int lru = 0; lru < UOP_CACHE_NUM_WAYS; lru++) {
       if (uopLRUArray[idx][lru] > uopLRUArray[idx][way]) {
         uopLRUArray[idx][lru]--;
       }
@@ -909,15 +1002,15 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         return false;
     }
 
-    int idx = (addr >> 5) & 0x1f;
-    uint64_t tag = (addr >> 10);
+    uint64_t idx = (addr >> 5) % UOP_CACHE_NUM_SETS;
+    uint64_t tag = (addr >> 5) / UOP_CACHE_NUM_SETS;
     int numFullWays = 0;
     int lastWay = -1;
 
     int baseAddr = 0;
     int baseWay = 0;
     int waysVisited = 0;
-    for (int way = 0; way < 8; way++) {
+    for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
         if ((uopValidArray[idx][way] && uopTagArray[idx][way] == tag) &&
              (!baseAddr || uopAddrArray[idx][way][0].pcAddr <= baseAddr)) {
             baseAddr = uopAddrArray[idx][way][0].pcAddr;
@@ -925,7 +1018,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         }
     }
     /* Trace traversal is circular, rather than linear. */
-    for (int way = baseWay; waysVisited < 8 && numFullWays < 3; way = (way + 1) % 8) {
+    for (int way = baseWay; waysVisited < UOP_CACHE_NUM_WAYS && numFullWays < 3; way = (way + 1) % UOP_CACHE_NUM_WAYS) {
         
         if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
             /* Check if this way can accommodate the uops that correspond
@@ -985,7 +1078,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         /* We've used up 3 ways for a 32 byte region and we're still not
              able to accomodate all uops.    Invalidate all 3 ways. */
         DPRINTF(Decoder, "Could not accomodate 32 byte region: Could not update microop in the microop cache: %#x tag:%#x idx:%#x. Affected PCs:\n", addr, tag, idx);
-        for (int way = 0; way < 8; way++) {
+        for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
             if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
                 if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
                     traceConstructor->currentTrace.currentIdx == idx && 
@@ -1029,7 +1122,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
 
     /* If we're here, there were either no unused ways or we found no
          empty slots in an already used way -- let's try unused ways first. */
-    for (int way = 0; way < 8; way++) {
+    for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
         if (!uopValidArray[idx][way]) {
             if (lastWay != -1) {
                 /* Multi-way region. */
@@ -1068,13 +1161,13 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     }
 
     /* There aren't any unused ways. Evict the LRU way. */
-    unsigned lruWay = 8;
-    unsigned evictWay = 8;
+    unsigned lruWay = UOP_CACHE_NUM_WAYS;
+    unsigned evictWay = UOP_CACHE_NUM_WAYS;
 
     if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
         DPRINTF(Decoder, "Trace being superoptimized has its head at uop[%i][%i][%i] and is currently optimizing uop[%i][%i][%i]\n", traceConstructor->currentTrace.head.idx, traceConstructor->currentTrace.head.way, traceConstructor->currentTrace.head.uop, traceConstructor->currentTrace.addr.idx, traceConstructor->currentTrace.addr.way, traceConstructor->currentTrace.addr.uop);
     }
-    for (int way = 0; way < 8; way++) {
+    for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
         // check if we are processing the trace for first time optimization -- read from way in progress
         if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
             (traceConstructor->currentTrace.head.way == way || 
@@ -1098,10 +1191,10 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             evictWay = way;
         }
     }
-    if (evictWay != 8) {
+    if (evictWay != UOP_CACHE_NUM_WAYS) {
         /* Invalidate all prior content. */
         DPRINTF(Decoder, "Evicting microop in the microop cache: tag:%#x idx:%d way:%d.\n Affected PCs:\n", tag, idx, evictWay);
-        for (int w = 0; w < 8; w++) {
+        for (int w = 0; w < UOP_CACHE_NUM_WAYS; w++) {
             if (uopValidArray[idx][w] && uopTagArray[idx][w] == uopTagArray[idx][evictWay]) {
                 for (int uop = 0; uop < uopCountArray[idx][w]; uop++) {
                     DPRINTF(Decoder, "uop[%i][%i][%i] -- %#x:%i\n", idx, w, uop, uopAddrArray[idx][w][uop].pcAddr, uopAddrArray[idx][w][uop].uopAddr);
@@ -1190,8 +1283,8 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
     uint16_t uop = superoptimized_microop.instAddr.uopAddr; 
     uint64_t traceID = trace.id;
 
-    uint64_t spec_cache_idx = (addr >> 5) & SPEC_INDEX_MASK;
-    uint64_t tag = (addr >> ( SPEC_NUM_INDEX_BITS + 5 ));
+    uint64_t spec_cache_idx = (addr >> 5) % SPEC_CACHE_NUM_SETS;
+    uint64_t tag = (addr >> 5)/ SPEC_CACHE_NUM_SETS;
     int numFullWays = 0;
     int lastWay = -1;
 
@@ -1525,9 +1618,9 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
 bool
 Decoder::isHitInUopCache(Addr addr)
 {
-  int idx = (addr >> 5) & 0x1f;
-  uint64_t tag = (addr >> 10);
-  for (int way = 0; way < 8; way++) {
+  uint64_t idx = (addr >> 5) % UOP_CACHE_NUM_SETS;
+  uint64_t tag = (addr >> 5) / UOP_CACHE_NUM_SETS;
+  for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
     if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
       for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
         if (uopAddrArray[idx][way][uop].pcAddr == addr) {
@@ -1543,9 +1636,9 @@ Decoder::isHitInUopCache(Addr addr)
 StaticInstPtr
 Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
 {
-    int idx = (addr >> 5) & 0x1f;
-    uint64_t tag = (addr >> 10);
-    for (int way = 0; way < 8; way++) {
+    uint64_t idx = (addr >> 5) % UOP_CACHE_NUM_SETS;
+    uint64_t tag = (addr >> 5) / UOP_CACHE_NUM_SETS;
+    for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
         if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
             for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
                 if (uopAddrArray[idx][way][uop].pcAddr == addr) {
@@ -1633,22 +1726,22 @@ Decoder::isTraceAvailable(FullUopAddr addr) {
 
             assert(trace.state == SpecTrace::Complete);
 
-            int numValidPredSources = 0; /*int numNotFoundPredSources = 0; */int numMatchedPredSources = 0;
+            int numValidPredSources = 0; int numNotFoundPredSources = 0; int numMatchedPredSources = 0;
             for (int i = 0; i < 4; i++)
             {
                 if (trace.source[i].valid)
                 {
                     numValidPredSources++;
-                    /*LVPredUnit::lvpReturnValues ret;
+                    LVPredUnit::lvpReturnValues ret;
                     if (traceConstructor->loadPred->makePredictionForTraceGenStage(trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, 0 , ret))
                     {
                         if (trace.source[i].value == ret.predictedValue && ret.confidence >= 5)
                         {
                             DPRINTF(Decoder, "Found the prediction source with address of %#x:%d in the predictor and the values match! Confidence is %d! trace.source[i].value = %#x ret.predictedValue = %#x\n", 
                                               trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, ret.confidence, trace.source[i].value, ret.predictedValue );
-                            */
-                    numMatchedPredSources++;
-                            /*
+                            
+                            numMatchedPredSources++;
+                            
                         }
                         else 
                         {
@@ -1660,7 +1753,7 @@ Decoder::isTraceAvailable(FullUopAddr addr) {
                     {
                         DPRINTF(Decoder, "Can't find prediction source with address of %#x:%d in the predictor!\n", trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr);
                         numNotFoundPredSources++;
-                    }*/
+                    }
                     
                 }
             }
@@ -1756,8 +1849,10 @@ Decoder::invalidateSpecTrace(Addr addr, unsigned uop) {
      * 4. If has a next line, clear that one too
      * Put the check for prev and next in the tag function to call recursively
      */
-    int idx = (addr >> 5) & SPEC_INDEX_MASK;
-    uint64_t tag = (addr >> (SPEC_NUM_INDEX_BITS + 5));
+    //int idx = (addr >> 5) & SPEC_INDEX_MASK;
+    //uint64_t tag = (addr >> (SPEC_NUM_INDEX_BITS + 5));
+    uint64_t idx = (addr >> 5) % SPEC_CACHE_NUM_SETS;
+    uint64_t tag = (addr >> 5)/ SPEC_CACHE_NUM_SETS;
     for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
         if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {
             invalidateSpecCacheLine(idx, way);

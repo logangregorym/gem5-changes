@@ -296,8 +296,8 @@ class ArrayDependencyTracker : public SimObject
 		}
 	};
 
-	DependGraphEntry* speculativeDependencyGraph[32][8][6];
-	FullUopAddr microopAddrArray[32][8][6];
+	DependGraphEntry* speculativeDependencyGraph[decoder->UOP_CACHE_NUM_SETS][decoder->UOP_CACHE_NUM_WAYS][6];
+	FullUopAddr microopAddrArray[decoder->UOP_CACHE_NUM_SETS][decoder->UOP_CACHE_NUM_WAYS][6];
 
 	InformationFlowPath connections[4096]; // Must be kept identical to connectionCount
 	bool connectionsValidSpec[4096] = {0}; // Must be kept identical to connectionCount

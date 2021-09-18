@@ -175,6 +175,9 @@ class DerivO3CPU(BaseCPU):
     maxDependencyRecursion = Param.Unsigned(15, "How deep to recurse when counting dependencies")
     usingTrace = Param.Bool(False, "Whether to stream the optimized trace")
 
+    uopCacheNumSets = Param.Unsigned(32, "Number of sets in the micro-op cache")
+    uopCacheNumWays = Param.Unsigned(8, "Number of ways in the micro-op cache (only tested with 8)")
+
     checkpoint_at_instr = Param.UInt64(0, "checkpoint at Instruction")
     after_exec_cnt = Param.UInt64(0, "checkpoint at Instruction")
 

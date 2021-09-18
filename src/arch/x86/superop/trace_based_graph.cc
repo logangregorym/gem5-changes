@@ -144,14 +144,14 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
         DPRINTF(TraceGen, "Trace in uop cache is not profitable for superoptimization\n");
     }
 
-    uint64_t uop_cache_idx = (addr >> 5) & 0x1f;
-    uint64_t tag = (addr >> 10);
+    uint64_t uop_cache_idx = (addr >> 5) % decoder->UOP_CACHE_NUM_SETS;
+    uint64_t tag = (addr >> 5) / decoder->UOP_CACHE_NUM_SETS;
     uint64_t baseAddr = addr;
     uint64_t baseWay = 0;
     uint64_t baseUop = 0;
     bool found = false;
     // find the the base way for this 32B code region
-    for (int way = 0; way < 8; way++) {
+    for (int way = 0; way < decoder->UOP_CACHE_NUM_WAYS; way++) {
         for (int uop = 0; uop < 6; uop++) {
             if ((decoder->uopValidArray[uop_cache_idx][way] && decoder->uopTagArray[uop_cache_idx][way] == tag) && 
                  (decoder->uopAddrArray[uop_cache_idx][way][uop].pcAddr == baseAddr)) {
@@ -322,9 +322,9 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
     }
 
     // pivot to jump target if it is found in the uop cache
-    uint64_t uop_cache_idx = (target >> 5) & 0x1f;
-    uint64_t tag = (target >> 10);
-    for (int way = 0; way < 8; way++) {
+    uint64_t uop_cache_idx = (target >> 5) % decoder->UOP_CACHE_NUM_SETS;
+    uint64_t tag = (target >> 5) / decoder->UOP_CACHE_NUM_SETS;
+    for (int way = 0; way < decoder->UOP_CACHE_NUM_WAYS; way++) {
         if (decoder->uopValidArray[uop_cache_idx][way] && decoder->uopTagArray[uop_cache_idx][way] == tag) {
             for (int uop = 0; uop < decoder->uopCountArray[uop_cache_idx][way]; uop++) {
                 if (decoder->uopAddrArray[uop_cache_idx][way][uop].pcAddr == target &&
@@ -389,14 +389,14 @@ Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
                 nextAddr.pcAddr = prevAddr.pcAddr + decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop-1].instSize;
                 int idx = trace.addr.idx;
                 DPRINTF(SuperOp, "nextAddr= %#x.%u\n", nextAddr.pcAddr, nextAddr.uopAddr);
-                if (trace.addr.idx != ((nextAddr.pcAddr >> 5) & 0x1f)) { // we have exhausted all ways
+                if (trace.addr.idx != ((nextAddr.pcAddr >> 5) % decoder->UOP_CACHE_NUM_SETS)) { // we have exhausted all ways
                     DPRINTF(SuperOp, "Exhausted all ways in uopCache (at a new index)\n");
                     //return 0;
-                    idx = (nextAddr.pcAddr >> 5) & 0x1f;
+                    idx = (nextAddr.pcAddr >> 5) % decoder->UOP_CACHE_NUM_SETS;
                 }
-                uint64_t tag = (nextAddr.pcAddr >> 10);
+                uint64_t tag = (nextAddr.pcAddr >> 5) / decoder->UOP_CACHE_NUM_SETS;
                 DPRINTF(SuperOp, "tag = %d\n", tag);
-                for (int way = 0; way < 8; way++) {
+                for (int way = 0; way < decoder->UOP_CACHE_NUM_WAYS; way++) {
                     if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
                         for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
                             if (decoder->uopAddrArray[idx][way][uop].pcAddr == nextAddr.pcAddr) {
@@ -3528,9 +3528,9 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
             DPRINTF(ConstProp, "Condition failed, advancing trace\n");
             target = currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize();
         }
-        int idx = (target >> 5) & 0x1f;
-        uint64_t tag = (target >> 10);
-        for (int way = 0; way < 8; way++) {
+        int idx = (target >> 5) % decoder->UOP_CACHE_NUM_SETS;
+        uint64_t tag = (target >> 5) / decoder->UOP_CACHE_NUM_SETS;
+        for (int way = 0; way < decoder->UOP_CACHE_NUM_WAYS; way++) {
             DPRINTF(ConstProp, "CC Tracking: looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
             if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
                 for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
@@ -3685,9 +3685,9 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
             DPRINTF(ConstProp, "Condition failed, advancing trace\n");
             target = currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize();
         }
-        int idx = (target >> 5) & 0x1f;
-        uint64_t tag = (target >> 10);
-        for (int way = 0; way < 8; way++) {
+        int idx = (target >> 5) % decoder->UOP_CACHE_NUM_SETS;
+        uint64_t tag = (target >> 5) / decoder->UOP_CACHE_NUM_SETS;
+        for (int way = 0; way < decoder->UOP_CACHE_NUM_WAYS; way++) {
             DPRINTF(ConstProp, "CC Tracking: looking up address %#x in uop[%i][%i]: valid:%d tag(%#x==%#x?)\n", target, idx, way, decoder->uopValidArray[idx][way], tag, decoder->uopTagArray[idx][way]);
             if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
                 for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {

@@ -106,38 +106,6 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 
 	FullUopAddr fullAddr = FullUopAddr(addr, uopAddr);
 
-/** 
- * Cutting tag search
- 
-	int idx = (addr >> 5) & 0x1f;
-	uint64_t tag = (addr >> 10);
-
-	// Add to spec graph
-	int specway = 0;
-	int specuop = 0;
-	bool foundSpec = false;
-	for (int w = 0; w < 8; w++) {
-		if (decoder->uopValidArray[idx][w] && decoder->uopTagArray[idx][w] == tag && !foundSpec) { // changed to uop
-			assert(decoder->uopCountArray[idx][w] > 0); // changed to uop
-			for (int uop=0; uop < decoder->uopCountArray[idx][w]; uop++) { // changed to uop
-				if (microopAddrArray[idx][w][uop] == fullAddr && !foundSpec) { // changed to uop
-					assert(speculativeDependencyGraph[idx][w][uop]);
-					specway = w;
-					specuop = uop;
-					foundSpec = true;
-				}
-			}
-		}
-	}
-
-	if (!foundSpec) {
-		DPRINTF(ConstProp, "Not adding %x.%i to spec graph bc not found in cache :(\n", addr, uopAddr);
-	}
-
-	assert(!(speculativeDependencyGraph[idx][specway][specuop]->thisInst == fullAddr)); // means same inst loaded twice
-
-	DPRINTF(ConstProp, "Adding at spec[%i][%i][%i]\n", idx, specway, specuop);
-*/
 	speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop] = new DependGraphEntry();
 
 	speculativeDependencyGraph[idxToAddAt.idx][idxToAddAt.way][idxToAddAt.uop]->thisInst = fullAddr;
@@ -245,29 +213,6 @@ void ArrayDependencyTracker::addToGraph(StaticInstPtr uop, Addr addr, unsigned u
 			mostRecentConsumer[srcReg.flatIndex()] = idxToAddAt;
 			consumedInWindow[srcReg.flatIndex()] = true;
 
-/**
- * Tag search no longer needed
- 
-			int prodIdx = (registerProducerMapSpec[srcReg.flatIndex()].pcAddr >> 5) & 0x1f;
-			uint64_t prodTag = (registerProducerMapSpec[srcReg.flatIndex()].pcAddr >> 10);
-			bool foundProducerEntry = false;
-			int prodWay = 0;
-			int prodUop = 0;
-			for (int w = 0; w < 8; w++) {
-				if (decoder->uopValidArray[prodIdx][w] && decoder->uopTagArray[prodIdx][w] == prodTag && !foundProducerEntry) { // changed to uop
-					assert(decoder->uopCountArray[prodIdx][w] != 0); // changed to  uop
-					for (int u=0; u < decoder->uopCountArray[prodIdx][w]; u++) { // changed to uop
-						if (microopAddrArray[prodIdx][w][u] == registerProducerMapSpec[srcReg.flatIndex()] && !foundProducerEntry) { // changed to uop
-							if(speculativeDependencyGraph[prodIdx][w][u]) {
-								prodWay = w;
-								prodUop = u;
-								foundProducerEntry = true;
-							}
-						}
-					}
-				}
-			}
-*/ 
 			// if written in window, create an information flow path to this inst
 			unsigned flowPathIdx = 1; // 0 reserved for invalid
 			bool foundSource = false;
@@ -406,32 +351,7 @@ void ArrayDependencyTracker::markLastUse(unsigned regIdx) {
 	}
 	FullCacheIdx consumer = mostRecentConsumer[regIdx];
 
-/**
- * Tag search is gone now
- 
-	int idx = (consumer.pcAddr >> 5) & 0x1f;
-	uint64_t tag = (consumer.pcAddr >> 10);
-	int way = 0;
-	int uop = 0;
-	bool foundMatch = false;
-	for (int w=0; w < 8; w++) {
-		if (decoder->uopValidArray[idx][w] && decoder->uopTagArray[idx][w] == tag && !foundMatch) { // changed to uop
-			assert(decoder->uopCountArray[idx][w] > 0); // changed to uop
-			for (int u=0; u < decoder->uopCountArray[idx][w]; u++) { // changed to uop
-				if (microopAddrArray[idx][w][u] == consumer && !foundMatch) { // changed to  uop
-					way = w;
-					uop = u;
-					foundMatch = true;
-					break;
-				}
-			}
-		}
-	}
-	if (!foundMatch) {
-		DPRINTF(ConstProp, "Can't mark last use of %i because consumer %x.%i with idx %i and tag %x not found\n", regIdx, consumer.pcAddr, consumer.uopAddr, idx, tag);
-		return;
-	}
-*/
+
 
 	for (int i=0; i<256; i++) {
 		if (speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i] != 0 && speculativeDependencyGraph[consumer.idx][consumer.way][consumer.uop]->producers[i] != 5000) {
@@ -442,56 +362,6 @@ void ArrayDependencyTracker::markLastUse(unsigned regIdx) {
 	}
 }
 
-/**
-void ArrayDependencyTracker::removeFromGraph(Addr addr, unsigned uopAddr, unsigned cycleRemoved)
-{
-	DPRINTF(ConstProp, "Removing entry for %x.%i\n", addr, uopAddr);
-	ArrayDependencyTracker::FullUopAddr fullAddr = ArrayDependencyTracker::FullUopAddr(addr, uopAddr);
-
-	for (int i=0; i<256; i++) {
-		if (mostRecentConsumer[i] == fullAddr) {
-			consumedInWindow[i] = false;
-		}
-	}
-
-	int idx = (addr >> 5) & 0x1f;
-	uint64_t tag = (addr >> 10);
-	int specway = 0;
-	int specuop = 0;
-	bool foundSpecMatch = false;
-	for (int w=0; w < 8; w++) {
-		if (decoder->uopValidArray[idx][w] && decoder->uopTagArray[idx][w] == tag && !foundSpecMatch) { // changed to uop
-			assert(decoder->uopCountArray[idx][w] > 0); // changed to uop
-			for (int uop=0; uop < decoder->uopCountArray[idx][w]; uop++) { // changed to uop
-				// if (decoder->speculativeAddrArray[idx][w][uop] == addr && !foundSpecMatch) {
-				if (microopAddrArray[idx][w][uop] == fullAddr && !foundSpecMatch) { // changed to uop
-					specway = w;
-					specuop = uop;
-					foundSpecMatch = true;
-					DPRINTF(ConstProp, "found spec match at way %i uop %i\n", specway, specuop);
-					break;
-				}
-			}
-		}
-	}
-	if (foundSpecMatch && speculativeDependencyGraph[idx][specway][specuop]) {
-		DPRINTF(ConstProp, "Removing from spec[%i][%i][%i]\n", idx, specway, specuop);
-		evictionsFromSpecCache++;
-		totalCyclesInSpecCache += (cycleRemoved - speculativeDependencyGraph[idx][specway][specuop]->cycleAdded);
-		removeAtIndex(idx, specway, specuop);
-	} else if (foundSpecMatch) {
-		speculativeDependencyGraph[idx][specway][specuop] = new DependGraphEntry();
-	}
-
-	// update register rename info
-	for (int i=0; i<256; i++) {
-		if (registerProducerMapSpec[i] == fullAddr) {
-      DPRINTF(SuperOp, "registerValidMapSpec[%d] = false\n", i);
-			registerValidMapSpec[i] = false;
-		}
-	}
-}
-*/
 
 void ArrayDependencyTracker::removeAtIndex(int i1, int i2, int i3) {
 	if (speculativeDependencyGraph[i1][i2][i3]) {
@@ -557,36 +427,7 @@ void ArrayDependencyTracker::invalidateConnection(unsigned connectionIndex) {
 	FullCacheIdx conIdx = connections[connectionIndex].consumer;
 	connectionsValidSpec[connectionIndex] = false;
 
-/**
- * Tag searches begone
 
-	// connectionsValid[connectionIndex] = false;
-	int prodIdx = (prodAddr.pcAddr >> 5) & 0x1f;
-	uint64_t prodTag = (prodAddr.pcAddr >> 10);
-	int conIdx = (conAddr.pcAddr >> 5) & 0x1f;
-	uint64_t conTag = (conAddr.pcAddr >> 10);
-	
-	// Replace producer with dummy in spec cache
-	connectionsValidSpec[connectionIndex] = false;
-	int prodSpecWay = 0;
-	int prodSpecUop = 0;
-	bool foundProdSpec = false;
-	for (int w=0; w<8; w++) {
-		if (decoder->uopValidArray[prodIdx][w] && decoder->uopTagArray[prodIdx][w] == prodTag && !foundProdSpec) { // changed to uop
-			assert(decoder->uopCountArray[prodIdx][w] != 0); // changed to uop
-			for (int u=0; u<decoder->uopCountArray[prodIdx][w]; u++) { // changed to uop
-				// if (decoder->speculativeAddrArray[prodIdx][w][u] == prodAddr.pcAddr && !foundProdSpec && speculativeDependencyGraph[prodIdx][w][u+prodAddr.uopAddr]) {
-				if (microopAddrArray[prodIdx][w][u] == prodAddr && !foundProdSpec) { // changed to uop
-					if (speculativeDependencyGraph[prodIdx][w][u]) {
-						prodSpecWay = w;
-						prodSpecUop = u;
-						foundProdSpec = true;
-					}
-				}
-			}
-		}
-	}
-*/
 
 	if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]) {
 		// DPRINTF(ConstProp, "Found match for producer %x.%i to invalidate at spec[%i][%i][%i]\n", prodAddr.pcAddr, prodAddr.uopAddr, prodIdx, prodSpecWay, prodSpecUop);
@@ -656,13 +497,13 @@ void ArrayDependencyTracker::invalidateBranch(unsigned branchIndex) {
 void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, int64_t value)
 {
 	DPRINTF(ConstProp, "Predicted %x for inst at %x.%i\n", value, addr, uopAddr);
-	int idx = (addr >> 5) & 0x1f;
-	uint64_t tag = (addr >> 10);
+	uint64_t idx = (addr >> 5) % decoder->UOP_CACHE_NUM_SETS;
+    uint64_t tag = (addr >> 5)/ decoder->UOP_CACHE_NUM_SETS;
 	int specway = 0;
 	int specuop = 0;
 	bool foundMatch = false;
 	// Mark IFPs ready with value, only spec...
-	for (int w=0; w < 8; w++) {
+	for (int w=0; w < decoder->UOP_CACHE_NUM_WAYS; w++) {
 		if (decoder->uopValidArray[idx][w] && decoder->uopTagArray[idx][w] == tag && !foundMatch) { // changed to uop
 			assert(decoder->uopCountArray[idx][w] != 0); // changed to uop
 			for (int uop = 0; uop < decoder->uopCountArray[idx][w]; uop++) { // changed to uop
@@ -726,12 +567,12 @@ void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, int64_t v
 bool ArrayDependencyTracker::simplifyGraph() {
 	// Propagate constants
 	if (!simplifyIdx.valid) { 
-		for (int idx = simplifyIdx.idx; idx < 32; idx++) {
-			for (int way = 0; way < 8; way++) {
+		for (int idx = simplifyIdx.idx; idx < decoder->UOP_CACHE_NUM_SETS; idx++) {
+			for (int way = 0; way < decoder->UOP_CACHE_NUM_WAYS; way++) {
 				if (decoder->uopHotnessArray[idx][way].read() > 3 && !simplifyIdx.valid) {
 					int wayToStart = way;
 					assert(wayToStart >= 0);
-					assert(wayToStart < 8);
+					assert(wayToStart < decoder->UOP_CACHE_NUM_WAYS);
 					while (decoder->uopPrevWayArray[idx][wayToStart] != 10) {
 						wayToStart = decoder->uopPrevWayArray[idx][wayToStart];
 					}
@@ -915,7 +756,7 @@ bool ArrayDependencyTracker::simplifyGraph() {
 			simplifyIdx.way = decoder->uopNextWayArray[simplifyIdx.idx][simplifyIdx.way];
 		} else {
 			simplifyIdx.idx++;
-			if (simplifyIdx.idx >= 32) { simplifyIdx.idx = 0; }
+			if (simplifyIdx.idx >= decoder->UOP_CACHE_NUM_SETS) { simplifyIdx.idx = 0; }
 			simplifyIdx.valid = false;
 		}
 	}
@@ -923,169 +764,7 @@ bool ArrayDependencyTracker::simplifyGraph() {
 	return changedGraph;
 }
 
-/*
-void ArrayDependencyTracker::measureChain(Addr addr, unsigned uopAddr)
-{
-	numChainsMeasured++;
-	totalDependentInsts++;
-	reducableInstCount++;
 
-	// vector<FullUopAddr> checked = vector<FullUopAddr>();
-	// checked.push_back(ArrayDependencyTracker::FullUopAddr(addr, uopAddr));
-
-	int idx = (addr >> 5) & 0x1f;
-	uint64_t tag = (addr >> 10);
-	int way = 0;
-	int uop = 0;
-	bool foundMatch = false;
-	for (int w=0; w < 8; w++) {
-		if (decoder->uopValidArray[idx][w] && decoder->uopTagArray[idx][w] == tag && !foundMatch) {
-			assert(decoder->uopCountArray[idx][w] > 0);
-			for (int u=0; u<decoder->uopCountArray[idx][w]; u++) {
-				// if (decoder->speculativeAddrArray[idx][w][u] == addr && !foundMatch) {
-				if (microopAddrArray[idx][w][u] == FullUopAddr(addr, uopAddr) && !foundMatch) {
-					assert(speculativeDependencyGraph[idx][w][u]);
-					way = w;
-					uop = u;
-					foundMatch = true;
-				}
-			}
-		}
-	}
-	if (!foundMatch) { return; }
-
-	// Update total reducable insts
-	if (!speculativeDependencyGraph[idx][way][uop]->seen) {
-		totalReducable++;
-		speculativeDependencyGraph[idx][way][uop]->seen = true;
-	}
-
-	// validate consumers to continue chain
-	for (int i=0; i<256; i++) {
-		if (speculativeDependencyGraph[idx][way][uop]->consumers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->consumers[i] != 5000) {
-			connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].valid = true;
-		}
-	}
-
-	for (int i=0; i<256; i++) {
-		if (speculativeDependencyGraph[idx][way][uop]->consumers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->consumers[i] != 5000) {
-			// found a consumer
-			FullUopAddr conAddr = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].consumer;
-			measureChain(conAddr, 1);
-			
-			if (std::count(checked.begin(), checked.end(), conAddr) == 0) {
-				// recursive call
-				measureChain(conAddr, 1, checked);
-			}
-			
-		}
-	}
-}
-
-void ArrayDependencyTracker::measureChain(FullUopAddr addr, unsigned recursionLevel) // , vector<FullUopAddr>& checked)
-{
-	DPRINTF(ConstProp, "Measuring chain for %x.%i at recursion level %i\n", addr.pcAddr, addr.uopAddr, recursionLevel);
-	if (recursionLevel > maxRecursiveDepth) { return; }
-
-	// checked.push_back(addr);
-
-	int idx = (addr.pcAddr >> 5) & 0x1f;
-	uint64_t tag = (addr.pcAddr >> 10);
-	int way = 0;
-	int uop = 0;
-	bool foundMatch = false;
-	for (int w=0; w < 8; w++) {
-		if (decoder->uopValidArray[idx][w] && decoder->uopTagArray[idx][w] == tag && !foundMatch) {
-			assert(decoder->uopCountArray[idx][w] > 0);
-			for (int u=0; u<decoder->uopCountArray[idx][w]; u++) {
-				// if (decoder->speculativeAddrArray[idx][w][u] == addr.pcAddr && !foundMatch) {
-				if (microopAddrArray[idx][w][u] == addr && !foundMatch) {
-					assert(speculativeDependencyGraph[idx][w][u]);
-					way = w;
-					uop = u;
-					foundMatch = true;
-				}
-			}
-		}
-	}
-	if (!foundMatch) { return; }
-
-	StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[idx][way][uop]);
-	StaticInstPtr decodedMicroOp = decodedMacroOp;
-	if (decodedMacroOp && decodedMacroOp->isMacroop()) { decodedMicroOp = decodedMacroOp->fetchMicroop(addr.uopAddr); decodedMicroOp->macroOp = decodedMacroOp; }
-
-	if (decodedMicroOp) {
-		if ((decodedMicroOp->isControl() || decodedMicroOp->isCall() || decodedMicroOp->isReturn() || decodedMicroOp->isDirectCtrl() || decodedMicroOp->isIndirectCtrl() || decodedMicroOp->isCondCtrl() || decodedMicroOp->isUncondCtrl() || decodedMicroOp->isCondDelaySlot())) {
-			branchesOnChains++;
-			if (branchPred->getConfidenceForSSO(addr.pcAddr)) {
-				confidentBranchesOnChains++;
-			}
-		}
-	}
-
-	totalDependentInsts++;
-	int allReady = 0;
-	for (int i=0; i<256; i++) {
-		if (speculativeDependencyGraph[idx][way][uop]->producers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->producers[i] != 5000) {
-			if (speculativeDependencyGraph[idx][way][uop]->producers[i] != 5000 && connections[speculativeDependencyGraph[idx][way][uop]->producers[i]].valid) {
-				allReady++;
-			}
-		}
-	}
-	if (decodedMicroOp && allReady == decodedMicroOp->numSrcRegs() && allReady != 0) {
-		reducableInstCount++;
-		if (!speculativeDependencyGraph[idx][way][uop]->seen) {
-			totalReducable++;
-			speculativeDependencyGraph[idx][way][uop]->seen = true;
-		}
-		// validate consumers to continue chain
-		for (int i=0; i<256; i++) {
-			if (speculativeDependencyGraph[idx][way][uop]->consumers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->consumers[i] != 5000) {
-				connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].valid = true;
-			}
-		}
-	}
-
-	for (int i=0; i<256; i++) {
-		if (speculativeDependencyGraph[idx][way][uop]->consumers[i] != 0 && speculativeDependencyGraph[idx][way][uop]->consumers[i] != 5000) {
-			// Found a consumer
-			FullUopAddr conAddr = connections[speculativeDependencyGraph[idx][way][uop]->consumers[i]].consumer;
-			measureChain(conAddr, recursionLevel+1);
-			
-			if (std::count(checked.begin(), checked.end(), conAddr) == 0) {
-				// Recursive call
-				measureChain(conAddr, recursionLevel+1, checked);
-			}
-			
-		}
-	}
-  if (decodedMacroOp->isMacroop()) decodedMacroOp->deleteMicroOps();
-}
-
-bool ArrayDependencyTracker::isReducable(Addr addr, unsigned uopAddr) {
-	int idx = (addr >> 5) & 0x1f;
-	uint64_t tag = (addr >> 10);
-	int way = 0;
-	int uop = 0;
-	bool foundMatch = false;
-	for (int w = 0; w < 8; w++) {
-		if (decoder->uopValidArray[idx][w] && decoder->uopTagArray[idx][w] == tag && !foundMatch) { // changed to uop
-			assert(decoder->uopCountArray[idx][w] > 0); // changed to uop
-			for (int u=0; u<decoder->uopCountArray[idx][w]; u++) { // changed to uop
-				// if (decoder->speculativeAddrArray[idx][w][u] == addr && !foundMatch) {
-				if (microopAddrArray[idx][w][u] == FullUopAddr(addr, uopAddr) && !foundMatch) { // changed to uop
-					assert(speculativeDependencyGraph[idx][w][u]);
-					way = w;
-					uop = u;
-					foundMatch = true;
-				}
-			}
-		}
-	}
-
-	return speculativeDependencyGraph[idx][way][uop] && speculativeDependencyGraph[idx][way][uop]->seen;
-}
-*/
 
 ArrayDependencyTracker* ArrayDependencyTrackerParams::create() {
 	return new ArrayDependencyTracker(this);
@@ -2304,12 +1983,12 @@ bool ArrayDependencyTracker::propagateWrip(int idx, int way, int uop) {
 }
 
 bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchIndex, FullUopAddr propagatingTo) {
-	int idx = (propagatingTo.pcAddr >> 5) & 0x1f;
-	uint64_t tag = (propagatingTo.pcAddr >> 10);
+	uint64_t spec_cache_idx = (addr >> 5) % SPEC_CACHE_NUM_SETS;
+    uint64_t tag = (addr >> 5)/ SPEC_CACHE_NUM_SETS;
 	int way = 0;
 	int uop = 0;
 	bool found = false;
-	for (int w = 0; w < 8; w++) {
+	for (int w = 0; w < decoder->UOP_CACHE_NUM_WAYS; w++) {
 		if (decoder->uopValidArray[idx][w] && decoder->uopTagArray[idx][w] == tag && !found) { // changed to uop
 			assert(decoder->uopCountArray[idx][w] > 0); // changed to uop
 			for (int u=0; u < decoder->uopCountArray[idx][w]; u++) { // changed to uop
@@ -2363,31 +2042,6 @@ bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchInd
 			}
 
 			if (!alreadyProduced) {
-/**
- * Tags
-				// Confirm that producer is still in graph
-				FullUopAddr prodAddr = branches[branchIndex].registerProducerMap[srcReg.flatIndex()];
-
-				int prodIdx = (prodAddr.pcAddr >> 5) & 0x1f;
-				uint64_t prodTag = (prodAddr.pcAddr >> 10);
-				int prodWay = 0;
-				int prodUop = 0;
-				bool foundProd = false;
-				for (int w=0; w<8; w++) {
-					if (decoder->uopValidArray[prodIdx][w] && decoder->uopTagArray[prodIdx][w] == prodTag && !foundProd) {
-						assert(decoder->uopCountArray[prodIdx][w] > 0);
-						for (int u=0; u<decoder->uopCountArray[prodIdx][w]; u++) {
-							if (microopAddrArray[prodIdx][w][u] == prodAddr && !foundProd) {
-								if (speculativeDependencyGraph[prodIdx][w][u]) {
-									prodWay = w;
-									prodUop = u;
-									foundProd = true;
-								}
-							}
-						}
-					}
-				}
-*/
 				FullCacheIdx prodIdx = branches[branchIndex].registerProducerMap[srcReg.flatIndex()];
 				if (speculativeDependencyGraph[prodIdx.idx][prodIdx.way][prodIdx.uop]) {
 					// Get index to add connection at
@@ -2542,11 +2196,12 @@ void ArrayDependencyTracker::updateSpecTrace(int idx, int way, int uop) {
 	}
 }
 
+// TODO: FIX
 void ArrayDependencyTracker::invalidateTraceInst(int idx, int way, int uop) {
 	FullUopAddr affectedAddr = decoder->speculativeAddrArray[idx][way][uop];
-	int affectedIdx = (affectedAddr.pcAddr >> 5) & 0x1f;
-	uint64_t affectedTag = (affectedAddr.pcAddr >> 10);
-	for (int w = 0; w < 8; w++) {
+	int affectedIdx = (affectedAddr.pcAddr >> 5) % decoder->UOP_CACHE_NUM_SETS;
+	uint64_t affectedTag = (affectedAddr.pcAddr >> 5) / decoder->UOP_CACHE_NUM_SETS;
+	for (int w = 0; w < decoder->UOP_CACHE_NUM_WAYS; w++) {
 		if (decoder->uopValidArray[affectedIdx][w] && decoder->uopTagArray[affectedIdx][w] == affectedTag) {
 			for (int u = 0; u < decoder->uopCountArray[affectedIdx][w]; u++) {
 				if (microopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
@@ -2568,9 +2223,9 @@ void ArrayDependencyTracker::moveTraceInstOneForward(int idx, int way, int uop) 
 	decoder->speculativeAddrArray[prevIdx.idx][prevIdx.way][prevIdx.uop] = decoder->speculativeAddrArray[idx][way][uop];
 
 	FullUopAddr affectedAddr = decoder->speculativeAddrArray[idx][way][uop];
-	int affectedIdx = (affectedAddr.pcAddr >> 5) & 0x1f;
-	uint64_t affectedTag = (affectedAddr.pcAddr >> 10);
-	for (int w = 0; w < 8; w++) {
+	int affectedIdx = (affectedAddr.pcAddr >> 5) % decoder->UOP_CACHE_NUM_SETS;
+	uint64_t affectedTag = (affectedAddr.pcAddr >> 5) / decoder->UOP_CACHE_NUM_SETS;
+	for (int w = 0; w < decoder->UOP_CACHE_NUM_WAYS; w++) {
 		if (decoder->uopValidArray[affectedIdx][w] && decoder->uopTagArray[affectedIdx][w] == affectedTag) {
 			for (int u = 0; u < decoder->uopCountArray[affectedIdx][w]; u++) {
 				if (microopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
@@ -2626,9 +2281,9 @@ void ArrayDependencyTracker::flushMisprediction(unsigned predId) {
 
 void ArrayDependencyTracker::registerRemovalOfTraceInst(int idx, int way, int uop) {
 	FullUopAddr affectedAddr = decoder->speculativeAddrArray[idx][way][uop];
-	int affectedIdx = (affectedAddr.pcAddr >> 5) & 0x1f;
-	uint64_t affectedTag = (affectedAddr.pcAddr >> 10);
-	for (int w = 0; w < 8; w++) {
+	int affectedIdx = (affectedAddr.pcAddr >> 5) % decoder->UOP_CACHE_NUM_SETS;
+	uint64_t affectedTag = (affectedAddr.pcAddr >> 5) / decoder->UOP_CACHE_NUM_SETS;
+	for (int w = 0; w < decoder->UOP_CACHE_NUM_WAYS; w++) {
 		if (decoder->uopValidArray[affectedIdx][w] && decoder->uopTagArray[affectedIdx][w] == affectedTag) {
 			for (int u = 0; u < decoder->uopCountArray[affectedIdx][w]; u++) {
 				if (microopAddrArray[affectedIdx][w][u] == affectedAddr && speculativeDependencyGraph[affectedIdx][w][u]) {
@@ -2687,8 +2342,8 @@ void ArrayDependencyTracker::describeEntry(int idx, int way, int uop) {
 }
 
 void ArrayDependencyTracker::describeFullGraph() {
-	for (int i1=0; i1<32; i1++) {
-		for (int i2=0; i2<8; i2++) {
+	for (int i1=0; i1<decoder->UOP_CACHE_NUM_SETS; i1++) {
+		for (int i2=0; i2<decoder->UOP_CACHE_NUM_WAYS; i2++) {
 			for (int i3=0; i3<6; i3++) {
 				if (speculativeDependencyGraph[i1][i2][i3]) {
 					DPRINTF(ConstProp, "Describing entry at spec[%i][%i][%i]:\n", i1, i2, i3);
@@ -2727,15 +2382,15 @@ void ArrayDependencyTracker::incrementPC(FullCacheIdx specIdx, X86ISA::PCState &
 	// Step 3: If inst at specIdx is a branch, use control flow table to set taken
 	// Step 4: If didn't have a next index, or if the StaticInstPtr at the next index is null, this is the end of a trace
 	FullCacheIdx nextIdx = getNextCacheIdx(specIdx);
-	int idx = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 5) & 0x1f;
-	uint64_t tag = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 10);
+	int idx = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 5) % decoder->UOP_CACHE_NUM_SETS;
+	uint64_t tag = (decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr >> 5) / decoder->UOP_CACHE_NUM_SETS;
   bool endOfTrace = true;
 
 	DPRINTF(ConstProp, "Transitioning from specCache[%i][%i][%i] to specCache[%i][%i][%i]\n", specIdx.idx, specIdx.way, specIdx.uop, nextIdx.idx, nextIdx.way, nextIdx.uop);
 	DPRINTF(ConstProp, "That is, from addr %#x.%#x to addr %#x.%#x\n", decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop].pcAddr, decoder->speculativeAddrArray[specIdx.idx][specIdx.way][specIdx.uop].uopAddr, decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr, decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].uopAddr);
 
   if (nextIdx.valid) {
-    for (int way = 0; way < 8; way++) {
+    for (int way = 0; way < decoder->UOP_CACHE_NUM_WAYS; way++) {
       if (decoder->uopValidArray[idx][way] && decoder->uopTagArray[idx][way] == tag) {
         for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
           if (microopAddrArray[idx][way][uop].pcAddr == decoder->speculativeAddrArray[nextIdx.idx][nextIdx.way][nextIdx.uop].pcAddr &&

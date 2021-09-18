@@ -121,17 +121,16 @@ class Decoder
     bool isMicroFusionPresent;
     bool uopCacheActive;
     bool isSuperOptimizationPresent;
-    ExtMachInst uopCache[32][8][6]; // 48, 8, 6
-    FullUopAddr uopAddrArray[32][8][6];
-    uint64_t uopTagArray[32][8];
-    int uopPrevWayArray[32][8];
-    int uopNextWayArray[32][8];
-    bool uopValidArray[32][8];
-    int uopCountArray[32][8];
-    int uopLRUArray[32][8];
-    //bool uopFullArray[32][8];
-    BigSatCounter uopHotnessArray[32][8];
-    bool uopProfitableTrace[32][8];
+    ExtMachInst *** uopCache;
+    FullUopAddr *** uopAddrArray;
+    uint64_t ** uopTagArray;
+    int ** uopPrevWayArray;
+    int ** uopNextWayArray;
+    bool ** uopValidArray;
+    int ** uopCountArray;
+    int ** uopLRUArray;
+    BigSatCounter ** uopHotnessArray;
+    bool ** uopProfitableTrace;
     // Parallel cache for optimized micro-ops
     bool redirectDueToLVPSquashing;
     bool isSpeculativeCachePresent;
@@ -152,15 +151,19 @@ class Decoder
     std::deque<SpecCacheHistory>  specCacheHistoryBuffer;
 
 
-    uint64_t SPEC_INDEX_MASK;
-    uint64_t SPEC_NUM_INDEX_BITS;
+    //uint64_t SPEC_INDEX_MASK;
+    //uint64_t SPEC_NUM_INDEX_BITS;
     uint64_t SPEC_CACHE_NUM_WAYS;
     uint64_t SPEC_CACHE_NUM_SETS;
     uint64_t SPEC_CACHE_WAY_MAGIC_NUM;
 
+    uint64_t UOP_CACHE_NUM_WAYS;
+    uint64_t UOP_CACHE_NUM_SETS;
+    uint64_t UOP_CACHE_WAY_MAGIC_NUM;
+
 	void tickAllHotnessCounters() {
-		for (int i=0; i<32; i++) {
-			for (int j=0; j<8; j++) {
+		for (int i=0; i<UOP_CACHE_NUM_SETS; i++) {
+			for (int j=0; j<UOP_CACHE_NUM_WAYS; j++) {
 				uopHotnessArray[i][j].decrement();
 			}
 		}
@@ -171,10 +174,10 @@ class Decoder
 
     void setUopTraceProfitableForSuperOptimization(Addr addr, bool state)
     {
-        uint64_t uop_cache_idx = (addr >> 5) & 0x1f;
-        uint64_t tag = (addr >> 10);
+        uint64_t uop_cache_idx = (addr >> 5) % UOP_CACHE_NUM_SETS;
+        uint64_t tag = (addr >> 5) / UOP_CACHE_NUM_SETS;
         // find the the base way for this 32B code region
-        for (int way = 0; way < 8; way++) {
+        for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
             if ((uopValidArray[uop_cache_idx][way] && uopTagArray[uop_cache_idx][way] == tag)) {
                 
                 uopProfitableTrace[uop_cache_idx][way] = state;
@@ -185,10 +188,10 @@ class Decoder
 
     bool isUopTraceProfitableForSuperOptimization(Addr addr)
     {
-        uint64_t uop_cache_idx = (addr >> 5) & 0x1f;
-        uint64_t tag = (addr >> 10);
+        uint64_t uop_cache_idx = (addr >> 5) % UOP_CACHE_NUM_SETS;;
+        uint64_t tag = (addr >> 5) / UOP_CACHE_NUM_SETS;
         // find the the base way for this 32B code region
-        for (int way = 0; way < 8; way++) {
+        for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
             if ((uopValidArray[uop_cache_idx][way] && 
                 uopTagArray[uop_cache_idx][way] == tag &&
                 uopProfitableTrace[uop_cache_idx][way] == false)) 
