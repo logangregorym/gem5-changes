@@ -64,6 +64,7 @@ from common import CpuConfig
 from common import MemConfig
 from common.Caches import *
 from common.cpu2000 import *
+from common.cores.x86 import O3_X86_skylake
 
 def get_processes(options):
     """Interprets provided options and returns a list of processes"""
@@ -348,7 +349,9 @@ if options.lvpLookupAtFetch:
         fatal("Only supported on skylake and icelake")
     if not options.enable_superoptimization:
         fatal("No LVP Lookup needed if SuperOptimization not enabled")
-    system.cpu[0].fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
+    for cpu in system.cpu:
+        if cpu is O3_X86_skylake:
+            cpu.fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
 
 # Sanity check
 if options.simpoint_profile:
