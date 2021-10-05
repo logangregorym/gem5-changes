@@ -162,7 +162,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
         //SPEC_NUM_INDEX_BITS = std::log2(SPEC_CACHE_NUM_SETS);
 
 
-        for (int idx=0; idx< SPEC_CACHE_NUM_SETS; idx++) {
+        for (int idx=0; idx< UOP_CACHE_NUM_SETS; idx++) {
             for (int way=0; way< UOP_CACHE_NUM_WAYS; way++) {
                 
                 // Parallel cache for optimized micro-ops
