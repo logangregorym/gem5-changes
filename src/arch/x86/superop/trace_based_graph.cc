@@ -30,7 +30,8 @@ TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p),
                                                             predictionConfidenceThreshold(p->predictionConfidenceThreshold) ,
                                                             specCacheNumWays(p->specCacheNumWays),
                                                             specCacheNumSets(p->specCacheNumSets) ,
-                                                            numOfTracePredictionSources(p->numOfTracePredictionSources) 
+                                                            numOfTracePredictionSources(p->numOfTracePredictionSources),
+                                                            debugTraceGen(p->debugTraceGen)
 
 {
     DPRINTF(SuperOp, "Control tracking: %i\n", usingControlTracking);
@@ -726,7 +727,16 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 
                 // set the uop trace not-profitable until it gets evicted
                 decoder->setUopTraceProfitableForSuperOptimization(currentTrace.getTraceHeadAddr().pcAddr, false);
-                
+               
+                if (debugTraceGen && currentTrace.id == debugTraceGen){
+                    clearDebugFlag("SuperOpSanityCheck");
+                    clearDebugFlag("LVP");
+                    clearDebugFlag("ConstProp");
+                    clearDebugFlag("Branch");
+                    clearDebugFlag("SuperOp");
+                    clearDebugFlag("TraceGen");
+                }
+               
                 traceMap.erase(currentTrace.id);
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
@@ -765,6 +775,15 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 
                 // set the uop trace not-profitable until it gets evicted
                 decoder->setUopTraceProfitableForSuperOptimization(currentTrace.getTraceHeadAddr().pcAddr, false);
+                
+                if (debugTraceGen && currentTrace.id == debugTraceGen){
+                    clearDebugFlag("SuperOpSanityCheck");
+                    clearDebugFlag("LVP");
+                    clearDebugFlag("ConstProp");
+                    clearDebugFlag("Branch");
+                    clearDebugFlag("SuperOp");
+                    clearDebugFlag("TraceGen");
+                }
 
                 traceMap.erase(currentTrace.id);
                 currentTrace.addr.valid = false;
@@ -821,6 +840,15 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 // set the uop trace not-profitable until it gets evicted
                 decoder->setUopTraceProfitableForSuperOptimization(currentTrace.getTraceHeadAddr().pcAddr, false);
                 
+                if (debugTraceGen && currentTrace.id == debugTraceGen){
+                    clearDebugFlag("SuperOpSanityCheck");
+                    clearDebugFlag("LVP");
+                    clearDebugFlag("ConstProp");
+                    clearDebugFlag("Branch");
+                    clearDebugFlag("SuperOp");
+                    clearDebugFlag("TraceGen");
+                }
+
                 traceMap.erase(currentTrace.id);
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
@@ -958,6 +986,14 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     }
                 }
 
+                if (debugTraceGen && currentTrace.id == debugTraceGen){
+                    clearDebugFlag("SuperOpSanityCheck");
+                    clearDebugFlag("LVP");
+                    clearDebugFlag("ConstProp");
+                    clearDebugFlag("Branch");
+                    clearDebugFlag("SuperOp");
+                    clearDebugFlag("TraceGen");
+                }
             }
             
         } // end of finalize old trace
@@ -1011,6 +1047,14 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
             if (currentTrace.addr.valid)
             {
+                if (debugTraceGen && currentTrace.id == debugTraceGen){
+                    setDebugFlag("SuperOpSanityCheck");
+                    setDebugFlag("LVP");
+                    setDebugFlag("ConstProp");
+                    setDebugFlag("Branch");
+                    setDebugFlag("SuperOp");
+                    setDebugFlag("TraceGen");
+                }
                 DPRINTF(SuperOp, "Trace %d is selected for super optimization!\n", currentTrace.id);
             }
 

@@ -145,6 +145,7 @@ parser.add_option("--maxDependencyRecursion", default=15, type="int", action="st
 parser.add_option("--usingControlTracking", default=0, type="int", action="store", help="Track control dependencies to optimize across?");
 parser.add_option("--usingCCTracking", default=0, type="int", action="store", help="Track condition codes?");
 parser.add_option("--predictionConfidenceThreshold", default=5, type="int", action="store", help="Confidence threshold to make a prediction during superoptmization");
+parser.add_option("--debugTraceGen", default=0, type="int", action="store", help="Trace id which we want to generate logs for");
 
 parser.add_option("--specCacheNumWays", default=8, type="int", action="store", help="Number of ways for speculative cache");
 parser.add_option("--specCacheNumSets", default=32, type="int", action="store", help="Number of sets for speculative cache");
@@ -236,6 +237,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.traceConstructor.specCacheNumWays = options.specCacheNumWays
     CPUClass.traceConstructor.specCacheNumSets = options.specCacheNumSets
     CPUClass.traceConstructor.numOfTracePredictionSources = options.numOfTracePredictionSources
+    CPUClass.traceConstructor.debugTraceGen = options.debugTraceGen
     CPUClass.checkpoint_at_instr = options.checkpoint_at_instr
     CPUClass.after_exec_cnt = options.after_exec_cnt
     CPUClass.uopCacheNumWays = options.uopCacheNumWays
@@ -276,6 +278,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.traceConstructor.specCacheNumWays = options.specCacheNumWays
     FutureClass.traceConstructor.specCacheNumSets = options.specCacheNumSets
     FutureClass.traceConstructor.numOfTracePredictionSources = options.numOfTracePredictionSources
+    FutureClass.traceConstructor.debugTraceGen = options.debugTraceGen
     FutureClass.numThreads = numThreads
     FutureClass.branchPred.numThreads = numThreads
     FutureClass.branchPred.branchConfidenceCounterSize = options.branchConfidenceCounterSize
