@@ -161,6 +161,8 @@ class Decoder
     uint64_t UOP_CACHE_NUM_SETS;
     uint64_t UOP_CACHE_WAY_MAGIC_NUM;
 
+    bool lvpLookupAtFetch;
+
 	void tickAllHotnessCounters() {
 		for (int i=0; i<UOP_CACHE_NUM_SETS; i++) {
 			for (int j=0; j<UOP_CACHE_NUM_WAYS; j++) {

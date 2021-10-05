@@ -161,6 +161,7 @@ parser.add_option("--branchConfidenceThreshold", default=3, type="int", action="
 parser.add_option("--doStoragelessBranchConf", action="store_true", help="Whether to use storageless TAGE confidence (Seznec 2010).")
 parser.add_option("--checkpoint_at_instr", default=0, type="int", action="store", help="");
 parser.add_option("--after_exec_cnt", default=0, type="int", action="store", help="");
+parser.add_option("--lvpLookupAtFetch", action="store_true", help="Enables an LVP lookup at every fetch cycle to detect stale traces, enabling will incur a 1 cycle penalty");
 
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
@@ -242,6 +243,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.after_exec_cnt = options.after_exec_cnt
     CPUClass.uopCacheNumWays = options.uopCacheNumWays
     CPUClass.uopCacheNumSets = options.uopCacheNumSets
+    CPUClass.lvpLookupAtFetch = options.lvpLookupAtFetch
 
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
@@ -288,6 +290,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.checkpoint_at_instr = options.checkpoint_at_instr
     FutureClass.uopCacheNumWays = options.uopCacheNumWays
     FutureClass.uopCacheNumSets = options.uopCacheNumSets
+    FutureClass.lvpLookupAtFetch = options.lvpLookupAtFetch
 
 # Check -- do not allow SMT with multiple CPUs
 if options.smt and options.num_cpus > 1:
@@ -338,6 +341,14 @@ if CpuConfig.is_kvm_cpu(CPUClass) or CpuConfig.is_kvm_cpu(FutureClass):
             process.kvmInSE = True
     else:
         fatal("KvmCPU can only be used in SE mode with x86")
+
+# Enable 1 cycle penalty for LVP lookup
+if options.lvpLookupAtFetch:
+    if not (options.cpu_type ==  "O3_X86_skylake_1" or  options.cpu_type == "O3_X86_icelake_1"):
+        fatal("Only supported on skylake and icelake")
+    if not options.enable_superoptimization:
+        fatal("No LVP Lookup needed if SuperOptimization not enabled")
+    system.cpu[0].fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
 
 # Sanity check
 if options.simpoint_profile:

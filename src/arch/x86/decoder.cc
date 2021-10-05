@@ -68,6 +68,10 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
     speculativeCacheActive = false;
     currentActiveTraceID = 0;
     redirectDueToLVPSquashing = false;
+    lvpLookupAtFetch = false;
+    if (params != nullptr){
+        lvpLookupAtFetch = params->lvpLookupAtFetch;
+    }
 
     // Allocate UopCache arrays
     if (params != nullptr)
@@ -76,6 +80,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
         UOP_CACHE_NUM_WAYS = params->uopCacheNumWays;
         UOP_CACHE_NUM_SETS = params->uopCacheNumSets;
         UOP_CACHE_WAY_MAGIC_NUM = 2 + UOP_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
+        
 
         uopCache = new ExtMachInst ** [UOP_CACHE_NUM_SETS];
         for (size_t set = 0; set < UOP_CACHE_NUM_SETS; set++)
@@ -1726,33 +1731,37 @@ Decoder::isTraceAvailable(FullUopAddr addr) {
 
             assert(trace.state == SpecTrace::Complete);
 
-            int numValidPredSources = 0; int numNotFoundPredSources = 0; int numMatchedPredSources = 0;
+            int numValidPredSources = 0; /*int numNotFoundPredSources = 0; */int numMatchedPredSources = 0;
             for (int i = 0; i < 4; i++)
             {
                 if (trace.source[i].valid)
                 {
                     numValidPredSources++;
-                    LVPredUnit::lvpReturnValues ret;
-                    if (traceConstructor->loadPred->makePredictionForTraceGenStage(trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, 0 , ret))
-                    {
-                        if (trace.source[i].value == ret.predictedValue && ret.confidence >= 5)
+                    if (lvpLookupAtFetch) {
+                        LVPredUnit::lvpReturnValues ret;
+                        if (traceConstructor->loadPred->makePredictionForTraceGenStage(trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, 0 , ret))
                         {
-                            DPRINTF(Decoder, "Found the prediction source with address of %#x:%d in the predictor and the values match! Confidence is %d! trace.source[i].value = %#x ret.predictedValue = %#x\n", 
-                                              trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, ret.confidence, trace.source[i].value, ret.predictedValue );
-                            
-                            numMatchedPredSources++;
-                            
+                            if (trace.source[i].value == ret.predictedValue && ret.confidence >= 5)
+                            {
+                                DPRINTF(Decoder, "Found the prediction source with address of %#x:%d in the predictor and the values match! Confidence is %d! trace.source[i].value = %#x ret.predictedValue = %#x\n", 
+                                                trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, ret.confidence, trace.source[i].value, ret.predictedValue );
+                                
+                                numMatchedPredSources++;
+                                
+                            }
+                            else 
+                            {
+                                DPRINTF(Decoder, "Found the prediction source with address of %#x:%d in the predictor but the values dont match or the confidence is low! trace.source[i].value = %#x ret.predictedValue = %#x ret.confidence = %d\n", 
+                                                trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, trace.source[i].value, ret.predictedValue, ret.confidence);
+                            }
                         }
                         else 
                         {
-                            DPRINTF(Decoder, "Found the prediction source with address of %#x:%d in the predictor but the values dont match or the confidence is low! trace.source[i].value = %#x ret.predictedValue = %#x ret.confidence = %d\n", 
-                                              trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, trace.source[i].value, ret.predictedValue, ret.confidence);
+                            DPRINTF(Decoder, "Can't find prediction source with address of %#x:%d in the predictor!\n", trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr);
+                            //numNotFoundPredSources++;
                         }
-                    }
-                    else 
-                    {
-                        DPRINTF(Decoder, "Can't find prediction source with address of %#x:%d in the predictor!\n", trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr);
-                        numNotFoundPredSources++;
+                    } else {
+                        numMatchedPredSources++;
                     }
                     
                 }
