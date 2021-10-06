@@ -65,6 +65,7 @@ from common import MemConfig
 from common.Caches import *
 from common.cpu2000 import *
 from common.cores.x86 import O3_X86_skylake
+from common.cores.x86 import O3_X86_icelake
 
 def get_processes(options):
     """Interprets provided options and returns a list of processes"""
@@ -345,12 +346,10 @@ if CpuConfig.is_kvm_cpu(CPUClass) or CpuConfig.is_kvm_cpu(FutureClass):
 
 # Enable 1 cycle penalty for LVP lookup
 if options.lvpLookupAtFetch:
-    if not (options.cpu_type ==  "O3_X86_skylake_1" or  options.cpu_type == "O3_X86_icelake_1"):
-        fatal("Only supported on skylake and icelake")
     if not options.enable_superoptimization:
         fatal("No LVP Lookup needed if SuperOptimization not enabled")
     for cpu in system.cpu:
-        if cpu is O3_X86_skylake:
+        if cpu is O3_X86_skylake or cpu is O3_X86_icelake:
             cpu.fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
 
 # Sanity check
