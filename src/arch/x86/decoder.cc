@@ -172,11 +172,11 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
                 uopTagArray[idx][way] = 0;
                 uopPrevWayArray[idx][way] = UOP_CACHE_WAY_MAGIC_NUM;
                 uopNextWayArray[idx][way] = UOP_CACHE_WAY_MAGIC_NUM;
-                uopHotnessArray[idx][way] = BigSatCounter(64);
-                uopProfitableTrace[idx][way] = false;
+                uopHotnessArray[idx][way] = BigSatCounter(4);
+                uopProfitableTrace[idx][way] = true;
                 for (int uop = 0; uop < 6; uop++) {
                     uopAddrArray[idx][way][uop] = FullUopAddr();
-                    uopCache[idx][way][uop] = ExtMachInst();
+                    //uopCache[idx][way][uop] = ExtMachInst();
                 }
             }
         }
@@ -1007,7 +1007,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         return false;
     }
 
-    uint64_t idx = (addr >> 5) % UOP_CACHE_NUM_SETS;
+    int idx = (addr >> 5) % UOP_CACHE_NUM_SETS;
     uint64_t tag = (addr >> 5) / UOP_CACHE_NUM_SETS;
     int numFullWays = 0;
     int lastWay = -1;
@@ -1116,8 +1116,8 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 uopProfitableTrace[idx][way] = true; // reset the profitable flag
                 uopCountArray[idx][way] = 0;
                 uopHotnessArray[idx][way] = BigSatCounter(4);
-                uopPrevWayArray[idx][way] = 10;
-                uopNextWayArray[idx][way] = 10;
+                uopPrevWayArray[idx][way] = UOP_CACHE_WAY_MAGIC_NUM;
+                uopNextWayArray[idx][way] = UOP_CACHE_WAY_MAGIC_NUM;
                 uopCacheWayInvalidations++;
                 
             }
@@ -1210,8 +1210,8 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 uopCountArray[idx][w] = 0;
                 uopHotnessArray[idx][w] = BigSatCounter(4);
                 //uopFullArray[idx][w] = false;
-                uopPrevWayArray[idx][w] = 10;
-                uopNextWayArray[idx][w] = 10;
+                uopPrevWayArray[idx][w] = UOP_CACHE_WAY_MAGIC_NUM;
+                uopNextWayArray[idx][w] = UOP_CACHE_WAY_MAGIC_NUM;
                 uopCacheWayInvalidations++;
                 // invalidate all the empry space in way
                 for (int uop = 0; uop < 6; uop++) {
@@ -1623,7 +1623,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
 bool
 Decoder::isHitInUopCache(Addr addr)
 {
-  uint64_t idx = (addr >> 5) % UOP_CACHE_NUM_SETS;
+  int idx = (addr >> 5) % UOP_CACHE_NUM_SETS;
   uint64_t tag = (addr >> 5) / UOP_CACHE_NUM_SETS;
   for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
     if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
@@ -1641,7 +1641,7 @@ Decoder::isHitInUopCache(Addr addr)
 StaticInstPtr
 Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
 {
-    uint64_t idx = (addr >> 5) % UOP_CACHE_NUM_SETS;
+    int idx = (addr >> 5) % UOP_CACHE_NUM_SETS;
     uint64_t tag = (addr >> 5) / UOP_CACHE_NUM_SETS;
     for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
         if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
@@ -1860,7 +1860,7 @@ Decoder::invalidateSpecTrace(Addr addr, unsigned uop) {
      */
     //int idx = (addr >> 5) & SPEC_INDEX_MASK;
     //uint64_t tag = (addr >> (SPEC_NUM_INDEX_BITS + 5));
-    uint64_t idx = (addr >> 5) % SPEC_CACHE_NUM_SETS;
+    int idx = (addr >> 5) % SPEC_CACHE_NUM_SETS;
     uint64_t tag = (addr >> 5)/ SPEC_CACHE_NUM_SETS;
     for (int way = 0; way < SPEC_CACHE_NUM_WAYS; way++) {
         if (speculativeValidArray[idx][way] && speculativeTagArray[idx][way] == tag) {

@@ -225,7 +225,9 @@ bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uin
 }
 
 bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
-
+    //assert(trace.addr.idx < decoder->UOP_CACHE_NUM_SETS && "trace.addr.idx >= decoder->UOP_CACHE_NUM_SETS\n");
+    //assert(trace.addr.way < decoder->UOP_CACHE_NUM_WAYS && "trace.addr.way >= decoder->UOP_CACHE_NUM_WAYS\n");
+    //assert( trace.addr.uop < 6 && "trace.addr.uop >= 6\n");
     DPRINTF(SuperOp, "In advanceIfControlTransfer()\n");
     // don't do this for re-optimizations
     if (trace.state != SpecTrace::QueuedForFirstTimeOptimization  && trace.state != SpecTrace::OptimizationInProcess)
@@ -321,6 +323,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
         target = targetPC.instAddr();
         DPRINTF(SuperOp, "Indirect branch: target = %#x\n", target);
     }
+    
 
     // pivot to jump target if it is found in the uop cache
     uint64_t uop_cache_idx = (target >> 5) % decoder->UOP_CACHE_NUM_SETS;
@@ -348,7 +351,11 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
                     trace.controlSources[trace.branchesFolded].value = target;
 
                     trace.branchesFolded++;
-                    
+
+                    //assert(trace.addr.idx < decoder->UOP_CACHE_NUM_SETS && "trace.addr.idx >= decoder->UOP_CACHE_NUM_SETS\n");
+                    //assert(trace.addr.way < decoder->UOP_CACHE_NUM_WAYS && "trace.addr.way >= decoder->UOP_CACHE_NUM_WAYS\n");
+                    //assert( trace.addr.uop < 6 && "trace.addr.uop >= 6\n");
+                                    
                     return true;
                 }
             }
@@ -372,6 +379,9 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
     Addr target = 0;
     DPRINTF(SuperOp, "Advancing trace id:%d at uop cache:[%i][%i][%i]\n", trace.id, trace.addr.idx, trace.addr.way, trace.addr.uop);
+    //assert(trace.addr.idx < decoder->UOP_CACHE_NUM_SETS && "trace.addr.idx >= decoder->UOP_CACHE_NUM_SETS\n");
+    //assert(trace.addr.way < decoder->UOP_CACHE_NUM_WAYS && "trace.addr.way >= decoder->UOP_CACHE_NUM_WAYS\n");
+    //assert( trace.addr.uop < 6 && "trace.addr.uop >= 6\n");
     if (!usingControlTracking || !advanceIfControlTransfer(trace, target)) {
         trace.addr.uop++;
         trace.addr.valid = false;

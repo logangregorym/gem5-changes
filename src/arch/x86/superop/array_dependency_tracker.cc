@@ -497,7 +497,7 @@ void ArrayDependencyTracker::invalidateBranch(unsigned branchIndex) {
 void ArrayDependencyTracker::predictValue(Addr addr, unsigned uopAddr, int64_t value)
 {
 	DPRINTF(ConstProp, "Predicted %x for inst at %x.%i\n", value, addr, uopAddr);
-	uint64_t idx = (addr >> 5) % decoder->UOP_CACHE_NUM_SETS;
+	int idx = (addr >> 5) % decoder->UOP_CACHE_NUM_SETS;
     uint64_t tag = (addr >> 5)/ decoder->UOP_CACHE_NUM_SETS;
 	int specway = 0;
 	int specuop = 0;
@@ -1983,8 +1983,8 @@ bool ArrayDependencyTracker::propagateWrip(int idx, int way, int uop) {
 }
 
 bool ArrayDependencyTracker::propagateAcrossControlDependency(unsigned branchIndex, FullUopAddr propagatingTo) {
-	uint64_t spec_cache_idx = (addr >> 5) % SPEC_CACHE_NUM_SETS;
-    uint64_t tag = (addr >> 5)/ SPEC_CACHE_NUM_SETS;
+	int idx = (propagatingTo.pcAddr >> 5) % UOP_CACHE_NUM_SETS;
+    uint64_t tag = (propagatingTo.pcAddr >> 5)/ UOP_CACHE_NUM_SETS;
 	int way = 0;
 	int uop = 0;
 	bool found = false;
