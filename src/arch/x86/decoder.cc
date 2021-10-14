@@ -176,7 +176,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
                 uopProfitableTrace[idx][way] = true;
                 for (int uop = 0; uop < 6; uop++) {
                     uopAddrArray[idx][way][uop] = FullUopAddr();
-                    //uopCache[idx][way][uop] = ExtMachInst();
+                    uopCache[idx][way][uop] = ExtMachInst();
                 }
             }
         }
@@ -1085,7 +1085,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
         DPRINTF(Decoder, "Could not accomodate 32 byte region: Could not update microop in the microop cache: %#x tag:%#x idx:%#x. Affected PCs:\n", addr, tag, idx);
         for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
             if (uopValidArray[idx][way] && uopTagArray[idx][way] == tag) {
-                if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
+                /*if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
                     traceConstructor->currentTrace.currentIdx == idx && 
                     (traceConstructor->currentTrace.head.way == way || 
                      way == uopNextWayArray[idx][traceConstructor->currentTrace.head.way] ||
@@ -1103,7 +1103,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                      traceConstructor->currentTrace.addr.way == uopNextWayArray[idx][way] ||
                      traceConstructor->currentTrace.addr.way == uopPrevWayArray[idx][way])) {
                     return false;
-                }
+                }*/
                 for (int uop = 0; uop < uopCountArray[idx][way]; uop++) {
                     // DPRINTF(Decoder, "%#x\n", uopAddrArray[idx][way][uop], true);
                     DPRINTF(ConstProp, "Decoder is invalidating way %i, so removing uop[%i][%i][%i]\n", way, idx, way, uop);
@@ -1119,6 +1119,10 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
                 uopPrevWayArray[idx][way] = UOP_CACHE_WAY_MAGIC_NUM;
                 uopNextWayArray[idx][way] = UOP_CACHE_WAY_MAGIC_NUM;
                 uopCacheWayInvalidations++;
+                
+                traceConstructor->currentTrace.state = SpecTrace::Evicted;
+                traceConstructor->currentTrace.addr.valid = false;
+
                 
             }
         }
@@ -1269,6 +1273,8 @@ Decoder::updateStreamTrace(uint64_t traceID, X86ISA::PCState &thisPC) {
             for (int uop = 0; uop < speculativeCountArray[idx][way]; uop++) {
                 if (speculativeAddrArray[idx][way][uop] == addr) {
                     traceConstructor->streamTrace.addr = FullCacheIdx(idx, way, uop);
+                    assert(traceConstructor->streamTrace.addr.uop < 6 && "trace.addr.uop >= 6\n");
+                    assert(traceConstructor->streamTrace.addr.uop >= 0 && "trace.addr.uop < 0\n");
                     DPRINTF(Decoder, "updateStreamTrace: stream trace %d to begin at SPEC[%d][%d][%d]\n", traceID, idx, way, uop);
                     return;
                 }
@@ -1319,6 +1325,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                  to this instruction. */
             int waySize = speculativeCountArray[idx][way];
             if (waySize == 6) {
+            //assert(0);
                 lastWay = way;
                 waysVisited++;
                 continue;
