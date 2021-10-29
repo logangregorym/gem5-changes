@@ -182,8 +182,8 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
     SpecTrace newTrace;
     newTrace.state = SpecTrace::QueuedForFirstTimeOptimization;
     newTrace.head = newTrace.addr = FullCacheIdx(uop_cache_idx, baseWay, baseUop);
-    assert(newTrace.addr.uop < 6 && "trace.addr.uop >= 6\n");
-    assert(newTrace.addr.uop >= 0 && "trace.addr.uop < 0\n");
+    assert(newTrace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
+    assert(newTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
     newTrace.currentIdx = uop_cache_idx;
     newTrace.setTraceHeadAddress(FullUopAddr(baseAddr, 0));
     newTrace.instAddr = FullUopAddr(0, 0);
@@ -228,7 +228,7 @@ bool TraceBasedGraph::isPredictionSource(SpecTrace& trace, FullUopAddr addr, uin
 bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
     //assert(trace.addr.idx < decoder->UOP_CACHE_NUM_SETS && "trace.addr.idx >= decoder->UOP_CACHE_NUM_SETS\n");
     //assert(trace.addr.way < decoder->UOP_CACHE_NUM_WAYS && "trace.addr.way >= decoder->UOP_CACHE_NUM_WAYS\n");
-    //assert( trace.addr.uop < 6 && "trace.addr.uop >= 6\n");
+    //assert( trace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
     DPRINTF(SuperOp, "In advanceIfControlTransfer()\n");
     // don't do this for re-optimizations
     if (trace.state != SpecTrace::QueuedForFirstTimeOptimization  && trace.state != SpecTrace::OptimizationInProcess)
@@ -243,16 +243,16 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
     assert(trace.addr.way < decoder->UOP_CACHE_NUM_WAYS && "trace.addr.way >= decoder->UOP_CACHE_NUM_WAYS\n");
     assert(trace.addr.way >= 0 && "trace.addr.way < 0\n");
     //assert(trace.addr.valid);
-    if (trace.addr.uop >=6){
-        cout << trace.id << ": " << trace.addr.idx << " " << trace.addr.way << " " << trace.addr.uop << endl;
+    if (trace.addr.getUop() >=6){
+        cout << trace.id << ": " << trace.addr.idx << " " << trace.addr.way << " " << trace.addr.getUop() << endl;
     }
-    assert(trace.addr.uop < 6 && "trace.addr.uop >= 6\n");
-    assert(trace.addr.uop >= 0 && "trace.addr.uop < 0\n");
+    assert(trace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
+    assert(trace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
     //assert(decoder->uopValidArray[trace.addr.idx][trace.addr.way]);
-    StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop]);
+    StaticInstPtr decodedMacroOp = decoder->decodeInst(decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.getUop()]);
     StaticInstPtr decodedMicroOp = decodedMacroOp;
     if (decodedMacroOp->isMacroop()) {
-        Addr uopAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].uopAddr;
+        Addr uopAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.getUop()].uopAddr;
         decodedMicroOp = decodedMacroOp->fetchMicroop(uopAddr);
         decodedMicroOp->macroOp = decodedMacroOp;
     }
@@ -291,10 +291,10 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
     
     }
 
-    DPRINTF(SuperOp, "Advancing control trace id:%d at uop cache:[%i][%i][%i]\n", trace.id, trace.addr.idx, trace.addr.way, trace.addr.uop);
+    DPRINTF(SuperOp, "Advancing control trace id:%d at uop cache:[%i][%i][%i]\n", trace.id, trace.addr.idx, trace.addr.way, trace.addr.getUop());
 
     // end the trace if a return or a branch without a confident prediction is encountered
-    Addr pcAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].pcAddr;
+    Addr pcAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.getUop()].pcAddr;
     if (decodedMicroOp->isReturn() || !branchPred->getConfidenceForSSO(pcAddr)) {
         DPRINTF(TraceGen, "Ending trace -- return or a branch without a confident prediction is encountered\n");
         trace.addr.valid = false;
@@ -346,9 +346,9 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
                         decoder->uopAddrArray[uop_cache_idx][way][uop].uopAddr == 0) {
                     trace.addr.idx = trace.currentIdx = uop_cache_idx;
                     trace.addr.way = way;
-                    trace.addr.uop = uop;
-                    assert(trace.addr.uop < 6 && "trace.addr.uop >= 6\n");
-                    assert(trace.addr.uop >= 0 && "trace.addr.uop < 0\n");
+                    trace.addr.setUop(uop);
+                    assert(trace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
+                    assert(trace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                     if (decodedMacroOp->isMacroop()) { 
                         decodedMacroOp->deleteMicroOps();
                         decodedMacroOp = NULL;
@@ -367,7 +367,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 
                     //assert(trace.addr.idx < decoder->UOP_CACHE_NUM_SETS && "trace.addr.idx >= decoder->UOP_CACHE_NUM_SETS\n");
                     //assert(trace.addr.way < decoder->UOP_CACHE_NUM_WAYS && "trace.addr.way >= decoder->UOP_CACHE_NUM_WAYS\n");
-                    //assert( trace.addr.uop < 6 && "trace.addr.uop >= 6\n");
+                    //assert( trace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
                                     
                     return true;
                 }
@@ -391,34 +391,34 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 
 Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
     Addr target = 0;
-    DPRINTF(SuperOp, "Advancing trace id:%d at uop cache:[%i][%i][%i]\n", trace.id, trace.addr.idx, trace.addr.way, trace.addr.uop);
+    DPRINTF(SuperOp, "Advancing trace id:%d at uop cache:[%i][%i][%i]\n", trace.id, trace.addr.idx, trace.addr.way, trace.addr.getUop());
     
     //assert(trace.addr.valid);
-    if (trace.addr.uop >=6){
-        cout << trace.id << ": " << trace.addr.idx << " " << trace.addr.way << " " << trace.addr.uop << endl;
+    if (trace.addr.getUop() >=6){
+        cout << trace.id << ": " << trace.addr.idx << " " << trace.addr.way << " " << trace.addr.getUop() << endl;
     }
-    assert(trace.addr.uop < 6 && "trace.addr.uop >= 6\n");
-    assert(trace.addr.uop >= 0 && "trace.addr.uop < 0\n");
+    assert(trace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
+    assert(trace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
 
     if (!usingControlTracking || !advanceIfControlTransfer(trace, target)) {
-        trace.addr.uop++;
+        int nextUop = trace.addr.getUop() + 1;
         trace.addr.valid = false;
         // select cache to advance from
         if (trace.state == SpecTrace::QueuedForFirstTimeOptimization || trace.state == SpecTrace::OptimizationInProcess) {
-            FullUopAddr prevAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop-1];
+            FullUopAddr prevAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][nextUop-1];
             FullUopAddr nextAddr = FullUopAddr(0,0);
-            if (trace.addr.uop < 6){
-                nextAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop];
+            if (nextUop < 6){
+                nextAddr = decoder->uopAddrArray[trace.addr.idx][trace.addr.way][nextUop];
                 DPRINTF(SuperOp, "Advancing pc from %#x.%u to %#x.%u\n", prevAddr.pcAddr, prevAddr.uopAddr, nextAddr.pcAddr, nextAddr.uopAddr);
-                DPRINTF(SuperOp, "\t%#x.%u at uop cache:[%i][%i][%i]\n", prevAddr.pcAddr, prevAddr.uopAddr, trace.addr.idx, trace.addr.way, trace.addr.uop - 1);
-                DPRINTF(SuperOp, "\t%#x.%u at uop cache:[%i][%i][%i]\n", nextAddr.pcAddr, nextAddr.uopAddr, trace.addr.idx, trace.addr.way, trace.addr.uop);
+                DPRINTF(SuperOp, "\t%#x.%u at uop cache:[%i][%i][%i]\n", prevAddr.pcAddr, prevAddr.uopAddr, trace.addr.idx, trace.addr.way, nextUop - 1);
+                DPRINTF(SuperOp, "\t%#x.%u at uop cache:[%i][%i][%i]\n", nextAddr.pcAddr, nextAddr.uopAddr, trace.addr.idx, trace.addr.way, nextUop);
             } else {
-                DPRINTF(SuperOp, "Reached the end of a uop cache way:[%i][%i][%i]\n", trace.addr.idx, trace.addr.way, trace.addr.uop);
+                DPRINTF(SuperOp, "Reached the end of a uop cache way:[%i][%i][%i]\n", trace.addr.idx, trace.addr.way, nextUop);
             }
             
-            if (trace.addr.uop >= 6 || prevAddr.pcAddr != nextAddr.pcAddr) {
+            if (nextUop >= 6 || prevAddr.pcAddr != nextAddr.pcAddr) {
                 // TODO .uopAddr is not getting set or used here
-                nextAddr.pcAddr = prevAddr.pcAddr + decoder->uopCache[trace.addr.idx][trace.addr.way][trace.addr.uop-1].instSize;
+                nextAddr.pcAddr = prevAddr.pcAddr + decoder->uopCache[trace.addr.idx][trace.addr.way][nextUop-1].instSize;
                 int idx = trace.addr.idx;
                 DPRINTF(SuperOp, "nextAddr= %#x.%u\n", nextAddr.pcAddr, nextAddr.uopAddr);
                 if (trace.addr.idx != ((nextAddr.pcAddr >> 5) % decoder->UOP_CACHE_NUM_SETS)) { // we have exhausted all ways
@@ -433,12 +433,12 @@ Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
                         for (int uop = 0; uop < decoder->uopCountArray[idx][way]; uop++) {
                             if (decoder->uopAddrArray[idx][way][uop].pcAddr == nextAddr.pcAddr) {
                                 trace.addr.way = way;
-                                trace.addr.uop = uop;
-                                assert(trace.addr.uop < 6 && "trace.addr.uop >= 6\n");
-                                assert(trace.addr.uop >= 0 && "trace.addr.uop < 0\n");
+                                assert(uop < 6 && "uop >= 6\n");
+                                assert(uop >= 0 && "uop < 0\n");
+                                trace.addr.setUop(uop);
                                 trace.addr.idx = trace.currentIdx = idx;
                                 trace.addr.valid = true;
-                                DPRINTF(SuperOp, "Found pc %#x.%u at uop cache:[%i][%i][%i] (setting valid=true)\n", nextAddr.pcAddr, nextAddr.uopAddr, trace.addr.idx, trace.addr.way, trace.addr.uop);
+                                DPRINTF(SuperOp, "Found pc %#x.%u at uop cache:[%i][%i][%i] (setting valid=true)\n", nextAddr.pcAddr, nextAddr.uopAddr, trace.addr.idx, trace.addr.way, trace.addr.getUop());
                                 return 0;
                             }
                         }
@@ -446,18 +446,32 @@ Addr TraceBasedGraph::advanceTrace(SpecTrace &trace) {
                 }
             } else {
                 DPRINTF(SuperOp, "Same macro-op\n");
+                assert(nextUop < 6 && "nextUop >= 6\n");
+                assert(nextUop >= 0 && "nextUop < 0\n");
+                trace.addr.setUop(nextUop);
                 trace.addr.valid = true;
             }
         } else {
-//            DPRINTF(SuperOp, "Trace Complete id:%d at uop cache:[%i][%i][%i]\n", trace.id, trace.addr.idx, trace.addr.way, trace.addr.uop);
+//            DPRINTF(SuperOp, "Trace Complete id:%d at uop cache:[%i][%i][%i]\n", trace.id, trace.addr.idx, trace.addr.way, trace.addr.getUop());
             assert(trace.state == SpecTrace::Complete);
             assert((trace.addr.way < decoder->SPEC_CACHE_NUM_WAYS) && (trace.addr.idx < decoder->SPEC_CACHE_NUM_SETS));
-            if (trace.addr.uop < decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]) {
+            
+            
+
+            if (nextUop < decoder->speculativeCountArray[trace.addr.idx][trace.addr.way]) {
+                assert(nextUop < 6 && "nextUop >= 6\n");
+                assert(nextUop >= 0 && "nextUop < 0\n");
+                trace.addr.setUop(nextUop);
                 trace.addr.valid = true;
             } else if (decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way] != decoder->SPEC_CACHE_WAY_MAGIC_NUM) {
-                trace.addr.uop = 0;
+                trace.addr.setUop(0);
                 trace.addr.way = decoder->speculativeNextWayArray[trace.addr.idx][trace.addr.way];
                 trace.addr.valid = true;
+            } else {
+               // assert(nextUop < 6 && "nextUop >= 6\n");
+                //assert(nextUop >= 0 && "nextUop < 0\n");
+                //trace.addr.setUop(nextUop);
+                assert(trace.addr.valid == false);
             }
         }
 //        DPRINTF(SuperOp, "else: return 0;\n");
@@ -493,7 +507,7 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
 
     int idx = trace.addr.idx;
     int way = trace.addr.way;
-    int uop = trace.addr.uop;
+    int uop = trace.addr.getUop();
     int tag = (trace.getTraceHeadAddr().pcAddr >> 5) / decoder->UOP_CACHE_NUM_SETS;
 
     // select cache to dump from
@@ -882,8 +896,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 DPRINTF(TraceGen, "Removing trace: %d from Trace Map because of insufficent super-optimization!.\n", currentTrace.id );
                 assert(traceMap.find(currentTrace.id) != traceMap.end());
                 /*currentTrace.addr = currentTrace.head;
-                assert(currentTrace.addr.uop < 6 && "trace.addr.uop >= 6\n");
-                assert(currentTrace.addr.uop >= 0 && "trace.addr.uop < 0\n");
+                assert(currentTrace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
+                assert(currentTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                 //cout << currentTrace.id << ": " << 3 << endl;
                 dumpTrace(currentTrace);
                 DPRINTF(SuperOp, "Live Outs:\n");
@@ -1007,8 +1021,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             
                 DPRINTF(SuperOp, "Before optimization: \n");
                 currentTrace.addr = currentTrace.head;
-                assert(currentTrace.addr.uop < 6 && "trace.addr.uop >= 6\n");
-                assert(currentTrace.addr.uop >= 0 && "trace.addr.uop < 0\n");
+                assert(currentTrace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
+                assert(currentTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                 //cout << currentTrace.id << ": " << 4 << endl; 
                 dumpTrace(currentTrace);
         
@@ -1044,8 +1058,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     assert(currentTrace.state == SpecTrace::OptimizationInProcess);
 
                     currentTrace.addr = currentTrace.getOptimizedHead();
-                    assert(currentTrace.addr.uop < 6 && "trace.addr.uop >= 6\n");
-                    assert(currentTrace.addr.uop >= 0 && "trace.addr.uop < 0\n");
+                    assert(currentTrace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
+                    assert(currentTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                     currentTrace.state = SpecTrace::Complete;
                     traceMap[currentTrace.id] = currentTrace;
                     //cout << currentTrace.id << ": " << 2 << endl;
@@ -1149,13 +1163,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
             int idx = currentTrace.addr.idx;
             int way = currentTrace.addr.way;
-            int uop = currentTrace.addr.uop;
+            int uop = currentTrace.addr.getUop();
             if (!(currentTrace.state == SpecTrace::QueuedForFirstTimeOptimization &&
                   decoder->uopValidArray[idx][way] &&
                   decoder->uopAddrArray[idx][way][uop] == currentTrace.getTraceHeadAddr())
                 ) 
             {
-                DPRINTF(SuperOp, "Trace %i at (%i,%i,%i) evicted before we could process it.\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
+                DPRINTF(SuperOp, "Trace %i at (%i,%i,%i) evicted before we could process it.\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.getUop());
 
                 // A trace queued for first time optimization should never have a valid optimized head address 
                 // because it never had the chance to get super optimized
@@ -1198,7 +1212,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
         } while (!currentTrace.addr.valid);
 
-        DPRINTF(SuperOp, "Optimizing trace %i at (%i,%i,%i)\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.uop);
+        DPRINTF(SuperOp, "Optimizing trace %i at (%i,%i,%i)\n", currentTrace.id, currentTrace.addr.idx, currentTrace.addr.way, currentTrace.addr.getUop());
        
 
         if (currentTrace.state == SpecTrace::QueuedForFirstTimeOptimization) {
@@ -1222,7 +1236,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
     int idx = currentTrace.addr.idx;
     int way = currentTrace.addr.way;
-    int uop = currentTrace.addr.uop;
+    int uop = currentTrace.addr.getUop();
     SpecTrace::State state = currentTrace.state;
 
     StaticInstPtr decodedMacroOp = NULL;
@@ -3723,9 +3737,9 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
                             decoder->uopAddrArray[idx][way][uop].uopAddr == 0) {
                         currentTrace.addr.idx = currentTrace.currentIdx = idx;
                         currentTrace.addr.way = way;
-                        currentTrace.addr.uop = uop;
-                        assert(currentTrace.addr.uop < 6 && "trace.addr.uop >= 6\n");
-                        assert(currentTrace.addr.uop >= 0 && "trace.addr.uop < 0\n");
+                        currentTrace.addr.setUop(uop);
+                        assert(currentTrace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
+                        assert(currentTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                         currentTrace.addr.valid = true;
 
                         currentTrace.controlSources[currentTrace.branchesFolded].confidence = 9;
@@ -3882,9 +3896,9 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
                             decoder->uopAddrArray[idx][way][uop].uopAddr == 0) {
                         currentTrace.addr.idx = currentTrace.currentIdx = idx;
                         currentTrace.addr.way = way;
-                        currentTrace.addr.uop = uop;
-                        assert(currentTrace.addr.uop < 6 && "trace.addr.uop >= 6\n");
-                        assert(currentTrace.addr.uop >= 0 && "trace.addr.uop < 0\n");
+                        currentTrace.addr.setUop(uop);
+                        assert(currentTrace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
+                        assert(currentTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                         currentTrace.addr.valid = true;
 
                         currentTrace.controlSources[currentTrace.branchesFolded].confidence = 9;

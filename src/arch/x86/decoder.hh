@@ -155,10 +155,12 @@ class Decoder
     //uint64_t SPEC_NUM_INDEX_BITS;
     uint64_t SPEC_CACHE_NUM_WAYS;
     uint64_t SPEC_CACHE_NUM_SETS;
+    uint64_t SPEC_CACHE_NUM_UOPS;
     uint64_t SPEC_CACHE_WAY_MAGIC_NUM;
 
     uint64_t UOP_CACHE_NUM_WAYS;
     uint64_t UOP_CACHE_NUM_SETS;
+    uint64_t UOP_CACHE_NUM_UOPS;
     uint64_t UOP_CACHE_WAY_MAGIC_NUM;
 
     bool lvpLookupAtFetch;

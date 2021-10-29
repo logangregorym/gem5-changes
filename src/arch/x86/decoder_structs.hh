@@ -38,9 +38,13 @@ struct FullUopAddr {
 };
 
 struct FullCacheIdx {
+    private:
+    int uop;
+    
+    public:
+
 	int idx;
 	int way;
-	int uop;
 	bool valid;
 
 	FullCacheIdx(int i, int w, int u) {
@@ -57,13 +61,24 @@ struct FullCacheIdx {
 		valid = false;
 	}
 
+    int getUop() {
+        return uop;
+    }
+    void setUop(int u){
+        if (u >= 6 || u < 0) {
+            std::cout << idx << " " << way << " " << uop << ", valid? " << valid << std::endl;
+        }
+        assert(u < 6 && "In decoder_sructs.hh:setUop(): u >= 6\n");
+        assert(u >= 0 && "In decoder_sructs.hh:setUop(): u < 0\n");
+        uop = u;
+    }
 	bool operator==(const FullCacheIdx& rhs) {
 		return (idx == rhs.idx) && (way == rhs.way) && (uop == rhs.uop);
 	}
 
 	bool operator!=(const FullCacheIdx& rhs) {
 		return (idx != rhs.idx) || (way != rhs.way) || (uop != rhs.uop);
-	}
+    }
 };
 
 struct SuperOptimizedMicroop

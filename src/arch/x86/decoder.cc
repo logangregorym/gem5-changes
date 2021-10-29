@@ -1174,7 +1174,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     unsigned evictWay = UOP_CACHE_NUM_WAYS;
 
     if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
-        DPRINTF(Decoder, "Trace being superoptimized has its head at uop[%i][%i][%i] and is currently optimizing uop[%i][%i][%i]\n", traceConstructor->currentTrace.head.idx, traceConstructor->currentTrace.head.way, traceConstructor->currentTrace.head.uop, traceConstructor->currentTrace.addr.idx, traceConstructor->currentTrace.addr.way, traceConstructor->currentTrace.addr.uop);
+        DPRINTF(Decoder, "Trace being superoptimized has its head at uop[%i][%i][%i] and is currently optimizing uop[%i][%i][%i]\n", traceConstructor->currentTrace.head.idx, traceConstructor->currentTrace.head.way, traceConstructor->currentTrace.head.getUop(), traceConstructor->currentTrace.addr.idx, traceConstructor->currentTrace.addr.way, traceConstructor->currentTrace.addr.getUop());
     }
     for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
         // check if we are processing the trace for first time optimization -- read from way in progress
@@ -1273,8 +1273,8 @@ Decoder::updateStreamTrace(uint64_t traceID, X86ISA::PCState &thisPC) {
             for (int uop = 0; uop < speculativeCountArray[idx][way]; uop++) {
                 if (speculativeAddrArray[idx][way][uop] == addr) {
                     traceConstructor->streamTrace.addr = FullCacheIdx(idx, way, uop);
-                    assert(traceConstructor->streamTrace.addr.uop < 6 && "trace.addr.uop >= 6\n");
-                    assert(traceConstructor->streamTrace.addr.uop >= 0 && "trace.addr.uop < 0\n");
+                    assert(traceConstructor->streamTrace.addr.getUop() < 6 && "trace.addr.uop >= 6\n");
+                    assert(traceConstructor->streamTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                     DPRINTF(Decoder, "updateStreamTrace: stream trace %d to begin at SPEC[%d][%d][%d]\n", traceID, idx, way, uop);
                     return;
                 }
@@ -2015,7 +2015,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
     assert(traceConstructor->traceMap.find(traceID) != traceConstructor->traceMap.end());   
     int idx = traceConstructor->traceMap[traceID].addr.idx;
     int way = traceConstructor->traceMap[traceID].addr.way;
-    int uop = traceConstructor->traceMap[traceID].addr.uop;
+    int uop = traceConstructor->traceMap[traceID].addr.getUop();
 
     
     if ((traceConstructor->streamTrace.id != traceID || !traceConstructor->streamTrace.addr.valid) ) { 
@@ -2032,7 +2032,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
 
         int _idx = traceConstructor->streamTrace.addr.idx;
         int _way = traceConstructor->streamTrace.addr.way;
-        int _uop = traceConstructor->streamTrace.addr.uop;
+        int _uop = traceConstructor->streamTrace.addr.getUop();
 
         DPRINTF(Decoder, "thisPC._pc = %x speculativeAddrArray[%d][%d][%d].pcAddr = %x\n",thisPC._pc, _idx, _way, _uop , speculativeAddrArray[_idx][_way][_uop].pcAddr);
         DPRINTF(Decoder,"speculativeValidArray[%d][%d] = %d\n", _idx, _way , speculativeValidArray[_idx][_way]);
@@ -2055,7 +2055,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
 
     idx = traceConstructor->streamTrace.addr.idx;
     way = traceConstructor->streamTrace.addr.way;
-    uop = traceConstructor->streamTrace.addr.uop;
+    uop = traceConstructor->streamTrace.addr.getUop();
 
     updateLRUBitsSpeculative(idx, way);
     thisPC._pc = speculativeAddrArray[idx][way][uop].pcAddr;
@@ -2108,7 +2108,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
     if (traceConstructor->streamTrace.addr.valid) {
         idx = traceConstructor->streamTrace.addr.idx;
         way = traceConstructor->streamTrace.addr.way;
-        uop = traceConstructor->streamTrace.addr.uop;
+        uop = traceConstructor->streamTrace.addr.getUop();
         StaticInstPtr nextInst = speculativeCache[idx][way][uop];
         FullUopAddr instAddr = speculativeAddrArray[idx][way][uop];
         nextPC._pc = instAddr.pcAddr;
@@ -2117,8 +2117,8 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
         /* Leverage advanceTrace's control tracking feature to set these. */
         SpecTrace trace = traceConstructor->streamTrace;
         traceConstructor->advanceTrace(trace);
-        nextPC._npc = speculativeAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].pcAddr;
-        nextPC._nupc = speculativeAddrArray[trace.addr.idx][trace.addr.way][trace.addr.uop].uopAddr;
+        nextPC._npc = speculativeAddrArray[trace.addr.idx][trace.addr.way][trace.addr.getUop()].pcAddr;
+        nextPC._nupc = speculativeAddrArray[trace.addr.idx][trace.addr.way][trace.addr.getUop()].uopAddr;
         nextPC.valid = true;
     } else {
         /* Assuming a trace always ends at the last micro-op of a macro-op. */
