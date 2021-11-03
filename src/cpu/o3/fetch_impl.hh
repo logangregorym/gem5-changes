@@ -1826,7 +1826,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     }
 
                     bool thwartMisprediction = false;
-                    if (!instruction->isControl()) {
+                    if (!instruction->isControl() || instruction->staticInst->dummyMicroop) {
                         //assert(thisPC.instAddr() == nextPC.instAddr());
                         instruction->setPredTarg(nextPC);
                         instruction->setPredTaken(false);

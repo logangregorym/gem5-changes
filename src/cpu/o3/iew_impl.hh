@@ -1632,7 +1632,7 @@ DefaultIEW<Impl>::executeInsts()
             TheISA::PCState tempPC = inst->pcState();
             TheISA::advancePC(tempPC, inst->staticInst);
             
-            if ((!inst->isStreamedFromSpeculativeCache() || (inst->isControl() && inst->isLastMicroop())) && inst->mispredicted() && !loadNotExecuted) {
+            if ((!inst->isStreamedFromSpeculativeCache() || (inst->isControl() && inst->isLastMicroop() && !inst->staticInst->dummyMicroop)) && inst->mispredicted() && !loadNotExecuted) {
                 DPRINTF(IEW, "mismatch? target PC=%s, predicted PC=%s\n", tempPC, inst->readPredTarg());
                 fetchRedirect[tid] = true;
 

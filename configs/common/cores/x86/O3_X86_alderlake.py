@@ -92,7 +92,7 @@ class O3_X86_alderlake_FUP(FUPool):
 
 # Bi-Mode Branch Predictor
 class O3_X86_alderlake_BP(LTAGE):
-    BTBEntries = 12288
+    BTBEntries = 16384
     BTBTagSize = 18
     RASSize = 64
     instShiftAmt = 2
@@ -149,7 +149,7 @@ class O3_X86_alderlake_ICache(Cache):
     response_latency = 1
     mshrs = 2
     tgts_per_mshr = 8
-    size = '64kB'
+    size = '32kB'
     assoc = 8
     is_read_only = True
     writeback_clean = True
@@ -161,7 +161,7 @@ class O3_X86_alderlake_DCache(Cache):
     response_latency = 1
     mshrs = 6
     tgts_per_mshr = 8
-    size = '64kB'
+    size = '48kB'
     assoc = 12
     write_buffers = 16
     writeback_clean = True

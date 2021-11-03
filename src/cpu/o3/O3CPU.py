@@ -177,6 +177,7 @@ class DerivO3CPU(BaseCPU):
 
     uopCacheNumSets = Param.Unsigned(32, "Number of sets in the micro-op cache")
     uopCacheNumWays = Param.Unsigned(8, "Number of ways in the micro-op cache (only tested with 8)")
+    uopCacheNumUops = Param.Unsigned(6, "Number of uops in the micro-op cache")
 
     lvpLookupAtFetch = Param.Bool(0, "Enables an LVP lookup at every fetch cycle to detect stale traces")
 

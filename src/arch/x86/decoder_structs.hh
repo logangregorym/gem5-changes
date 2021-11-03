@@ -65,10 +65,10 @@ struct FullCacheIdx {
         return uop;
     }
     void setUop(int u){
-        if (u >= 6 || u < 0) {
-            std::cout << idx << " " << way << " " << uop << ", valid? " << valid << std::endl;
-        }
-        assert(u < 6 && "In decoder_sructs.hh:setUop(): u >= 6\n");
+        //if (u >=  UOP_CACHE_NUM_UOPS || u < 0) {
+        //    std::cout << idx << " " << way << " " << uop << ", valid? " << valid << std::endl;
+        //}
+        //assert(u < UOP_CACHE_NUM_UOPS && "In decoder_sructs.hh:setUop(): u >= UOP_CACHE_NUM_UOPS\n");
         assert(u >= 0 && "In decoder_sructs.hh:setUop(): u < 0\n");
         uop = u;
     }

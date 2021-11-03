@@ -66,6 +66,7 @@ from common.Caches import *
 from common.cpu2000 import *
 from common.cores.x86 import O3_X86_skylake
 from common.cores.x86 import O3_X86_icelake
+from common.cores.x86 import O3_X86_alderlake
 
 def get_processes(options):
     """Interprets provided options and returns a list of processes"""
@@ -112,7 +113,7 @@ def get_processes(options):
         idx += 1
 
     if options.smt:
-        assert(options.cpu_type == "DerivO3CPU" or options.cpu_type == "O3_X86_sb_1" or options.cpu_type == "O3_X86_skylake_1" or options.cpu_type == "O3_X86_icelake_1")
+        assert(options.cpu_type == "DerivO3CPU" or options.cpu_type == "O3_X86_sb_1" or options.cpu_type == "O3_X86_skylake_1" or options.cpu_type == "O3_X86_icelake_1" or options.cpu_type == "O3_X86_alderlake_1")
         return multiprocesses, idx
     else:
         return multiprocesses, 1
@@ -151,8 +152,10 @@ parser.add_option("--debugTraceGen", default=0, type="int", action="store", help
 
 parser.add_option("--specCacheNumWays", default=8, type="int", action="store", help="Number of ways for speculative cache");
 parser.add_option("--specCacheNumSets", default=32, type="int", action="store", help="Number of sets for speculative cache");
+parser.add_option("--specCacheNumUops", default=6, type="int", action="store", help="Number of uops for speculative cache");
 parser.add_option("--uopCacheNumWays", default=8, type="int", action="store", help="Number of ways for micro-op cache");
 parser.add_option("--uopCacheNumSets", default=32, type="int", action="store", help="Number of sets for micro-op cache");
+parser.add_option("--uopCacheNumUops", default=6, type="int", action="store", help="Number of uops for micro-op cache");
 parser.add_option("--numOfTracePredictionSources", default=4, type="int", action="store", help="Number of prediction sources in a super optimized trace");
 
 parser.add_option("--maxRecursiveDepth", default=8, type="int", action="store", help="Maximum depth to recurse to when measuring dependency chains")
@@ -239,12 +242,14 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.traceConstructor.predictionConfidenceThreshold = options.predictionConfidenceThreshold
     CPUClass.traceConstructor.specCacheNumWays = options.specCacheNumWays
     CPUClass.traceConstructor.specCacheNumSets = options.specCacheNumSets
+    CPUClass.traceConstructor.specCacheNumUops = options.specCacheNumUops
     CPUClass.traceConstructor.numOfTracePredictionSources = options.numOfTracePredictionSources
     CPUClass.traceConstructor.debugTraceGen = options.debugTraceGen
     CPUClass.checkpoint_at_instr = options.checkpoint_at_instr
     CPUClass.after_exec_cnt = options.after_exec_cnt
     CPUClass.uopCacheNumWays = options.uopCacheNumWays
     CPUClass.uopCacheNumSets = options.uopCacheNumSets
+    CPUClass.uopCacheNumUops = options.uopCacheNumUops
     CPUClass.lvpLookupAtFetch = options.lvpLookupAtFetch
 
 CPUClass.numThreads = numThreads
@@ -281,6 +286,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.traceConstructor.predictionConfidenceThreshold = options.predictionConfidenceThreshold
     FutureClass.traceConstructor.specCacheNumWays = options.specCacheNumWays
     FutureClass.traceConstructor.specCacheNumSets = options.specCacheNumSets
+    FutureClass.traceConstructor.specCacheNumUops = options.specCacheNumUops
     FutureClass.traceConstructor.numOfTracePredictionSources = options.numOfTracePredictionSources
     FutureClass.traceConstructor.debugTraceGen = options.debugTraceGen
     FutureClass.numThreads = numThreads
@@ -292,6 +298,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.checkpoint_at_instr = options.checkpoint_at_instr
     FutureClass.uopCacheNumWays = options.uopCacheNumWays
     FutureClass.uopCacheNumSets = options.uopCacheNumSets
+    FutureClass.uopCacheNumUops = options.uopCacheNumUops
     FutureClass.lvpLookupAtFetch = options.lvpLookupAtFetch
 
 # Check -- do not allow SMT with multiple CPUs
@@ -349,7 +356,7 @@ if options.lvpLookupAtFetch:
     if not options.enable_superoptimization:
         fatal("No LVP Lookup needed if SuperOptimization not enabled")
     for cpu in system.cpu:
-        if cpu is O3_X86_skylake or cpu is O3_X86_icelake:
+        if (cpu is O3_X86_skylake) or (cpu is O3_X86_icelake) or (cpu is O3_X86_alderlake):
             cpu.fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
 
 # Sanity check
