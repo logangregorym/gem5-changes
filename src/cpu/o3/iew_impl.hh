@@ -1648,14 +1648,14 @@ DefaultIEW<Impl>::executeInsts()
 
                 ppMispredict->notify(inst);
 
-                if (!inst->isStreamedFromSpeculativeCache())
-                {
+                //if (!inst->isStreamedFromSpeculativeCache())
+                //{
                     if (inst->readPredTaken()) {
                         predictedTakenIncorrect++;
                     } else {
                         predictedNotTakenIncorrect++;
                     }
-                }
+                //}
 
             } else if (ldstQueue.violation(tid)) {
                 assert(inst->isMemRef());
@@ -1941,7 +1941,7 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
         TheISA::PCState tempPC = inst->pcState();
         TheISA::advancePC(tempPC, inst->staticInst);
         DPRINTF(IEW, "mismatch? target PC=%s, predicted PC=%s\n", tempPC, inst->readPredTarg());
-        if ((!inst->isStreamedFromSpeculativeCache() || (inst->isControl() && inst->isLastMicroop())) && inst->mispredicted()) {
+        if ((!inst->isStreamedFromSpeculativeCache() || (inst->isControl() && inst->isLastMicroop() && !inst->staticInst->dummyMicroop)) && inst->mispredicted()) {
             fetchRedirect[tid] = true;
 
             DPRINTF(IEW, "Execute: Branch mispredict detected.\n");

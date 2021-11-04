@@ -1826,11 +1826,13 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     }
 
                     bool thwartMisprediction = false;
-                    if (!instruction->isControl() || instruction->staticInst->dummyMicroop) {
+                    if (!instruction->isControl()) {
                         //assert(thisPC.instAddr() == nextPC.instAddr());
                         instruction->setPredTarg(nextPC);
                         instruction->setPredTaken(false);
     
+                    } else if (instruction->staticInst->dummyMicroop) {
+
                     } else {
                         //branch without a high confidence prediction at the end of a macroop at the end of a trace, 
                         //in which case we aren't able to update nextPC and predicted_branch accurately from the speculative cache
