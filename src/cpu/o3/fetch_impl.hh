@@ -1832,7 +1832,20 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         instruction->setPredTaken(false);
     
                     } else if (instruction->staticInst->dummyMicroop) {
+                        DPRINTF(Fetch, "Encountered a DUMMY MICROOP, skipping branch preiction\n");
+                        instruction->setPredTarg(instruction->staticInst->predictedTarget);
+                        instruction->setPredTaken(instruction->staticInst->predictedTaken);
+                        predict_taken = instruction->staticInst->predictedTaken;
+                        nextPC = instruction->staticInst->predictedTarget;
 
+                        
+                        if (predict_taken) {
+                            DPRINTF(Fetch, "Folded branch predicted to be taken to %s.\n", nextPC);
+                        } else {
+                            DPRINTF(Fetch, "Folded branch predicted to be not taken.\n");
+                       }
+
+                        DPRINTF(Fetch, "Folded branch predicted to go to %s.\n", nextPC);
                     } else {
                         //branch without a high confidence prediction at the end of a macroop at the end of a trace, 
                         //in which case we aren't able to update nextPC and predicted_branch accurately from the speculative cache
@@ -1857,13 +1870,14 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                 instruction->setPredTaken(instruction->staticInst->predictedTaken);
                                 instruction->branchPredFromPredictor = true;
                                 predict_taken = instruction->staticInst->predictedTaken;
+                                //nextPC = instruction->staticInst->predictedTarget;
                             } else {
+                                DPRINTF(Fetch, "Thwarting misprediction\n");
                                 thwartMisprediction = true;
                                 predict_taken = bpred_predict_taken;
                                 nextPC = bpred_nextPC;
                                 instruction->setPredTarg(nextPC);
                                 instruction->setPredTaken(predict_taken);
-                                instruction->branchPredFromPredictor = true;
                             }
                             //instruction->branchPredFromPredictor = false;
                         }
