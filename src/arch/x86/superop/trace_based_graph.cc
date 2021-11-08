@@ -644,10 +644,12 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                 }
             }
         }
+       
         // always dump all the CC regs no matter what
         if (ccValid) {
-                DPRINTF(TraceGen, "Dumping CCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x\n", PredccFlagBits, PredcfofBits, PreddfBit, PredecfBit, PredezfBit);
-                DPRINTF(TraceGen, "Dumping oldCCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x\n", oldCCRegs[0], oldCCRegs[1], oldCCRegs[2], oldCCRegs[3], oldCCRegs[4]);
+                DPRINTF(TraceGen, "dumpCCFlags = [%d,%d,%d,%d,%d]\n", dumpCCFlags[0], dumpCCFlags[1], dumpCCFlags[2], dumpCCFlags[3], dumpCCFlags[4]);
+                DPRINTF(TraceGen, "Dumping CCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x, valid:%d\n", PredccFlagBits, PredcfofBits, PreddfBit, PredecfBit, PredezfBit, ccValid);
+                DPRINTF(TraceGen, "Dumping oldCCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x, valid:%d\n", oldCCRegs[0], oldCCRegs[1], oldCCRegs[2], oldCCRegs[3], oldCCRegs[4], oldCCValid);
                 // if (!oldValid && dump) || (oldValid && dump && old != new)
                 if (dumpCCFlags[0] && (!oldCCValid || (oldCCValid && PredccFlagBits != oldCCRegs[0]))) //CCREG_ZAPS
                 {
@@ -828,7 +830,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     clearDebugFlag("IEW");
                     clearDebugFlag("FA3P");
                     clearDebugFlag("TraceEviction");
-                    clearDebugFlag("TraceQueue");
+                    //clearDebugFlag("TraceQueue");
                 }
             }
             // trace is too long to be inserted in the spec cache
@@ -885,7 +887,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     clearDebugFlag("IEW");
                     clearDebugFlag("FA3P");
                     clearDebugFlag("TraceEviction");
-                    clearDebugFlag("TraceQueue");
+                    //clearDebugFlag("TraceQueue");
                 }
 
             }
@@ -961,7 +963,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     clearDebugFlag("IEW");
                     clearDebugFlag("FA3P");
                     clearDebugFlag("TraceEviction");
-                    clearDebugFlag("TraceQueue");
+                    //clearDebugFlag("TraceQueue");
                 }
             }
             else 
@@ -1047,7 +1049,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
                     // Also, unset trace prediction source at the end of a trace as it doesn't matter what the prediction is since it will never be used.
                     currentTrace.prevNonEliminatedInst->setEndOfTrace();
-
+                    oldCCValid = false;
                     dumpLiveOuts(currentTrace.prevNonEliminatedInst, true);
 
                     if (!currentTrace.prevNonEliminatedInst->isCarryingLivesOut() && !currentTrace.prevNonEliminatedInst->forwardedLiveValueExists) {
@@ -1097,7 +1099,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     clearDebugFlag("IEW");
                     clearDebugFlag("FA3P");
                     clearDebugFlag("TraceEviction");
-                    clearDebugFlag("TraceQueue");
+                    //clearDebugFlag("TraceQueue");
                 }
             }
             
@@ -1198,6 +1200,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     setDebugFlag("Branch");
                     setDebugFlag("SuperOp");
                     setDebugFlag("TraceGen");
+                    setDebugFlag("Exec");
                     setDebugFlag("Decoder");
                     setDebugFlag("O3CPUAll");
                     setDebugFlag("Fetch");
@@ -1206,7 +1209,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     setDebugFlag("IEW");
                     setDebugFlag("FA3P");
                     setDebugFlag("TraceEviction");
-                    setDebugFlag("TraceQueue");
+                    //setDebugFlag("TraceQueue");
                 }
                 DPRINTF(SuperOp, "Trace %d is selected for super optimization!\n", currentTrace.id);
             }
@@ -1578,7 +1581,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
             // set this as a source of prediction so we can verify it later
             currentTrace.inst->setTracePredictionSource(true);
-
+            
             dumpLiveOuts(currentTrace.inst, currentTrace.inst->isFirstMicroop());
 
 
@@ -1702,6 +1705,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
             DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
     }
     if (ccValid) {
+        //if (!(PredccFlagBits == 0 || PredccFlagBits == 0x4 || PredccFlagBits == 0x44)){
+        //    cout << hex << PredccFlagBits << endl;
+        //}
+        //assert(PredccFlagBits == 0 || PredccFlagBits == 0x4 || PredccFlagBits == 0x44);
         DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
         DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
         DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
@@ -2332,6 +2339,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
         psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);
         psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
         forwardVal = (psrc1 & psrc2) & mask(dataSize * 8);
+        DPRINTF(ConstProp, "Data size >= 4, forwardVal = %#x\n", forwardVal);
     } else {
         RegId destReg = inst->destRegIdx(0);
         RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
@@ -2350,6 +2358,7 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 
 		forwardVal = x86_inst->merge(DestReg, (psrc1&psrc2), dataSize);
+        DPRINTF(ConstProp, "Data size < 4, forwardVal = %#x\n", forwardVal);
     }
     
     if (usingCCTracking && inst->isCC())
@@ -2358,17 +2367,54 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
 
         if (((ext & ccFlagMask) == ccFlagMask) || ((ext & ccFlagMask) == 0)) {
             PredccFlagBits = 0; 
+            DPRINTF(SuperOp, "CC Tracking: Reset PredccFlagBits to 0\n");
         }
         if ((((ext & CFBit) != 0 && (ext & OFBit) != 0) || ((ext & (CFBit | OFBit)) == 0))) {
             PredcfofBits = 0;
+            DPRINTF(SuperOp, "CC Tracking: Reset PredcfofBits to 0\n");
         }
         PreddfBit = 0;
         PredecfBit = 0;
         PredezfBit = 0;
 
-        uint64_t mask = CFBit | ECFBit | OFBit;
+        uint64_t mask = CFBit | ECFBit | OFBit; // Are these what we want to exclude? (ext & ~mask  is probably wrong)
+/*
+        uint64_t test1_newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                           PreddfBit | PredecfBit | PredezfBit,
+                                           ext, forwardVal, psrc1, psrc2);
+        DPRINTF(SuperOp, "test1: %#x\n", test1_newFlags);
+        uint64_t test2_newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                           PredezfBit, ext, forwardVal, psrc1, psrc2);
+        DPRINTF(SuperOp, "test2: %#x\n", test2_newFlags);
+        uint64_t test3_newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                           PreddfBit | PredecfBit | PredezfBit,
+                                           ext & ~mask, forwardVal, psrc1, psrc2);
+        DPRINTF(SuperOp, "test3: %#x\n", test3_newFlags);
+        uint64_t test4_newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                           PreddfBit | PredecfBit | PredezfBit,
+                                           ext, forwardVal, psrc1, psrc2, true);
+        DPRINTF(SuperOp, "test4: %#x\n", test4_newFlags);
+        uint64_t test5_newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
+                                           PredezfBit, ext, forwardVal, psrc1, psrc2, true);
+        DPRINTF(SuperOp, "test5: %#x\n", test5_newFlags);
+        uint64_t test6_newFlags = inst->genFlags(PredccFlagBits | PredcfofBits |
+                                           PreddfBit | PredecfBit | PredezfBit,
+                                           ext & ~mask, forwardVal, psrc1, psrc2, true);
+        DPRINTF(SuperOp, "test6: %#x\n", test6_newFlags);
+
+        uint64_t test7_newFlags = inst->genFlags(0,0,forwardVal, psrc1, psrc2);
+        DPRINTF(SuperOp, "test7: %#x\n", test7_newFlags);
+        uint64_t test8_newFlags = inst->genFlags(0,ext,forwardVal, psrc1, psrc2);
+        DPRINTF(SuperOp, "test8: %#x\n", test8_newFlags);
+        uint64_t test9_newFlags = inst->genFlags(0,0,forwardVal, psrc1, psrc2, true);
+        DPRINTF(SuperOp, "test9: %#x\n", test9_newFlags);
+        uint64_t test10_newFlags = inst->genFlags(0,ext,forwardVal, psrc1, psrc2, true);
+        DPRINTF(SuperOp, "test10: %#x\n", test10_newFlags);
+*/
+
         uint64_t newFlags = inst->genFlags(PredccFlagBits | PreddfBit |
                              PredezfBit, ext & ~mask, forwardVal, psrc1, psrc2);
+        DPRINTF(SuperOp, "newFlags: %#x\n", newFlags);
         PredezfBit = newFlags & EZFBit;
         PreddfBit = newFlags & DFBit;
         PredccFlagBits = newFlags & ccFlagMask;
@@ -2377,6 +2423,14 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
         PredecfBit = PredecfBit & ~(ECFBit & ext);
         ccValid = true;
         ccRegFrom = OpClass::AND;
+
+        
+        DPRINTF(SuperOp, "CC Tracking: Setting Live Outs for and inst:\n");
+        DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
+        DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
+        DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
+        DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
+        DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
     }
 
     RegId destReg = inst->destRegIdx(0);
@@ -3728,6 +3782,11 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
             DPRINTF(ConstProp, "Condition failed, advancing trace\n");
             target = currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize();
         }
+        
+        inst->dummyMicroopTargetValid = true;
+        inst->dummyMicroopTarget = target;
+        DPRINTF(ConstProp, "Setting dummyMicroOpTarget to %#x", target);
+        
         int idx = (target >> 5) % decoder->UOP_CACHE_NUM_SETS;
         uint64_t tag = (target >> 5) / decoder->UOP_CACHE_NUM_SETS;
         for (int way = 0; way < decoder->UOP_CACHE_NUM_WAYS; way++) {
@@ -3749,6 +3808,7 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
 
                         currentTrace.branchesFolded++;
                         DPRINTF(ConstProp, "CC Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, idx, way, uop);
+                        
 
                         if (inst->isCall()) {
                             currentTrace.prevNonEliminatedInst->rasPushIndicator = true;
@@ -3876,7 +3936,7 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
 
     Addr target;
 
-    if (dataSize >= 4) {
+    if (dataSize >= 4) { // This is always true
         uint8_t imm8 = inst_regop->imm8;
         
         if (!inst->isCC() || inst->checkCondition(PredccFlagBits | PredcfofBits | PreddfBit | PredecfBit | PredezfBit, ext)) {
@@ -3887,6 +3947,11 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
             DPRINTF(ConstProp, "Condition failed, advancing trace\n");
             target = currentTrace.instAddr.pcAddr + inst->macroOp->getMacroopSize();
         }
+        
+        inst->dummyMicroopTargetValid = true;
+        inst->dummyMicroopTarget = target;
+        DPRINTF(ConstProp, "Setting dummyMicroOpTarget to %#x", target);
+        
         int idx = (target >> 5) % decoder->UOP_CACHE_NUM_SETS;
         uint64_t tag = (target >> 5) / decoder->UOP_CACHE_NUM_SETS;
         for (int way = 0; way < decoder->UOP_CACHE_NUM_WAYS; way++) {

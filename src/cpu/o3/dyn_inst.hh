@@ -426,7 +426,7 @@ class BaseO3DynInst : public BaseDynInst<Impl>
         uint16_t propagated_reg_idx = si->srcRegIdx(idx).index();
         // always should be less than 5 as we just have 5 CSR regs in x86
         assert(propagated_reg_idx < 5);
-        DPRINTF(IEW, "SuperOptimizer: readCCRegOperand: isPropagated %i Propagated Value (idx = %d): %#x\n", si->isCCFlagPropagated[propagated_reg_idx], idx, si->propgatedCCFlags[propagated_reg_idx]); 
+        DPRINTF(IEW, "SuperOptimizer: readCCRegOperand: isPropagated %i Propagated Value (idx = %d): %#x\n", si->isCCFlagPropagated[propagated_reg_idx], propagated_reg_idx, si->propgatedCCFlags[propagated_reg_idx]); 
         if (si->isCCFlagPropagated[propagated_reg_idx]) {
             DPRINTF(IEW, "SuperOptimizer: readCCRegOperand: Returning Propagated Value (idx = %d): %#x\n", propagated_reg_idx, si->propgatedCCFlags[propagated_reg_idx]);
             return si->propgatedCCFlags[propagated_reg_idx];

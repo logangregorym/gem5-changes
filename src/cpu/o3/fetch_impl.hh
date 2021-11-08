@@ -1832,20 +1832,33 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         instruction->setPredTaken(false);
     
                     } else if (instruction->staticInst->dummyMicroop) {
-                        DPRINTF(Fetch, "Encountered a DUMMY MICROOP, skipping branch preiction\n");
-                        instruction->setPredTarg(instruction->staticInst->predictedTarget);
-                        instruction->setPredTaken(instruction->staticInst->predictedTaken);
-                        predict_taken = instruction->staticInst->predictedTaken;
-                        nextPC = instruction->staticInst->predictedTarget;
+                        DPRINTF(Fetch, "Encountered a DUMMY MICROOP which is a control, skipping branch preiction\n");
+                        DPRINTF(Fetch, "Speculative instruction: [sn:%lli]:%s thisPC = %s nextPC = %s. currentTraceID is %d \n", 
+                                instruction->seqNum, instruction->pcState(), thisPC, nextPC, currentTraceID);
+                        DPRINTF(Fetch, "pc:%#x, npc:%#x, upc:%#x, nupc:%#x, size:%#x\n", instruction->pcState().pc(), instruction->pcState().npc(), instruction->pcState().upc(), instruction->pcState().nupc(), instruction->pcState().size());
+                    
+                        //instruction->setPredTarg(instruction->staticInst->predictedTarget);
+                        //instruction->setPredTaken(instruction->staticInst->predictedTaken);
+                        //predict_taken = instruction->staticInst->predictedTaken;
+                        //nextPC = instruction->staticInst->predictedTarget;
+
+                        instruction->setPredTarg(nextPC);
+                        instruction->setPredTaken(true);
+                        //predict_taken = instruction->staticInst->predictedTaken;
+                        //nextPC = instruction->staticInst->predictedTarget;
 
                         
-                        if (predict_taken) {
+                        if (true) {
                             DPRINTF(Fetch, "Folded branch predicted to be taken to %s.\n", nextPC);
                         } else {
                             DPRINTF(Fetch, "Folded branch predicted to be not taken.\n");
-                       }
+                        }
 
                         DPRINTF(Fetch, "Folded branch predicted to go to %s.\n", nextPC);
+                        DPRINTF(Fetch, "Speculative instruction: [sn:%lli]:%s thisPC = %s nextPC = %s. currentTraceID is %d \n", 
+                                instruction->seqNum, instruction->pcState(), thisPC, nextPC, currentTraceID);
+                        DPRINTF(Fetch, "pc:%#x, npc:%#x, upc:%#x, nupc:%#x, size:%#x\n", instruction->pcState().pc(), instruction->pcState().npc(), instruction->pcState().upc(), instruction->pcState().nupc(), instruction->pcState().size());
+                    
                     } else {
                         //branch without a high confidence prediction at the end of a macroop at the end of a trace, 
                         //in which case we aren't able to update nextPC and predicted_branch accurately from the speculative cache
@@ -1865,12 +1878,14 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             instruction->setPredTaken(predict_taken);
                             instruction->branchPredFromPredictor = true;
                         } else {
+                            //instruction->setPredTarg(instruction->staticInst->predictedTarget);
+                            //instruction->setPredTaken(instruction->staticInst->predictedTaken);
                             if (instruction->staticInst->predictedTarget.instAddr() == bpred_nextPC.instAddr() && instruction->staticInst->predictedTaken == bpred_predict_taken) {
                                 instruction->setPredTarg(instruction->staticInst->predictedTarget);
                                 instruction->setPredTaken(instruction->staticInst->predictedTaken);
                                 instruction->branchPredFromPredictor = true;
                                 predict_taken = instruction->staticInst->predictedTaken;
-                                //nextPC = instruction->staticInst->predictedTarget;
+                                //nextPC = instruction->staticInst->predictedTarget; // This shouldn't change anything
                             } else {
                                 DPRINTF(Fetch, "Thwarting misprediction\n");
                                 thwartMisprediction = true;
@@ -1879,6 +1894,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                 instruction->setPredTarg(nextPC);
                                 instruction->setPredTaken(predict_taken);
                             }
+                            //predict_taken = instruction->staticInst->predictedTaken;
                             //instruction->branchPredFromPredictor = false;
                         }
                         

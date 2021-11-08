@@ -310,7 +310,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
           _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
-        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false; forwardedLiveValueExists = false; 
+        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false; dummyMicroopTargetValid = false; forwardedLiveValueExists = false; 
         
         
         for (size_t i = 0; i < 5; i++)
@@ -326,7 +326,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
 	  _numVecDestRegs(0), _numVecElemDestRegs(0), machInst(_machInst),
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
-        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false; forwardedLiveValueExists = false; 
+        isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false; dummyMicroopTargetValid = false; forwardedLiveValueExists = false; 
         
 
         for (size_t i = 0; i < 5; i++)
@@ -458,6 +458,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool predictedLoad = false;
     bool dummyMicroop = false;
     bool eliminated = false;
+    Addr dummyMicroopTarget;
+    bool dummyMicroopTargetValid = false;
     
     uint64_t shrunkenLength = 0;
 

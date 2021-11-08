@@ -33,6 +33,7 @@
 
 #include "base/bitfield.hh"
 #include "base/trace.hh"
+#include "debug/X86.hh"
 
 /**
  * Calculate the carry flag from an addition. This should work even when
@@ -88,6 +89,7 @@ findNegative(int width, uint64_t dest) {
 inline
 bool
 findZero(int width, uint64_t dest) {
+    DPRINTF(X86, "condcodes.hh:findZero() return = %d\n", !(dest & mask(width)));
     return !(dest & mask(width));
 }
 

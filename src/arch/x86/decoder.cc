@@ -2104,6 +2104,7 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
 
     traceConstructor->advanceTrace(traceConstructor->streamTrace);
     if (traceConstructor->streamTrace.addr.valid) {
+        assert(!curInst->dummyMicroop);
         idx = traceConstructor->streamTrace.addr.idx;
         way = traceConstructor->streamTrace.addr.way;
         uop = traceConstructor->streamTrace.addr.getUop();
@@ -2120,13 +2121,26 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
         nextPC.valid = true;
     } else {
         /* Assuming a trace always ends at the last micro-op of a macro-op. */
-        nextPC._pc = traceConstructor->streamTrace.end.pcAddr;
-        nextPC._npc = traceConstructor->streamTrace.end.pcAddr+1;
-        nextPC.size(0);
-        nextPC._upc = traceConstructor->streamTrace.end.uopAddr;
-        nextPC._nupc = traceConstructor->streamTrace.end.uopAddr+1;
-        nextPC.valid = false;
-        //curInst->setEndOfTrace();
+        if (curInst->dummyMicroop && curInst->dummyMicroopTargetValid){
+            assert(curInst->getName() == "wrip" || curInst->getName() == "wripi");
+            assert(curInst->dummyMicroopTarget);
+            //assert(currentTrace.end.pcAddr == curInst->dummyMicroopTarget);
+            
+            nextPC._pc = curInst->dummyMicroopTarget;
+            nextPC._npc = curInst->dummyMicroopTarget+1;
+            nextPC._upc = 0;
+            nextPC._nupc = 1;
+            nextPC.valid = true;
+            DPRINTF(Decoder, "Setting nextPC to %s based on dummyMicroopTarget\n", nextPC);
+        } else {
+            nextPC._pc = traceConstructor->streamTrace.end.pcAddr;
+            nextPC._npc = traceConstructor->streamTrace.end.pcAddr+1;
+            nextPC.size(0);
+            nextPC._upc = traceConstructor->streamTrace.end.uopAddr;
+            nextPC._nupc = traceConstructor->streamTrace.end.uopAddr+1;
+            nextPC.valid = false;
+            //curInst->setEndOfTrace();
+        }
     }
 
     if (curInst->isEndOfTrace()) {

@@ -47,12 +47,15 @@
 
 namespace X86ISA
 {
+    // subtract is false by default
     uint64_t RegOpBase::genFlags(uint64_t oldFlags, uint64_t flagMask,
             uint64_t _dest, uint64_t _src1, uint64_t _src2,
             bool subtract) const
     {
         DPRINTF(X86, "flagMask = %#x\n", flagMask);
+        DPRINTF(X86, "oldFlags = %#x\n", oldFlags);
         uint64_t flags = oldFlags & ~flagMask;
+        DPRINTF(X86, "flags = oldFlags & ~flagMask = %#x\n", flags);
         if (flagMask & (ECFBit | CFBit))
         {
             if (findCarry(dataSize*8, _dest, _src1, _src2))
