@@ -1280,9 +1280,8 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
         // invalid state we generated in after sequence number
         if (fromCommit->commitInfo[tid].mispredictInst &&
             fromCommit->commitInfo[tid].mispredictInst->isControl() && 
-            (!(fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache()) || 
-            (fromCommit->commitInfo[tid].mispredictInst->isLastMicroop() &&
-            fromCommit->commitInfo[tid].mispredictInst->branchPredFromPredictor))) {
+            (!fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache() || 
+            fromCommit->commitInfo[tid].mispredictInst->isLastMicroop())) {
             branchPred->squash(fromCommit->commitInfo[tid].doneSeqNum,
                               fromCommit->commitInfo[tid].pc,
                               fromCommit->commitInfo[tid].branchTaken,
@@ -1308,9 +1307,8 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
         // Update the branch predictor.
         if (fromDecode->decodeInfo[tid].branchMispredict &&
             fromDecode->decodeInfo[tid].mispredictInst->isControl() && 
-            (!(fromDecode->decodeInfo[tid].mispredictInst->isStreamedFromSpeculativeCache()) || 
-            (fromDecode->decodeInfo[tid].mispredictInst->isLastMicroop() &&
-            fromDecode->decodeInfo[tid].mispredictInst->branchPredFromPredictor))) {
+            (!fromDecode->decodeInfo[tid].mispredictInst->isStreamedFromSpeculativeCache() || 
+            fromDecode->decodeInfo[tid].mispredictInst->isLastMicroop())) {
             branchPred->squash(fromDecode->decodeInfo[tid].doneSeqNum,
                               fromDecode->decodeInfo[tid].nextPC,
                               fromDecode->decodeInfo[tid].branchTaken,
