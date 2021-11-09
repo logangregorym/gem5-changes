@@ -1180,6 +1180,23 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     }
     for (int way = 0; way < UOP_CACHE_NUM_WAYS; way++) {
         // check if we are processing the trace for first time optimization -- read from way in progress
+        if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
+            bool busyWay = false;
+            for (int w = 0; w < UOP_CACHE_NUM_WAYS; w++) {
+                if (uopValidArray[idx][w] &&
+                    uopTagArray[idx][w] == uopTagArray[idx][way] &&
+                    (traceConstructor->currentTrace.head.way == w ||
+                     (traceConstructor->currentTrace.addr.valid &&
+                      traceConstructor->currentTrace.addr.way == w))) {
+                    busyWay = true;
+                    break;
+                }
+            }
+            if (busyWay) {
+                continue;
+            }
+        }
+/*
         if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess &&
             (traceConstructor->currentTrace.head.way == way || 
              way == uopNextWayArray[idx][traceConstructor->currentTrace.head.way] ||
@@ -1197,6 +1214,7 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
              traceConstructor->currentTrace.addr.way == uopPrevWayArray[idx][way])) {
             continue;
         }
+*/
         if (uopLRUArray[idx][way] < lruWay) {
             lruWay = uopLRUArray[idx][way];
             evictWay = way;
