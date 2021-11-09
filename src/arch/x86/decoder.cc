@@ -2128,9 +2128,10 @@ Decoder::getSuperOptimizedMicroop(uint64_t traceID, X86ISA::PCState &thisPC, X86
             
             nextPC._pc = curInst->dummyMicroopTarget;
             nextPC._npc = curInst->dummyMicroopTarget+1;
+            nextPC.size(0);
             nextPC._upc = 0;
             nextPC._nupc = 1;
-            nextPC.valid = true;
+            nextPC.valid = false;
             DPRINTF(Decoder, "Setting nextPC to %s based on dummyMicroopTarget\n", nextPC);
         } else {
             nextPC._pc = traceConstructor->streamTrace.end.pcAddr;

@@ -1841,16 +1841,12 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         //nextPC = instruction->staticInst->predictedTarget;
 
                         instruction->setPredTarg(nextPC);
-                        instruction->setPredTaken(true);
+                        instruction->setPredTaken(false);
                         //predict_taken = instruction->staticInst->predictedTaken;
                         //nextPC = instruction->staticInst->predictedTarget;
 
                         
-                        if (true) {
-                            DPRINTF(Fetch, "Folded branch predicted to be taken to %s.\n", nextPC);
-                        } else {
-                            DPRINTF(Fetch, "Folded branch predicted to be not taken.\n");
-                        }
+                        DPRINTF(Fetch, "Folded branch target: %s.\n", nextPC);
 
                         DPRINTF(Fetch, "Folded branch predicted to go to %s.\n", nextPC);
                         DPRINTF(Fetch, "Speculative instruction: [sn:%lli]:%s thisPC = %s nextPC = %s. currentTraceID is %d \n", 
