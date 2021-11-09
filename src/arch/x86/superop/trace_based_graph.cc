@@ -651,6 +651,7 @@ void TraceBasedGraph::dumpLiveOuts(StaticInstPtr inst, bool dumpOnlyArchRegs) {
                 DPRINTF(TraceGen, "Dumping CCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x, valid:%d\n", PredccFlagBits, PredcfofBits, PreddfBit, PredecfBit, PredezfBit, ccValid);
                 DPRINTF(TraceGen, "Dumping oldCCs: PredccFlagBits:%#x, PredcfofBits:%#x, PreddfBit:%#x, PredecfBit:%#x, PredezfBit:%#x, valid:%d\n", oldCCRegs[0], oldCCRegs[1], oldCCRegs[2], oldCCRegs[3], oldCCRegs[4], oldCCValid);
                 // if (!oldValid && dump) || (oldValid && dump && old != new)
+                oldCCValid = false;
                 if (dumpCCFlags[0] && (!oldCCValid || (oldCCValid && PredccFlagBits != oldCCRegs[0]))) //CCREG_ZAPS
                 {
                     inst->liveOut[inst->numDestRegs()] = PredccFlagBits;
