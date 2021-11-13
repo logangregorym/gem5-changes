@@ -155,6 +155,10 @@ Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
         }
     }
 
+    if(inst->isStreamedFromSpeculativeCache()){
+        outs << " TraceID=" << dec << inst->getTraceID();
+    }
+
     //
     //  End of line...
     //
