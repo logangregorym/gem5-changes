@@ -633,7 +633,8 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
 {
     DPRINTF(IEW, "[tid:%i]: Memory misprediction, squashing younger "
             "insts from %i, PC: %s [sn:%i].\n", tid, inst->seqNum, inst->pcState(), inst->seqNum);
-
+    DPRINTF(LVP, "[tid:%i]: Memory misprediction, squashing younger "
+            "insts from %i, PC: %s [sn:%i].\n", tid, inst->seqNum, inst->pcState(), inst->seqNum);
     // If already squashing, LVP takes precedence
     // Using < instead of <= would give branch precedence
     if ((!toCommit->squash[tid] || inst->seqNum <= toCommit->squashedSeqNum[tid])) {
@@ -645,8 +646,8 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
         assert(inst);
         toCommit->mispredictInst[tid] = inst; // not a branch misprediction
         toCommit->includeSquashInst[tid] = false;
-        inst->forwardOldRegs();
-        inst->setSquashedAndCommited(true);
+        // inst->forwardOldRegs();
+        // inst->setSquashedAndCommited(true);
         toCommit->squashDueToLVP[tid] = true;
 
         wroteToTimeBuffer = true;
@@ -1494,7 +1495,7 @@ DefaultIEW<Impl>::executeInsts()
                                 inst->staticInst->predictedLoad, inst->staticInst->predictedValue, inst->staticInst->confidence);
 
 
-                    if (inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold) {
+                    if (inst->staticInst->predictedLoad && (inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold)) {
                         if ( inst->getFault() == NoFault) {
                             DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
                             forwardLoadValuePredictionToDependents(inst);
@@ -1587,6 +1588,16 @@ DefaultIEW<Impl>::executeInsts()
                     assert(!inst->isStreamedFromUOpCache());
                     assert(!inst->staticInst->predictedLoad); // prediction sources that are coing from spec cache never should have this set
                     assert(loadPred->predictingArithmetic); // only when LVP is enabled for arithmatic operations
+                    
+                    checkForLVPMissprediction(inst);
+                }
+
+                if (inst->isSpeculativlyForwarded())
+                {
+                    assert(0);
+                    assert(!inst->isStreamedFromSpeculativeCache());
+                    assert(inst->staticInst->predictedLoad); // prediction sources that are coing from spec cache never should have this set
+                    //assert(loadPred->predictingArithmetic); // only when LVP is enabled for arithmatic operations
                     
                     checkForLVPMissprediction(inst);
                 }
@@ -2175,7 +2186,7 @@ void
 DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
 {
  
-        assert(!inst->isSpeculativlyForwarded()); // for now disable LV forwarding
+        //assert(!inst->isSpeculativlyForwarded()); // for now disable LV forwarding
 
         // Check for missprediction
         uint64_t reg_value;
@@ -2236,11 +2247,11 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
         // we can have non-load instructions which are streamed from speculative cache and thier values are forwaded speculativly
         else if (inst->lvMispred && inst->isSpeculativlyForwarded()) 
         {
-            assert(0); // this feature is not enabaled yet!
+            assert(inst->isLoad()); // this feature is enabaled only for load instructions !
             assert(!inst->isStreamedFromSpeculativeCache());
             DPRINTF(LVP, "DefaultIEW::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
             DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction for a instruction which is not a trace prediction source!\n");
-            DPRINTF(LVP, "DefaultIEW::executeInsts():: isStreamedFromSpeculativeCache? %d\n", inst->isStreamedFromSpeculativeCache());
+            //DPRINTF(LVP, "DefaultIEW::executeInsts():: isStreamedFromSpeculativeCache? %d\n", inst->isStreamedFromSpeculativeCache());
             // cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
             loadPred->lastMisprediction = inst->memoryAccessEndCycle;
             // Moved from commit

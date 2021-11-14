@@ -1227,6 +1227,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
 
                 // LVP missprediction, therefore, deactivate speculative cache and fetch from uop/decoder
                 DPRINTF(Fetch, "LVP misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
+                DPRINTF(LVP, "LVP misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
                 decoder[tid]->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = true;
             }
@@ -1234,6 +1235,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             else if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
             {
                 // again deactivate speculative cache
+                assert(0);
                 DPRINTF(Fetch, "folded branch misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
                 decoder[tid]->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = true;
@@ -1254,6 +1256,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             if (fromCommit->commitInfo[tid].squashDueToLVP)
             {
                 // activate speculative cache so we can fetch from it again
+                assert(0);
                 DPRINTF(Fetch, "memory order violation at PC %s\n", fromCommit->commitInfo[tid].pc);
                 currentTraceID = fromCommit->commitInfo[tid].currentTraceID;
                 assert(currentTraceID);

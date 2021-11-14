@@ -1178,7 +1178,15 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                     
                     iewStage->checkForLVPMissprediction(inst);
                 }
-                
+
+                if (inst->isSpeculativlyForwarded())
+                {
+                    assert(!inst->isStreamedFromSpeculativeCache());
+                    assert(inst->staticInst->predictedLoad); // prediction sources that are coing from spec cache never should have this set
+                    //assert(loadPred->predictingArithmetic); // only when LVP is enabled for arithmatic operations
+                    
+                    iewStage->checkForLVPMissprediction(inst);
+                }                
 
             }
 
