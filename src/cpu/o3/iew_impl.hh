@@ -759,7 +759,7 @@ template<class Impl>
 bool
 DefaultIEW<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
 {   
-    assert(0);
+ //   assert(0);
     assert(inst->isLoad()); // just to make sure we are not using it by mistake!
 
     bool forwarded = false;
@@ -1485,16 +1485,16 @@ DefaultIEW<Impl>::executeInsts()
 
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
-                if (false && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache())) {
+                if ( (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache())) {
                     assert(!inst->isSquashed());
                     
-                    inst->memoryAccessStartCycle = cpu->numCycles.value();
+                    //inst->memoryAccessStartCycle = cpu->numCycles.value();
 
                     DPRINTF(LVP, "Fetch Predicted (%d) Value: %#x and Confidence %d\n", 
                                 inst->staticInst->predictedLoad, inst->staticInst->predictedValue, inst->staticInst->confidence);
 
 
-                    if (inst->staticInst->confidence >= 5) {
+                    if (inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold) {
                         if ( inst->getFault() == NoFault) {
                             DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
                             forwardLoadValuePredictionToDependents(inst);

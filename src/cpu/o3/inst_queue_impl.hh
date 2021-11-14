@@ -1407,7 +1407,7 @@ template<class Impl>
 bool
 InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst) {
 
-    assert(0);
+    //assert(0);
         // this function is only for loads! We should have a diffrent function for non-loads instructions
     assert(inst->isLoad());
 
@@ -1416,7 +1416,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     vector<pair<DynInstPtr,unsigned>> depChain = dependGraph.getDependentsOf(inst);
     // lvpDependencyChains += depChain.size();
     // if (depChain.size() > 0) { nonEmptyChains++; }
-    DPRINTF(SuperOp, "Dependency Chain of length %i for inst 0x:%x:  SeqNum:%d  Assembly:%s\n", 
+    DPRINTF(LVP, "Dependency Chain of length %i for inst 0x:%x:  SeqNum:%d  Assembly:%s\n", 
             depChain.size(), inst->pcState().instAddr(), inst->seqNum, inst->staticInst->disassemble(inst->instAddr()));
 
     // loads that we are handling only have 1 dest regs
@@ -1432,7 +1432,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
         memDepUnit[inst->threadNumber].wakeDependents(inst);
         // completeMemInst(inst);
     } else if (inst->isMemBarrier() || inst->isWriteBarrier()) {
-        DPRINTF(SuperOp, "Instruction is a MemBarrier or WriteBarrier. We can't forward it's value!\n");
+        DPRINTF(LVP, "Instruction is a MemBarrier or WriteBarrier. We can't forward it's value!\n");
         return false;
     }
 
@@ -1443,19 +1443,19 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     // Special case of uniq or control registers.  They are not
     // handled by the IQ and thus have no dependency graph entry.
     if (dest_reg->isFixedMapping() || inst->destRegIdx(0) == RegId(IntRegClass, TheISA::ZeroReg)) {
-            DPRINTF(IQ, "Reg %d [%s] is part of a fix mapping, skipping\n",
+            DPRINTF(LVP, "Reg %d [%s] is part of a fix mapping, skipping\n",
                     dest_reg->index(), dest_reg->className());
             return false;
     }
 
-    DPRINTF(IQ, "Waking any dependents on register %i (%s).\n",
+    DPRINTF(LVP, "Waking any dependents on register %i (%s).\n",
                 dest_reg->index(),
                 dest_reg->className());
 
 
     uint8_t dataSize = inst->staticInst->getDataSize();
 
-    DPRINTF(SuperOp, "SuperOp: Forwarding data of size: %i\n", dataSize);
+    DPRINTF(LVP, "LVP: Forwarding data of size: %i\n", dataSize);
 
     // depending on the size, we set values differently
 
