@@ -1486,16 +1486,16 @@ DefaultIEW<Impl>::executeInsts()
 
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
-                if ( (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache())) {
+                if (inst->staticInst->predictedLoad && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache())) {
                     assert(!inst->isSquashed());
-                    
+                    assert(loadPred->lvpredType != "");
                     //inst->memoryAccessStartCycle = cpu->numCycles.value();
 
                     DPRINTF(LVP, "Fetch Predicted (%d) Value: %#x and Confidence %d\n", 
                                 inst->staticInst->predictedLoad, inst->staticInst->predictedValue, inst->staticInst->confidence);
 
 
-                    if (inst->staticInst->predictedLoad && (inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold)) {
+                    if ( (inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold)) {
                         if ( inst->getFault() == NoFault) {
                             DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
                             forwardLoadValuePredictionToDependents(inst);
@@ -1575,6 +1575,7 @@ DefaultIEW<Impl>::executeInsts()
                 // Unconditional LVP update for arithmatic instructions
                 if (loadPred->predictingArithmetic && inst->staticInst->predictedLoad) 
                 { 
+                    assert(loadPred->lvpredType != "");
                     assert(inst->isStreamedFromUOpCache());
                     assert(!inst->isStreamedFromSpeculativeCache());
                     assert(!inst->isTracePredictionSource());
@@ -1595,6 +1596,7 @@ DefaultIEW<Impl>::executeInsts()
                 if (inst->isSpeculativlyForwarded())
                 {
                     assert(0);
+                    assert(loadPred->lvpredType != "");
                     assert(!inst->isStreamedFromSpeculativeCache());
                     assert(inst->staticInst->predictedLoad); // prediction sources that are coing from spec cache never should have this set
                     //assert(loadPred->predictingArithmetic); // only when LVP is enabled for arithmatic operations
