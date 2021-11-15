@@ -1403,7 +1403,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             if (DTRACE(ExecFaulting)) {
                 head_inst->traceData->setFetchSeq(head_inst->seqNum);
                 head_inst->traceData->setCPSeq(thread[tid]->numOp);
-                head_inst->traceData->dump();
+                head_inst->traceData->dump(); // Exec Debug Flag happens here
             }
             delete head_inst->traceData;
             head_inst->traceData = NULL;
@@ -1654,7 +1654,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     if (head_inst->traceData) {
         head_inst->traceData->setFetchSeq(head_inst->seqNum);
         head_inst->traceData->setCPSeq(thread[tid]->numOp);
-        head_inst->traceData->dump();
+        head_inst->traceData->dump(); // Exec Debug Flag happens here
         delete head_inst->traceData;
         head_inst->traceData = NULL;
     }
@@ -1757,11 +1757,15 @@ DefaultCommit<Impl>::updateComInstStats(DynInstPtr &inst)
 
     // To match the old model, don't count nops and instruction
     // prefetches towards the total commit count.
-    if (!(inst->getName() == "NOP" || inst->getName() == "fault") && 
-        !inst->isNop() && !inst->isInstPrefetch()) 
+    if (!(inst->getName() == "NOP" || inst->getName() == "fault" ||
+        inst->getName() == "popcnt_Gv_Ev" || inst->getName() == "fdivr" ||
+        inst->getName() == "xrstor" || inst->getName() == "prefetch_t0" || 
+        inst->isNop() || inst->isInstPrefetch())) 
     {
         cpu->instDone(tid, inst);
     }
+
+    DPRINTF(Commit, "committedOps: %d, committedOps + numUopsShrunken: %d\n", (uint64_t)cpu->committedOps[tid].value(), ((uint64_t)cpu->committedOps[tid].value() + numMicroopsShrunken));
 
     //
     //  Control Instructions
