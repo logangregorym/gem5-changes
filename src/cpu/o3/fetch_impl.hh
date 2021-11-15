@@ -1397,7 +1397,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
 
 
 
-    if (loadPred->lvpredType != "" && decoder[tid]->traceConstructor->IsValuePredictible(instruction->staticInst)) 
+    if (loadPred->isLVPPresent && decoder[tid]->traceConstructor->IsValuePredictible(instruction->staticInst)) 
     {
         // don't check against new prediction is the instruction is part of a spec trace
         DPRINTF(LVP, "MakePrediction called by inst [sn:%i] from fetch!\n", seq);
@@ -2051,7 +2051,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         if (isSuperOptimizationActivated) assert(!decoder[tid]->isSpeculativeCacheActive());
                         
                         // if uop cache is active it should always results in hit!
-                        if (isUopCachePresent && decoder[tid]->isUopCacheActive()) assert(decoder[tid]->isHitInUopCache(thisPC.instAddr()));
+                        //if (isUopCachePresent && decoder[tid]->isUopCacheActive()) assert(decoder[tid]->isHitInUopCache(thisPC.instAddr()));
 
                     	staticInst = decoder[tid]->decode(thisPC, cpu->numCycles.value(), tid);
 
@@ -2276,7 +2276,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     }
                     else 
                     {
-                        //assert(0);
+                        assert(0);
                         DPRINTF(Fetch, "Uop and Spec Cache are not present!\n");
                         assert(!decoder[tid]->isUopCacheActive());
                         switchToSpecUopCachePipeline = false;

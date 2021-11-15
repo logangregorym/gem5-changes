@@ -20,7 +20,16 @@ LVPredUnit::LVPredUnit(const Params *params)
       predictStage(params->predictStage),
       predictingArithmetic(params->predictingArithmetic),
       numThreads(params->numThreads)
-{}
+{
+
+    lvpredType = params->lvpredType;
+    if (lvpredType == "none")
+        isLVPPresent = false;
+    else 
+        isLVPPresent = true;
+    DPRINTF(LVP, "LVP Type: %s\n", lvpredType);
+
+}
 
 void LVPredUnit::regStats()
 {

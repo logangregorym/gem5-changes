@@ -129,7 +129,7 @@ parser.add_option("--enable-superoptimization", action="store_true", help="""Ena
 parser.add_option("--superoptimization-warmup-cycles", default=0, type="int", help="""Warmup cycles for speculative superoptimization.""")
 parser.add_option("--constantBufferSize", default=256, type="int", action="store", help="Size of the buffer storing constant load addresses.")
 parser.add_option("--dumpFrequency", default=10000, type="int", action="store", help="Number of cycles between dumps.")
-parser.add_option("--lvpredType", default="basic", help="Load Value Predictor Type: basic/strideHist/3period/hybrid/eves.");
+parser.add_option("--lvpredType", default="none", help="Load Value Predictor Type: basic/strideHist/3period/hybrid/eves.");
 parser.add_option("--tableEntries", default=4096, type="int", action="store", help="Number of entries in the lookup table.")
 parser.add_option("--constantThreshold", default=10, type="int", action="store", help="First usable prediction.")
 parser.add_option("--dynamicThreshold", default=1, type="int", action="store", help="Learn the constant threshold dynamically?")

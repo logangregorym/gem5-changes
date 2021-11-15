@@ -316,6 +316,9 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
             }
         }
     }
+
+    uopCacheActive = false;
+    speculativeCacheActive = false;
 }
 
 Decoder::State

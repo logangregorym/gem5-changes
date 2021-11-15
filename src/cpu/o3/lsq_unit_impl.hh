@@ -1184,7 +1184,8 @@ LSQUnit<Impl>::writeback(DynInstPtr &inst, PacketPtr pkt)
                     
                     assert(!inst->isStreamedFromSpeculativeCache());
                     assert(inst->staticInst->predictedLoad); // prediction sources that are coing from spec cache never should have this set
-                    assert(cpu->fetch.loadPred->lvpredType != "");
+                    assert(cpu->fetch.loadPred->lvpredType != "none");
+                    assert(cpu->fetch.loadPred->isLVPPresent);
                     
                     iewStage->checkForLVPMissprediction(inst);
                 }                

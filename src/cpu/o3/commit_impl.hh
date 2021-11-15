@@ -955,6 +955,8 @@ DefaultCommit<Impl>::commit()
                 squashed_inst--;
             }
 
+
+
             // All younger instructions will be squashed. Set the sequence
             // number as the youngest instruction in the ROB.
             youngestSeqNum[tid] = squashed_inst;
@@ -974,8 +976,16 @@ DefaultCommit<Impl>::commit()
                 fromIEW->mispredictInst[tid];
             toIEW->commitInfo[tid].branchTaken =
                 fromIEW->branchTaken[tid];
+
+            if (fromIEW->squashDueToLVP[tid]) {
+                squashed_inst++;
+            }
+
+
             toIEW->commitInfo[tid].squashInst =
                                     rob->findInst(tid, squashed_inst);
+
+
             if (toIEW->commitInfo[tid].mispredictInst) {
                 if (toIEW->commitInfo[tid].mispredictInst->isUncondCtrl()) {
                      toIEW->commitInfo[tid].branchTaken = true;
@@ -983,8 +993,22 @@ DefaultCommit<Impl>::commit()
                 ++branchMispredicts;
             }
 
-            toIEW->commitInfo[tid].pc = fromIEW->pc[tid];
-            toIEW->commitInfo[tid].oldpc = fromIEW->oldpc[tid];
+            if (fromIEW->squashDueToLVP[tid])
+            {
+                toIEW->commitInfo[tid].pc = toIEW->commitInfo[tid].squashInst->pcState();
+                toIEW->commitInfo[tid].oldpc = toIEW->commitInfo[tid].squashInst->pcState();
+            }
+            else
+            {
+                toIEW->commitInfo[tid].pc = fromIEW->pc[tid];
+                toIEW->commitInfo[tid].oldpc = fromIEW->oldpc[tid];
+            } 
+
+
+            DPRINTF(Commit, "[tid:%i]: Redirecting to PC=%s OldPC=%s\n",
+                    tid,
+                   toIEW->commitInfo[tid].pc,
+                   toIEW->commitInfo[tid].oldpc);
         }
 
         if (commitStatus[tid] == ROBSquashing) {

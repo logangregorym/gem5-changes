@@ -125,6 +125,8 @@ class LVPredUnit : public SimObject
 
     bool predictingArithmetic;
 
+    bool isLVPPresent;
+
   protected:
 
     /**

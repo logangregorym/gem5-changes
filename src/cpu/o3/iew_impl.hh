@@ -633,7 +633,7 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
 {
     DPRINTF(IEW, "[tid:%i]: Memory misprediction, squashing younger "
             "insts from %i, PC: %s [sn:%i].\n", tid, inst->seqNum, inst->pcState(), inst->seqNum);
-    DPRINTF(LVP, "[tid:%i]: Memory misprediction, squashing younger "
+    DPRINTF(LVP, "[tid:%i]: LVP misprediction, squashing younger "
             "insts from %i, PC: %s [sn:%i].\n", tid, inst->seqNum, inst->pcState(), inst->seqNum);
     // If already squashing, LVP takes precedence
     // Using < instead of <= would give branch precedence
@@ -1486,16 +1486,16 @@ DefaultIEW<Impl>::executeInsts()
 
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
-                if (inst->staticInst->predictedLoad && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache())) {
+                if (loadPred->isLVPPresent &&  (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache())) {
                     assert(!inst->isSquashed());
-                    assert(loadPred->lvpredType != "");
+                    assert(loadPred->lvpredType != "none");
                     //inst->memoryAccessStartCycle = cpu->numCycles.value();
 
                     DPRINTF(LVP, "Fetch Predicted (%d) Value: %#x and Confidence %d\n", 
                                 inst->staticInst->predictedLoad, inst->staticInst->predictedValue, inst->staticInst->confidence);
 
 
-                    if ( (inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold)) {
+                    if ( (inst->staticInst->predictedLoad) && (inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold)) {
                         if ( inst->getFault() == NoFault) {
                             DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
                             forwardLoadValuePredictionToDependents(inst);
@@ -1575,7 +1575,8 @@ DefaultIEW<Impl>::executeInsts()
                 // Unconditional LVP update for arithmatic instructions
                 if (loadPred->predictingArithmetic && inst->staticInst->predictedLoad) 
                 { 
-                    assert(loadPred->lvpredType != "");
+                    assert(loadPred->lvpredType != "none");
+                    assert(loadPred->isLVPPresent);
                     assert(inst->isStreamedFromUOpCache());
                     assert(!inst->isStreamedFromSpeculativeCache());
                     assert(!inst->isTracePredictionSource());
@@ -1596,7 +1597,8 @@ DefaultIEW<Impl>::executeInsts()
                 if (inst->isSpeculativlyForwarded())
                 {
                     assert(0);
-                    assert(loadPred->lvpredType != "");
+                    assert(loadPred->lvpredType != "none");
+                    assert(loadPred->isLVPPresent);
                     assert(!inst->isStreamedFromSpeculativeCache());
                     assert(inst->staticInst->predictedLoad); // prediction sources that are coing from spec cache never should have this set
                     //assert(loadPred->predictingArithmetic); // only when LVP is enabled for arithmatic operations
