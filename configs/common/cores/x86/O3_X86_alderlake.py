@@ -92,7 +92,7 @@ class O3_X86_alderlake_FUP(FUPool):
 
 # Bi-Mode Branch Predictor
 class O3_X86_alderlake_BP(LTAGE):
-    BTBEntries = 16384
+    BTBEntries = 8192
     BTBTagSize = 18
     RASSize = 64
     instShiftAmt = 2

@@ -92,7 +92,7 @@ class O3_X86_icelake_FUP(FUPool):
 
 # Bi-Mode Branch Predictor
 class O3_X86_icelake_BP(LTAGE):
-    BTBEntries = 8192
+    BTBEntries = 4096
     BTBTagSize = 18
     RASSize = 64
     instShiftAmt = 2
