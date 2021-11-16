@@ -1963,7 +1963,7 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "mov");
     
-    //if(inst->numSrcRegs() != 3) return false;
+    if(inst->numSrcRegs() != 3) return false;
 
     if (inst->isCC() && (!usingCCTracking || !ccValid))
     {
@@ -2725,7 +2725,7 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
     assert(type == "movi");
     
     // MovImm has 2 source registers for all datasize and MovFlagsImm has 7 sources
-    //if(inst->numSrcRegs() != 2) return false;
+    if(inst->numSrcRegs() != 2) return false;
 
     if (inst->isCC() && (!usingCCTracking || !ccValid))
     {
