@@ -1687,22 +1687,20 @@ Decoder::fetchUopFromUopCache(Addr addr, PCState &nextPC)
 
                     StaticInstPtr si = decode(emi, addr);
 
-                    if (uopHotnessArray[idx][way].read() > 7)
+                    bool hot = (uopHotnessArray[idx][way].read() > 7);
+                    if (si->isMacroop())
                     {
-                        if (si->isMacroop())
+                        si->setUOpCacheHotTrace(hot);
+                        // set all the microops in this macro as fetched from uop cache
+                        for (uint16_t idx = 0; idx < si->getNumMicroops(); idx++)
                         {
-                            si->setUOpCacheHotTrace(true);
-                            // set all the microops in this macro as fetched from uop cache
-                            for (uint16_t idx = 0; idx < si->getNumMicroops(); idx++)
-                            {
-                                StaticInstPtr micro = si->fetchMicroop((MicroPC)idx);
-                                micro->setUOpCacheHotTrace(true);
-                            }
+                            StaticInstPtr micro = si->fetchMicroop((MicroPC)idx);
+                            micro->setUOpCacheHotTrace(hot);
                         }
-                        else 
-                        {
-                            si->setUOpCacheHotTrace(true);
-                        }
+                    }
+                    else 
+                    {
+                        si->setUOpCacheHotTrace(hot);
                     }
 
                     return si;

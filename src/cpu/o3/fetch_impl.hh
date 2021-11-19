@@ -1074,6 +1074,8 @@ DefaultFetch<Impl>::tick()
     while (threads != end) {
         ThreadID tid = *threads++;
 
+        decoder[tid]->tickAllHotnessCounters();
+
         // Check the signals for each thread to determine the proper status
         // for each thread.
         bool updated_status = checkSignalsAndUpdate(tid);
@@ -1089,7 +1091,6 @@ DefaultFetch<Impl>::tick()
     }
 
     DPRINTF(Fetch, "Running stage.\n");
-
 
     if (FullSystem) {
         if (fromCommit->commitInfo[0].interruptPending) {

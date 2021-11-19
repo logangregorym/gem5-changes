@@ -166,6 +166,7 @@ class Decoder
     bool lvpLookupAtFetch;
 
 	void tickAllHotnessCounters() {
+        if (uopCacheActive) return;
 		for (int i=0; i<UOP_CACHE_NUM_SETS; i++) {
 			for (int j=0; j<UOP_CACHE_NUM_WAYS; j++) {
 				uopHotnessArray[i][j].decrement();
