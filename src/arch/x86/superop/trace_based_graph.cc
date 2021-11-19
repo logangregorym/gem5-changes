@@ -1552,7 +1552,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
         unsigned confidence = 0;
         unsigned latency;
         // first prob the predictor to see if we can make a prediction
-        if (!isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency))
+        if (!isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency) && !currentTrace.inst->isStore())
             probePredictorForMakingPrediction();
 
         string type = currentTrace.inst->getName();
@@ -1974,9 +1974,11 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
     string type = inst->getName();
     assert(type == "mov");
     
+    // Mov has 3 source registers for all datasize and MovFlags has 8 sources
+    assert(inst->numSrcRegs() == 3 || inst->numSrcRegs() == 8);
     if(inst->numSrcRegs() != 3) return false;
 
-    if (inst->isCC() && (!usingCCTracking || !ccValid))
+    if (inst->isCC() && !usingCCTracking)
     {
         DPRINTF(ConstProp, "CC Mov Inst! We can't propagate CC insts!\n");
         return false;
@@ -2017,11 +2019,10 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
 	// I think for movs that should be okay? --LAYNE
     // assert(SrcReg2 == psrc2);  // for 4 or 8 bytes move this should always hold but not true for 1 or 2 byts move
 
-    uint16_t ext = inst->getExt();
-    if (!inst->isCC() || inst->checkCondition(PredccFlagBits | PredcfofBits | PreddfBit | PredecfBit | PredezfBit, ext)) {
+    if (!inst->isCC()) {
         forwardVal = x86_inst->merge(forwardVal, psrc2, dataSize);
     } else {
-        DPRINTF(ConstProp, "Check Condition failed!\n");
+        DPRINTF(ConstProp, "Dont have logic for mov which sets condition codes!\n");
         return false;
     }
 
@@ -2736,9 +2737,10 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
     assert(type == "movi");
     
     // MovImm has 2 source registers for all datasize and MovFlagsImm has 7 sources
+    assert(inst->numSrcRegs() == 2 || inst->numSrcRegs() == 7);
     if(inst->numSrcRegs() != 2) return false;
 
-    if (inst->isCC() && (!usingCCTracking || !ccValid))
+    if (inst->isCC() && !usingCCTracking)
     {
         DPRINTF(ConstProp, "CC Mov Inst! We can't propagate CC insts!\n");
         return false;
@@ -2756,11 +2758,11 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
 
     uint64_t forwardVal = 0;
     uint8_t imm8 = inst_regop->imm8;
-    uint16_t ext = inst->getExt();
-    if (!inst->isCC() || inst->checkCondition(PredccFlagBits | PredcfofBits | PreddfBit | PredecfBit | PredezfBit, ext)) {
+    if (!inst->isCC()) {
         forwardVal = x86_inst->merge(forwardVal, imm8, dataSize);
     } else {
-        return true;
+        DPRINTF(ConstProp, "Dont have logic for movi which sets condition codes!\n");
+        return false;
     }
 
     RegId destReg = inst->destRegIdx(0);

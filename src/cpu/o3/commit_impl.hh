@@ -1757,10 +1757,7 @@ DefaultCommit<Impl>::updateComInstStats(DynInstPtr &inst)
 
     // To match the old model, don't count nops and instruction
     // prefetches towards the total commit count.
-    if (!(inst->getName() == "NOP" || inst->getName() == "fault" ||
-        inst->getName() == "popcnt_Gv_Ev" || inst->getName() == "fdivr" ||
-        inst->getName() == "xrstor" || inst->getName() == "prefetch_t0" || 
-        inst->isNop() || inst->isInstPrefetch())) 
+    if (!(inst->isNop() || inst->isInstPrefetch())) 
     {
         cpu->instDone(tid, inst);
     }

@@ -929,6 +929,7 @@ class BaseDynInst : public ExecContext, public RefCounted
     bool reducableAtFetch = false;
     bool squashDueToLVP = false;
     bool branchPredFromPredictor = false;
+    bool branchPredFromTrace = false;
 };
 
 template<class Impl>

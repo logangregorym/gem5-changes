@@ -237,6 +237,56 @@ DefaultIEW<Impl>::regStats()
 
     branchMispredicts = predictedTakenIncorrect + predictedNotTakenIncorrect;
 
+
+    specTracePredTakenCorrectFromBranchPred
+        .name(name() + ".specTracePredTakenCorrectFromBranchPred")
+        .desc("");
+    
+    specTracePredNotTakenCorrectFromBranchPred
+        .name(name() + ".specTracePredNotTakenCorrectFromBranchPred")
+        .desc("");
+    
+    specTracePredTakenIncorrectFromBranchPred
+        .name(name() + ".specTracePredTakenIncorrectFromBranchPred")
+        .desc("");
+    
+    specTracePredNotTakenIncorrectFromBranchPred
+        .name(name() + ".specTracePredNotTakenIncorrectFromBranchPred")
+        .desc("");
+    
+    predictedTakenIncorrectFromBranchPred
+        .name(name() + ".predictedTakenIncorrectFromBranchPred")
+        .desc("");
+    
+    predictedNotTakenIncorrectFromBranchPred
+        .name(name() + ".predictedNotTakenIncorrectFromBranchPred")
+        .desc("");
+    
+    specTracePredTakenCorrectNotFromBranchPred
+        .name(name() + ".specTracePredTakenCorrectNotFromBranchPred")
+        .desc("");
+    
+    specTracePredNotTakenCorrectNotFromBranchPred
+        .name(name() + ".specTracePredNotTakenCorrectNotFromBranchPred")
+        .desc("");
+    
+    specTracePredTakenIncorrectNotFromBranchPred
+        .name(name() + ".specTracePredTakenIncorrectNotFromBranchPred")
+        .desc("");
+    
+    specTracePredNotTakenIncorrectNotFromBranchPred
+        .name(name() + ".specTracePredNotTakenIncorrectNotFromBranchPred")
+        .desc("");
+    
+    predictedTakenIncorrectNotFromBranchPred
+        .name(name() + ".predictedTakenIncorrectNotFromBranchPred")
+        .desc("");
+    
+    predictedNotTakenIncorrectNotFromBranchPred
+        .name(name() + ".predictedNotTakenIncorrectNotFromBranchPred")
+        .desc("");
+    
+
     iewExecutedInsts
         .name(name() + ".iewExecutedInsts")
         .desc("Number of executed instructions");
@@ -1648,6 +1698,48 @@ DefaultIEW<Impl>::executeInsts()
 
                 ppMispredict->notify(inst);
 
+                bool specTraceCorrect = inst->staticInst->predictedTarget.instAddr() == tempPC.instAddr() && inst->staticInst->predictedTaken == inst->readPredTaken();
+               // bool thisInstCorrect = false;
+                if(inst->isStreamedFromSpeculativeCache() && inst->branchPredFromPredictor){
+                    if(specTraceCorrect){
+                        if (inst->staticInst->predictedTaken){
+                            specTracePredTakenCorrectFromBranchPred ++;
+                        } else {
+                            specTracePredNotTakenCorrectFromBranchPred ++;
+                        }
+                    } else {
+                        if (inst->staticInst->predictedTaken){
+                            specTracePredTakenIncorrectFromBranchPred ++;
+                        } else {
+                            specTracePredNotTakenIncorrectFromBranchPred ++;
+                        }
+                    }
+                    if (inst->readPredTaken()) {
+                        predictedTakenIncorrectFromBranchPred++;
+                    } else {
+                        predictedNotTakenIncorrectFromBranchPred++;
+                    }
+                } else if (inst->isStreamedFromSpeculativeCache()){
+                    if(specTraceCorrect){
+                        if (inst->staticInst->predictedTaken){
+                            specTracePredTakenCorrectNotFromBranchPred ++;
+                        } else {
+                            specTracePredNotTakenCorrectNotFromBranchPred ++;
+                        }
+                    } else {
+                        if (inst->staticInst->predictedTaken){
+                            specTracePredTakenIncorrectNotFromBranchPred ++;
+                        } else {
+                            specTracePredNotTakenIncorrectNotFromBranchPred ++;
+                        }
+                    }
+                    if (inst->readPredTaken()) {
+                        predictedTakenIncorrectNotFromBranchPred++;
+                    } else {
+                        predictedNotTakenIncorrectNotFromBranchPred++;
+                    }
+                }
+
                 //if (!inst->isStreamedFromSpeculativeCache())
                 //{
                     if (inst->readPredTaken()) {
@@ -1975,7 +2067,7 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
 
     
 
-    if (inst->isStreamedFromSpeculativeCache())
+    if (inst->isStreamedFromSpeculativeCache() && inst->branchPredFromTrace)
     {
         
                 
