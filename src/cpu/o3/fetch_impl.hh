@@ -1845,6 +1845,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         //predict_taken = instruction->staticInst->predictedTaken;
                         //nextPC = instruction->staticInst->predictedTarget;
 
+                            instruction->branchPredFromPredictor = false;
+
                         
                         DPRINTF(Fetch, "Folded branch target: %s.\n", nextPC);
 
@@ -1870,7 +1872,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             nextPC = bpred_nextPC;
                             instruction->setPredTarg(nextPC);
                             instruction->setPredTaken(predict_taken);
-                            instruction->branchPredFromPredictor = true;
+                            instruction->branchPredFromPredictor = false;
                         } else {
                             //instruction->setPredTarg(instruction->staticInst->predictedTarget);
                             //instruction->setPredTaken(instruction->staticInst->predictedTaken);
@@ -1887,6 +1889,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                 nextPC = bpred_nextPC;
                                 instruction->setPredTarg(nextPC);
                                 instruction->setPredTaken(predict_taken);
+                                instruction->branchPredFromPredictor = true;
                             }
                             //predict_taken = instruction->staticInst->predictedTaken;
                             //instruction->branchPredFromPredictor = false;
