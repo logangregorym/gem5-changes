@@ -474,6 +474,19 @@ class DefaultIEW
     /** Stat for total number of incorrect predicted not taken branches. */
     Stats::Scalar predictedNotTakenIncorrect;
 
+    Stats::Scalar specTracePredTakenCorrectFromBranchPred ;
+    Stats::Scalar specTracePredNotTakenCorrectFromBranchPred ;
+    Stats::Scalar specTracePredTakenIncorrectFromBranchPred ;
+    Stats::Scalar specTracePredNotTakenIncorrectFromBranchPred ;
+    Stats::Scalar predictedTakenIncorrectFromBranchPred;
+    Stats::Scalar predictedNotTakenIncorrectFromBranchPred;
+    Stats::Scalar specTracePredTakenCorrectNotFromBranchPred ;
+    Stats::Scalar specTracePredNotTakenCorrectNotFromBranchPred ;
+    Stats::Scalar specTracePredTakenIncorrectNotFromBranchPred ;
+    Stats::Scalar specTracePredNotTakenIncorrectNotFromBranchPred ;
+    Stats::Scalar predictedTakenIncorrectNotFromBranchPred;
+    Stats::Scalar predictedNotTakenIncorrectNotFromBranchPred;
+
 
     /** Stat for total number of executed instructions. */
     Stats::Scalar iewExecutedInsts;
