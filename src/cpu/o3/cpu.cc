@@ -1612,20 +1612,23 @@ template <class Impl>
 void
 FullO3CPU<Impl>::instDone(ThreadID tid, DynInstPtr &inst)
 {
-    // Keep an instruction count.
-    if (!inst->isMicroop() || inst->isLastMicroop()) {
-        thread[tid]->numInst++;
-        thread[tid]->numInsts++;
-        committedInsts[tid]++;
-        system->totalNumInsts++;
+    if (!(inst->getName() == "NOP" || inst->getName() == "fault" ||
+        inst->getName() == "popcnt_Gv_Ev")) {
+        // Keep an instruction count.
+        if (!inst->isMicroop() || inst->isLastMicroop()) {
+            thread[tid]->numInst++;
+            thread[tid]->numInsts++;
+            committedInsts[tid]++;
+            system->totalNumInsts++;
 
-        // Check for instruction-count-based events.
-        comInstEventQueue[tid]->serviceEvents(thread[tid]->numInst);
-        system->instEventQueue.serviceEvents(system->totalNumInsts);
+            // Check for instruction-count-based events.
+            comInstEventQueue[tid]->serviceEvents(thread[tid]->numInst);
+            system->instEventQueue.serviceEvents(system->totalNumInsts);
+        }
+        thread[tid]->numOp++;
+        thread[tid]->numOps++;
+        committedOps[tid]++;
     }
-    thread[tid]->numOp++;
-    thread[tid]->numOps++;
-    committedOps[tid]++;
 
     probeInstCommit(inst->staticInst);
 }
