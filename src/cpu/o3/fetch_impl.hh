@@ -1281,7 +1281,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
         if (fromCommit->commitInfo[tid].mispredictInst &&
             fromCommit->commitInfo[tid].mispredictInst->isControl() && 
             (!fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache() || 
-            fromCommit->commitInfo[tid].mispredictInst->isLastMicroop())) {
+            fromCommit->commitInfo[tid].mispredictInst->branchPredFromPredictor)) {
             branchPred->squash(fromCommit->commitInfo[tid].doneSeqNum,
                               fromCommit->commitInfo[tid].pc,
                               fromCommit->commitInfo[tid].branchTaken,
@@ -1296,7 +1296,11 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
     } else if (fromCommit->commitInfo[tid].doneSeqNum) {
         // Update the branch predictor if it wasn't a squashed instruction
         // that was broadcasted.
-        branchPred->update(fromCommit->commitInfo[tid].doneSeqNum, tid);
+        if (!fromCommit->commitInfo[tid].mispredictInst || // I dont think this will ever fail TODO
+            !fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache() || 
+            fromCommit->commitInfo[tid].mispredictInst->branchPredFromPredictor){
+                branchPred->update(fromCommit->commitInfo[tid].doneSeqNum, tid);
+        }
     }
 
     // Check squash signals from decode.
@@ -1308,7 +1312,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
         if (fromDecode->decodeInfo[tid].branchMispredict &&
             fromDecode->decodeInfo[tid].mispredictInst->isControl() && 
             (!fromDecode->decodeInfo[tid].mispredictInst->isStreamedFromSpeculativeCache() || 
-            fromDecode->decodeInfo[tid].mispredictInst->isLastMicroop())) {
+            fromDecode->decodeInfo[tid].mispredictInst->branchPredFromPredictor)) {
             branchPred->squash(fromDecode->decodeInfo[tid].doneSeqNum,
                               fromDecode->decodeInfo[tid].nextPC,
                               fromDecode->decodeInfo[tid].branchTaken,
@@ -1845,7 +1849,8 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         //predict_taken = instruction->staticInst->predictedTaken;
                         //nextPC = instruction->staticInst->predictedTarget;
 
-                            instruction->branchPredFromPredictor = false;
+                        //instruction->branchPredFromPredictor = false;
+                        instruction->branchPredFromTrace = true;
 
                         
                         DPRINTF(Fetch, "Folded branch target: %s.\n", nextPC);
@@ -1861,12 +1866,50 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         // here we use the default lookupAndUpdate mechanism to update the nextPC
                         // here I assume that this branch is at the end of a trace, therefore the next time we call getSuperoptimizedMicroop
                         // we should always get StaticInst::nullStaticInstPtr.
+                        
+                        DPRINTF(Fetch, "Branch detected with PC = %s\n", thisPC);
+                        assert(!instruction->branchPredFromPredictor);
+                        assert(!instruction->branchPredFromTrace);
+
                         bool bpred_predict_taken = false; 
                         TheISA::PCState bpred_nextPC = thisPC;
-                        DPRINTF(Fetch, "Branch detected at the end of trace with PC = %s\n", thisPC);
-
                         bpred_predict_taken = branchPred->predict(instruction->staticInst, instruction->seqNum,
                                 bpred_nextPC, tid);
+
+                        // Find the trace's confidence of this branch
+                        unsigned trace_confidence = 0;
+                        for (size_t idx = 0; idx < 2; idx++)
+                        {
+                            if (decoder[tid]->traceConstructor->traceMap[currentTraceID].controlSources[idx].valid &&
+                                decoder[tid]->traceConstructor->traceMap[currentTraceID].controlSources[idx].value ==  thisPC.instAddr())
+                            {
+                                trace_confidence = decoder[tid]->traceConstructor->traceMap[currentTraceID].controlSources[idx].confidence;
+                            }
+                        }
+
+                        //Determine which branch prediction to use
+                        if (trace_confidence > 5){
+                            DPRINTF(Fetch, "Trace confidence of contro sorce is high, using its prediction\n");
+                            predict_taken = instruction->staticInst->predictedTaken;
+                            nextPC = instruction->staticInst->predictedTarget;
+                        } else {
+                            DPRINTF(Fetch, "Trace confidence of control source is low, using branch predictor\n");
+                            thwartMisprediction = true;
+                            predict_taken = bpred_predict_taken;
+                            nextPC = bpred_nextPC;
+                        }
+                        instruction->setPredTarg(nextPC);
+                        instruction->setPredTaken(predict_taken);
+
+                        //Assign blame
+                        if (instruction->staticInst->predictedTarget.instAddr() == nextPC.instAddr() && instruction->staticInst->predictedTaken == predict_taken){
+                            instruction->branchPredFromTrace = true;
+                        }
+                        if (bpred_nextPC.instAddr() == nextPC.instAddr() && bpred_predict_taken == predict_taken){
+                            instruction->branchPredFromPredictor = true;
+                        }
+                        assert(instruction->branchPredFromTrace || instruction->branchPredFromPredictor);
+                        /*
                         if (!nextPC.valid) {
                             predict_taken = bpred_predict_taken;
                             nextPC = bpred_nextPC;
@@ -1893,7 +1936,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             }
                             //predict_taken = instruction->staticInst->predictedTaken;
                             //instruction->branchPredFromPredictor = false;
-                        }
+                        }*/
                         
                         if (thisPC.branching()) {
                             DPRINTF(Fetch, "Folded branch detected with PC = %s\n", thisPC);

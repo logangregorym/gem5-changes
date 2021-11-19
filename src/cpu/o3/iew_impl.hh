@@ -1698,9 +1698,9 @@ DefaultIEW<Impl>::executeInsts()
 
                 ppMispredict->notify(inst);
 
-                bool specTraceCorrect = inst->staticInst->predictedTarget.instAddr() == tempPC.instAddr();// && inst->staticInst->predictedTaken == inst->readPredTaken
+                bool specTraceCorrect = inst->staticInst->predictedTarget.instAddr() == tempPC.instAddr() && inst->staticInst->predictedTaken == inst->readPredTaken();
                // bool thisInstCorrect = false;
-                if(inst->branchPredFromPredictor){
+                if(inst->isStreamedFromSpeculativeCache() && inst->branchPredFromPredictor){
                     if(specTraceCorrect){
                         if (inst->staticInst->predictedTaken){
                             specTracePredTakenCorrectFromBranchPred ++;
@@ -1719,7 +1719,7 @@ DefaultIEW<Impl>::executeInsts()
                     } else {
                         predictedNotTakenIncorrectFromBranchPred++;
                     }
-                } else{
+                } else if (inst->isStreamedFromSpeculativeCache()){
                     if(specTraceCorrect){
                         if (inst->staticInst->predictedTaken){
                             specTracePredTakenCorrectNotFromBranchPred ++;
@@ -2067,7 +2067,7 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
 
     
 
-    if (inst->isStreamedFromSpeculativeCache())
+    if (inst->isStreamedFromSpeculativeCache() && inst->branchPredFromTrace)
     {
         
                 
