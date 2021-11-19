@@ -209,6 +209,9 @@ bool TraceBasedGraph::QueueHotTraceForSuperOptimization(const X86ISA::PCState& p
     traceQueue.push(newTrace);
     DPRINTF(TraceGen, "Queueing up new trace request %i to optimize trace at uop[%i][%i][%i]\n", newTrace.id, uop_cache_idx, baseWay, baseUop);
     DPRINTF(TraceGen, "hotness:%i length=%i\n", hotness, length);
+
+    decoder->numTraceRequests++;
+
     //dumpTrace(newTrace);
     return true;
 
@@ -1429,6 +1432,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
     }
 
     // Propagate predicted values
+    decoder->rcbReads += currentTrace.inst->numSrcRegs();
     if (type == "mov") {
             DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateMov(currentTrace.inst);
@@ -1511,18 +1515,23 @@ bool TraceBasedGraph::generateNextTraceInst() {
     } else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
             DPRINTF(ConstProp, "Type    is RFLAGS, WRFLAGS, RUFLAGS, or WRUFLAGS\n");
             // TODO: add control registers to graph?
+            decoder->rcbReads -= currentTrace.inst->numSrcRegs();
     } else if (type == "rdtsc" || type == "rdval") {
             DPRINTF(ConstProp, "Type is RDTSC or RDVAL\n");
             // TODO: determine whether direct register file access needs to be handled differently?
+            decoder->rcbReads -= currentTrace.inst->numSrcRegs();
     } else if (type == "panic" || type == "CPUID") {
             DPRINTF(ConstProp, "Type is PANIC or CPUID\n");
             // TODO: possibly remove, what is purpose?
+            decoder->rcbReads -= currentTrace.inst->numSrcRegs();
     } else if (type == "st" || type == "stis" || type == "stfp" || type == "ld" || type == "ldis" || type == "ldst" || type == "halt" || type == "fault" || type == "call_far_Mp") {
             DPRINTF(ConstProp, "Type is ST, STIS, STFP, LD, LDIS, LDST, HALT, FAULT, or CALL_FAR_MP\n");
             // TODO: cannot remove
+            decoder->rcbReads -= currentTrace.inst->numSrcRegs();
     } else {
             unknownType = true;
             //dumpLiveOuts(currentTrace.prevNonEliminatedInst, true);
+            decoder->rcbReads -= currentTrace.inst->numSrcRegs();
             DPRINTF(ConstProp, "Inst type not covered: %s\n", type);
     }
 
@@ -1606,6 +1615,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
         currentTrace.prevNonEliminatedInst = currentTrace.inst;
 
     } else {
+        decoder->rcbWrites += currentTrace.inst->numDestRegs();
+        decoder->dceAccesses++;
         currentTrace.inst->eliminated = true;
         if (currentTrace.prevEliminatedInst && currentTrace.prevEliminatedInst->macroOp) {
             bool allEliminated = true;

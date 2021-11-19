@@ -1318,6 +1318,9 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
     uint64_t idx;
     int baseWay = 0;
     int waysVisited = 0;
+
+    specCacheUpdates++;
+
     if (trace.getOptimizedHead().valid) {
         idx = trace.getOptimizedHead().idx;
         baseWay = trace.getOptimizedHead().way;
@@ -1511,6 +1514,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                 speculativeTagArray[idx][w] = 0;
                 speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
                 specHotnessArray[idx][w].reset();
+                specCacheWayInvalidations++;
                 
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) 
                 {
@@ -2286,6 +2290,10 @@ Decoder::regStats()
         .name("system.switch_cpus.decode.uopCacheOpUpdates")
         .desc("Number of micro-ops written to the micro-op cache");
 
+    specCacheUpdates
+        .name("system.switch_cpus.decode.specCacheOpUpdates")
+        .desc("Number of micro-ops written to the speculative cache");
+
     uopCacheLRUUpdates
         .name("system.switch_cpus.decode.uopCacheLRUUpdates")
         .desc("Number of times the micro-op cache LRU bits were updated");
@@ -2293,6 +2301,26 @@ Decoder::regStats()
     uopCacheWayInvalidations
         .name("system.switch_cpus.decode.uopCacheWayInvalidations")
         .desc("Number of times the micro-op cache ways were invalidated");
+
+    specCacheWayInvalidations
+        .name("system.switch_cpus.decode.specCacheWayInvalidations")
+        .desc("Number of times the speculative cache ways were invalidated");
+
+    rcbReads
+        .name("system.switch_cpus.decode.rcbReads")
+        .desc("Number of times the register context block was read from");
+
+    rcbWrites
+        .name("system.switch_cpus.decode.rcbWrites")
+        .desc("Number of times the register context block was written to");
+
+    numTraceRequests
+        .name("system.switch_cpus.decode.numTraceRequests")
+        .desc("Number of trace requests generated");
+
+    dceAccesses
+        .name("system.switch_cpus.decode.dceAccesses")
+        .desc("Number of times the superoptimization unit eliminated an instruction");
 
     macroTo1MicroEncoding
         .name("system.switch_cpus.decode.oneMicroOp")

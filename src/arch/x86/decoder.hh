@@ -216,7 +216,9 @@ class Decoder
 
 protected:
     Stats::Scalar uopCacheWayInvalidations;
+    Stats::Scalar specCacheWayInvalidations;
     Stats::Scalar uopCacheUpdates;
+    Stats::Scalar specCacheUpdates;
     Stats::Scalar uopConflictMisses;
     Stats::Scalar uopCacheLRUUpdates;
     Stats::Scalar macroTo1MicroEncoding;
@@ -452,6 +454,11 @@ protected:
     // Dependency Tracking Unit for Speculative Superoptimization
     // ArrayDependencyTracker* depTracker;
     TraceBasedGraph* traceConstructor;
+
+    Stats::Scalar rcbReads;
+    Stats::Scalar rcbWrites;
+    Stats::Scalar numTraceRequests;
+    Stats::Scalar dceAccesses;
 
     StaticInstPtr decodeInst(ExtMachInst mach_inst);
 
