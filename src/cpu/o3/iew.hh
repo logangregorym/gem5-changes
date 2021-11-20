@@ -480,12 +480,23 @@ class DefaultIEW
     Stats::Scalar specTracePredNotTakenIncorrectFromBranchPred ;
     Stats::Scalar predictedTakenIncorrectFromBranchPred;
     Stats::Scalar predictedNotTakenIncorrectFromBranchPred;
-    Stats::Scalar specTracePredTakenCorrectNotFromBranchPred ;
-    Stats::Scalar specTracePredNotTakenCorrectNotFromBranchPred ;
-    Stats::Scalar specTracePredTakenIncorrectNotFromBranchPred ;
-    Stats::Scalar specTracePredNotTakenIncorrectNotFromBranchPred ;
-    Stats::Scalar predictedTakenIncorrectNotFromBranchPred;
-    Stats::Scalar predictedNotTakenIncorrectNotFromBranchPred;
+    Stats::Scalar specTracePredTakenCorrectFromTrace ;
+    Stats::Scalar specTracePredNotTakenCorrectFromTrace ;
+    Stats::Scalar specTracePredTakenIncorrectFromTrace ;
+    Stats::Scalar specTracePredNotTakenIncorrectFromTrace ;
+    Stats::Scalar predictedTakenIncorrectFromTrace;
+    Stats::Scalar predictedNotTakenIncorrectFromTrace;
+    Stats::Scalar specTracePredTakenIncorrectFromUopCache ;
+    Stats::Scalar specTracePredTakenInorrectFromICache ;
+    Stats::Scalar specTracePredNotTakenIncorrectFromUopCache;
+    Stats::Scalar specTracePredNotTakenIncorrectFromICache;
+    Stats::Scalar predictedIndirectIncorrect;
+    Stats::Scalar specTracePredIndirectIncorrectFromBranchPred ;
+    Stats::Scalar specTracePredIndirectIncorrectFromTrace ;
+    Stats::Scalar specTracePredIndirectIncorrectFromUopCache;
+    Stats::Scalar specTracePredIndirectIncorrectFromICache;
+    Stats::Scalar predictedUnknownBranchIncorrect;
+    Stats::Scalar specTracePredTakenIncorrectFromICache;
 
 
     /** Stat for total number of executed instructions. */

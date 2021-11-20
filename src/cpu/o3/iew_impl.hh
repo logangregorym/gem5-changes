@@ -238,12 +238,8 @@ DefaultIEW<Impl>::regStats()
     branchMispredicts = predictedTakenIncorrect + predictedNotTakenIncorrect;
 
 
-    specTracePredTakenCorrectFromBranchPred
-        .name(name() + ".specTracePredTakenCorrectFromBranchPred")
-        .desc("");
-    
-    specTracePredNotTakenCorrectFromBranchPred
-        .name(name() + ".specTracePredNotTakenCorrectFromBranchPred")
+    specTracePredTakenIncorrectFromUopCache
+        .name(name() + ".specTracePredTakenIncorrectFromUopCache")
         .desc("");
     
     specTracePredTakenIncorrectFromBranchPred
@@ -254,38 +250,50 @@ DefaultIEW<Impl>::regStats()
         .name(name() + ".specTracePredNotTakenIncorrectFromBranchPred")
         .desc("");
     
-    predictedTakenIncorrectFromBranchPred
-        .name(name() + ".predictedTakenIncorrectFromBranchPred")
+    specTracePredNotTakenIncorrectFromUopCache
+        .name(name() + ".specTracePredNotTakenIncorrectFromUopCache")
         .desc("");
     
-    predictedNotTakenIncorrectFromBranchPred
-        .name(name() + ".predictedNotTakenIncorrectFromBranchPred")
+    specTracePredTakenIncorrectFromTrace
+        .name(name() + ".specTracePredTakenIncorrectFromTrace")
         .desc("");
     
-    specTracePredTakenCorrectNotFromBranchPred
-        .name(name() + ".specTracePredTakenCorrectNotFromBranchPred")
+    specTracePredNotTakenIncorrectFromTrace
+        .name(name() + ".specTracePredNotTakenIncorrectFromTrace")
+        .desc("");
+
+    specTracePredTakenIncorrectFromICache
+        .name(name() + ".specTracePredTakenIncorrectFromICache")
         .desc("");
     
-    specTracePredNotTakenCorrectNotFromBranchPred
-        .name(name() + ".specTracePredNotTakenCorrectNotFromBranchPred")
+    specTracePredNotTakenIncorrectFromICache
+        .name(name() + ".specTracePredNotTakenIncorrectFromICache")
         .desc("");
     
-    specTracePredTakenIncorrectNotFromBranchPred
-        .name(name() + ".specTracePredTakenIncorrectNotFromBranchPred")
+    predictedIndirectIncorrect
+        .name(name() + ".predictedIndirectIncorrect")
         .desc("");
     
-    specTracePredNotTakenIncorrectNotFromBranchPred
-        .name(name() + ".specTracePredNotTakenIncorrectNotFromBranchPred")
+    specTracePredIndirectIncorrectFromBranchPred
+        .name(name() + ".specTracePredIndirectIncorrectFromBranchPred")
         .desc("");
     
-    predictedTakenIncorrectNotFromBranchPred
-        .name(name() + ".predictedTakenIncorrectNotFromBranchPred")
+    specTracePredIndirectIncorrectFromTrace
+        .name(name() + ".specTracePredIndirectIncorrectFromTrace")
         .desc("");
     
-    predictedNotTakenIncorrectNotFromBranchPred
-        .name(name() + ".predictedNotTakenIncorrectNotFromBranchPred")
+    specTracePredIndirectIncorrectFromUopCache
+        .name(name() + ".specTracePredIndirectIncorrectFromUopCache")
+        .desc("");
+            
+    specTracePredIndirectIncorrectFromICache
+        .name(name() + ".specTracePredIndirectIncorrectFromICache")
         .desc("");
     
+    predictedUnknownBranchIncorrect
+        .name(name() + ".predictedUnknownBranchIncorrect")
+        .desc("");
+
 
     iewExecutedInsts
         .name(name() + ".iewExecutedInsts")
@@ -1698,54 +1706,56 @@ DefaultIEW<Impl>::executeInsts()
 
                 ppMispredict->notify(inst);
 
-                bool specTraceCorrect = inst->staticInst->predictedTarget.instAddr() == tempPC.instAddr() && inst->staticInst->predictedTaken == inst->readPredTaken();
+                //bool specTraceCorrect = inst->staticInst->predictedTarget.instAddr() == tempPC.instAddr() && inst->staticInst->predictedTaken == inst->readPredTaken();
                // bool thisInstCorrect = false;
-                if(inst->isStreamedFromSpeculativeCache() && inst->branchPredFromPredictor){
-                    if(specTraceCorrect){
-                        if (inst->staticInst->predictedTaken){
-                            specTracePredTakenCorrectFromBranchPred ++;
-                        } else {
-                            specTracePredNotTakenCorrectFromBranchPred ++;
-                        }
-                    } else {
-                        if (inst->staticInst->predictedTaken){
-                            specTracePredTakenIncorrectFromBranchPred ++;
-                        } else {
-                            specTracePredNotTakenIncorrectFromBranchPred ++;
-                        }
-                    }
-                    if (inst->readPredTaken()) {
-                        predictedTakenIncorrectFromBranchPred++;
-                    } else {
-                        predictedNotTakenIncorrectFromBranchPred++;
-                    }
-                } else if (inst->isStreamedFromSpeculativeCache()){
-                    if(specTraceCorrect){
-                        if (inst->staticInst->predictedTaken){
-                            specTracePredTakenCorrectNotFromBranchPred ++;
-                        } else {
-                            specTracePredNotTakenCorrectNotFromBranchPred ++;
-                        }
-                    } else {
-                        if (inst->staticInst->predictedTaken){
-                            specTracePredTakenIncorrectNotFromBranchPred ++;
-                        } else {
-                            specTracePredNotTakenIncorrectNotFromBranchPred ++;
-                        }
-                    }
-                    if (inst->readPredTaken()) {
-                        predictedTakenIncorrectNotFromBranchPred++;
-                    } else {
-                        predictedNotTakenIncorrectNotFromBranchPred++;
-                    }
-                }
+
 
                 //if (!inst->isStreamedFromSpeculativeCache())
                 //{
-                    if (inst->readPredTaken()) {
+                    if (!inst->isIndirectCtrl() && inst->readPredTaken()) {
                         predictedTakenIncorrect++;
-                    } else {
+                        if(inst->isStreamedFromSpeculativeCache()){
+                            if (inst->branchPredFromPredictor){
+                                specTracePredTakenIncorrectFromBranchPred ++;
+                            }
+                            if(inst->branchPredFromTrace){
+                                specTracePredTakenIncorrectFromTrace ++;
+                            }
+                        } else if (inst->isStreamedFromUOpCache()){
+                            specTracePredTakenIncorrectFromUopCache++;
+                        } else {
+                            specTracePredTakenIncorrectFromICache++;
+                        }
+                    } else if (!inst->isIndirectCtrl()) {
                         predictedNotTakenIncorrect++;
+                        if(inst->isStreamedFromSpeculativeCache()){
+                            if (inst->branchPredFromPredictor){
+                                specTracePredNotTakenIncorrectFromBranchPred ++;
+                            }
+                            if(inst->branchPredFromTrace){
+                                specTracePredNotTakenIncorrectFromTrace ++;
+                            }
+                        } else if (inst->isStreamedFromUOpCache()){
+                            specTracePredNotTakenIncorrectFromUopCache++;
+                        } else {
+                            specTracePredNotTakenIncorrectFromICache++;
+                        }
+                    } else if (inst->isIndirectCtrl()) {
+                        predictedIndirectIncorrect++;
+                        if(inst->isStreamedFromSpeculativeCache()){
+                            if (inst->branchPredFromPredictor){
+                                specTracePredIndirectIncorrectFromBranchPred ++;
+                            }
+                            if(inst->branchPredFromTrace){
+                                specTracePredIndirectIncorrectFromTrace ++;
+                            }
+                        } else if (inst->isStreamedFromUOpCache()){
+                            specTracePredIndirectIncorrectFromUopCache++;
+                        } else {
+                            specTracePredIndirectIncorrectFromICache++;
+                        }
+                    } else {
+                        predictedUnknownBranchIncorrect++;
                     }
                 //}
 
@@ -2048,11 +2058,11 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
 
             //if (!inst->isStreamedFromSpeculativeCache())
             //{
-                if (inst->readPredTaken()) {
-                    predictedTakenIncorrect++;
-                } else {
-                    predictedNotTakenIncorrect++;
-                }
+            //    if (inst->readPredTaken()) {
+            //        predictedTakenIncorrect++;
+            //    } else {
+            //        predictedNotTakenIncorrect++;
+            //    }
             //}
 
         }
