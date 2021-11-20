@@ -80,6 +80,8 @@ class Decoder
     static ByteTable ImmediateTypeThreeByte0F38;
     static ByteTable ImmediateTypeThreeByte0F3A;
     static ByteTable ImmediateTypeVex[10];
+    bool uopCacheActive;
+    bool speculativeCacheActive;
 
   protected:
     struct InstBytes
@@ -119,7 +121,6 @@ class Decoder
   public:
     bool isUopCachePresent;
     bool isMicroFusionPresent;
-    bool uopCacheActive;
     bool isSuperOptimizationPresent;
     ExtMachInst *** uopCache;
     FullUopAddr *** uopAddrArray;
@@ -134,7 +135,6 @@ class Decoder
     // Parallel cache for optimized micro-ops
     bool redirectDueToLVPSquashing;
     bool isSpeculativeCachePresent;
-    bool speculativeCacheActive;
     uint64_t currentActiveTraceID;
     StaticInstPtr *** speculativeCache;
     FullUopAddr *** speculativeAddrArray;
@@ -166,7 +166,8 @@ class Decoder
     bool lvpLookupAtFetch;
 
 	void tickAllHotnessCounters() {
-        if (uopCacheActive) return;
+        //cout << "uop active=" << uopCacheActive << " spec active=" << speculativeCacheActive << endl;
+        if (uopCacheActive && !speculativeCacheActive) return;
 		for (int i=0; i<UOP_CACHE_NUM_SETS; i++) {
 			for (int j=0; j<UOP_CACHE_NUM_WAYS; j++) {
 				uopHotnessArray[i][j].decrement();
