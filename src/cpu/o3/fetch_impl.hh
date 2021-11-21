@@ -1822,12 +1822,16 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     ppFetch->notify(instruction);
                     numInst++;
                     
-                    if (staticInst->rasPushIndicator) {
+                    /*if (staticInst->rasPushIndicator) {
                         DPRINTF(Fetch, "RAS push indication received for branch to be folded: %s\n", staticInst->rasPushAddress);
                         branchPred->RAS[tid].push(staticInst->rasPushAddress);
                     } else if (staticInst->rasPopIndicator) {
                         DPRINTF(Fetch, "RAS pop indication received for branch to be folded\n");
+                        staticInst->rasPopAddress = branchPred->RAS[tid].top();
                         branchPred->RAS[tid].pop();
+                    }*/
+                    if (staticInst->rasPushIndicator || staticInst->rasPopIndicator){
+                        branchPred->createPredHistoryForFoldedBranch(staticInst, instruction->seqNum, thisPC, tid);
                     }
 
                     bool thwartMisprediction = false;
@@ -1852,7 +1856,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         //predict_taken = instruction->staticInst->predictedTaken;
                         //nextPC = instruction->staticInst->predictedTarget;
 
-                        instruction->branchPredFromTrace = true;
+                        //instruction->branchPredFromTrace = true;
 
                         
                         DPRINTF(Fetch, "Folded branch target: %s.\n", nextPC);

@@ -77,6 +77,7 @@ class LTAGE: public BPredUnit
                 bool squashed) override;
     void squash(ThreadID tid, void *bp_history) override;
     unsigned getGHR(ThreadID tid, void *bp_history) const override;
+    bool predictWithoutUpdate(ThreadID tid, Addr branch_pc, bool cond_branch);
 
   private:
     // Prediction Structures

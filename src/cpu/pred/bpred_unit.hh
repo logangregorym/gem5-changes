@@ -92,10 +92,13 @@ class BPredUnit : public SimObject
      * @return Returns if the branch is taken or not.
      */
     bool predict(const StaticInstPtr &inst, const InstSeqNum &seqNum,
-                 TheISA::PCState &pc, ThreadID tid);
+                TheISA::PCState &pc, ThreadID tid);
 
     // @todo: Rename this function.
     virtual void uncondBranch(ThreadID tid, Addr pc, void * &bp_history) = 0;
+
+    bool createPredHistoryForFoldedBranch(const StaticInstPtr &inst, const InstSeqNum &seqNum,
+                TheISA::PCState &pc, ThreadID tid);
 
     /**
      * Tells the branch predictor to commit any updates until the given

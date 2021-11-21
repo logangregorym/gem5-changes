@@ -571,7 +571,7 @@ void
 LTAGE::update(ThreadID tid, Addr branch_pc, bool taken, void* bp_history,
               bool squashed)
 {
-    assert(bp_history);
+    if (!bp_history)  return; // This is for folded branches
 
     BranchInfo *bi = static_cast<BranchInfo*>(bp_history);
 
@@ -778,6 +778,7 @@ LTAGE::updateHistories(ThreadID tid, Addr branch_pc, bool taken, void* b)
 void
 LTAGE::squash(ThreadID tid, bool taken, void *bp_history)
 {
+    if (!bp_history)  return; // This is for folded branches
     BranchInfo* bi = (BranchInfo*)(bp_history);
     ThreadHistory& tHist = threadHistory[tid];
     DPRINTF(LTage, "Restoring branch info: %lx; taken? %d; PathHistory:%x, "
@@ -807,6 +808,7 @@ LTAGE::squash(ThreadID tid, bool taken, void *bp_history)
 void
 LTAGE::squash(ThreadID tid, void *bp_history)
 {
+    if (!bp_history)  return; // This is for folded branches
     BranchInfo* bi = (BranchInfo*)(bp_history);
     DPRINTF(LTage, "Deleting branch info: %lx\n", bi->branchPC);
     if (bi->condBranch) {
@@ -819,10 +821,120 @@ LTAGE::squash(ThreadID tid, void *bp_history)
     delete bi;
 }
 
+//prediction
+bool
+LTAGE::predictWithoutUpdate(ThreadID tid, Addr branch_pc, bool cond_branch)
+{
+    BranchInfo *bi = new BranchInfo(nHistoryTables+1);
+    Addr pc = branch_pc;
+    bool pred_taken = true;
+    bi->loopHit = -1;
+
+    if (cond_branch) {
+        // TAGE prediction
+
+        // computes the table addresses and the partial tags
+        for (int i = 1; i <= nHistoryTables; i++) {
+            //tableIndices[i] = 
+            bi->tableIndices[i] = gindex(tid, pc, i);
+            //tableTags[i] = 
+            bi->tableTags[i] = gtag(tid, pc, i);
+        }
+
+        bi->bimodalIndex = bindex(pc);
+
+        bi->hitBank = 0;
+        bi->altBank = 0;
+        //Look for the bank with longest matching history
+        for (int i = nHistoryTables; i > 0; i--) {
+            if (gtable[i][bi->tableIndices[i]].tag == bi->tableTags[i]) {
+                bi->hitBank = i;
+                bi->hitBankIndex = bi->tableIndices[bi->hitBank];
+                break;
+            }
+        }
+        //Look for the alternate bank
+        for (int i = bi->hitBank - 1; i > 0; i--) {
+            if (gtable[i][bi->tableIndices[i]].tag == bi->tableTags[i]) {
+                bi->altBank = i;
+                bi->altBankIndex = bi->tableIndices[bi->altBank];
+                break;
+            }
+        }
+        //computes the prediction and the alternate prediction
+        if (bi->hitBank > 0) {
+            if (bi->altBank > 0) {
+                bi->altTaken =
+                    gtable[bi->altBank][bi->tableIndices[bi->altBank]].ctr >= 0;
+            }else {
+                bi->altTaken = getBimodePred(pc, bi);
+            }
+
+            bi->longestMatchPred =
+                gtable[bi->hitBank][bi->tableIndices[bi->hitBank]].ctr >= 0;
+            bi->pseudoNewAlloc =
+                abs(2 * gtable[bi->hitBank][bi->hitBankIndex].ctr + 1) <= 1;
+
+            //if the entry is recognized as a newly allocated entry and
+            //useAltPredForNewlyAllocated is positive use the alternate
+            //prediction
+            if ((useAltPredForNewlyAllocated < 0)
+                   || abs(2 *
+                   gtable[bi->hitBank][bi->tableIndices[bi->hitBank]].ctr + 1) > 1)
+                bi->tagePred = bi->longestMatchPred;
+            else
+                bi->tagePred = bi->altTaken;
+        } else {
+            bi->altTaken = getBimodePred(pc, bi);
+            bi->tagePred = bi->altTaken;
+            bi->longestMatchPred = bi->altTaken;
+        }
+        //end TAGE prediction
+
+        bi->loopPred = getLoop(pc, bi);	// loop prediction
+	
+        //pred_taken = (((loopUseCounter >= 0) && bi->loopPredValid)) ?
+        //             (bi->loopPred): (bi->tagePred);
+		
+	if ((loopUseCounter >= 0) && (bi->loopPredValid)) {
+	    pred_taken = bi->loopPred;
+            //numLoopPredictions++;
+	} else {
+	    pred_taken = bi->tagePred;
+	}
+
+        DPRINTF(LTage, "Predict for %lx: taken?:%d, loopTaken?:%d, "
+                "loopValid?:%d, loopUseCounter:%d, tagePred:%d, altPred:%d\n",
+                branch_pc, pred_taken, bi->loopPred, bi->loopPredValid,
+                loopUseCounter, bi->tagePred, bi->altTaken);
+
+        // confidence update
+        if (!doStoragelessBranchConf) {
+            //if (!branch_confidence.count(branch_pc)) {
+            //   branch_confidence.insert({branch_pc, SatCounter(branchConfidenceCounterSize)});
+            //   ++numDistinctBranches;
+            //}
+
+            if (branch_confidence[branch_pc & 2047].read() >= branchConfidenceThreshold) {
+                confidentAtPredict++;
+            }
+        } else {
+            if (storagelessConfHandler(threadHistory[tid], bi)) confidentAtPredict++;
+        }
+    }
+    bi->branchPC = branch_pc;
+    bi->condBranch = cond_branch;
+    //specLoopUpdate(branch_pc, pred_taken, bi);
+
+    return pred_taken;
+}
+
 bool
 LTAGE::lookupWithoutUpdate(ThreadID tid, Addr branch_pc)
 {
     void *bp_history = NULL;
+   // bool retval = predictWithoutUpdate(tid, branch_pc, true);
+
     bool retval = predict(tid, branch_pc, true, bp_history);
 
     delete (BranchInfo*)bp_history;
@@ -851,6 +963,7 @@ LTAGE::lookup(ThreadID tid, Addr branch_pc, void* &bp_history)
 void
 LTAGE::btbUpdate(ThreadID tid, Addr branch_pc, void* &bp_history)
 {
+    if (!bp_history)  return; // This is for folded branches
     BranchInfo* bi = (BranchInfo*) bp_history;
     ThreadHistory& tHist = threadHistory[tid];
     DPRINTF(LTage, "BTB miss resets prediction: %lx\n", branch_pc);

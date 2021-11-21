@@ -2034,6 +2034,8 @@ template <class Impl>
 void
 DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
 {
+
+    //assert(0);
     ThreadID tid = inst->threadNumber;
 
     if (!fetchRedirect[tid] ||
@@ -2054,8 +2056,11 @@ DefaultIEW<Impl>::checkMisprediction(DynInstPtr &inst)
                     inst->nextInstAddr());
             // If incorrect, then signal the ROB that it must be squashed.
             squashDueToBranch(inst, tid);
-            updateTraceBranchConfidence(inst, tempPC ,false);    
+            updateTraceBranchConfidence(inst, tempPC ,false);
 
+            if (inst->isStreamedFromSpeculativeCache()){
+                cout << "WE DONT COUNT THIS" << endl;
+            }
             //if (!inst->isStreamedFromSpeculativeCache())
             //{
             //    if (inst->readPredTaken()) {

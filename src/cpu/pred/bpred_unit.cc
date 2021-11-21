@@ -349,6 +349,69 @@ BPredUnit::predict(const StaticInstPtr &inst, const InstSeqNum &seqNum,
     return pred_taken;
 }
 
+bool
+BPredUnit::createPredHistoryForFoldedBranch(const StaticInstPtr &inst, const InstSeqNum &seqNum,
+                   TheISA::PCState &pc, ThreadID tid)
+{
+    assert(inst->rasPushIndicator || inst->rasPopIndicator);
+
+
+    bool pred_taken = true;
+
+    //++lookups;
+    //ppBranches->notify(1);
+
+    void *bp_history = NULL;
+
+    DPRINTF(Branch, "[tid:%i]: Creating prediction history for a folded call or return.\n", tid);
+    // Tell the BP there was an unconditional branch.
+    //uncondBranch(tid, pc.instAddr(), bp_history);
+
+
+    DPRINTF(Branch, "[tid:%i]: [sn:%i] Creating prediction history "
+            "for PC %s\n", tid, seqNum, pc);
+
+    PredictorHistory predict_record(seqNum, pc.instAddr(),
+                                    pred_taken, bp_history, tid);
+
+    // Now lookup in the BTB or RAS.
+        if (inst->rasPopIndicator) {
+            //++usedRAS;
+            predict_record.wasReturn = true;
+            // If it's a function return call, then look up the address
+            // in the RAS.
+            TheISA::PCState rasTop = RAS[tid].top();
+
+            // Record the top entry of the RAS, and its index.
+            predict_record.usedRAS = true;
+            predict_record.RASIndex = RAS[tid].topIdx();
+            predict_record.RASTarget = rasTop;
+
+            RAS[tid].pop();
+
+            DPRINTF(Branch, "[tid:%i]: Folded instruction %s is a return, RAS index: %i.\n",
+                    tid, pc, predict_record.RASIndex);
+        } else if (inst->rasPushIndicator) {
+            //++BTBLookups;
+
+            RAS[tid].push(inst->rasPushAddress);
+            predict_record.pushedRAS = true;
+
+                // Record that it was a call so that the top RAS entry can
+                // be popped off if the speculation is incorrect.
+            predict_record.wasCall = true;
+
+            DPRINTF(Branch, "[tid:%i]: Folded instruction %s was a call, adding %s to the RAS index: %i.\n",
+                    tid, pc, inst->rasPushAddress, RAS[tid].topIdx());            
+        }
+
+    predHist[tid].push_front(predict_record);
+
+    DPRINTF(Branch, "[tid:%i]: [sn:%i]: History entry added.\n", tid, seqNum);
+
+    return pred_taken;
+}
+
 void
 BPredUnit::update(const InstSeqNum &done_sn, ThreadID tid)
 {
