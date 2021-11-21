@@ -1830,6 +1830,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         staticInst->rasPopAddress = branchPred->RAS[tid].top();
                         branchPred->RAS[tid].pop();
                     }*/
+                    assert (!(staticInst->rasPushIndicator && staticInst->rasPopIndicator));
                     if (staticInst->rasPushIndicator || staticInst->rasPopIndicator){
                         branchPred->createPredHistoryForFoldedBranch(staticInst, instruction->seqNum, thisPC, tid);
                     }

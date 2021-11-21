@@ -1613,7 +1613,7 @@ void
 FullO3CPU<Impl>::instDone(ThreadID tid, DynInstPtr &inst)
 {
     if (!(inst->getName() == "NOP" || inst->getName() == "fault" ||
-        inst->getName() == "popcnt_Gv_Ev")) {
+        inst->getName() == "popcnt_Gv_Ev" || inst->getName() == "prefetch_t0")) {
         // Keep an instruction count.
         if (!inst->isMicroop() || inst->isLastMicroop()) {
             thread[tid]->numInst++;
