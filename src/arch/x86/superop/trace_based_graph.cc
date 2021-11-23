@@ -1311,7 +1311,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "fcom" || decodedMacroOp->getName() == "fisttp" ||
             decodedMacroOp->getName() == "fwait" || decodedMacroOp->getName() == "frstor" ||
             decodedMacroOp->getName() == "xsave" || decodedMacroOp->getName() == "call_far_Mp" ||
-            decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul") 
+            decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul" ||
+            decodedMacroOp->getName() == "prefetch_nta" || decodedMacroOp->getName() == "SFENCE") 
         {
             // currentTrace.length++;
             //     if (currentTrace.prevNonEliminatedInst /*&&
@@ -1338,7 +1339,8 @@ bool TraceBasedGraph::generateNextTraceInst() {
             StaticInstPtr inst = decodedMacroOp->fetchMicroop(decoder->uopAddrArray[idx][way][uop].uopAddr);
             if (inst->getName() == "NOP" || inst->getName() == "fault" ||
                 inst->getName() == "popcnt_Gv_Ev" || inst->getName() == "fdivr" ||
-                inst->getName() == "xrstor" || inst->getName() == "prefetch_t0" || 
+                inst->getName() == "xrstor" || inst->getName() == "prefetch_t0" ||
+                inst->getName() == "prefetch_nta"|| inst->getName() == "SFENCE" ||
                 decodedMacroOp->getName() == "inst_ib" || decodedMacroOp->getName() == "sldt_Mw_or_Rv" ||
                 decodedMacroOp->getName() == "fcomp" || decodedMacroOp->getName() == "unknown" ||
                 decodedMacroOp->getName() == "ret_far_Iw" || decodedMacroOp->getName() == "fisub" ||
