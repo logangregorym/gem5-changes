@@ -1552,8 +1552,17 @@ bool TraceBasedGraph::generateNextTraceInst() {
         unsigned confidence = 0;
         unsigned latency;
         // first prob the predictor to see if we can make a prediction
-        if (!isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency) && !currentTrace.inst->isStore())
-            probePredictorForMakingPrediction();
+        if (!isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency) && !currentTrace.inst->isStore()) {
+            if (loadPred->predictingArithmetic || currentTrace.inst->isLoad()) {
+                for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
+                    RegId destReg = currentTrace.inst->destRegIdx(i);
+                    if (destReg.classValue() == IntRegClass) {
+                        probePredictorForMakingPrediction();
+                        break;
+                    }
+                }
+            }
+        }
 
         string type = currentTrace.inst->getName();
 
