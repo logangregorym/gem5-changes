@@ -1766,7 +1766,7 @@ Decoder::isTraceAvailable(FullUopAddr addr) {
                         LVPredUnit::lvpReturnValues ret;
                         if (traceConstructor->loadPred->makePredictionForTraceGenStage(trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, 0 , ret))
                         {
-                            if (trace.source[i].value == ret.predictedValue && ret.confidence >= 5)
+                            if (trace.source[i].value == ret.predictedValue && ret.confidence >= traceConstructor->predictionConfidenceThreshold)
                             {
                                 DPRINTF(Decoder, "Found the prediction source with address of %#x:%d in the predictor and the values match! Confidence is %d! trace.source[i].value = %#x ret.predictedValue = %#x\n", 
                                                 trace.source[i].addr.pcAddr, trace.source[i].addr.uopAddr, ret.confidence, trace.source[i].value, ret.predictedValue );
