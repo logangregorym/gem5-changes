@@ -148,14 +148,40 @@ EvesLVP::makePrediction(TheISA::PCState pc, ThreadID tid, unsigned currentcycle)
 #endif
 
 #ifdef PREDSTRIDE
-  getPredStride (pc.pc(), U, predicted_value, stored_seq_no);
+  getPredStride ((pc.pc() << 16) | pc.upc(), U, predicted_value, stored_seq_no);
 #endif
 #ifdef PREDVTAGE
-  getPredVtage (pc.pc(), U, predicted_value);
+  getPredVtage ((pc.pc() << 16) | pc.upc(), U, predicted_value);
 #endif
 // the two predictions are very rarely both high confidence; when they are pick the VTAGE prediction
   U.confidence = 100*(U.predStride || U.predVtage);
   return U; 
+}
+
+// this function should only be called for instructions coming from uop cache
+bool EvesLVP::makePredictionForTraceGenStage(Addr addr, uint16_t upc, ThreadID tid , LVPredUnit::lvpReturnValues& ret)
+{
+  LVPredUnit::lvpReturnValues U = LVPredUnit::lvpReturnValues();
+  uint64_t predicted_value = 0;
+
+  U.predVtage = false;
+  U.predStride = false;
+
+#ifndef PREDSTRIDE
+//assert(false);
+#endif
+
+#ifdef PREDSTRIDE
+  getPredStride ((addr << 16) | upc, U, predicted_value, stored_seq_no);
+#endif
+#ifdef PREDVTAGE
+  getPredVtage ((addr << 16) | upc, U, predicted_value);
+#endif
+// the two predictions are very rarely both high confidence; when they are pick the VTAGE prediction
+  U.confidence = 100*(U.predStride || U.predVtage);
+
+  ret = U;
+  return (U.predStride || U.predVtage); 
 }
 
 // Update of the Stride predictor
