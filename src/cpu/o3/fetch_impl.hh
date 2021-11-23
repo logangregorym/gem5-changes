@@ -1401,7 +1401,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
 
 
 
-    if (decoder[tid]->traceConstructor->IsValuePredictible(instruction->staticInst)) 
+    if (instruction->staticInst->isStreamedFromUOpCache() && decoder[tid]->traceConstructor->IsValuePredictible(instruction->staticInst)) 
     {
         // don't check against new prediction is the instruction is part of a spec trace
         DPRINTF(LVP, "MakePrediction called by inst [sn:%i] from fetch!\n", seq);

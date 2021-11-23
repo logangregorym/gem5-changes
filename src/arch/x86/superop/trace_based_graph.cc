@@ -72,11 +72,11 @@ void TraceBasedGraph::regStats()
 
 bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
 {
-    assert( (instruction->isStreamedFromUOpCache() && !instruction->isStreamedFromSpeculativeCache()) || 
+/*    assert( (instruction->isStreamedFromUOpCache() && !instruction->isStreamedFromSpeculativeCache()) || 
             (!instruction->isStreamedFromUOpCache() && instruction->isStreamedFromSpeculativeCache()) ||  
             (!instruction->isStreamedFromUOpCache() && !instruction->isStreamedFromSpeculativeCache())
     );
-
+*/
     // Make load value prediction if necessary
     // only predict when the instruction has only one INT dest reg
     // Number of INT registers
@@ -97,7 +97,7 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
                                 !instruction->isStore() && 
                                 !instruction->isFloating() &&
                                 /*!instruction->isCC()*/ 
-                                instruction->isStreamedFromUOpCache() &&
+                                //instruction->isStreamedFromUOpCache() &&
                                 !instruction->isStreamedFromSpeculativeCache();
 
         // don't pullote predictor with instructions that we already know thier values
@@ -1552,17 +1552,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
         unsigned confidence = 0;
         unsigned latency;
         // first prob the predictor to see if we can make a prediction
-        if (!isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency) && !currentTrace.inst->isStore()) {
-            if (loadPred->predictingArithmetic || currentTrace.inst->isLoad()) {
-                for (int i = 0; i < currentTrace.inst->numDestRegs(); i++) {
-                    RegId destReg = currentTrace.inst->destRegIdx(i);
-                    if (destReg.classValue() == IntRegClass) {
-                        probePredictorForMakingPrediction();
-                        break;
-                    }
-                }
-            }
-        }
+        if (!isPredictionSource(currentTrace, currentTrace.instAddr, value, confidence, latency) &&
+            IsValuePredictible(currentTrace.inst)) 
+            probePredictorForMakingPrediction();
 
         string type = currentTrace.inst->getName();
 
