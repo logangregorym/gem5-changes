@@ -2326,7 +2326,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     }
                     else 
                     {
-                        assert(0);
+                        //assert(0);
                         DPRINTF(Fetch, "Uop and Spec Cache are not present!\n");
                         assert(!decoder[tid]->isUopCacheActive());
                         switchToSpecUopCachePipeline = false;
