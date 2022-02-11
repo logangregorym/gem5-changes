@@ -1,0 +1,1 @@
+./build/X86/gem5.opt ./configs/example/se.py -c ./microbench --caches --l2cache --cpu-type=O3_X86_icelake_1   --mem-type=DDR4_2400_16x4 --mem-size=64GB --mem-channels=2  --enable-microop-cache --enable-micro-fusion  --lvpredType=fa3p --dynamicThreshold=5 --constantThreshold=3 --predictionConfidenceThreshold=5 --checkpoint_at_instr=100000 --l3cache

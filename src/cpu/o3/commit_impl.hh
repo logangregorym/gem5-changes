@@ -1554,7 +1554,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         uops_plus_shrunken += numMicroopsShrunken;
     }
 
-    if (uops_plus_shrunken % 100000 == 0) {
+    if (false && uops_plus_shrunken % 100000 == 0) {
         std::cout << "NumOfUops: " << uops_plus_shrunken << std::endl;
         std::cout << "CPuops: " << std::dec << (((double) cpu->numCycles.value()) / ((double) uops_plus_shrunken)) << std::endl;
     }
@@ -1635,7 +1635,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             
 
     }
-    else if (true && !cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
+    else if (false && !cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->committedInsts[tid].value() % 100000 == 0 &&
             !head_inst->isNop() &&
             !head_inst->isInstPrefetch() &&
@@ -1649,7 +1649,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             std::endl << std::dec << "Total CPI: " << (double) cpu->totalCpi.total() <<
             std::endl;
     }
-    if (uops_plus_shrunken % 100000 == 0) {
+    if (false && uops_plus_shrunken % 100000 == 0) {
     
         std::cout << "Uop Cache:" << std::endl;       
         for (int idx = 0; idx < cpu->fetch.decoder[tid]->UOP_CACHE_NUM_SETS; idx++){
