@@ -212,6 +212,7 @@ class BaseO3DynInst : public BaseDynInst<Impl>
 
     void forwardOldRegs()
     {
+        //assert(0);
         
         for (int idx = 0; idx < this->numDestRegs(); idx++) {
             if (this->staticInst->liveOutPredicted[idx]) {

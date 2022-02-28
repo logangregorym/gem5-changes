@@ -1311,7 +1311,7 @@ template<class Impl>
 bool
 InstructionQueue<Impl>::forwardNonLoadValuePredictionToDependents(DynInstPtr &inst) {
 
-    assert(0);
+    assert(0);/*
     assert(!inst->isStore());
     assert(inst->isInteger());
 
@@ -1398,7 +1398,7 @@ InstructionQueue<Impl>::forwardNonLoadValuePredictionToDependents(DynInstPtr &in
 
     
     DPRINTF(LVP, "LVP-NonLoad: %d dependents woken\n", dependentCount);
-    
+    */
     return true;
 
 }
@@ -1452,12 +1452,16 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                 dest_reg->index(),
                 dest_reg->className());
 
+    //assert(dest_reg->index() < 38);
+
 
     uint8_t dataSize = inst->staticInst->getDataSize();
 
     DPRINTF(LVP, "SuperOp: Forwarding data of size: %i\n", dataSize);
 
     // depending on the size, we set values differently
+    uint64_t fowardValue = 0;
+    bool valueFound = false;
 
     switch (dest_reg->classValue()) 
     {
@@ -1487,7 +1491,12 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
 
                 uint64_t Data = Mem & mask(dataSize * 8);
                 //uint64_t Data = Mem;
-                inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
+                //inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
+                DPRINTF(LVP, "Identified %#x as value to be fowarded.\n", Data);
+                fowardValue = Data;
+                valueFound = true;
+                //inst->staticInst->sourcePredictions[0] = fowardValue;
+                //inst->staticInst->sourcesPredicted[0] = true;
             }
             else 
             {
@@ -1502,7 +1511,12 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                 X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get(); x86_inst = x86_inst;
                 Data = x86_inst->merge(Data, Mem, dataSize);;
                 //Data = Mem;
-                inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
+                //inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
+                DPRINTF(LVP, "Identified %#x as value to be fowarded.\n", Data);
+                fowardValue = Data;
+                valueFound = true;
+                //inst->staticInst->sourcePredictions[0] = Data;
+                //inst->staticInst->sourcesPredicted[0] = true;
 
             }
             
@@ -1513,6 +1527,8 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
 
         case FloatRegClass:
         {
+            panic("Using a lvp prediction for a floating-point register");
+
             string type = inst->staticInst->getName();
             DPRINTF(LVP, "LVP: Setting int register %i to %x for inst: %s\n", 
                     dest_reg, inst->staticInst->predictedValue, type);
@@ -1622,15 +1638,68 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
         // value of the dest reg for this load is speculativly forwarded
         inst->setSpeculativlyForwarded(true);
 
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get();
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
+        assert(dest_reg_idx < 38);
 
-        DPRINTF(LVP, "Popping dependGraph of register %i\n", dest_reg->index());
-        DynInstPtr dep_inst = dependGraph.pop(dest_reg->index());
+
+        DPRINTF(LVP, "Popping dependGraph of register %i\n", dest_reg->flatIndex());
+        DynInstPtr dep_inst = dependGraph.pop(dest_reg->flatIndex());
         while (dep_inst) {
+            assert(valueFound);
+
+            DPRINTF(LVP, "Fowarding value %#x to resgister %d. [sn:%lli] "
+                    "PC %s.\n", fowardValue, dest_reg->index(), dep_inst->seqNum, dep_inst->pcState());
+
+
+                //X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)trace.inst.get();
+
+                //X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)trace.inst.get();
+                //RegIndex src_reg_idx = x86_inst->getUnflattenRegIndex(trace.inst->srcRegIdx(i));
+                //RegIndex src_reg_idx = dep_inst->staticInst->getUnflattenRegIndex(dest_reg->index());
+                //RegIndex src_reg_idx = dest_reg->flatIndex();
+                //trace.inst->srcRegIdx(i).flatIndex();
+                /*this->cpu->setIntReg(this->_destRegIdx[idx], val);
+                BaseDynInst<Impl>::setIntRegOperand(si, idx, val);
+                void setIntReg(PhysRegIdPtr phys_reg, uint64_t val)
+                {
+                    assert(phys_reg->isIntPhysReg());
+
+                    DPRINTF(IEW, "RegFile: Setting int register %i to %#x. PrevValue: %#x\n",
+                            phys_reg->index(), val, intRegFile[phys_reg->index()]);
+
+                    if (!phys_reg->isZeroReg())
+                        intRegFile[phys_reg->index()] = val;
+                    
+                    DPRINTF(IEW, "RegFile: int register %i newVal %#x\n",
+                            phys_reg->index(), intRegFile[phys_reg->index()]);
+                }*/
+
+            //dep_inst->staticInst->sourcePredictions[dest_reg_idx] = fowardValue;
+            //dep_inst->staticInst->sourcesPredicted[dest_reg_idx] = true;
+
+            for (int i=0; i<dep_inst->staticInst->numSrcRegs(); i++) 
+            {
+                uint16_t srcIdx = dep_inst->staticInst->srcRegIdx(i).flatIndex();
+
+                DPRINTF(LVP, "ConstProp: Examining register %i\n", srcIdx);
+                if (dep_inst->staticInst->srcRegIdx(i).classValue() == IntRegClass) 
+                {
+                        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)dep_inst->staticInst.get();
+                        RegIndex src_reg_idx = x86_inst->getUnflattenRegIndex(dep_inst->staticInst->srcRegIdx(i));
+                        if (src_reg_idx == dest_reg_idx) {
+                            DPRINTF(LVP, "ConstProp: Propagated constant %#x in reg %i (arch: %d) PC %#x:%d\n", fowardValue, srcIdx, src_reg_idx, dep_inst->pcState());
+                            dep_inst->staticInst->sourcePredictions[i] = fowardValue;
+                            dep_inst->staticInst->sourcesPredicted[i] = true;
+                        }
+                }
+            }
 
             DPRINTF(LVP, "Speculatively waking up a dependent instruction, [sn:%lli] "
                     "PC %s.\n", dep_inst->seqNum, dep_inst->pcState());
  
             dependentCount++;
+
             dep_inst->markSrcRegReady();
             addIfReady(dep_inst);
 

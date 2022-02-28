@@ -1139,9 +1139,9 @@ DefaultCommit<Impl>::commitInsts()
             if (commit_success) {
                 ++num_committed;
                 statCommittedInstType[tid][head_inst->opClass()]++;
-
-                panic_if(head_inst->isSquashedAndCommited() && !head_inst->isTracePredictionSource(), "A none prediction source instruction is getting suqashed and commited!\n");
-                panic_if(head_inst->isSquashedAndCommited() && !head_inst->isStreamedFromSpeculativeCache(), "A non-speculative instruction is getting suqashed and commited!\n");
+                //panic_if(head_inst->isSquashedAndCommited() && !head_inst->isSpeculativlyForwarded(), "A none speculatively forwardced instruction is getting suqashed and commited!\n");
+                //panic_if(head_inst->isSquashedAndCommited() && !head_inst->isTracePredictionSource(), "A none prediction source instruction is getting suqashed and commited!\n");
+                //panic_if(head_inst->isSquashedAndCommited() && !head_inst->isStreamedFromSpeculativeCache(), "A non-speculative instruction is getting suqashed and commited!\n");
                 if (head_inst->isStreamedFromSpeculativeCache() && head_inst->isTracePredictionSource() && head_inst->isSquashedAndCommited() )
                 {
                     statCommittedInstType[tid][OpClass::SquahedAndCommited]++;

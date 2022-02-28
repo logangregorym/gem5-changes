@@ -1227,13 +1227,14 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             {
 
                 // LVP missprediction, therefore, deactivate speculative cache and fetch from uop/decoder
-                DPRINTF(Fetch, "LVP misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
+                DPRINTF(LVP, "LVP misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
                 decoder[tid]->setSpeculativeCacheActive(false);
                 decoder[tid]->redirectDueToLVPSquashing = true;
             }
             // folded branch missprediction
             else if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
             {
+                assert(0);
                 // again deactivate speculative cache
                 DPRINTF(Fetch, "folded branch misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
                 decoder[tid]->setSpeculativeCacheActive(false);
@@ -1254,6 +1255,7 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             // memorder violation in a speculative trace
             if (fromCommit->commitInfo[tid].squashDueToLVP)
             {
+                assert(0);
                 // activate speculative cache so we can fetch from it again
                 DPRINTF(Fetch, "memory order violation at PC %s\n", fromCommit->commitInfo[tid].pc);
                 currentTraceID = fromCommit->commitInfo[tid].currentTraceID;
@@ -2183,6 +2185,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     newMacro |= staticInst->isLastMicroop();
             	}
 
+                for (uint8_t i = 0; i < 38; i++) {
+                    staticInst->sourcesPredicted[i] = false;
+                    assert(!staticInst->sourcesPredicted[i]);
+                }
 
                 DynInstPtr instruction = buildInst(tid, staticInst, curMacroop, thisPC, nextPC, true);
                 
