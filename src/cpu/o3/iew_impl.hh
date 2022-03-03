@@ -1628,10 +1628,10 @@ DefaultIEW<Impl>::executeInsts()
 
                     inst->forwardOldRegs();
 		        }
-
                 // Unconditional LVP update for arithmatic instructions
                 if (loadPred->predictingArithmetic && inst->staticInst->predictedLoad) 
                 { 
+
                     assert(inst->isStreamedFromUOpCache());
                     assert(!inst->isStreamedFromSpeculativeCache());
                     assert(!inst->isTracePredictionSource());
@@ -2307,6 +2307,7 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
                 case IntRegClass:
                     if (inst->staticInst->liveOutPredicted[i]) 
                     {
+                        assert(inst->isStreamedFromSpeculativeCache());
                         // this is not a real dest reg, it's a dest reg added to dump all the live outs at the end of a trace
                         // therefore, just igonore it
                         continue;
@@ -2320,6 +2321,8 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
                     DPRINTF(LVP, "before masking: predicted value=%#x actual value=%#x\n", inst->staticInst->predictedValue, reg_value);
                     DPRINTF(LVP, "after masking: predicted value=%#x actual value=%#x data size=%i\n", inst->staticInst->predictedValue & mask, reg_value & mask, inst->staticInst->getDataSize());
                     inst->lvMispred = ((reg_value & mask) != (inst->staticInst->predictedValue & mask)); 
+
+                    inst->lvMispred = true;
                     break;
                             
                 case CCRegClass:
@@ -2335,6 +2338,8 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
 
         // always should be one! We never predict for non int dest regs
         assert(numIntDestRegs == 1);
+
+        assert(inst->lvMispred);
 
         
 

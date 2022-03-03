@@ -124,12 +124,12 @@ class StaticInst : public RefCounted, public StaticInstFlags
     int8_t _numVecElemDestRegs;
     /** @} */
 
-    bool endOfTrace;
-    bool isStreamedFromSpecCache;
-    bool isPredictionSource;
-    bool isStreamedFromUopCache;
-    bool isUopCacheHotTrace;
-    bool carriesLiveOut;
+    bool endOfTrace; // FALSE
+    bool isStreamedFromSpecCache; // FALSE
+    bool isPredictionSource; // FALSE
+    bool isStreamedFromUopCache; // FALSE
+    bool isUopCacheHotTrace; // FALSE
+    bool carriesLiveOut; // FALSE
 
 
 
@@ -453,20 +453,22 @@ class StaticInst : public RefCounted, public StaticInstFlags
     virtual uint8_t getDataSize();
     const char * instMnem;
 
-    uint64_t predictedValue;
+    uint64_t predictedValue; 
     uint64_t confidence = 0; // could be using BigSC
     bool predictedLoad = false;
-    bool dummyMicroop = false;
-    bool eliminated = false;
-    Addr dummyMicroopTarget;
-    bool dummyMicroopTargetValid = false;
     
-    uint64_t shrunkenLength = 0;
+    bool dummyMicroop = false; // FALSE
+    bool eliminated = false; // FALSE
+    Addr dummyMicroopTarget; 
+    bool dummyMicroopTargetValid = false; // FALSE
+    
+    uint64_t shrunkenLength = 0; // =0
 
     // Annotate predicted inputs here
     uint64_t sourcePredictions[38] = {0};
     bool sourcesPredicted[38] = {0};
-    uint64_t liveOut[38] = {0};
+    
+    uint64_t liveOut[38] = {0}; 
     bool liveOutPredicted[38] = {false};
 
     // propagated cc flags for wrip and wripi microops
@@ -474,14 +476,14 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isCCFlagPropagated[5] = {false};
     
     TheISA::PCState predictedTarget;
-    bool predictedTaken = false;
-    bool rasPushIndicator = false;
-    bool rasPopIndicator = false;
+    bool predictedTaken = false; // FALSE
+    bool rasPushIndicator = false; // FALSE
+    bool rasPopIndicator = false; // FALSE
     TheISA::PCState rasPushAddress;
 
     int predSourceRegIdx;
     uint64_t forwardedLiveValue;
-    bool forwardedLiveValueExists = false;
+    bool forwardedLiveValueExists = false; // FALSE
   
 
     bool forwardedCCLiveValueExists[5] = {false};

@@ -1380,6 +1380,35 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                               TheISA::PCState nextPC, bool trace)
 {
     assert(staticInst);
+    assert(!(staticInst->endOfTrace));
+    assert(!(staticInst->isStreamedFromSpecCache));
+    assert(!(staticInst->isPredictionSource));
+    assert(!(staticInst->carriesLiveOut));
+    //bool predictedLoad = false;
+    assert(!staticInst->dummyMicroop);
+    assert(!staticInst->eliminated);
+    assert(!staticInst->dummyMicroopTargetValid);
+    assert(!staticInst->shrunkenLength);
+
+    for (size_t i = 0; i < 38; i++){
+        assert(!staticInst->liveOutPredicted[i]);
+    }
+
+    for (size_t i = 0; i < 5; i++){
+        assert(!staticInst->isCCFlagPropagated[i]);
+    }
+    
+    assert(!staticInst->predictedTaken);
+    assert(!staticInst->rasPushIndicator);
+    assert(!staticInst->rasPopIndicator);
+    assert(!staticInst->forwardedLiveValueExists);
+    assert(!isSuperOptimizationActivated);
+    assert(!decoder[tid]->isSpeculativeCacheActive());
+
+    for (uint8_t i = 0; i < 38; i++) {
+        staticInst->sourcesPredicted[i] = false;
+        assert(!staticInst->sourcesPredicted[i]);
+    }
 
     // Get a sequence number.
     InstSeqNum seq;
@@ -2184,11 +2213,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     DPRINTF(Fetch, "\n");
                     newMacro |= staticInst->isLastMicroop();
             	}
-
-                for (uint8_t i = 0; i < 38; i++) {
-                    staticInst->sourcesPredicted[i] = false;
-                    assert(!staticInst->sourcesPredicted[i]);
-                }
 
                 DynInstPtr instruction = buildInst(tid, staticInst, curMacroop, thisPC, nextPC, true);
                 
