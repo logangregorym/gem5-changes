@@ -1543,7 +1543,7 @@ DefaultIEW<Impl>::executeInsts()
 
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
-                if (true && (inst->staticInst->predictedLoad && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache()))) {
+                if ((inst->staticInst->predictedLoad && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache()))) {
                     assert(!inst->isSquashed());
                     
                     //inst->memoryAccessStartCycle = cpu->numCycles.value();
@@ -1637,7 +1637,7 @@ DefaultIEW<Impl>::executeInsts()
                     assert(!inst->isTracePredictionSource());
                     inst->memoryAccessEndCycle = cpu->numCycles.value(); 
 
-                    updateLoadValuePredictor(inst);
+                    //updateLoadValuePredictor(inst);
                 }
                 // here we decide whether we want to squash or not due to a LVP missprediction
                 if (inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource())
@@ -2321,8 +2321,13 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
                     DPRINTF(LVP, "before masking: predicted value=%#x actual value=%#x\n", inst->staticInst->predictedValue, reg_value);
                     DPRINTF(LVP, "after masking: predicted value=%#x actual value=%#x data size=%i\n", inst->staticInst->predictedValue & mask, reg_value & mask, inst->staticInst->getDataSize());
                     inst->lvMispred = ((reg_value & mask) != (inst->staticInst->predictedValue & mask)); 
-
-                    inst->lvMispred = true;
+                    
+                    //loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, reg_value, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                    
+                    //if (inst->staticInst->confidence >= 5) {
+                        loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, inst->staticInst->predictedValue-100, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                        inst->lvMispred = true;
+                    //}
                     break;
                             
                 case CCRegClass:
@@ -2339,10 +2344,6 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
         // always should be one! We never predict for non int dest regs
         assert(numIntDestRegs == 1);
 
-        assert(inst->lvMispred);
-
-        
-
         if (inst->lvMispred  && inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource()) 
         {
             DPRINTF(LVP, "DefaultIEW::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
@@ -2351,8 +2352,6 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
             loadPred->lastMisprediction = inst->memoryAccessEndCycle;
             // Moved from commit
             squashDueToLoad(inst, inst, inst->threadNumber);
-                        
-
         }
                     
         // we can have non-load instructions which are streamed from speculative cache and thier values are forwaded speculativly
