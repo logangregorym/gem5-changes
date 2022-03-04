@@ -1525,7 +1525,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
 
         fetchedOps++;
     
-
+    assert(!instruction->isSpeculativlyForwarded());
     return instruction;
 }
 
