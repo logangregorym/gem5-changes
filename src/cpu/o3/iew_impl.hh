@@ -2296,9 +2296,10 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
 
         // Check for missprediction
         uint64_t reg_value;
-        int64_t mask = -1;
+        int64_t mask = -1; // Might be a problem (unsigned?)
         int numIntDestRegs = 0 ;
         for (int i=0; i<inst->numDestRegs(); i++) {
+            mask = -1;
             PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(i);
             
             switch (dest_reg->classValue()) 
@@ -2322,11 +2323,12 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
                     DPRINTF(LVP, "after masking: predicted value=%#x actual value=%#x data size=%i\n", inst->staticInst->predictedValue & mask, reg_value & mask, inst->staticInst->getDataSize());
                     inst->lvMispred = ((reg_value & mask) != (inst->staticInst->predictedValue & mask)); 
                     
-                    //loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, reg_value, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                    loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, reg_value & mask, inst->threadNumber, inst->staticInst->predictedValue & mask, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                     
                     //if (inst->staticInst->confidence >= 5) {
-                        loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, inst->staticInst->predictedValue-100, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
-                        inst->lvMispred = true;
+                        //loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, inst->staticInst->predictedValue-100, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                        //loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, inst->staticInst->predictedValue-200, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                        //inst->lvMispred = true;
                     //}
                     break;
                             
