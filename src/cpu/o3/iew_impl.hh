@@ -1865,6 +1865,9 @@ DefaultIEW<Impl>::writebackInsts()
 
             for (int i = 0; i < inst->numDestRegs(); i++) {
                 if (inst->staticInst->liveOutPredicted[i]) continue;
+                if (inst->isSpeculativlyForwarded()){
+                    instQueue.unsetPredictedReg(inst->renamedDestRegIdx(i)->flatIndex());
+                }
                 //mark as Ready
                 DPRINTF(IEW,"Setting Destination Register %i (%s)\n",
                         inst->renamedDestRegIdx(i)->index(),

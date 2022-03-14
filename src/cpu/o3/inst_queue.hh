@@ -278,6 +278,9 @@ class InstructionQueue
 
     void estimateChainReduction(DynInstPtr inst, vector<pair<DynInstPtr,unsigned>>& depChain);
 
+    void setPredictedReg(uint32_t idx, uint64_t value);
+    void unsetPredictedReg(uint32_t idx);
+
   private:
     /** Does the actual squashing. */
     void doSquash(ThreadID tid);
@@ -464,6 +467,10 @@ class InstructionQueue
      *  the scoreboard that exists in the rename map.
      */
     std::vector<bool> regScoreboard;
+    std::vector<std::pair<bool,uint64_t>> predictedRegisters;
+
+
+
 
     // a map to track which physical regs are live out reg for superoptimizer 
     std::vector<bool> isLiveOutPhyReg;

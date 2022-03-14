@@ -121,6 +121,7 @@ InstructionQueue<Impl>::InstructionQueue(O3CPU *cpu_ptr, IEW *iew_ptr,
     regScoreboard.resize(numPhysRegs);
     isLiveOutPhyReg.resize(numPhysRegs);
     liveOutPhyRegFrom.resize(numPhysRegs);
+    predictedRegisters.resize(numPhysRegs);
 
     //Initialize Mem Dependence Units
     for (ThreadID tid = 0; tid < numThreads; tid++) {
@@ -552,6 +553,10 @@ InstructionQueue<Impl>::resetState()
     // unready.
     for (int i = 0; i < numPhysRegs; ++i) {
         regScoreboard[i] = false;
+    }
+
+    for (int i = 0; i < numPhysRegs; ++i) {
+        predictedRegisters[i].first = false;
     }
 
     for (int i = 0; i < numPhysRegs; ++i) {
@@ -1404,6 +1409,19 @@ InstructionQueue<Impl>::forwardNonLoadValuePredictionToDependents(DynInstPtr &in
 }
 
 template<class Impl>
+void
+InstructionQueue<Impl>::setPredictedReg(uint32_t idx, uint64_t value){
+    predictedRegisters[idx].first = true;
+    predictedRegisters[idx].second = value;
+}
+
+template<class Impl>
+void
+InstructionQueue<Impl>::unsetPredictedReg(uint32_t idx){
+    predictedRegisters[idx].first = false;
+}
+
+template<class Impl>
 bool
 InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst) {
 
@@ -1414,7 +1432,12 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     // unsigned c = dependGraph.countDependentsOf(inst);
     // lvpDependencyChains += c;
     vector<pair<DynInstPtr,unsigned>> depChain = dependGraph.getDependentsOf(inst);
-
+    for (int i = 1; i < depChain.size(); i ++){
+        if (depChain[i].first->isMemRef() || depChain[i].first->isMicroBranch() || depChain[i].first->isMicroBranch() 
+                || depChain[i].first->staticInst->macroOp->getName() != "STOS_E_M"){
+            return false;
+        }
+    }
     // lvpDependencyChains += depChain.size();
     // if (depChain.size() > 0) { nonEmptyChains++; }
     DPRINTF(LVP, "Dependency Chain of length %i for inst 0x:%x:  SeqNum:%d  Assembly:%s\n", 
@@ -1645,24 +1668,9 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
 
         RegId destReg = inst->staticInst->destRegIdx(0);
         assert(destReg.classValue() == IntRegClass);
-            X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get();
-            RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(destReg);
-            //if (regCtx[dest_reg_idx].valid) {
-            //    inst->predSourceRegIdx = 0;
-                //inst->forwardedLiveValue = regCtx[dest_reg_idx].value;
-                //inst->forwardedLiveValueExists = true;
-            //}
-            //DPRINTF(LVP, "Setting regCtx[%i] to %x from %s inst\n", dest_reg_idx, value, type);
-            assert(dest_reg_idx < 38);
-            // currentTrace.inst->predictedValue = value;
-            // currentTrace.inst->predictedLoad = true; // this should never set for trace prediction sources!
-            //inst->confidence = confidence;
-
-            
-        //X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get();
-        //RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
+        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get();
+        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(destReg);
         assert(dest_reg_idx < 38);
-
 
         DPRINTF(LVP, "Popping dependGraph of register %i\n", dest_reg->flatIndex());
         DynInstPtr dep_inst = dependGraph.pop(dest_reg->flatIndex());
@@ -1672,32 +1680,6 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
             DPRINTF(LVP, "forwarding value %#x to resgister %d. [sn:%lli] "
                     "PC %s.\n", forwardValue, dest_reg->index(), dep_inst->seqNum, dep_inst->pcState());
 
-
-                //X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)trace.inst.get();
-
-                //X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)trace.inst.get();
-                //RegIndex src_reg_idx = x86_inst->getUnflattenRegIndex(trace.inst->srcRegIdx(i));
-                //RegIndex src_reg_idx = dep_inst->staticInst->getUnflattenRegIndex(dest_reg->index());
-                //RegIndex src_reg_idx = dest_reg->flatIndex();
-                //trace.inst->srcRegIdx(i).flatIndex();
-                /*this->cpu->setIntReg(this->_destRegIdx[idx], val);
-                BaseDynInst<Impl>::setIntRegOperand(si, idx, val);
-                void setIntReg(PhysRegIdPtr phys_reg, uint64_t val)
-                {
-                    assert(phys_reg->isIntPhysReg());
-
-                    DPRINTF(IEW, "RegFile: Setting int register %i to %#x. PrevValue: %#x\n",
-                            phys_reg->index(), val, intRegFile[phys_reg->index()]);
-
-                    if (!phys_reg->isZeroReg())
-                        intRegFile[phys_reg->index()] = val;
-                    
-                    DPRINTF(IEW, "RegFile: int register %i newVal %#x\n",
-                            phys_reg->index(), intRegFile[phys_reg->index()]);
-                }*/
-
-            //dep_inst->staticInst->sourcePredictions[dest_reg_idx] = forwardValue;
-            //dep_inst->staticInst->sourcesPredicted[dest_reg_idx] = true;
 
             for (int i=0; i<dep_inst->staticInst->numSrcRegs(); i++) 
             {
@@ -1732,6 +1714,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
             dep_inst = dependGraph.pop(dest_reg->flatIndex());
         }
 
+        setPredictedReg(dest_reg->flatIndex(), forwardValue);
 
     
         assert(dependGraph.empty(dest_reg->flatIndex()));
@@ -2187,8 +2170,15 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
                         "became ready before it reached the IQ.\n",
                         new_inst->pcState(), src_reg->index(),
                         src_reg->className());
-                // Mark a register ready within the instruction.
+                //assert(!new_inst->isMacroOp());
+                if(predictedRegisters[src_reg->flatIndex()].first && !new_inst->isMemRef() && !new_inst->isMicroBranch() 
+                        && new_inst->staticInst->macroOp->getName() != "STOS_E_M"){
+                    new_inst->staticInst->sourcePredictions[src_reg_idx] = predictedRegisters[src_reg->flatIndex()].second;
+                    new_inst->staticInst->sourcesPredicted[src_reg_idx] = true;
+                }
                 new_inst->markSrcRegReady(src_reg_idx);
+                // Mark a register ready within the instruction.
+                
             }
         }
     }
