@@ -1631,17 +1631,18 @@ DefaultIEW<Impl>::executeInsts()
                 // Unconditional LVP update for arithmatic instructions
                 if (loadPred->predictingArithmetic && inst->staticInst->predictedLoad) 
                 { 
-
+                    assert(inst->isStreamedFromSpeculativeCache());
                     assert(inst->isStreamedFromUOpCache());
                     assert(!inst->isStreamedFromSpeculativeCache());
                     assert(!inst->isTracePredictionSource());
                     inst->memoryAccessEndCycle = cpu->numCycles.value(); 
 
-                    //updateLoadValuePredictor(inst);
+                    updateLoadValuePredictor(inst);
                 }
                 // here we decide whether we want to squash or not due to a LVP missprediction
                 if (inst->isStreamedFromSpeculativeCache() && inst->isTracePredictionSource())
                 {
+                    assert(inst->isStreamedFromSpeculativeCache());
                     assert(!inst->isStreamedFromUOpCache());
                     assert(!inst->staticInst->predictedLoad); // prediction sources that are coing from spec cache never should have this set
                     assert(loadPred->predictingArithmetic); // only when LVP is enabled for arithmatic operations
@@ -1651,7 +1652,7 @@ DefaultIEW<Impl>::executeInsts()
                 
                 if (inst->isSpeculativlyForwarded())
                 {
-                    assert(0);
+                    assert(inst->isStreamedFromSpeculativeCache());
                     assert(!inst->isStreamedFromSpeculativeCache());
                     assert(inst->staticInst->predictedLoad); // prediction sources that are coing from spec cache never should have this set
                     //assert(loadPred->predictingArithmetic); // only when LVP is enabled for arithmatic operations
@@ -2326,9 +2327,8 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
                     loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, reg_value & mask, inst->threadNumber, inst->staticInst->predictedValue & mask, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                     
                     //if (inst->staticInst->confidence >= 5) {
-                        //loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, inst->staticInst->predictedValue-100, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
-                        //loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, inst->staticInst->predictedValue-200, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
-                        //inst->lvMispred = true;
+                       // loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, inst->staticInst->predictedValue-100, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                       // inst->lvMispred = true;
                     //}
                     break;
                             

@@ -1414,6 +1414,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     // unsigned c = dependGraph.countDependentsOf(inst);
     // lvpDependencyChains += c;
     vector<pair<DynInstPtr,unsigned>> depChain = dependGraph.getDependentsOf(inst);
+    for 
     // lvpDependencyChains += depChain.size();
     // if (depChain.size() > 0) { nonEmptyChains++; }
     DPRINTF(LVP, "Dependency Chain of length %i for inst 0x:%x:  SeqNum:%d  Assembly:%s\n", 
@@ -1423,7 +1424,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     assert(inst->numDestRegs() == 1);
     PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(0);
 
-    if (dest_reg->classValue() != IntRegClass) return false;
+    if (dest_reg->classValue() != IntRegClass) assert(0);//return false;
 
     unsigned dependentCount = 0;
 
@@ -1433,6 +1434,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
         // completeMemInst(inst);
     } else if (inst->isMemBarrier() || inst->isWriteBarrier()) {
         DPRINTF(LVP, "Instruction is a MemBarrier or WriteBarrier. We can't forward it's value!\n");
+        assert(0);
         return false;
     }
 
@@ -1445,6 +1447,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     if (dest_reg->isFixedMapping() || inst->destRegIdx(0) == RegId(IntRegClass, TheISA::ZeroReg)) {
             DPRINTF(LVP, "Reg %d [%s] is part of a fix mapping, skipping\n",
                     dest_reg->index(), dest_reg->className());
+                    assert(0);
             return false;
     }
 
@@ -1460,7 +1463,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     DPRINTF(LVP, "SuperOp: Forwarding data of size: %i\n", dataSize);
 
     // depending on the size, we set values differently
-    uint64_t fowardValue = 0;
+    uint64_t forwardValue = 0;
     bool valueFound = false;
 
     switch (dest_reg->classValue()) 
@@ -1475,6 +1478,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
             if(type == "ldsplit" || type == "ldsplitl")
             {
                 DPRINTF(LVP, "Instruction is a %s. We can't forward it's value!\n", type);
+                assert(0);
                 return false;
             }
             // for all these integer loads everithing is the same        
@@ -1492,10 +1496,10 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                 uint64_t Data = Mem & mask(dataSize * 8);
                 //uint64_t Data = Mem;
                 //inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
-                DPRINTF(LVP, "Identified %#x as value to be fowarded.\n", Data);
-                fowardValue = Data;
+                DPRINTF(LVP, "Identified %#x as value to be forwarded.\n", Data);
+                forwardValue = Data;
                 valueFound = true;
-                //inst->staticInst->sourcePredictions[0] = fowardValue;
+                //inst->staticInst->sourcePredictions[0] = forwardValue;
                 //inst->staticInst->sourcesPredicted[0] = true;
             }
             else 
@@ -1512,8 +1516,8 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                 Data = x86_inst->merge(Data, Mem, dataSize);;
                 //Data = Mem;
                 //inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
-                DPRINTF(LVP, "Identified %#x as value to be fowarded.\n", Data);
-                fowardValue = Data;
+                DPRINTF(LVP, "Identified %#x as value to be forwarded.\n", Data);
+                forwardValue = Data;
                 valueFound = true;
                 //inst->staticInst->sourcePredictions[0] = Data;
                 //inst->staticInst->sourcesPredicted[0] = true;
@@ -1638,8 +1642,26 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
         // value of the dest reg for this load is speculativly forwarded
         inst->setSpeculativlyForwarded(true);
 
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get();
-        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
+        assert(inst->staticInst->numDestRegs() == 1);
+
+        RegId destReg = inst->staticInst->destRegIdx(0);
+        assert(destReg.classValue() == IntRegClass);
+            X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get();
+            RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(destReg);
+            //if (regCtx[dest_reg_idx].valid) {
+            //    inst->predSourceRegIdx = 0;
+                //inst->forwardedLiveValue = regCtx[dest_reg_idx].value;
+                //inst->forwardedLiveValueExists = true;
+            //}
+            //DPRINTF(LVP, "Setting regCtx[%i] to %x from %s inst\n", dest_reg_idx, value, type);
+            assert(dest_reg_idx < 38);
+            // currentTrace.inst->predictedValue = value;
+            // currentTrace.inst->predictedLoad = true; // this should never set for trace prediction sources!
+            //inst->confidence = confidence;
+
+            
+        //X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get();
+        //RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
         assert(dest_reg_idx < 38);
 
 
@@ -1648,8 +1670,8 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
         while (dep_inst) {
             assert(valueFound);
 
-            DPRINTF(LVP, "Fowarding value %#x to resgister %d. [sn:%lli] "
-                    "PC %s.\n", fowardValue, dest_reg->index(), dep_inst->seqNum, dep_inst->pcState());
+            DPRINTF(LVP, "forwarding value %#x to resgister %d. [sn:%lli] "
+                    "PC %s.\n", forwardValue, dest_reg->index(), dep_inst->seqNum, dep_inst->pcState());
 
 
                 //X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)trace.inst.get();
@@ -1675,7 +1697,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                             phys_reg->index(), intRegFile[phys_reg->index()]);
                 }*/
 
-            //dep_inst->staticInst->sourcePredictions[dest_reg_idx] = fowardValue;
+            //dep_inst->staticInst->sourcePredictions[dest_reg_idx] = forwardValue;
             //dep_inst->staticInst->sourcesPredicted[dest_reg_idx] = true;
 
             for (int i=0; i<dep_inst->staticInst->numSrcRegs(); i++) 
@@ -1687,9 +1709,13 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                 {
                         X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)dep_inst->staticInst.get();
                         RegIndex src_reg_idx = x86_inst->getUnflattenRegIndex(dep_inst->staticInst->srcRegIdx(i));
+                        assert(src_reg_idx < 38);
+                        assert(dest_reg_idx < 38);
                         if (src_reg_idx == dest_reg_idx) {
-                            DPRINTF(LVP, "ConstProp: Propagated constant %#x in reg %i (arch: %d) PC %#x:%d\n", fowardValue, srcIdx, src_reg_idx, dep_inst->pcState());
-                            dep_inst->staticInst->sourcePredictions[i] = fowardValue;
+                            DPRINTF(LVP, "ConstProp: Propagated constant %#x in reg %i (arch: %d) PC %#x:%d\n", forwardValue, srcIdx, src_reg_idx, dep_inst->pcState());
+                            DPRINTF(LVP, "ConstProp: i=%i, dest_reg_idx=%i", i, dest_reg_idx);
+                            assert( i < 38);
+                            dep_inst->staticInst->sourcePredictions[i] = forwardValue;
                             dep_inst->staticInst->sourcesPredicted[i] = true;
                         }
                 }
