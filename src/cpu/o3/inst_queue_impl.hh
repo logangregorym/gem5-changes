@@ -1414,12 +1414,12 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     // unsigned c = dependGraph.countDependentsOf(inst);
     // lvpDependencyChains += c;
     vector<pair<DynInstPtr,unsigned>> depChain = dependGraph.getDependentsOf(inst);
-    for 
+
     // lvpDependencyChains += depChain.size();
     // if (depChain.size() > 0) { nonEmptyChains++; }
     DPRINTF(LVP, "Dependency Chain of length %i for inst 0x:%x:  SeqNum:%d  Assembly:%s\n", 
             depChain.size(), inst->pcState().instAddr(), inst->seqNum, inst->staticInst->disassemble(inst->instAddr()));
-
+    //DPRINTF(LVP, "\t%s")
     // loads that we are handling only have 1 dest regs
     assert(inst->numDestRegs() == 1);
     PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(0);
@@ -1437,7 +1437,6 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
         assert(0);
         return false;
     }
-
 
 
 
@@ -1732,6 +1731,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
             DPRINTF(LVP, "Popping next dependency of register %i\n", dest_reg);
             dep_inst = dependGraph.pop(dest_reg->flatIndex());
         }
+
 
     
         assert(dependGraph.empty(dest_reg->flatIndex()));
