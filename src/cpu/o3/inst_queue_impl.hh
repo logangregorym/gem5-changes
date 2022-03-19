@@ -1069,6 +1069,14 @@ InstructionQueue<Impl>::scheduleReadyInsts()
                 }
             }
 
+            for (int src_reg_idx = 0; src_reg_idx < issuing_inst->numSrcRegs(); src_reg_idx++) {
+                PhysRegIdPtr src_reg = issuing_inst->renamedSrcRegIdx(src_reg_idx);
+                if(predictedRegisters[src_reg->flatIndex()].first) {
+                    issuing_inst->staticInst->sourcePredictions[src_reg_idx] = predictedRegisters[src_reg->flatIndex()].second;
+                    issuing_inst->staticInst->sourcesPredicted[src_reg_idx] = true;
+                }
+            }
+
             DPRINTF(IQ, "Thread %i: Issuing instruction PC %s "
                     "[sn:%lli]\n",
                     tid, issuing_inst->pcState(),
@@ -1432,12 +1440,12 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     // unsigned c = dependGraph.countDependentsOf(inst);
     // lvpDependencyChains += c;
     vector<pair<DynInstPtr,unsigned>> depChain = dependGraph.getDependentsOf(inst);
-    for (int i = 1; i < depChain.size(); i ++){
-        if (depChain[i].first->isMemRef() || depChain[i].first->isMicroBranch() || depChain[i].first->isMicroBranch() 
-                || depChain[i].first->staticInst->macroOp->getName() != "STOS_E_M"){
-            return false;
-        }
-    }
+    //for (int i = 1; i < depChain.size(); i ++){
+    //    if (depChain[i].first->isMemRef() || depChain[i].first->isMicroBranch() || depChain[i].first->isMicroBranch() 
+    //            || depChain[i].first->staticInst->macroOp->getName() != "STOS_E_M"){
+    //        return false;
+    //    }
+    //}
     // lvpDependencyChains += depChain.size();
     // if (depChain.size() > 0) { nonEmptyChains++; }
     DPRINTF(LVP, "Dependency Chain of length %i for inst 0x:%x:  SeqNum:%d  Assembly:%s\n", 
@@ -2171,11 +2179,6 @@ InstructionQueue<Impl>::addToDependents(DynInstPtr &new_inst)
                         new_inst->pcState(), src_reg->index(),
                         src_reg->className());
                 //assert(!new_inst->isMacroOp());
-                if(predictedRegisters[src_reg->flatIndex()].first && !new_inst->isMemRef() && !new_inst->isMicroBranch() 
-                        && new_inst->staticInst->macroOp->getName() != "STOS_E_M"){
-                    new_inst->staticInst->sourcePredictions[src_reg_idx] = predictedRegisters[src_reg->flatIndex()].second;
-                    new_inst->staticInst->sourcesPredicted[src_reg_idx] = true;
-                }
                 new_inst->markSrcRegReady(src_reg_idx);
                 // Mark a register ready within the instruction.
                 
