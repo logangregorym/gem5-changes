@@ -826,7 +826,9 @@ DefaultIEW<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     if (forwarded)
     {
             assert(inst->numDestRegs() == 1); // We know that loads always have one dest reg
+            // Maybe do this for superopt: if (inst->staticInst->liveOutPredicted[i]) continue;
             scoreboard->setReg(inst->renamedDestRegIdx(0));
+
             DPRINTF(LVP, "Load Value Forwarded and Updated scoreboard for register %i.\n", inst->renamedDestRegIdx(0));
     }
     else 
@@ -1860,16 +1862,17 @@ DefaultIEW<Impl>::writebackInsts()
         // are first sent to commit.  Instead commit must tell the LSQ
         // when it's ready to execute the strictly ordered load.
         if (!inst->isSquashed() && inst->isExecuted() && inst->getFault() == NoFault) {
-
-            int dependents = instQueue.wakeDependents(inst);
-
+            int dependents = 0;
+            if(!inst->isSpeculativlyForwarded()){
+                dependents = instQueue.wakeDependents(inst);
+            }
             for (int i = 0; i < inst->numDestRegs(); i++) {
                 if (inst->staticInst->liveOutPredicted[i]) continue;
                 //mark as Ready
                 DPRINTF(IEW,"Setting Destination Register %i (%s)\n",
                         inst->renamedDestRegIdx(i)->index(),
                         inst->renamedDestRegIdx(i)->className());
-                instQueue.unsetPredictedReg(inst->renamedDestRegIdx(i)->flatIndex());
+                //instQueue.unsetPredictedReg(inst->renamedDestRegIdx(i)->flatIndex());
                 scoreboard->setReg(inst->renamedDestRegIdx(i));
             }
 

@@ -1069,14 +1069,6 @@ InstructionQueue<Impl>::scheduleReadyInsts()
                 }
             }
 
-            for (int src_reg_idx = 0; src_reg_idx < issuing_inst->numSrcRegs(); src_reg_idx++) {
-                PhysRegIdPtr src_reg = issuing_inst->renamedSrcRegIdx(src_reg_idx);
-                if(predictedRegisters[src_reg->flatIndex()].first) {
-                    issuing_inst->staticInst->sourcePredictions[src_reg_idx] = predictedRegisters[src_reg->flatIndex()].second;
-                    issuing_inst->staticInst->sourcesPredicted[src_reg_idx] = true;
-                }
-            }
-
             DPRINTF(IQ, "Thread %i: Issuing instruction PC %s "
                     "[sn:%lli]\n",
                     tid, issuing_inst->pcState(),
@@ -1433,68 +1425,37 @@ template<class Impl>
 bool
 InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst) {
 
-    //assert(0);
-        // this function is only for loads! We should have a diffrent function for non-loads instructions
     assert(inst->isLoad());
 
-    // unsigned c = dependGraph.countDependentsOf(inst);
-    // lvpDependencyChains += c;
-    vector<pair<DynInstPtr,unsigned>> depChain = dependGraph.getDependentsOf(inst);
-    //for (int i = 1; i < depChain.size(); i ++){
-    //    if (depChain[i].first->isMemRef() || depChain[i].first->isMicroBranch() || depChain[i].first->isMicroBranch() 
-    //            || depChain[i].first->staticInst->macroOp->getName() != "STOS_E_M"){
-    //        return false;
-    //    }
-    //}
-    // lvpDependencyChains += depChain.size();
-    // if (depChain.size() > 0) { nonEmptyChains++; }
-    DPRINTF(LVP, "Dependency Chain of length %i for inst 0x:%x:  SeqNum:%d  Assembly:%s\n", 
-            depChain.size(), inst->pcState().instAddr(), inst->seqNum, inst->staticInst->disassemble(inst->instAddr()));
-    //DPRINTF(LVP, "\t%s")
     // loads that we are handling only have 1 dest regs
     assert(inst->numDestRegs() == 1);
     PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(0);
 
     if (dest_reg->classValue() != IntRegClass) assert(0);//return false;
 
-    unsigned dependentCount = 0;
-
-    // Added in gem5 version
-    if (inst->isMemRef()) {
+    assert(!(inst->isMemBarrier() || inst->isWriteBarrier()));
+        if (inst->isMemRef()) {
         memDepUnit[inst->threadNumber].wakeDependents(inst);
         // completeMemInst(inst);
-    } else if (inst->isMemBarrier() || inst->isWriteBarrier()) {
-        DPRINTF(LVP, "Instruction is a MemBarrier or WriteBarrier. We can't forward it's value!\n");
-        assert(0);
-        return false;
     }
-
-
-
 
     // Special case of uniq or control registers.  They are not
     // handled by the IQ and thus have no dependency graph entry.
     if (dest_reg->isFixedMapping() || inst->destRegIdx(0) == RegId(IntRegClass, TheISA::ZeroReg)) {
             DPRINTF(LVP, "Reg %d [%s] is part of a fix mapping, skipping\n",
                     dest_reg->index(), dest_reg->className());
-                    assert(0);
+            assert(0);
             return false;
     }
 
-    DPRINTF(LVP, "Waking any dependents on register %i (%s).\n",
+    DPRINTF(LVP, "Forwarding Load Value to any dependents on register %i (%s).\n",
                 dest_reg->index(),
                 dest_reg->className());
-
-    //assert(dest_reg->index() < 38);
 
 
     uint8_t dataSize = inst->staticInst->getDataSize();
 
     DPRINTF(LVP, "SuperOp: Forwarding data of size: %i\n", dataSize);
-
-    // depending on the size, we set values differently
-    uint64_t forwardValue = 0;
-    bool valueFound = false;
 
     switch (dest_reg->classValue()) 
     {
@@ -1525,12 +1486,8 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
 
                 uint64_t Data = Mem & mask(dataSize * 8);
                 //uint64_t Data = Mem;
-                //inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
+                inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
                 DPRINTF(LVP, "Identified %#x as value to be forwarded.\n", Data);
-                forwardValue = Data;
-                valueFound = true;
-                //inst->staticInst->sourcePredictions[0] = forwardValue;
-                //inst->staticInst->sourcesPredicted[0] = true;
             }
             else 
             {
@@ -1545,12 +1502,8 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                 X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get(); x86_inst = x86_inst;
                 Data = x86_inst->merge(Data, Mem, dataSize);;
                 //Data = Mem;
-                //inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
+                inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
                 DPRINTF(LVP, "Identified %#x as value to be forwarded.\n", Data);
-                forwardValue = Data;
-                valueFound = true;
-                //inst->staticInst->sourcePredictions[0] = Data;
-                //inst->staticInst->sourcesPredicted[0] = true;
 
             }
             
@@ -1669,70 +1622,15 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
         }
     }
 
-        // value of the dest reg for this load is speculativly forwarded
-        inst->setSpeculativlyForwarded(true);
+    // value of the dest reg for this load is speculativly forwarded
+    inst->setSpeculativlyForwarded(true);
 
-        assert(inst->staticInst->numDestRegs() == 1);
+    wakeDependents(inst);
 
-        RegId destReg = inst->staticInst->destRegIdx(0);
-        assert(destReg.classValue() == IntRegClass);
-        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get();
-        RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(destReg);
-        assert(dest_reg_idx < 38);
+    assert(inst->staticInst->numDestRegs() == 1);
 
-        DPRINTF(LVP, "Popping dependGraph of register %i\n", dest_reg->flatIndex());
-        DynInstPtr dep_inst = dependGraph.pop(dest_reg->flatIndex());
-        while (dep_inst) {
-            assert(valueFound);
-
-            DPRINTF(LVP, "forwarding value %#x to resgister %d. [sn:%lli] "
-                    "PC %s.\n", forwardValue, dest_reg->index(), dep_inst->seqNum, dep_inst->pcState());
-
-
-            for (int i=0; i<dep_inst->staticInst->numSrcRegs(); i++) 
-            {
-                uint16_t srcIdx = dep_inst->staticInst->srcRegIdx(i).flatIndex();
-
-                DPRINTF(LVP, "ConstProp: Examining register %i\n", srcIdx);
-                if (dep_inst->staticInst->srcRegIdx(i).classValue() == IntRegClass) 
-                {
-                        X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)dep_inst->staticInst.get();
-                        RegIndex src_reg_idx = x86_inst->getUnflattenRegIndex(dep_inst->staticInst->srcRegIdx(i));
-                        assert(src_reg_idx < 38);
-                        assert(dest_reg_idx < 38);
-                        if (src_reg_idx == dest_reg_idx) {
-                            DPRINTF(LVP, "ConstProp: Propagated constant %#x in reg %i (arch: %d) PC %#x:%d\n", forwardValue, srcIdx, src_reg_idx, dep_inst->pcState());
-                            DPRINTF(LVP, "ConstProp: i=%i, dest_reg_idx=%i", i, dest_reg_idx);
-                            assert( i < 38);
-                            dep_inst->staticInst->sourcePredictions[i] = forwardValue;
-                            dep_inst->staticInst->sourcesPredicted[i] = true;
-                        }
-                }
-            }
-
-            DPRINTF(LVP, "Speculatively waking up a dependent instruction, [sn:%lli] "
-                    "PC %s.\n", dep_inst->seqNum, dep_inst->pcState());
- 
-            dependentCount++;
-
-            dep_inst->markSrcRegReady();
-            addIfReady(dep_inst);
-
-            DPRINTF(LVP, "Popping next dependency of register %i\n", dest_reg);
-            dep_inst = dependGraph.pop(dest_reg->flatIndex());
-        }
-
-        setPredictedReg(dest_reg->flatIndex(), forwardValue);
-
-    
-        assert(dependGraph.empty(dest_reg->flatIndex()));
-        dependGraph.clearInst(dest_reg->flatIndex());
-        regScoreboard[dest_reg->flatIndex()] = true;
-        isLiveOutPhyReg[dest_reg->flatIndex()] = false;
-        liveOutPhyRegFrom[dest_reg->flatIndex()] =OpClass::No_OpClass;
-
-    
-    DPRINTF(LVP, "LVP: %d dependents woken\n", dependentCount);
+    assert(dependGraph.empty(dest_reg->flatIndex()));
+       
     
     return true;
 }
