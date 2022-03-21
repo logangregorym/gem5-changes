@@ -1624,6 +1624,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
 
     // value of the dest reg for this load is speculativly forwarded
     inst->setSpeculativlyForwarded(true);
+    assert(inst->isSpeculativlyForwarded());
 
     wakeDependents(inst);
 
