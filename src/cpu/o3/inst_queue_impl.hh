@@ -1434,10 +1434,6 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     if (dest_reg->classValue() != IntRegClass) assert(0);//return false;
 
     assert(!(inst->isMemBarrier() || inst->isWriteBarrier()));
-        if (inst->isMemRef()) {
-        memDepUnit[inst->threadNumber].wakeDependents(inst);
-        // completeMemInst(inst);
-    }
 
     // Special case of uniq or control registers.  They are not
     // handled by the IQ and thus have no dependency graph entry.
@@ -1626,11 +1622,9 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     inst->setSpeculativlyForwarded(true);
     assert(inst->isSpeculativlyForwarded());
 
-    wakeDependents(inst);
-
     assert(inst->staticInst->numDestRegs() == 1);
 
-    assert(dependGraph.empty(dest_reg->flatIndex()));
+    //assert(dependGraph.empty(dest_reg->flatIndex()));
        
     
     return true;

@@ -116,6 +116,8 @@ DefaultIEW<Impl>::DefaultIEW(O3CPU *_cpu, DerivO3CPUParams *params)
     skidBufferMax = (renameToIEWDelay + 4) * params->renameWidth;
 
     loadPred = params->loadPred;
+
+    enableValuePredForwarding = params->enableValuePredForwarding;
 }
 
 template <class Impl>
@@ -828,6 +830,8 @@ DefaultIEW<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
             assert(inst->numDestRegs() == 1); // We know that loads always have one dest reg
             // Maybe do this for superopt: if (inst->staticInst->liveOutPredicted[i]) continue;
             scoreboard->setReg(inst->renamedDestRegIdx(0));
+            //iewStage->scoreboard->setReg(new_inst->renamedDestRegIdx(i));
+            //instQueue.regScoreboard[inst->renamedDestRegIdx(0)->flatIndex()] = true;
 
             DPRINTF(LVP, "Load Value Forwarded and Updated scoreboard for register %i.\n", inst->renamedDestRegIdx(0));
     }
@@ -1545,7 +1549,7 @@ DefaultIEW<Impl>::executeInsts()
 
             // Tell the LDSTQ to execute this instruction (if it is a load).
             if (inst->isLoad()) {
-                if ((inst->staticInst->predictedLoad && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache()))) {
+                if (enableValuePredForwarding && (inst->staticInst->predictedLoad && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !inst->isStreamedFromSpeculativeCache()))) {
                     assert(!inst->isSquashed());
                     
                     //inst->memoryAccessStartCycle = cpu->numCycles.value();
@@ -1863,9 +1867,9 @@ DefaultIEW<Impl>::writebackInsts()
         // when it's ready to execute the strictly ordered load.
         if (!inst->isSquashed() && inst->isExecuted() && inst->getFault() == NoFault) {
             int dependents = 0;
-            if(!inst->isSpeculativlyForwarded()){
+            //if(!inst->isSpeculativlyForwarded()){
                 dependents = instQueue.wakeDependents(inst);
-            }
+            //}
             for (int i = 0; i < inst->numDestRegs(); i++) {
                 if (inst->staticInst->liveOutPredicted[i]) continue;
                 //mark as Ready

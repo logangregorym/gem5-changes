@@ -64,9 +64,9 @@ from common import CpuConfig
 from common import MemConfig
 from common.Caches import *
 from common.cpu2000 import *
-from common.cores.x86 import O3_X86_skylake
-from common.cores.x86 import O3_X86_icelake
-from common.cores.x86 import O3_X86_alderlake
+from common.cores.x86.O3_X86_skylake import O3_X86_skylake_1
+from common.cores.x86.O3_X86_icelake import O3_X86_icelake_1
+from common.cores.x86.O3_X86_alderlake import O3_X86_alderlake_1
 
 def get_processes(options):
     """Interprets provided options and returns a list of processes"""
@@ -167,6 +167,7 @@ parser.add_option("--doStoragelessBranchConf", action="store_true", help="Whethe
 parser.add_option("--checkpoint_at_instr", default=0, type="int", action="store", help="");
 parser.add_option("--after_exec_cnt", default=0, type="int", action="store", help="");
 parser.add_option("--lvpLookupAtFetch", action="store_true", help="Enables an LVP lookup at every fetch cycle to detect stale traces, enabling will incur a 1 cycle penalty");
+parser.add_option("--enableValuePredForwarding", action="store_true", help="Enables Load Value Prediction for Raw execution");
 
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
@@ -251,6 +252,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.uopCacheNumSets = options.uopCacheNumSets
     CPUClass.uopCacheNumUops = options.uopCacheNumUops
     CPUClass.lvpLookupAtFetch = options.lvpLookupAtFetch
+    CPUClass.enableValuePredForwarding = options.enableValuePredForwarding
 
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
@@ -300,6 +302,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.uopCacheNumSets = options.uopCacheNumSets
     FutureClass.uopCacheNumUops = options.uopCacheNumUops
     FutureClass.lvpLookupAtFetch = options.lvpLookupAtFetch
+    FutureClass.enableValuePredForwarding = options.enableValuePredForwarding
 
 # Check -- do not allow SMT with multiple CPUs
 if options.smt and options.num_cpus > 1:
@@ -355,9 +358,28 @@ if CpuConfig.is_kvm_cpu(CPUClass) or CpuConfig.is_kvm_cpu(FutureClass):
 if options.lvpLookupAtFetch:
     if not options.enable_superoptimization:
         fatal("No LVP Lookup needed if SuperOptimization not enabled")
+    found = False
     for cpu in system.cpu:
-        if (cpu is O3_X86_skylake) or (cpu is O3_X86_icelake) or (cpu is O3_X86_alderlake):
+        if isinstance(cpu, (O3_X86_skylake_1, O3_X86_icelake_1, O3_X86_alderlake_1)):
             cpu.fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
+            found = True
+    if not found:
+        fatal("Unable to add 1 cycle penalty for lvpLookupAtFetch")
+
+if options.enableValuePredForwarding:
+    if not (options.lvpredType and options.dynamicThreshold and options.constantThreshold and options.predictionConfidenceThreshold):
+        fatal("Must define lvpredType, dynamicThreshold, constantThreshold, and predictionConfidenceThreshold to enable forwarding")
+    if options.enable_superoptimization:
+        fatal("Value forwarding not yet supported with superoptimization")
+    found = False
+    for cpu in system.cpu:
+        if isinstance(cpu, (O3_X86_skylake_1, O3_X86_icelake_1, O3_X86_alderlake_1)):
+            cpu.fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
+            found = True
+    if not found:
+        print(type(cpu))
+        fatal("Unable to add 1 cycle penalty for enableValuePredForwarding")
+
 
 # Sanity check
 if options.simpoint_profile:

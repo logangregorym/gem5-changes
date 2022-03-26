@@ -181,6 +181,8 @@ class DerivO3CPU(BaseCPU):
 
     lvpLookupAtFetch = Param.Bool(0, "Enables an LVP lookup at every fetch cycle to detect stale traces")
 
+    enableValuePredForwarding = Param.Bool(0, "Enables Load Value Prediction for Raw execution")
+
     checkpoint_at_instr = Param.UInt64(0, "checkpoint at Instruction")
     after_exec_cnt = Param.UInt64(0, "checkpoint at Instruction")
 

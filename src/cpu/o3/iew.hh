@@ -386,6 +386,8 @@ class DefaultIEW
     LVPredUnit *loadPred;
 //    BasicLVP *loadPred;
 
+    bool enableValuePredForwarding;
+
   private:
     /** Records if there is a fetch redirect on this cycle for each thread. */
     bool fetchRedirect[Impl::MaxThreads];
