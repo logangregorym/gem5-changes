@@ -252,6 +252,7 @@ class DefaultIEW
      * misprediction.
      */
     void squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstWoken, ThreadID tid);
+    void squashDueToForwardedValueMisprediction(DynInstPtr &inst, DynInstPtr &firstWoken, ThreadID tid);
 
     void updateTraceConfidence(DynInstPtr &inst);
     void updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState& tempPC, bool predicted);

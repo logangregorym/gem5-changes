@@ -363,8 +363,8 @@ if options.lvpLookupAtFetch:
         if isinstance(cpu, (O3_X86_skylake_1, O3_X86_icelake_1, O3_X86_alderlake_1)):
             cpu.fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
             found = True
-    if not found:
-        fatal("Unable to add 1 cycle penalty for lvpLookupAtFetch")
+#    if not found:
+#        fatal("Unable to add 1 cycle penalty for lvpLookupAtFetch")
 
 if options.enableValuePredForwarding:
     if not (options.lvpredType and options.dynamicThreshold and options.constantThreshold and options.predictionConfidenceThreshold):
@@ -376,9 +376,9 @@ if options.enableValuePredForwarding:
         if isinstance(cpu, (O3_X86_skylake_1, O3_X86_icelake_1, O3_X86_alderlake_1)):
             cpu.fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
             found = True
-    if not found:
-        print(type(cpu))
-        fatal("Unable to add 1 cycle penalty for enableValuePredForwarding")
+#    if not found:
+#        print(type(cpu))
+#        fatal("Unable to add 1 cycle penalty for enableValuePredForwarding")
 
 
 # Sanity check

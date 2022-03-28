@@ -691,6 +691,8 @@ template<class Impl>
 void
 DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, ThreadID tid)
 {
+    assert(inst->isStreamedFromSpeculativeCache());
+
     DPRINTF(LVP, "[tid:%i]: Memory misprediction, squashing younger "
             "insts from %i, PC: %s [sn:%i].\n", tid, inst->seqNum, inst->pcState(), inst->seqNum);
 
@@ -725,10 +727,39 @@ DefaultIEW<Impl>::squashDueToLoad(DynInstPtr &inst, DynInstPtr &firstDependent, 
     } else {
         squashedLoadsInNeitherCache[tid]++;
     }
+}
 
+template<class Impl>
+void
+DefaultIEW<Impl>::squashDueToForwardedValueMisprediction(DynInstPtr &inst, DynInstPtr &firstDependent, ThreadID tid)
+{
+    DPRINTF(LVP, "[tid:%i]: Forwarded value misprediction, squashing younger "
+            "insts from %i, PC: %s [sn:%i].\n", tid, inst->seqNum, inst->pcState(), inst->seqNum);
 
+    // If already squashing, LVP takes precedence
+    // Using < instead of <= would give branch precedence
+    if ((!toCommit->squash[tid] || inst->seqNum <= toCommit->squashedSeqNum[tid])) {
+        toCommit->squash[tid] = true;
+        //toCommit->squashedSeqNum[tid] = firstDependent->seqNum;
+        toCommit->squashedSeqNum[tid] = inst->seqNum;
 
+        toCommit->oldpc[tid] = inst->pcState();
+        TheISA::PCState pc = inst->pcState();
+        TheISA::advancePC(pc, inst->staticInst);
+        toCommit->pc[tid] = pc;
 
+        assert(inst);
+        toCommit->mispredictInst[tid] = inst; // not a branch misprediction
+        toCommit->includeSquashInst[tid] = false;
+       // inst->forwardOldRegs();
+        //inst->setSquashedAndCommited(true);
+        toCommit->squashDueToLVP[tid] = false;//false??
+
+        wroteToTimeBuffer = true;
+        //instsSquashedByLVP[tid] += (cpu->globalSeqNum - inst->seqNum);
+    } else if (toCommit->squash[tid] && inst->seqNum > toCommit->squashedSeqNum[tid]) {
+        DPRINTF(LVP, "Already squashing from [sn:%i], so skipping\n", toCommit->squashedSeqNum[tid]);
+    }
 }
 //*****CHANGE END**********
 
@@ -2375,7 +2406,7 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
             // cpu->fetch.updateConstantBuffer(inst->pcState().instAddr(), false);
             loadPred->lastMisprediction = inst->memoryAccessEndCycle;
             // Moved from commit
-            squashDueToLoad(inst, inst, inst->threadNumber);
+            squashDueToForwardedValueMisprediction(inst, inst, inst->threadNumber);
                     
         }
 
