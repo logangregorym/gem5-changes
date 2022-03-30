@@ -103,6 +103,10 @@ InstructionQueue<Impl>::InstructionQueue(O3CPU *cpu_ptr, IEW *iew_ptr,
 {
     assert(fuPool);
 
+    enableValuePredForwarding = params->enableValuePredForwarding;
+
+    //predictingArithmetic = params->loadPred->predictingArithmetic;
+
     numThreads = params->numThreads;
 
     // Set the number of total physical registers
@@ -1055,6 +1059,13 @@ InstructionQueue<Impl>::scheduleReadyInsts()
 
                 }
 
+                if (enableValuePredForwarding && (issuing_inst->staticInst->predictedLoad && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !issuing_inst->isStreamedFromSpeculativeCache())) && (issuing_inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold)) {
+                    if (issuing_inst->isLoad()) {
+                        forwardLoadValuePredictionToDependents(issuing_inst);
+                    }
+                }
+                
+                
 
                 cpu->schedule(execution,
                               cpu->clockEdge(Cycles(op_latency - 1)));
@@ -1617,15 +1628,11 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
             panic("Unknown register class: %d", (int)dest_reg->classValue());
         }
     }
-
-    // value of the dest reg for this load is speculativly forwarded
     inst->setSpeculativlyForwarded(true);
     assert(inst->isSpeculativlyForwarded());
-
     assert(inst->staticInst->numDestRegs() == 1);
-
-    //assert(dependGraph.empty(dest_reg->flatIndex()));
-       
+    iewStage->scoreboard->setReg(dest_reg);
+    regScoreboard[dest_reg->flatIndex()] = true;
     
     return true;
 }

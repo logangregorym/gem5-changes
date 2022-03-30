@@ -1592,7 +1592,7 @@ DefaultIEW<Impl>::executeInsts()
                     if ((inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold)) {
                         if ( inst->getFault() == NoFault) {
                             DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
-                            forwardLoadValuePredictionToDependents(inst);
+                            //forwardLoadValuePredictionToDependents(inst);
                         }
                            
                     }
@@ -1668,7 +1668,7 @@ DefaultIEW<Impl>::executeInsts()
                 // Unconditional LVP update for arithmatic instructions
                 if (loadPred->predictingArithmetic && inst->staticInst->predictedLoad) 
                 { 
-                    assert(inst->isStreamedFromSpeculativeCache());
+                    //assert(inst->isStreamedFromSpeculativeCache());
                     assert(inst->isStreamedFromUOpCache());
                     assert(!inst->isStreamedFromSpeculativeCache());
                     assert(!inst->isTracePredictionSource());

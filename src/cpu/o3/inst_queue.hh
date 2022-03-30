@@ -299,6 +299,10 @@ class InstructionQueue
     /** Pointer to IEW stage. */
     IEW *iewStage;
 
+    bool enableValuePredForwarding;
+
+    bool predictingArithmetic;
+
   private:
     /** The memory dependence unit, which tracks/predicts memory dependences
      *  between instructions.
