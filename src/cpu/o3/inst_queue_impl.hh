@@ -105,7 +105,7 @@ InstructionQueue<Impl>::InstructionQueue(O3CPU *cpu_ptr, IEW *iew_ptr,
 
     enableValuePredForwarding = params->enableValuePredForwarding;
 
-    //predictingArithmetic = params->loadPred->predictingArithmetic;
+    predictingArithmetic = iew_ptr->predictingArithmetic;
 
     numThreads = params->numThreads;
 
@@ -1060,12 +1060,10 @@ InstructionQueue<Impl>::scheduleReadyInsts()
                 }
 
                 if (enableValuePredForwarding && (issuing_inst->staticInst->predictedLoad && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !issuing_inst->isStreamedFromSpeculativeCache())) && (issuing_inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold)) {
-                    if (issuing_inst->isLoad()) {
+                    if (issuing_inst->isLoad() || predictingArithmetic) {
                         forwardLoadValuePredictionToDependents(issuing_inst);
                     }
-                }
-                
-                
+                }                
 
                 cpu->schedule(execution,
                               cpu->clockEdge(Cycles(op_latency - 1)));

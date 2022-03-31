@@ -117,6 +117,8 @@ DefaultIEW<Impl>::DefaultIEW(O3CPU *_cpu, DerivO3CPUParams *params)
 
     loadPred = params->loadPred;
 
+    predictingArithmetic = loadPred->predictingArithmetic;
+
     enableValuePredForwarding = params->enableValuePredForwarding;
 }
 
