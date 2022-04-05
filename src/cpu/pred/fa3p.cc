@@ -348,12 +348,11 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
         else 
         {
             
-            // for (int i = 0; i < decrementBy; i++) 
-            // {
-            //     predictor.LVT[idx].confidence.decrement();
-            // }
-            predictor.LVT[idx].confidence.decrement();
-            predictor.LVT[idx].confidence.decrement();
+            while (predictor.LVT[idx].confidence.read() > 4) {
+                predictor.LVT[idx].confidence.decrement();
+            }
+            //predictor.LVT[idx].confidence.decrement();
+            //predictor.LVT[idx].confidence.decrement();
             DPRINTF(FA3P, "processPacketRecieved: Missprediction for entry %d at address %#x:%d! New confidence: %d\n", idx, addr, upc, predictor.LVT[idx].confidence.read());
         }
 

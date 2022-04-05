@@ -1058,12 +1058,7 @@ InstructionQueue<Impl>::scheduleReadyInsts()
 
 
                 }
-
-                if (enableValuePredForwarding && (issuing_inst->staticInst->predictedLoad && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !issuing_inst->isStreamedFromSpeculativeCache())) && (issuing_inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold)) {
-                    if (issuing_inst->isLoad() || predictingArithmetic) {
-                        forwardLoadValuePredictionToDependents(issuing_inst);
-                    }
-                }                
+           
 
                 cpu->schedule(execution,
                               cpu->clockEdge(Cycles(op_latency - 1)));
@@ -1077,6 +1072,12 @@ InstructionQueue<Impl>::scheduleReadyInsts()
                     fuPool->freeUnitNextCycle(idx);
                 }
             }
+            
+                if (enableValuePredForwarding && (issuing_inst->staticInst->predictedLoad && (!cpu->fetch.decoder[tid]->isSuperOptimizationPresent || !issuing_inst->isStreamedFromSpeculativeCache())) && (issuing_inst->staticInst->confidence >= cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold)) {
+                    if (issuing_inst->isLoad() || predictingArithmetic) {
+                        forwardLoadValuePredictionToDependents(issuing_inst);
+                    }
+                }     
 
             DPRINTF(IQ, "Thread %i: Issuing instruction PC %s "
                     "[sn:%lli]\n",
