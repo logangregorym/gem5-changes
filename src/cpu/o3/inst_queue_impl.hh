@@ -1434,23 +1434,27 @@ InstructionQueue<Impl>::unsetPredictedReg(uint32_t idx){
 template<class Impl>
 bool
 InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst) {
-
-    assert(inst->isLoad());
-
     // loads that we are handling only have 1 dest regs
-    assert(inst->numDestRegs() == 1);
-    PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(0);
+    int numIntDestRegs = 0;
+    int intDestRegIdx = 0;
 
-    if (dest_reg->classValue() != IntRegClass) assert(0);//return false;
+    for (int idx = 0; idx < inst->numDestRegs(); idx++) {
+        if (inst->renamedDestRegIdx(idx)->classValue() == IntRegClass) {
+            numIntDestRegs += 1;
+            intDestRegIdx = idx;
+        }
+    }
+
+    if (numIntDestRegs != 1) 
+        return false;
+
+    PhysRegIdPtr dest_reg = inst->renamedDestRegIdx(intDestRegIdx);
 
     assert(!(inst->isMemBarrier() || inst->isWriteBarrier()));
 
-    // Special case of uniq or control registers.  They are not
-    // handled by the IQ and thus have no dependency graph entry.
     if (dest_reg->isFixedMapping() || inst->destRegIdx(0) == RegId(IntRegClass, TheISA::ZeroReg)) {
             DPRINTF(LVP, "Reg %d [%s] is part of a fix mapping, skipping\n",
                     dest_reg->index(), dest_reg->className());
-            assert(0);
             return false;
     }
 
@@ -1478,39 +1482,26 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                 assert(0);
                 return false;
             }
-            // for all these integer loads everithing is the same        
-            assert(type == "ld" || type == "ldis"|| type == "ldst" || type == "ldstl");
-            
             
             if (dataSize >= 4)
             {
-                assert(inst->numSrcRegs() == 3); // LdBig has 3 sources
-                uint64_t Mem = 0;
-          
-                Mem = inst->staticInst->predictedValue;
-               
-
+                uint64_t Mem = inst->staticInst->predictedValue;
                 uint64_t Data = Mem & mask(dataSize * 8);
-                //uint64_t Data = Mem;
-                inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
+
+                inst->setIntRegOperand(inst->staticInst.get(), intDestRegIdx, Data);
                 DPRINTF(LVP, "Identified %#x as value to be forwarded.\n", Data);
             }
             else 
             {
-                // first read the dest reg value 
-                assert(inst->numSrcRegs() == 4); // Ld has 4 sources
-                uint64_t Data = inst->readIntRegOperand(inst->staticInst.get(), 2);
-                uint64_t Mem = 0;
-
-                Mem = inst->staticInst->predictedValue;
+                uint64_t Data = inst->readIntRegOperand(inst->staticInst.get(), intDestRegIdx);
+                uint64_t Mem = inst->staticInst->predictedValue;
                 
                 
-                X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get(); x86_inst = x86_inst;
+                X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst->staticInst.get(); 
                 Data = x86_inst->merge(Data, Mem, dataSize);;
-                //Data = Mem;
-                inst->setIntRegOperand(inst->staticInst.get(), 0, Data);
+                
+                inst->setIntRegOperand(inst->staticInst.get(), intDestRegIdx, Data);
                 DPRINTF(LVP, "Identified %#x as value to be forwarded.\n", Data);
-
             }
             
 
@@ -1629,7 +1620,6 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
     }
     inst->setSpeculativlyForwarded(true);
     assert(inst->isSpeculativlyForwarded());
-    assert(inst->staticInst->numDestRegs() == 1);
     iewStage->scoreboard->setReg(dest_reg);
     regScoreboard[dest_reg->flatIndex()] = true;
     

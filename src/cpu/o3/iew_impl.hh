@@ -1691,10 +1691,10 @@ DefaultIEW<Impl>::executeInsts()
                 
                 if (inst->isSpeculativlyForwarded())
                 {
-                    assert(inst->isStreamedFromSpeculativeCache());
+                    //assert(inst->isStreamedFromSpeculativeCache());
                     assert(!inst->isStreamedFromSpeculativeCache());
                     assert(inst->staticInst->predictedLoad); // prediction sources that are coing from spec cache never should have this set
-                    //assert(loadPred->predictingArithmetic); // only when LVP is enabled for arithmatic operations
+                    assert(loadPred->predictingArithmetic); // only when LVP is enabled for arithmatic operations
 
                     checkForLVPMissprediction(inst);
                 }
@@ -2400,7 +2400,7 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
         // we can have non-load instructions which are streamed from speculative cache and thier values are forwaded speculativly
         else if (inst->lvMispred && inst->isSpeculativlyForwarded()) 
         {
-            assert(inst->isLoad());
+            //assert(inst->isLoad());
             assert(!inst->isStreamedFromSpeculativeCache());
             DPRINTF(LVP, "DefaultIEW::executeInsts():: OH NO! processPacketRecieved returned false :(\n");
             DPRINTF(LVP, "DefaultIEW::executeInsts():: Missprediction for a instruction which is not a trace prediction source!\n");
