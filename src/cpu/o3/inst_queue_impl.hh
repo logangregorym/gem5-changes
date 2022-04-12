@@ -1482,7 +1482,12 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                 assert(0);
                 return false;
             }
+
+            uint64_t Data = inst->staticInst->predictedValue;
+            inst->setIntRegOperand(inst->staticInst.get(), intDestRegIdx, Data);
+            DPRINTF(LVP, "Identified %#x as value to be forwarded.\n", Data);
             
+            /*
             if (dataSize >= 4)
             {
                 uint64_t Mem = inst->staticInst->predictedValue;
@@ -1503,7 +1508,7 @@ InstructionQueue<Impl>::forwardLoadValuePredictionToDependents(DynInstPtr &inst)
                 inst->setIntRegOperand(inst->staticInst.get(), intDestRegIdx, Data);
                 DPRINTF(LVP, "Identified %#x as value to be forwarded.\n", Data);
             }
-            
+            */
 
             break;
 

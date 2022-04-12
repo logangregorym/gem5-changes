@@ -2363,10 +2363,15 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
                     }
                     DPRINTF(LVP, "before masking: predicted value=%#x actual value=%#x\n", inst->staticInst->predictedValue, reg_value);
                     DPRINTF(LVP, "after masking: predicted value=%#x actual value=%#x data size=%i\n", inst->staticInst->predictedValue & mask, reg_value & mask, inst->staticInst->getDataSize());
-                    inst->lvMispred = ((reg_value & mask) != (inst->staticInst->predictedValue & mask)); 
+                    //inst->lvMispred = ((reg_value & mask) != (inst->staticInst->predictedValue & mask)); 
                     
-                    loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, reg_value & mask, inst->threadNumber, inst->staticInst->predictedValue & mask, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                    //loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, reg_value & mask, inst->threadNumber, inst->staticInst->predictedValue & mask, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                     
+                    inst->lvMispred = (reg_value != inst->staticInst->predictedValue); 
+                    
+                    loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, reg_value, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
+                    
+
                     //if (inst->staticInst->confidence >= 5) {
                        // loadPred->processPacketRecieved(inst->pcState(), inst->staticInst, inst->staticInst->predictedValue-100, inst->threadNumber, inst->staticInst->predictedValue, inst->staticInst->confidence, inst->memoryAccessEndCycle - inst->memoryAccessStartCycle, cpu->numCycles.value());
                        // inst->lvMispred = true;
