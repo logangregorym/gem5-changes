@@ -1649,7 +1649,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             std::endl << std::dec << "Total CPI: " << (double) cpu->totalCpi.total() <<
             std::endl;
     }
-    if (uops_plus_shrunken % 100000 == 0) {
+    if (false && uops_plus_shrunken % 100000 == 0) {
     
         std::cout << "Uop Cache:" << std::endl;       
         for (int idx = 0; idx < cpu->fetch.decoder[tid]->UOP_CACHE_NUM_SETS; idx++){
