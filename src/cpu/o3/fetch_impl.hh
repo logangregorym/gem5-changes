@@ -438,6 +438,22 @@ DefaultFetch<Impl>::regStats()
         .desc("Spec Cache Hit Rate")
         .precision(6);
     specCacheHitRate = specCacheHitOps/(fetchedOps);
+
+    cyclesSpentFetchingFromUopCache
+		.name(name() + ".cyclesSpentFetchingFromUopCache")
+		.desc("");
+    instsFetchedFromUopCache
+    	.name(name() + ".instsFetchedFromUopCache")
+		.desc("");
+    averageUopCacheCycles = cyclesSpentFetchingFromUopCache/instsFetchedFromUopCache;
+
+    cyclesSpentFetchingFromLegacyDecode
+        .name(name() + ".cyclesSpentFetchingFromLegacyDecode")
+		.desc("");
+    instsFetchedFromLegacyDecode
+    	.name(name() + ".instsFetchedFromLegacyDecode")
+		.desc("");
+    averageLegacyDecodeCycles = cyclesSpentFetchingFromLegacyDecode / instsFetchedFromLegacyDecode;
 }
 
 template<class Impl>
@@ -2185,7 +2201,19 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
 
                 DynInstPtr instruction = buildInst(tid, staticInst, curMacroop, thisPC, nextPC, true);
-                
+                if(cycleOfLastInst){
+                    if(staticInst->isStreamedFromUOpCache()){
+                        cyclesSpentFetchingFromUopCache += (cpu->numCycles.value() - cycleOfLastInst);
+                        instsFetchedFromUopCache ++;
+                    } else {
+                        cyclesSpentFetchingFromLegacyDecode += (cpu->numCycles.value() - cycleOfLastInst);
+                        instsFetchedFromLegacyDecode ++;
+                    }
+                } else {
+                    cout << "WARNING: cycleOfLastInst == 0" << endl;
+                }
+                cycleOfLastInst = cpu->numCycles.value();
+
                 instruction->fused = fused;
           
             	DPRINTF(Fetch, "instruction created: [sn:%lli]:%s\n", instruction->seqNum, instruction->pcState());
@@ -2333,7 +2361,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         switchToDecodePipeline = false;
                     }
                 }
-
 
         } 
         while (

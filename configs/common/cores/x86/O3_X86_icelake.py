@@ -114,7 +114,7 @@ class O3_X86_icelake_1(DerivO3CPU):
     commitToRenameDelay = 1
     commitToIEWDelay = 1
     fetchWidth = 6
-    fetchBufferSize = 32
+    fetchBufferSize = 16
     fetchToDecodeDelay = 3
     decodeWidth = 6
     decodeToRenameDelay = 2
@@ -137,6 +137,7 @@ class O3_X86_icelake_1(DerivO3CPU):
     numPhysVecRegs = 288
     numIQEntries = 160
     numROBEntries = 352
+    fetchQueueSize = 140
 
     switched_out = False
     branchPred = O3_X86_icelake_BP()

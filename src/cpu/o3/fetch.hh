@@ -424,6 +424,8 @@ class DefaultFetch
     uint64_t currentTraceID = 0;
 
   private:
+    uint64_t cycleOfLastInst = 0;
+
     bool usingTrace = false;
 
     unsigned dumpFrequency;
@@ -659,6 +661,14 @@ class DefaultFetch
     Stats::Formula specCacheHitRate;
 
     Stats::Scalar numFetchBWCyclesWastedDuringSwitch;
+
+    Stats::Scalar cyclesSpentFetchingFromUopCache;
+    Stats::Scalar instsFetchedFromUopCache;
+    Stats::Formula averageUopCacheCycles;
+
+    Stats::Scalar cyclesSpentFetchingFromLegacyDecode;
+    Stats::Scalar instsFetchedFromLegacyDecode;
+    Stats::Formula averageLegacyDecodeCycles;
 };
 
 #endif //__CPU_O3_FETCH_HH__
