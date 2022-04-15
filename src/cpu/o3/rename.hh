@@ -527,6 +527,9 @@ class DefaultRename
     Stats::Scalar renamedTempSerializing;
     /** Number of instructions inserted into skid buffers. */
     Stats::Scalar renameSkidInsts;
+
+    /** Distribution of number of instructions renamed each cycle. */
+    Stats::Distribution renameNisnDist;
 };
 
 #endif // __CPU_O3_RENAME_HH__
