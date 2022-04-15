@@ -1585,7 +1585,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   
 		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << 
             std::endl << std::dec << "Shrinkage Ratio: " << ((double)numMicroopsShrunken / (double)(numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value())) * 100 << std::endl;       
-            std::cout << "Speculative Cache:" << std::endl;       
+            /*std::cout << "Speculative Cache:" << std::endl;       
             for (int idx = 0; idx < cpu->fetch.decoder[tid]->SPEC_CACHE_NUM_SETS; idx++){
                 std::cout << "Idx " << idx  << " : " ;
                 for (int way = 0; way < cpu->fetch.decoder[tid]->SPEC_CACHE_NUM_WAYS; way++) {
@@ -1623,7 +1623,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
                     panic_if(it.second.state == SpecTrace::Evicted, "Found an evicted trace in traceMap!\n");
                 }
             }
-            assert(pass);
+            assert(pass);*/
 
 
             // Performance analysis 
