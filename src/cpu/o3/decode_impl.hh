@@ -154,6 +154,14 @@ DefaultDecode<Impl>::regStats()
         .name(name() + ".blockedDueToStallFromRename")
         .desc("Number of times rename blocked due to stall from Rename")
         .prereq(blockedDueToStallFromRename);
+
+    decodeNisnDist
+        .init(/* base value */ 0,
+              /* last value */ decodeWidth,
+              /* bucket size */ 1)
+        .name(name() + ".rateDist")
+        .desc("Number of instructions decoded each cycle (Total)")
+        .flags(Stats::pdf);
 }
 
 template<class Impl>
@@ -661,6 +669,7 @@ DefaultDecode<Impl>::decodeInsts(ThreadID tid)
                 " early.\n",tid);
         // Should I change the status to idle?
         ++decodeIdleCycles;
+        decodeNisnDist.sample(0);
         return;
     } else if (decodeStatus[tid] == Unblocking) {
         DPRINTF(Decode, "[tid:%u] Unblocking, removing insts from skid "
@@ -677,7 +686,8 @@ DefaultDecode<Impl>::decodeInsts(ThreadID tid)
         skidBuffer[tid] : insts[tid];
 
     DPRINTF(Decode, "[tid:%u]: Sending instruction to rename.\n",tid);
-
+    
+    unsigned numInstDecodedThisCycle = 0;
     unsigned toFusedRenameIndex = toRenameIndex;
     while (insts_available > 0 && toFusedRenameIndex < decodeWidth && toRenameIndex < Impl::MaxWidth) {
         assert(!insts_to_decode.empty());
@@ -719,6 +729,8 @@ DefaultDecode<Impl>::decodeInsts(ThreadID tid)
         ++toRenameIndex;
         ++decodeDecodedInsts;
         --insts_available;
+
+        numInstDecodedThisCycle ++;
 
 #if TRACING_ON
         if (DTRACE(O3PipeView)) {
@@ -776,6 +788,8 @@ DefaultDecode<Impl>::decodeInsts(ThreadID tid)
     if (toRenameIndex) {
         wroteToTimeBuffer = true;
     }
+
+    decodeNisnDist.sample(numInstDecodedThisCycle);
 }
 
 #endif//__CPU_O3_DECODE_IMPL_HH__
