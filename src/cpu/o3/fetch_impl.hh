@@ -2180,10 +2180,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
                         staticInst->macroOp = curMacroop;
                         
-                        assert(thisPC.microPC() < curMacroop->getNumMicroops());
-
-                        if (thisPC.microPC() >= curMacroop->getNumMicroops())
-                            DPRINTF(Fetch,"The microPC is %d but numMicroops is %d\n",thisPC.microPC(), curMacroop->getNumMicroops());
                         /* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
