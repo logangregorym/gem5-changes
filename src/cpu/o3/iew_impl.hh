@@ -2335,7 +2335,7 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
 {
  
         //assert(!inst->isSpeculativlyForwarded()); // for now disable LV forwarding
-
+        ThreadID tid = inst->threadNumber;
         // Check for missprediction
         uint64_t reg_value;
         int64_t mask = -1; // Might be a problem (unsigned?)
@@ -2422,8 +2422,24 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
         {
             updateTraceConfidence(inst);
         }
-    
-
+        
+        // logic to update predictionConfidenceThreshold
+        double newRate = iewSquashCycles.value()/cpu->numCycles.value();
+        if (lastRate >= 0) {
+            if (newRate > lastRate) {
+                DPRINTF(LVP, "Increasing prediction confidence threshold because squashCycles/numCycles is increasing.\n");
+                DPRINTF(LVP, "Start increasing prediction confidence threshold. Original threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold);
+                cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold += 1;
+                DPRINTF(LVP, "Finish increasing prediction confidence threshold. New threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold);
+            }
+            else if (newRate < lastRate && cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold > 1) {
+                DPRINTF(LVP, "Decreasing prediction confidence threshold because squashCycles/numCycles is decreasing.\n");
+                DPRINTF(LVP, "Start decreasing prediction confidence threshold. Original threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold);
+                cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold -= 1;
+                DPRINTF(LVP, "Finish decreasing prediction confidence threshold. New threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold);
+            }
+        }
+        lastRate = newRate;            
 }
 
 

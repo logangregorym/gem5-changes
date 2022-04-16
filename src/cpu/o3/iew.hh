@@ -441,6 +441,8 @@ class DefaultIEW
     /** Maximum size of the skid buffer. */
     unsigned skidBufferMax;
 
+    double lastRate = -1.0;
+
     /** Stat for total number of idle cycles. */
     Stats::Scalar iewIdleCycles;
     /** Stat for total number of squashing cycles. */
