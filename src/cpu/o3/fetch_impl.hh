@@ -2177,8 +2177,13 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     	staticInst = cpu->microcodeRom.fetchMicroop(thisPC.microPC(), curMacroop);
 			            staticInst->macroOp = curMacroop;
                     } else {
+                        if (curMacroop->getNumMicroops() == 0)
+                            curMacroop = decoder[tid]->decode(thisPC, cpu->numCycles.value(), tid);
+
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
                         staticInst->macroOp = curMacroop;
+                        //if (thisPC.microPC() >= curMacroop->getNumMicroops())
+                            //DPRINTF(Fetch,"The microPC is %d but numMicroops is %d\n",thisPC.microPC(), curMacroop->getNumMicroops());
                         
                         /* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
