@@ -914,7 +914,7 @@ DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
 
     pc[tid] = newPC;
     fetchOffset[tid] = 0;
-    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr() && !squashInst->isStreamedFromSpeculativeCache()) //&& !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive())
+    if (squashInst && squashInst->pcState().instAddr() == newPC.instAddr() && squashInst->macroop->getNumMicroops() != 0 && !squashInst->isStreamedFromSpeculativeCache()) //&& !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive())
         macroop[tid] = squashInst->macroop;
     else
         macroop[tid] = NULL;
@@ -2179,6 +2179,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     } else {
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
                         staticInst->macroOp = curMacroop;
+                        
+                        assert(thisPC.microPC() < curMacroop->getNumMicroops());
+
+                        if (thisPC.microPC() >= curMacroop->getNumMicroops())
+                            DPRINTF(Fetch,"The microPC is %d but numMicroops is %d\n",thisPC.microPC(), curMacroop->getNumMicroops());
                         /* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
