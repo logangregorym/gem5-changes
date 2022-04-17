@@ -442,6 +442,7 @@ class DefaultIEW
     unsigned skidBufferMax;
 
     double lastRate = -1.0;
+    unsigned lastRateUpdate = 0;
 
     /** Stat for total number of idle cycles. */
     Stats::Scalar iewIdleCycles;
