@@ -2427,10 +2427,10 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
         if (cpu->numCycles.value() - lastRateUpdate > 10000){
             double newRate = iewSquashCycles.value()/cpu->numCycles.value();
             if (lastRate >= 0) {
-                if (newRate > lastRate && cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold < 15) {
+                if (newRate > lastRate && cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold < 31) {
                     DPRINTF(LVP, "Increasing prediction confidence threshold because squashCycles/numCycles is increasing.\n");
                     DPRINTF(LVP, "Start increasing prediction confidence threshold. Original threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold);
-                    cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold += 1;
+                    cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold += 2;
                     DPRINTF(LVP, "Finish increasing prediction confidence threshold. New threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold);
                 }
                 else if (newRate < lastRate && cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold > 1) {

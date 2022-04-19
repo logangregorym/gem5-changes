@@ -322,10 +322,10 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
             ++correctNotUsed;
             hitCount++;
             if (hitCount >= hitThreshold) {
-                if (dynamicThreshold) {
-                    firstConst--;
-                    ++constDecrement;
-                }
+                //if (dynamicThreshold) {
+                    //firstConst--;
+                //    ++constDecrement;
+                //}
                 hitCount = 0;
             }
         } else {
@@ -348,7 +348,7 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
         else 
         {
             
-            while (predictor.LVT[idx].confidence.read() > 4) {
+            while (predictor.LVT[idx].confidence.read() >= 1) {
                 predictor.LVT[idx].confidence.decrement();
             }
             //predictor.LVT[idx].confidence.decrement();

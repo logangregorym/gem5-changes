@@ -9,15 +9,15 @@ class LoadValuePredictor(SimObject):
     cxx_header = "cpu/pred/lvpred_unit.hh"
 
     lvpredType = Param.String("basic", "Load Value predictor type ('basic', 'strideHist', '3period', 'hybrid', 'fa3p', 'eves', 'none')")
-    tableEntries = Param.Unsigned(256, "Number of entries in the lookup table")
+    tableEntries = Param.Unsigned(256, "Number of entries in the lookup table")             #used by fa3p
     constantThreshold = Param.Int(10, "First usable prediction")
     dynamicThreshold = Param.Bool(1, "Learn the constant threshold dynamically?")
-    satCounterBits = Param.Unsigned(5, "Bits in the saturating counters")
+    satCounterBits = Param.Unsigned(5, "Bits in the saturating counters")                   #used by fa3p
     decrementBy = Param.Unsigned(10, "Confidence decrement on misprediction")
     resetTo = Param.Unsigned(0, "Confidence reset on misprediction")
-    initialPredictionQuality = Param.Unsigned(0, "Default value of saturating counters")
+    initialPredictionQuality = Param.Unsigned(0, "Default value of saturating counters")    #used by fa3p
     resetDelay = Param.Unsigned(128, "Cycles to remain inactive after a misprediction")
-    historyLength = Param.Unsigned(4, "Number of past strides to track")
+    historyLength = Param.Unsigned(4, "Number of past strides to track")                    #used by fa3p
     historyEntryBits = Param.Unsigned(4, "Bits per stride in history")
     numThreads = Param.Unsigned(1, "Number of threads")
     missThreshold = Param.Unsigned(150, "Misses allowed before confidence threshold increments")
