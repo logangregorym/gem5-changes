@@ -347,8 +347,8 @@ bool FA3P::processPacketRecieved(TheISA::PCState pc, StaticInstPtr inst, uint64_
         } 
         else 
         {
-            
-            while (predictor.LVT[idx].confidence.read() >= 1) {
+            predictor.LVT[idx].confidence.decrement();
+            while (predictor.LVT[idx].confidence.read() >= 5) {
                 predictor.LVT[idx].confidence.decrement();
             }
             //predictor.LVT[idx].confidence.decrement();
