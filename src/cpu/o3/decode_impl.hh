@@ -157,7 +157,7 @@ DefaultDecode<Impl>::regStats()
 
     decodeNisnDist
         .init(/* base value */ 0,
-              /* last value */ decodeWidth,
+              /* last value */ decodeWidth*2,
               /* bucket size */ 1)
         .name(name() + ".rateDist")
         .desc("Number of instructions decoded each cycle (Total)")

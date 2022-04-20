@@ -117,15 +117,15 @@ class O3_X86_icelake_1(DerivO3CPU):
     fetchBufferSize = 16
     fetchToDecodeDelay = 3
     decodeWidth = 6
-    decodeToRenameDelay = 2
-    renameWidth = 6
-    renameToIEWDelay = 1
+    decodeToRenameDelay = 2 #1?
+    renameWidth = 10
+    renameToIEWDelay = 1 #9?
     issueToExecuteDelay = 1
     dispatchWidth = 10
     issueWidth = 10
     wbWidth = 10
     fuPool = O3_X86_icelake_FUP()
-    iewToCommitDelay = 1
+    iewToCommitDelay = 1 #6?
     renameToROBDelay = 1
     commitWidth = 10
     squashWidth = 10
@@ -137,7 +137,7 @@ class O3_X86_icelake_1(DerivO3CPU):
     numPhysVecRegs = 288
     numIQEntries = 160
     numROBEntries = 352
-    fetchQueueSize = 140
+    fetchQueueSize = 70
 
     switched_out = False
     branchPred = O3_X86_icelake_BP()
