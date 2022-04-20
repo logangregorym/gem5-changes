@@ -64,9 +64,9 @@ from common import CpuConfig
 from common import MemConfig
 from common.Caches import *
 from common.cpu2000 import *
-from common.cores.x86.O3_X86_skylake import O3_X86_skylake_1
-from common.cores.x86.O3_X86_icelake import O3_X86_icelake_1
-from common.cores.x86.O3_X86_alderlake import O3_X86_alderlake_1
+from common.cores.x86 import O3_X86_skylake
+from common.cores.x86 import O3_X86_icelake
+from common.cores.x86 import O3_X86_alderlake
 
 def get_processes(options):
     """Interprets provided options and returns a list of processes"""
@@ -363,20 +363,17 @@ if options.lvpLookupAtFetch:
         fatal("No LVP Lookup needed if SuperOptimization not enabled")
     found = False
     for cpu in system.cpu:
-        if isinstance(cpu, (O3_X86_skylake_1, O3_X86_icelake_1, O3_X86_alderlake_1)):
+        if (cpu is O3_X86_skylake) or (cpu is O3_X86_icelake) or (cpu is O3_X86_alderlake):
             cpu.fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
             found = True
-#    if not found:
-#        fatal("Unable to add 1 cycle penalty for lvpLookupAtFetch")
-
-if options.enableValuePredForwarding:
-    if not (options.lvpredType and options.dynamicThreshold and options.constantThreshold and options.predictionConfidenceThreshold):
-        fatal("Must define lvpredType, dynamicThreshold, constantThreshold, and predictionConfidenceThreshold to enable forwarding")
+elif options.enableValuePredForwarding:
+    if not (options.lvpredType and options.predictionConfidenceThreshold):
+        fatal("Must define lvpredType and predictionConfidenceThreshold to enable forwarding")
     if options.enable_superoptimization:
         fatal("Value forwarding not yet supported with superoptimization")
     found = False
     for cpu in system.cpu:
-        if isinstance(cpu, (O3_X86_skylake_1, O3_X86_icelake_1, O3_X86_alderlake_1)):
+        if (cpu is O3_X86_skylake) or (cpu is O3_X86_icelake) or (cpu is O3_X86_alderlake):
             cpu.fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
             found = True
 #    if not found:
