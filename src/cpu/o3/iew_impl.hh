@@ -120,6 +120,8 @@ DefaultIEW<Impl>::DefaultIEW(O3CPU *_cpu, DerivO3CPUParams *params)
     predictingArithmetic = loadPred->predictingArithmetic;
 
     enableValuePredForwarding = params->enableValuePredForwarding;
+
+    enableDynamicThreshold = params->enableDynamicThreshold;
 }
 
 template <class Impl>
@@ -2424,7 +2426,7 @@ DefaultIEW<Impl>::checkForLVPMissprediction(DynInstPtr& inst)
         }
         
         // logic to update predictionConfidenceThreshold
-        if (cpu->numCycles.value() - lastRateUpdate > 10000){
+        if (enableDynamicThreshold && (cpu->numCycles.value() - lastRateUpdate > 10000)){
             double newRate = iewSquashCycles.value()/cpu->numCycles.value();
             if (lastRate >= 0) {
                 if (newRate > lastRate && cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold < 31) {

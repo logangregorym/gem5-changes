@@ -183,6 +183,8 @@ class DerivO3CPU(BaseCPU):
 
     enableValuePredForwarding = Param.Bool(0, "Enables Load Value Prediction for Raw execution")
 
+    enableDynamicThreshold = Param.Bool(0, "Enable the use of a dynamic threshold for lvp")
+
     checkpoint_at_instr = Param.UInt64(0, "checkpoint at Instruction")
     after_exec_cnt = Param.UInt64(0, "checkpoint at Instruction")
 

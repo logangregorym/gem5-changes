@@ -168,6 +168,7 @@ parser.add_option("--checkpoint_at_instr", default=0, type="int", action="store"
 parser.add_option("--after_exec_cnt", default=0, type="int", action="store", help="");
 parser.add_option("--lvpLookupAtFetch", action="store_true", help="Enables an LVP lookup at every fetch cycle to detect stale traces, enabling will incur a 1 cycle penalty");
 parser.add_option("--enableValuePredForwarding", action="store_true", help="Enables Load Value Prediction for Raw execution");
+parser.add_option("--enableDynamicThreshold", action="store_true", help="Enables the use of a dynamic threshold for LVP");
 
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
@@ -253,6 +254,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.uopCacheNumUops = options.uopCacheNumUops
     CPUClass.lvpLookupAtFetch = options.lvpLookupAtFetch
     CPUClass.enableValuePredForwarding = options.enableValuePredForwarding
+    CPUClass.enableDynamicThreshold = options.enableDynamicThreshold
 
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
@@ -303,6 +305,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.uopCacheNumUops = options.uopCacheNumUops
     FutureClass.lvpLookupAtFetch = options.lvpLookupAtFetch
     FutureClass.enableValuePredForwarding = options.enableValuePredForwarding
+    FutureClass.enableDynamicThreshold = options.enableDynamicThreshold
 
 # Check -- do not allow SMT with multiple CPUs
 if options.smt and options.num_cpus > 1:

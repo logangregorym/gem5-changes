@@ -391,6 +391,8 @@ class DefaultIEW
 
     bool predictingArithmetic;
 
+    bool enableDynamicThreshold;
+
   private:
     /** Records if there is a fetch redirect on this cycle for each thread. */
     bool fetchRedirect[Impl::MaxThreads];
