@@ -1554,12 +1554,12 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         uops_plus_shrunken += numMicroopsShrunken;
     }
 
-    if (uops_plus_shrunken % 100000 == 0) {
+    if (uops_plus_shrunken % 100000000 == 0) {
         std::cout << "NumOfUops: " << uops_plus_shrunken << std::endl;
         std::cout << "CPuops: " << std::dec << (((double) cpu->numCycles.value()) / ((double) uops_plus_shrunken)) << std::endl;
     }
 
-    if (true && 
+    if (false && 
         cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->committedInsts[tid].value() % 100000 == 0 &&
             !head_inst->isNop() &&
@@ -1567,7 +1567,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             head_inst->isLastMicroop()
            )
     {   
-            std::map<unsigned int,unsigned int> spec_count;
+            /*std::map<unsigned int,unsigned int> spec_count;
             for (int idx = 0; idx < cpu->fetch.decoder[tid]->SPEC_CACHE_NUM_SETS; idx++) {
                 for (int way = 0; way < cpu->fetch.decoder[tid]->SPEC_CACHE_NUM_WAYS; way++) {
                     if (cpu->fetch.decoder[tid]->speculativeValidArray[idx][way]) {
@@ -1583,7 +1583,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             std::endl << std::dec << "CPUop: " << (((double) cpu->numCycles.value()) / ((double) uops_plus_shrunken)) <<
             std::endl << std::dec << "traceMapSize: " << cpu->fetch.decoder[tid]->traceConstructor->traceMap.size() <<   
 		    std::endl << std::dec << "spec_count Size: " << spec_count.size() << 
-            std::endl << std::dec << "Shrinkage Ratio: " << ((double)numMicroopsShrunken / (double)(numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value())) * 100 << std::endl;       
+            std::endl << std::dec << "Shrinkage Ratio: " << ((double)numMicroopsShrunken / (double)(numMicroopsShrunken + (uint64_t)cpu->committedOps[tid].value())) * 100 << std::endl;*/
             /*bool pass = true;
             std::cout << "Speculative Cache:" << std::endl;       
             for (int idx = 0; idx < cpu->fetch.decoder[tid]->SPEC_CACHE_NUM_SETS; idx++){
@@ -1635,7 +1635,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
             
 
     }
-    else if (true && !cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
+    else if (false && !cpu->fetch.decoder[tid]->isSuperOptimizationPresent && 
         (uint64_t)cpu->committedInsts[tid].value() % 100000 == 0 &&
             !head_inst->isNop() &&
             !head_inst->isInstPrefetch() &&

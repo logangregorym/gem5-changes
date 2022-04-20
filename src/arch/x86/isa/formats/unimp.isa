@@ -135,7 +135,7 @@ output exec {{
                                Trace::InstRecord *traceData) const
     {
         if (!warned) {
-            warn("instruction '%s' unimplemented\n", mnemonic);
+            //warn("instruction '%s' unimplemented\n", mnemonic);
             warned = true;
         }
 
