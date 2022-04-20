@@ -318,6 +318,9 @@ class DefaultDecode
     Stats::Scalar decodeSquashedInsts;
 
     Stats::Scalar blockedDueToStallFromRename;
+
+    /** Distribution of number of instructions decoded each cycle. */
+    Stats::Distribution decodeNisnDist;
 };
 
 #endif // __CPU_O3_DECODE_HH__

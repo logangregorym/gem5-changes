@@ -188,6 +188,14 @@ DefaultRename<Impl>::regStats()
         .name(name() + ".vec_rename_lookups")
         .desc("Number of vector rename lookups")
         .prereq(vecRenameLookups);
+
+    renameNisnDist
+        .init(/* base value */ 0,
+              /* last value */ renameWidth,
+              /* bucket size */ 1)
+        .name(name() + ".rateDist")
+        .desc("Number of instructions renamed each cycle (Total)")
+        .flags(Stats::pdf);
 }
 
 template <class Impl>
@@ -526,6 +534,7 @@ DefaultRename<Impl>::renameInsts(ThreadID tid)
                 tid);
         // Should I change status to idle?
         ++renameIdleCycles;
+        renameNisnDist.sample(0);
         return;
     } else if (renameStatus[tid] == Unblocking) {
         ++renameUnblockCycles;
@@ -567,6 +576,8 @@ DefaultRename<Impl>::renameInsts(ThreadID tid)
         block(tid);
 
         incrFullStat(source);
+
+        renameNisnDist.sample(0);
 
         return;
     } else if (min_free_entries < insts_available) {
@@ -757,6 +768,8 @@ DefaultRename<Impl>::renameInsts(ThreadID tid)
         block(tid);
         toDecode->renameUnblock[tid] = false;
     }
+
+    renameNisnDist.sample(renamed_insts);
 }
 
 template<class Impl>
