@@ -70,8 +70,8 @@ ignoreFunc(SyscallDesc *desc, int callnum, Process *process,
            ThreadContext *tc)
 {
     if (desc->needWarning()) {
-        warn("ignoring syscall %s(...)%s", desc->name(), desc->warnOnce() ?
-             "\n      (further warnings will be suppressed)" : "");
+        //warn("ignoring syscall %s(...)%s", desc->name(), desc->warnOnce() ?
+        //     "\n      (further warnings will be suppressed)" : "");
     }
 
     return 0;

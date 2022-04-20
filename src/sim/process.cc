@@ -355,7 +355,7 @@ Process::fixupStackFault(Addr vaddr)
             if (stack_base - stack_min > max_stack_size)
                 fatal("Maximum stack size exceeded\n");
             allocateMem(stack_min, TheISA::PageBytes);
-            inform("Increasing stack size by one page.");
+            //inform("Increasing stack size by one page.");
         }
         memState->setStackMin(stack_min);
         return true;

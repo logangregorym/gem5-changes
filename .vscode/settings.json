@@ -68,6 +68,7 @@
         "iomanip": "cpp",
         "cfenv": "cpp",
         "cinttypes": "cpp",
-        "typeindex": "cpp"
+        "typeindex": "cpp",
+        "*.in": "cpp"
     }
 }
