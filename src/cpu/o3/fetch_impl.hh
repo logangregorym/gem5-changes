@@ -1250,7 +1250,6 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             // folded branch missprediction
             else if (fromCommit->commitInfo[tid].mispredictInst->isStreamedFromSpeculativeCache())
             {
-                assert(0);
                 // again deactivate speculative cache
                 DPRINTF(Fetch, "folded branch misprediction: inst[sn:%i]\n", fromCommit->commitInfo[tid].mispredictInst->seqNum);
                 decoder[tid]->setSpeculativeCacheActive(false);
@@ -1271,7 +1270,6 @@ DefaultFetch<Impl>::checkSignalsAndUpdate(ThreadID tid)
             // memorder violation in a speculative trace
             if (fromCommit->commitInfo[tid].squashDueToLVP)
             {
-                assert(0);
                 // activate speculative cache so we can fetch from it again
                 DPRINTF(Fetch, "memory order violation at PC %s\n", fromCommit->commitInfo[tid].pc);
                 currentTraceID = fromCommit->commitInfo[tid].currentTraceID;
@@ -1396,35 +1394,6 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
                               TheISA::PCState nextPC, bool trace)
 {
     assert(staticInst);
-    assert(!(staticInst->endOfTrace));
-    assert(!(staticInst->isStreamedFromSpecCache));
-    assert(!(staticInst->isPredictionSource));
-    assert(!(staticInst->carriesLiveOut));
-    //bool predictedLoad = false;
-    assert(!staticInst->dummyMicroop);
-    assert(!staticInst->eliminated);
-    assert(!staticInst->dummyMicroopTargetValid);
-    assert(!staticInst->shrunkenLength);
-
-    for (size_t i = 0; i < 38; i++){
-        assert(!staticInst->liveOutPredicted[i]);
-    }
-
-    for (size_t i = 0; i < 5; i++){
-        assert(!staticInst->isCCFlagPropagated[i]);
-    }
-    
-    assert(!staticInst->predictedTaken);
-    assert(!staticInst->rasPushIndicator);
-    assert(!staticInst->rasPopIndicator);
-    assert(!staticInst->forwardedLiveValueExists);
-    assert(!isSuperOptimizationActivated);
-    assert(!decoder[tid]->isSpeculativeCacheActive());
-
-    for (uint8_t i = 0; i < 38; i++) {
-        staticInst->sourcesPredicted[i] = false;
-        assert(!staticInst->sourcesPredicted[i]);
-    }
 
     // Get a sequence number.
     InstSeqNum seq;
@@ -1541,7 +1510,7 @@ DefaultFetch<Impl>::buildInst(ThreadID tid, StaticInstPtr staticInst,
 
         fetchedOps++;
     
-    assert(!instruction->isSpeculativlyForwarded());
+
     return instruction;
 }
 
@@ -2198,9 +2167,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                     	staticInst = curMacroop->fetchMicroop(thisPC.microPC());
                         staticInst->macroOp = curMacroop;
-                        //if (thisPC.microPC() >= curMacroop->getNumMicroops())
-                            //DPRINTF(Fetch,"The microPC is %d but numMicroops is %d\n",thisPC.microPC(), curMacroop->getNumMicroops());
-                        
                         /* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
@@ -2235,6 +2201,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     DPRINTF(Fetch, "\n");
                     newMacro |= staticInst->isLastMicroop();
             	}
+
 
                 DynInstPtr instruction = buildInst(tid, staticInst, curMacroop, thisPC, nextPC, true);
                 if(cycleOfLastInst){
