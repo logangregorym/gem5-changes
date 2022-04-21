@@ -2338,6 +2338,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     }
                 }
 
+                if (!instruction->isStreamedFromSpeculativeCache() && !instruction->isStreamedFromUOpCache()){
+                    //assert(adjustedFetchWidth == fetchWidth - 1);
+                    adjustedFetchWidth = fetchWidth - 1;
+                }
 
         } 
         while (

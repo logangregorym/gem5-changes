@@ -1312,7 +1312,13 @@ bool TraceBasedGraph::generateNextTraceInst() {
             decodedMacroOp->getName() == "fwait" || decodedMacroOp->getName() == "frstor" ||
             decodedMacroOp->getName() == "xsave" || decodedMacroOp->getName() == "call_far_Mp" ||
             decodedMacroOp->getName() == "fiadd" || decodedMacroOp->getName() == "fimul" ||
-            decodedMacroOp->getName() == "prefetch_nta" || decodedMacroOp->getName() == "SFENCE") 
+            decodedMacroOp->getName() == "prefetch_nta" || decodedMacroOp->getName() == "SFENCE" ||
+            decodedMacroOp->getName() == "movntq_Mq_Pq" || decodedMacroOp->getName() == "pabsw_Pq_Qq" ||
+            decodedMacroOp->getName() == "pabsw_Vdq_Wdq" || decodedMacroOp->getName() == "psignw_Vdq_Wdq" ||
+            decodedMacroOp->getName() == "pshufb_Vdq_Wdq" || decodedMacroOp->getName() == "psignw_Pq_Qq" ||
+            decodedMacroOp->getName() == "palignr_Vdq_Wdq_Ib" || decodedMacroOp->getName() == "MFENCE" ||
+            decodedMacroOp->getName() == "pshufb_Pq_Qq" || decodedMacroOp->getName() == "pmaddubsw_Vdq_Wdq"||
+            decodedMacroOp->getName() == "prefetch") 
         {
             // currentTrace.length++;
             //     if (currentTrace.prevNonEliminatedInst /*&&
@@ -1670,8 +1676,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.end.uopAddr = 0;
         } 
         else if (type == "CPUID") {
+            currentTrace.end.pcAddr = currentTrace.instAddr.pcAddr + 2;
+            currentTrace.end.uopAddr = 0;
             //warn("unsupported instruction without macro-op : CPUID\n");
-            panic("unsupported instruction without macro-op: %s", type);
+            //panic("unsupported instruction without macro-op: %s", type);
         }
         else 
         {
