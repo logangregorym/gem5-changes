@@ -862,8 +862,11 @@ DefaultFetch<Impl>::finishTranslation(const Fault &fault,
             ppFetchRequestSent->notify(mem_req);
         }
     } else {
-        // Don't send an instruction to decode if we can't handle it.
-        if (!(numInst < fetchWidth) || !(fetchQueue[tid].size() < fetchQueueSize)) {
+        int adjustedFetchWidth = fetchWidth;
+        if (!decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive()){
+            adjustedFetchWidth = fetchWidth - 1;
+        }
+        if (!(numInst < adjustedFetchWidth) || !(fetchQueue[tid].size() < fetchQueueSize)) {
             assert(!finishTranslationEvent.scheduled());
             finishTranslationEvent.setFault(fault);
             finishTranslationEvent.setReq(mem_req);
