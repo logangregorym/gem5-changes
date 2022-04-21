@@ -118,7 +118,7 @@ class O3_X86_icelake_1(DerivO3CPU):
     fetchToDecodeDelay = 3
     decodeWidth = 6
     decodeToRenameDelay = 2
-    renameWidth = 6
+    renameWidth = 10
     renameToIEWDelay = 1
     issueToExecuteDelay = 1
     dispatchWidth = 10

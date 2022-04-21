@@ -1708,7 +1708,11 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     // Loop through instruction memory from the cache.
     // Keep issuing while fetchWidth is available and branch is not
     // predicted taken
-    while (numInst < fetchWidth && computeFetchQueueSize(tid) < fetchQueueSize
+    int adjustedFetchWidth = fetchWidth;
+    if (!decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive()){
+        adjustedFetchWidth = fetchWidth - 1;
+    }
+    while (numInst < adjustedFetchWidth && computeFetchQueueSize(tid) < fetchQueueSize //LOGAN TODO LOWER FETCH WIDTH FROM LEGACY DECODE
            && !predictedBranch && !quiesce) {
         // We need to process more memory if we aren't going to get a
         // StaticInst from the rom, the current macroop, or what's already
@@ -2083,7 +2087,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         assert(!decoder[tid]->instReady()); 
 
                         // let's count number of wasted fetch bandwidth cycles due to switch
-                        assert(numInst <= fetchWidth);
+                        assert(numInst <= adjustedFetchWidth);
                     }
 
                     // jumps to the while loop condition and if:
@@ -2151,7 +2155,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         /* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
-                            if (!prevStaticInst->isStreamedFromSpeculativeCache()) {
+                            if (!prevStaticInst->isStreamedFromSpeculativeCache() && prevStaticInst->isStreamedFromUOpCache()) {
                                 prevStaticInst->macroOp = curMacroop;
                                 if ((staticInst->isInteger() || staticInst->isNop() ||
                                         staticInst->isControl() || staticInst->isMicroBranch()) &&
@@ -2342,7 +2346,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     (isUopCachePresent && decoder[tid]->isUopCacheActive()) ||  // for uop cache
                     (curMacroop || decoder[tid]->instReady())  // for legacy decoder/uop cache
                   ) && 
-                  numInst < fetchWidth &&
+                  numInst < adjustedFetchWidth &&
                   computeFetchQueueSize(tid) < fetchQueueSize
         );
 
@@ -2368,7 +2372,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     if (predictedBranch) {
         DPRINTF(Fetch, "[tid:%i]: Done fetching, predicted branch "
                 "instruction encountered.\n", tid);
-    } else if (numInst >= fetchWidth) {
+    } else if (numInst >= adjustedFetchWidth) {
         DPRINTF(Fetch, "[tid:%i]: Done fetching, reached fetch bandwidth "
                 "for this cycle.\n", tid);
     } else if (blkOffset >= fetchBufferSize) {

@@ -77,12 +77,12 @@ class DerivO3CPU(BaseCPU):
                                    "delay")
     commitToFetchDelay = Param.Cycles(1, "Commit to fetch delay")
     fetchWidth = Param.Unsigned(8, "Fetch width")
-    fetchBufferSize = Param.Unsigned(64, "Fetch buffer size in bytes")
+    fetchBufferSize = Param.Unsigned(16, "Fetch buffer size in bytes")
     enable_microop_cache = Param.Bool(True, "Does the CPU support a micro-op cache?")
     enable_micro_fusion = Param.Bool(True, "Does the CPU support micro-fusion?")
     enable_superoptimization = Param.Bool(False, "Does the CPU support speculative superoptimization?")
     superoptimization_warmup_cycles = Param.Unsigned(0, "Warmup cycles for superoptimization")
-    fetchQueueSize = Param.Unsigned(32, "Fetch queue size in micro-ops "
+    fetchQueueSize = Param.Unsigned(140, "Fetch queue size in micro-ops "
                                     "per-thread")
     constantBufferSize = Param.Unsigned(256, "Size of the buffer of constant load addresses")
     dumpFrequency = Param.Unsigned(10000, "Number of cycles between dumps")
