@@ -1798,8 +1798,8 @@ Decoder::isTraceAvailable(FullUopAddr addr) {
                 continue;
             }
 
-            if ((trace.controlSources[0].valid && trace.controlSources[0].confidence < 5) || 
-                (trace.controlSources[1].valid && trace.controlSources[1].confidence < 5 )) {
+            if ((trace.controlSources[0].valid && trace.controlSources[0].confidence < traceConstructor->controlPredictionConfidenceThreshold) || 
+                (trace.controlSources[1].valid && trace.controlSources[1].confidence < traceConstructor->controlPredictionConfidenceThreshold )) {
                 DPRINTF(Decoder, "Control sources have low confidence\n");
                 continue;
             }

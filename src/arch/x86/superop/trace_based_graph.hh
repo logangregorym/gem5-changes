@@ -42,6 +42,7 @@ class TraceBasedGraph : public SimObject
     bool usingCCTracking = false;
 
     uint16_t predictionConfidenceThreshold = 5; 
+    uint16_t controlPredictionConfidenceThreshold = 5; 
     uint16_t specCacheNumWays = 8;
     uint16_t specCacheNumSets = 32;
     uint16_t specCacheNumUops = 6; 

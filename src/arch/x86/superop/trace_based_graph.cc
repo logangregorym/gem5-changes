@@ -28,6 +28,7 @@ TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p),
                                                             usingControlTracking(p->usingControlTracking), 
                                                             usingCCTracking(p->usingCCTracking), 
                                                             predictionConfidenceThreshold(p->predictionConfidenceThreshold) ,
+                                                            controlPredictionConfidenceThreshold(p->controlPredictionConfidenceThreshold) ,
                                                             specCacheNumWays(p->specCacheNumWays),
                                                             specCacheNumSets(p->specCacheNumSets) ,
                                                             specCacheNumUops(p->specCacheNumUops) ,
@@ -38,6 +39,7 @@ TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p),
     DPRINTF(SuperOp, "Control tracking: %i\n", usingControlTracking);
     DPRINTF(SuperOp, "CC tracking: %i\n", usingCCTracking);
     DPRINTF(SuperOp, "Prediction Confidence Threshold: %i\n", predictionConfidenceThreshold);
+    DPRINTF(SuperOp, "Control Prediction Confidence Threshold: %i\n", controlPredictionConfidenceThreshold);
     DPRINTF(SuperOp, "Number of ways for speculative cache: %i\n", specCacheNumWays);
     DPRINTF(SuperOp, "Number of sets for speculative cache: %i\n", specCacheNumSets);
     DPRINTF(SuperOp, "Number of uops for speculative cache: %i\n", specCacheNumUops);
@@ -363,7 +365,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
                     }
                     DPRINTF(TraceGen, "Control Tracking: jumping to address %#x: uop[%i][%i][%i]\n", target, uop_cache_idx, way, uop);
                     
-                    trace.controlSources[trace.branchesFolded].confidence = 9;
+                    trace.controlSources[trace.branchesFolded].confidence = controlPredictionConfidenceThreshold;
                     trace.controlSources[trace.branchesFolded].valid = true;
                     trace.controlSources[trace.branchesFolded].value = target;
 
@@ -3827,7 +3829,7 @@ bool TraceBasedGraph::propagateWrip(StaticInstPtr inst) {
                         assert(currentTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                         currentTrace.addr.valid = true;
 
-                        currentTrace.controlSources[currentTrace.branchesFolded].confidence = 9;
+                        currentTrace.controlSources[currentTrace.branchesFolded].confidence = controlPredictionConfidenceThreshold;
                         currentTrace.controlSources[currentTrace.branchesFolded].valid = true;
                         currentTrace.controlSources[currentTrace.branchesFolded].value = target;
 
@@ -3992,7 +3994,7 @@ bool TraceBasedGraph::propagateWripI(StaticInstPtr inst) {
                         assert(currentTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                         currentTrace.addr.valid = true;
 
-                        currentTrace.controlSources[currentTrace.branchesFolded].confidence = 9;
+                        currentTrace.controlSources[currentTrace.branchesFolded].confidence = controlPredictionConfidenceThreshold;
                         currentTrace.controlSources[currentTrace.branchesFolded].valid = true;
                         currentTrace.controlSources[currentTrace.branchesFolded].value = target;
 

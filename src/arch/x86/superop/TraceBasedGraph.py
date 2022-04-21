@@ -9,6 +9,7 @@ class TraceBasedGraph(SimObject):
         usingCCTracking = Param.Bool(0, "Tracking condition codes?");
         connectionCount = Param.Unsigned(4096, "Number of connections to track at a time")
         predictionConfidenceThreshold = Param.Unsigned(5, "Confidence threshold to make a prediction during superoptmization")
+        controlPredictionConfidenceThreshold = Param.Unsigned(5, "Confidence threshold to make a prediction during superoptmization")
         specCacheNumWays = Param.Unsigned(8, "Confidence threshold to make a prediction during superoptmization")
         specCacheNumSets = Param.Unsigned(32, "Confidence threshold to make a prediction during superoptmization")
         specCacheNumUops = Param.Unsigned(6, "Confidence threshold to make a prediction during superoptmization")

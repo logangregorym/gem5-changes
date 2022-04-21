@@ -1556,7 +1556,7 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
 
     if (uops_plus_shrunken % 10000000 == 0) {
         std::cout << "NumOfUops: " << uops_plus_shrunken << std::endl;
-        std::cout << "CPuops: " << std::dec << (((double) cpu->numCycles.value()) / ((double) uops_plus_shrunken)) << std::endl;
+        std::cout << "NumCycles: " << std::dec << cpu->numCycles.value() << std::endl;
     }
 
     if (false && 
