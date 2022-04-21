@@ -879,7 +879,7 @@ DefaultFetch<Impl>::finishTranslation(const Fault &fault,
         }
     } else {
         // Don't send an instruction to decode if we can't handle it.
-       int adjustedFetchWidth = fetchWidth;
+        int adjustedFetchWidth = fetchWidth;
         if (!decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive()){
             adjustedFetchWidth = fetchWidth - 1;
         }
@@ -1728,6 +1728,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
     // Loop through instruction memory from the cache.
     // Keep issuing while fetchWidth is available and branch is not
     // predicted taken
+    int adjustedFetchWidth = fetchWidth;
+    if (!decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive()){
+            adjustedFetchWidth = fetchWidth - 1;
+    }
     while (numInst < adjustedFetchWidth && computeFetchQueueSize(tid) < fetchQueueSize
            && !predictedBranch && !quiesce) {
         // We need to process more memory if we aren't going to get a
@@ -2367,6 +2371,10 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         switchToSpecUopCachePipeline = false;
                         switchToDecodePipeline = false;
                     }
+                }
+                if (!instruction->isStreamedFromSpeculativeCache() && !instruction->isStreamedFromUOpCache()){
+                    //assert(adjustedFetchWidth == fetchWidth - 1);
+                    adjustedFetchWidth = fetchWidth - 1;
                 }
 
         } 
