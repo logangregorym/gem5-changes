@@ -1014,103 +1014,136 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     }
                 }
 
+                bool badTrace = false;
                 for (auto &microop: decoder->specCacheWriteQueue)
                 {
                     // add trace id to each spec microop for gathering stats in commit stage
                     microop.inst->setTraceID(currentTrace.id);
                     microop.inst->setTraceLength(decoder->specCacheWriteQueue.size());
-                    decoder->addUopToSpeculativeCache(currentTrace, microop);
+                    if (!decoder->addUopToSpeculativeCache(currentTrace, microop)) {
+                        for (auto &micro: decoder->specCacheWriteQueue)
+                        {
+                            if (!micro.inst->macroOp)
+                            {
+                                assert(!micro.inst->isMacroop());
+                                micro.inst = NULL;
+                                continue;
+                            }
+                            StaticInstPtr macro = NULL;
+                            if (micro.inst->macroOp && micro.inst->macroOp->isMacroop())
+                            {
+                                macro = micro.inst->macroOp;
+                            }
+                            if (macro)
+                            {
+                                macro->deleteMicroOps();
+                            }
+                            macro = NULL;
+                        }
+                        decoder->specCacheWriteQueue.clear();
+                        decoder->invalidateSpecTrace(traceMap[currentTrace.id].getOptimizedHead(), currentTrace.id);
+                        //decoder->setUopTraceProfitableForSuperOptimization(currentTrace.getTraceHeadAddr().pcAddr, false);
+                        //traceMap.erase(currentTrace.id);
+                        //currentTrace.addr.valid = false;
+                        //currentTrace.state = SpecTrace::Evicted;
+                        //currentTrace.id = 0;
+                        badTrace = true;
+                        break;   
+                    }
                 }
 
-                currentTrace.validPredSources = validPredSources;
-                
-                
+                if (!badTrace){
 
-                numMicroopsInTraceDist.sample(decoder->specCacheWriteQueue.size());
-                DPRINTF(TraceGen, "Trace id %d added to spec cache with %d valid prediction sources!.\n", currentTrace.id, validPredSources );
+                    currentTrace.validPredSources = validPredSources;
                     
-                // now that write queue is written to the spec cache, clear it
-                // DON'T DELETE MICROOPS HERE! 
-                decoder->specCacheWriteQueue.clear();
-            
-                DPRINTF(SuperOp, "Before optimization: \n");
-                currentTrace.addr = currentTrace.head;
-                assert(currentTrace.addr.getUop() < decoder->UOP_CACHE_NUM_UOPS && "trace.addr.uop >= decoder->UOP_CACHE_NUM_UOPS\n");
-                assert(currentTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
-                //cout << currentTrace.id << ": " << 4 << endl; 
-                dumpTrace(currentTrace);
-        
-                DPRINTF(SuperOp, "After optimization: \n");
-                // this assertions should never fail!
-                assert(currentTrace.getOptimizedHead().valid);
-                int idx = currentTrace.getOptimizedHead().idx;
-                int way = currentTrace.getOptimizedHead().way;
-
-                assert(decoder->speculativeValidArray[idx][way]);
-                assert(decoder->speculativeTraceIDArray[idx][way] == currentTrace.id);
-                assert(decoder->speculativePrevWayArray[idx][way] == decoder->SPEC_CACHE_WAY_MAGIC_NUM);
-            
-
-                if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) 
-                {
-                    // mark end of trace and propagate live outs
-                    DPRINTF(SuperOp, "End of Trace at %s!\n", currentTrace.prevNonEliminatedInst->getName());
                     
-                    assert(currentTrace.prevNonEliminatedInst);
-                    // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
-                    // Also, unset trace prediction source at the end of a trace as it doesn't matter what the prediction is since it will never be used.
-                    currentTrace.prevNonEliminatedInst->setEndOfTrace();
-                    oldCCValid = false;
-                    dumpLiveOuts(currentTrace.prevNonEliminatedInst, true);
 
-                    if (!currentTrace.prevNonEliminatedInst->isCarryingLivesOut() && !currentTrace.prevNonEliminatedInst->forwardedLiveValueExists) {
-                        currentTrace.prevNonEliminatedInst->setTracePredictionSource(false);
-                    }
-
-                    assert(currentTrace.id);
-                    assert(currentTrace.getOptimizedHead().valid);
-                    assert(currentTrace.state == SpecTrace::OptimizationInProcess);
-
-                    currentTrace.addr = currentTrace.getOptimizedHead();
+                    numMicroopsInTraceDist.sample(decoder->specCacheWriteQueue.size());
+                    DPRINTF(TraceGen, "Trace id %d added to spec cache with %d valid prediction sources!.\n", currentTrace.id, validPredSources );
+                        
+                    // now that write queue is written to the spec cache, clear it
+                    // DON'T DELETE MICROOPS HERE! 
+                    decoder->specCacheWriteQueue.clear();
+                
+                    DPRINTF(SuperOp, "Before optimization: \n");
+                    currentTrace.addr = currentTrace.head;
                     assert(currentTrace.addr.getUop() < decoder->UOP_CACHE_NUM_UOPS && "trace.addr.uop >= decoder->UOP_CACHE_NUM_UOPS\n");
                     assert(currentTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
-                    currentTrace.state = SpecTrace::Complete;
-                    traceMap[currentTrace.id] = currentTrace;
-                    //cout << currentTrace.id << ": " << 2 << endl;
+                    //cout << currentTrace.id << ": " << 4 << endl; 
                     dumpTrace(currentTrace);
-                    DPRINTF(SuperOp, "Live Outs:\n");
-                    for (int i=0; i<16; i++) {
-                        if (regCtx[i].valid && !regCtx[i].source)
-                            DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
-                    }
-                    if (ccValid) {
-                        DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
-                        DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
-                        DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
-                        DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
-                        DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
-                    } else {
-                        DPRINTF(SuperOp, "No live out CC\n");
-                    }
-                }
+            
+                    DPRINTF(SuperOp, "After optimization: \n");
+                    // this assertions should never fail!
+                    assert(currentTrace.getOptimizedHead().valid);
+                    int idx = currentTrace.getOptimizedHead().idx;
+                    int way = currentTrace.getOptimizedHead().way;
 
-                if (debugTraceGen && currentTrace.id >= debugTraceGen){
-                    clearDebugFlag("SuperOpSanityCheck");
-                    clearDebugFlag("LVP");
-                    clearDebugFlag("ConstProp");
-                    clearDebugFlag("Branch");
-                    clearDebugFlag("SuperOp");
-                    clearDebugFlag("TraceGen");
-                    clearDebugFlag("Exec");
-                    clearDebugFlag("Decoder");
-                    clearDebugFlag("O3CPUAll");
-                    clearDebugFlag("Fetch");
-                    clearDebugFlag("X86");
-                    clearDebugFlag("Commit");
-                    clearDebugFlag("IEW");
-                    clearDebugFlag("FA3P");
-                    clearDebugFlag("TraceEviction");
-                    //clearDebugFlag("TraceQueue");
+                    assert(decoder->speculativeValidArray[idx][way]);
+                    assert(decoder->speculativeTraceIDArray[idx][way] == currentTrace.id);
+                    assert(decoder->speculativePrevWayArray[idx][way] == decoder->SPEC_CACHE_WAY_MAGIC_NUM);
+                
+
+                    if (decoder->speculativeValidArray[idx][way] && decoder->speculativeTraceIDArray[idx][way] == currentTrace.id) 
+                    {
+                        // mark end of trace and propagate live outs
+                        DPRINTF(SuperOp, "End of Trace at %s!\n", currentTrace.prevNonEliminatedInst->getName());
+                        
+                        assert(currentTrace.prevNonEliminatedInst);
+                        // here we mark 'prevNonEliminatedInst' as end of the trace because sometimes an eliminated instruction can be set as end of the trace
+                        // Also, unset trace prediction source at the end of a trace as it doesn't matter what the prediction is since it will never be used.
+                        currentTrace.prevNonEliminatedInst->setEndOfTrace();
+                        oldCCValid = false;
+                        dumpLiveOuts(currentTrace.prevNonEliminatedInst, true);
+
+                        if (!currentTrace.prevNonEliminatedInst->isCarryingLivesOut() && !currentTrace.prevNonEliminatedInst->forwardedLiveValueExists) {
+                            currentTrace.prevNonEliminatedInst->setTracePredictionSource(false);
+                        }
+
+                        assert(currentTrace.id);
+                        assert(currentTrace.getOptimizedHead().valid);
+                        assert(currentTrace.state == SpecTrace::OptimizationInProcess);
+
+                        currentTrace.addr = currentTrace.getOptimizedHead();
+                        assert(currentTrace.addr.getUop() < decoder->UOP_CACHE_NUM_UOPS && "trace.addr.uop >= decoder->UOP_CACHE_NUM_UOPS\n");
+                        assert(currentTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
+                        currentTrace.state = SpecTrace::Complete;
+                        traceMap[currentTrace.id] = currentTrace;
+                        //cout << currentTrace.id << ": " << 2 << endl;
+                        dumpTrace(currentTrace);
+                        DPRINTF(SuperOp, "Live Outs:\n");
+                        for (int i=0; i<16; i++) {
+                            if (regCtx[i].valid && !regCtx[i].source)
+                                DPRINTF(SuperOp, "reg[%i]=%#x\n", i, regCtx[i].value);
+                        }
+                        if (ccValid) {
+                            DPRINTF(SuperOp, "PredccFlagBits: %#x\n", PredccFlagBits);
+                            DPRINTF(SuperOp, "PredcfofBits: %#x\n", PredcfofBits);
+                            DPRINTF(SuperOp, "PreddfBit: %#x\n", PreddfBit);
+                            DPRINTF(SuperOp, "PredecfBit: %#x\n", PredecfBit);
+                            DPRINTF(SuperOp, "PredezfBit: %#x\n", PredezfBit);
+                        } else {
+                            DPRINTF(SuperOp, "No live out CC\n");
+                        }
+                    }
+
+                    if (debugTraceGen && currentTrace.id >= debugTraceGen){
+                        clearDebugFlag("SuperOpSanityCheck");
+                        clearDebugFlag("LVP");
+                        clearDebugFlag("ConstProp");
+                        clearDebugFlag("Branch");
+                        clearDebugFlag("SuperOp");
+                        clearDebugFlag("TraceGen");
+                        clearDebugFlag("Exec");
+                        clearDebugFlag("Decoder");
+                        clearDebugFlag("O3CPUAll");
+                        clearDebugFlag("Fetch");
+                        clearDebugFlag("X86");
+                        clearDebugFlag("Commit");
+                        clearDebugFlag("IEW");
+                        clearDebugFlag("FA3P");
+                        clearDebugFlag("TraceEviction");
+                        //clearDebugFlag("TraceQueue");
+                    }
                 }
             }
             

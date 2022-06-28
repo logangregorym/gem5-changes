@@ -1463,8 +1463,11 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
         assert (speculativeValidArray[idx][way]);
         
         assert(speculativeTraceIDArray[idx][way]);
-        assert(traceConstructor->traceMap.find(speculativeTraceIDArray[idx][way]) != traceConstructor->traceMap.end());
-            
+        //assert(traceConstructor->traceMap.find(speculativeTraceIDArray[idx][way]) != traceConstructor->traceMap.end());
+        
+        if (traceConstructor->traceMap.find(speculativeTraceIDArray[idx][way]) == traceConstructor->traceMap.end())
+            continue;
+
         if (traceConstructor->traceMap[speculativeTraceIDArray[idx][way]].isInTransit()) 
             continue;
     
@@ -1635,7 +1638,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
     else 
     {
         /// This is normal to happen but the problem is that we don't have the necessary logic to cause a stall
-        panic("We always should be able to find a way to evict!");
+        //panic("We always should be able to find a way to evict!");
     }
     DPRINTF(ConstProp, "Optimized trace could not be loaded into speculative cache because eviction failed\n");
 
@@ -1648,7 +1651,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
     // what is the policy in case of an eviction failure in general?
     // if this happened, we need to add logic to make sure that we stall super optimizer
     // otherwise it's gonna cause hard to find bugs!
-    panic("Couldn't write to spec cache!");
+    //panic("Couldn't write to spec cache!");
     return false;
 }
 
@@ -1917,8 +1920,12 @@ Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t evictedTraceID)
     uint64_t evictTag = speculativeTagArray[idx][evict_way];
     
     DPRINTF(Decoder, "Removing trace %d from Trace Map.  Tag :%#x\n", evictedTraceID, evictTag);
-    assert(evictTag);
-    assert(speculativeTraceIDArray[idx][evict_way] == evictedTraceID);
+    //assert(evictTag);
+    //assert(speculativeTraceIDArray[idx][evict_way] == evictedTraceID);
+    if (!evictTag || speculativeTraceIDArray[idx][evict_way] != evictedTraceID){
+        traceConstructor->traceMap.erase(evictedTraceID);
+        return;
+    }
 
     for (int w = 0; w < SPEC_CACHE_NUM_WAYS; w++) 
     {
