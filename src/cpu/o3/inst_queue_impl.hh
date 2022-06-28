@@ -1031,7 +1031,7 @@ InstructionQueue<Impl>::scheduleReadyInsts()
                                 issuing_inst->staticInst->predictedLoad, issuing_inst->staticInst->predictedValue, issuing_inst->staticInst->confidence);
 
 
-                    if (issuing_inst->staticInst->confidence >= 5) {
+                    if (issuing_inst->staticInst->confidence >= 5) { // HARDCODED CONFIDENCE
                             
                         bool forwarded = forwardNonLoadValuePredictionToDependents(issuing_inst);
                         if (forwarded)
@@ -1256,7 +1256,7 @@ InstructionQueue<Impl>::wakeDependents(DynInstPtr &completed_inst)
             ++dependents;
         }
 
-        if (completed_inst->staticInst->predictedLoad && completed_inst->staticInst->confidence >= 5)
+        if (completed_inst->staticInst->predictedLoad && completed_inst->staticInst->confidence >= 5) // HARDCODED CONFIDENCE
         {
             ++highConfidenceInsts;
         }
