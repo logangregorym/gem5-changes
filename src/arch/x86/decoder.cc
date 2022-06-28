@@ -306,7 +306,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
                 speculativeTagArray[idx][way] = 0;
                 speculativePrevWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
                 speculativeNextWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
-                specHotnessArray[idx][way] = BigSatCounter(64);
+                specHotnessArray[idx][way] = BigSatCounter(4);
                 speculativeTraceIDArray[idx][way] = 0;
                 speculativeEvictionStat[idx][way] = 0;
                 for (int uop = 0; uop < SPEC_CACHE_NUM_UOPS; uop++) {
@@ -1172,8 +1172,9 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     }
 
     /* There aren't any unused ways. Evict the LRU way. */
-    unsigned lruWay = UOP_CACHE_NUM_WAYS;
+    unsigned lruWay = UOP_CACHE_NUM_WAYS; lruWay = lruWay;
     unsigned evictWay = UOP_CACHE_NUM_WAYS;
+    uint64_t wayHotness = UINT64_MAX; wayHotness = wayHotness;
 
     if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
         DPRINTF(Decoder, "Trace being superoptimized has its head at uop[%i][%i][%i] and is currently optimizing uop[%i][%i][%i]\n", traceConstructor->currentTrace.head.idx, traceConstructor->currentTrace.head.way, traceConstructor->currentTrace.head.getUop(), traceConstructor->currentTrace.addr.idx, traceConstructor->currentTrace.addr.way, traceConstructor->currentTrace.addr.getUop());
@@ -1215,8 +1216,12 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             continue;
         }
 */
-        if (uopLRUArray[idx][way] < lruWay) {
+        /*if (uopLRUArray[idx][way] < lruWay) {
             lruWay = uopLRUArray[idx][way];
+            evictWay = way;
+        }*/
+        if (uopHotnessArray[idx][way].read() < wayHotness) {
+            wayHotness = uopHotnessArray[idx][way].read();
             evictWay = way;
         }
     }
@@ -1465,7 +1470,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
     
 
         // LRU based eviction algorithm 
-        if (speculativeLRUArray[idx][way] < lruWay) {
+        /*if (speculativeLRUArray[idx][way] < lruWay) {
             DPRINTF(Decoder, "lruWay = %d,  speculativeLRUArray[%d][%d] = %d\n", lruWay, idx, way, speculativeLRUArray[idx][way]);
             lruWay = speculativeLRUArray[idx][way];
             evictWay = way;
@@ -1473,26 +1478,26 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
         else 
         {
             DPRINTF(Decoder, "lruWay = %d,  speculativeLRUArray[%d][%d] = %d\n", lruWay, idx, way, speculativeLRUArray[idx][way]);
-        }
+        }*/
         
         
         //don't evict a trace that is added just now! 
-        // if (speculativeTraceIDArray[idx][way] == traceID) continue;
+        if (speculativeTraceIDArray[idx][way] == traceID) continue;
 
         //Hotness based eviction algorithm
-        // if (specHotnessArray[idx][way].read() < wayHotness) {
-        //     DPRINTF(Decoder, "wayHotness = %d,  specHotnessArray[%d][%d] = %d speculativeTraceIDArray[%d][%d] = %d\n", wayHotness, idx, way, specHotnessArray[idx][way].read(), idx, way, speculativeTraceIDArray[idx][way]);
-        //     wayHotness = specHotnessArray[idx][way].read();
-        //     evictWay = way;
-        // }
-        // else 
-        // {
-        //     DPRINTF(Decoder, "wayHotness = %d,  specHotnessArray[%d][%d] = %d speculativeTraceIDArray[%d][%d] = %d\n", wayHotness, idx, way, specHotnessArray[idx][way].read(), idx, way, speculativeTraceIDArray[idx][way]);
-        // }
+        if (specHotnessArray[idx][way].read() < wayHotness) {
+            DPRINTF(Decoder, "wayHotness = %d,  specHotnessArray[%d][%d] = %d speculativeTraceIDArray[%d][%d] = %d\n", wayHotness, idx, way, specHotnessArray[idx][way].read(), idx, way, speculativeTraceIDArray[idx][way]);
+            wayHotness = specHotnessArray[idx][way].read();
+            evictWay = way;
+        }
+        else 
+        {
+            DPRINTF(Decoder, "wayHotness = %d,  specHotnessArray[%d][%d] = %d speculativeTraceIDArray[%d][%d] = %d\n", wayHotness, idx, way, specHotnessArray[idx][way].read(), idx, way, speculativeTraceIDArray[idx][way]);
+        }
     }
 
 
-    if (evictWay != SPEC_CACHE_NUM_WAYS) {
+    if (evictWay < SPEC_CACHE_NUM_WAYS) {
         DPRINTF(Decoder, "Evicting microop in the speculative cache: tag:%#x idx:%d way:%d.\n Affected PCs:\n", tag, idx, evictWay);
         /* Invalidate all prior content. */
         uint64_t evictedTraceID = speculativeTraceIDArray[idx][evictWay];
@@ -1808,7 +1813,7 @@ Decoder::isTraceAvailable(FullUopAddr addr) {
             unsigned latency = maxLatency(trace.id);
             unsigned shrinkage = trace.length - trace.shrunkLength;
             DPRINTF(Decoder, "confidence=%i, latency=%i, shrinkage=%i\n", traceConfidence, latency, shrinkage);
-            if (traceConfidence < 5) { // low confidence, move on the the next trace at this index
+            if (traceConfidence < traceConstructor->predictionConfidenceThreshold) { // low confidence, move on the the next trace at this index
                 continue;
             }
 
