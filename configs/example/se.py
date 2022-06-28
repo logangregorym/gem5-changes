@@ -66,6 +66,7 @@ from common.Caches import *
 from common.cpu2000 import *
 from common.cores.x86 import O3_X86_skylake
 from common.cores.x86 import O3_X86_icelake
+from common.cores.x86 import O3_X86_icelake_double
 from common.cores.x86 import O3_X86_alderlake
 
 def get_processes(options):
@@ -113,7 +114,7 @@ def get_processes(options):
         idx += 1
 
     if options.smt:
-        assert(options.cpu_type == "DerivO3CPU" or options.cpu_type == "O3_X86_sb_1" or options.cpu_type == "O3_X86_skylake_1" or options.cpu_type == "O3_X86_icelake_1" or options.cpu_type == "O3_X86_alderlake_1")
+        assert(options.cpu_type == "DerivO3CPU" or options.cpu_type == "O3_X86_sb_1" or options.cpu_type == "O3_X86_skylake_1" or options.cpu_type == "O3_X86_icelake_1" or options.cpu_type == "O3_X86_icelake_double_1" or options.cpu_type == "O3_X86_alderlake_1")
         return multiprocesses, idx
     else:
         return multiprocesses, 1
@@ -169,6 +170,7 @@ parser.add_option("--after_exec_cnt", default=0, type="int", action="store", hel
 parser.add_option("--lvpLookupAtFetch", action="store_true", help="Enables an LVP lookup at every fetch cycle to detect stale traces, enabling will incur a 1 cycle penalty");
 parser.add_option("--enableValuePredForwarding", action="store_true", help="Enables Load Value Prediction for Raw execution");
 parser.add_option("--enableDynamicThreshold", action="store_true", help="Enables the use of a dynamic threshold for LVP");
+parser.add_option("--forceNoTSO", default=0, action="store_true", help="Force disable TSO Memory model");
 
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
@@ -255,6 +257,8 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.lvpLookupAtFetch = options.lvpLookupAtFetch
     CPUClass.enableValuePredForwarding = options.enableValuePredForwarding
     CPUClass.enableDynamicThreshold = options.enableDynamicThreshold
+    if options.forceNoTSO:
+        CPUClass.needsTSO = False
 
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
@@ -306,6 +310,8 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.lvpLookupAtFetch = options.lvpLookupAtFetch
     FutureClass.enableValuePredForwarding = options.enableValuePredForwarding
     FutureClass.enableDynamicThreshold = options.enableDynamicThreshold
+    if options.forceNoTSO:
+        FutureClass.needsTSO = False
 
 # Check -- do not allow SMT with multiple CPUs
 if options.smt and options.num_cpus > 1:
@@ -363,7 +369,7 @@ if options.lvpLookupAtFetch:
         fatal("No LVP Lookup needed if SuperOptimization not enabled")
     found = False
     for cpu in system.cpu:
-        if (cpu is O3_X86_skylake) or (cpu is O3_X86_icelake) or (cpu is O3_X86_alderlake):
+        if (cpu is O3_X86_skylake) or (cpu is O3_X86_icelake) or (cpu is O3_X86_icelake_double) or (cpu is O3_X86_alderlake):
             cpu.fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
             found = True
 elif options.enableValuePredForwarding:
@@ -373,7 +379,7 @@ elif options.enableValuePredForwarding:
         fatal("Value forwarding not yet supported with superoptimization")
     found = False
     for cpu in system.cpu:
-        if (cpu is O3_X86_skylake) or (cpu is O3_X86_icelake) or (cpu is O3_X86_alderlake):
+        if (cpu is O3_X86_skylake) or (cpu is O3_X86_icelake) or (cpu is O3_X86_icelake_double) or (cpu is O3_X86_alderlake):
             cpu.fetchToDecodeDelay = int(system.cpu[0].fetchToDecodeDelay) + 1
             found = True
 #    if not found:

@@ -306,7 +306,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
                 speculativeTagArray[idx][way] = 0;
                 speculativePrevWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
                 speculativeNextWayArray[idx][way] = SPEC_CACHE_WAY_MAGIC_NUM;
-                specHotnessArray[idx][way] = BigSatCounter(64);
+                specHotnessArray[idx][way] = BigSatCounter(4);
                 speculativeTraceIDArray[idx][way] = 0;
                 speculativeEvictionStat[idx][way] = 0;
                 for (int uop = 0; uop < SPEC_CACHE_NUM_UOPS; uop++) {
@@ -1172,8 +1172,9 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
     }
 
     /* There aren't any unused ways. Evict the LRU way. */
-    unsigned lruWay = UOP_CACHE_NUM_WAYS;
+    unsigned lruWay = UOP_CACHE_NUM_WAYS; lruWay = lruWay;
     unsigned evictWay = UOP_CACHE_NUM_WAYS;
+    uint64_t wayHotness = UINT64_MAX; wayHotness = wayHotness;
 
     if (traceConstructor->currentTrace.state == SpecTrace::OptimizationInProcess) {
         DPRINTF(Decoder, "Trace being superoptimized has its head at uop[%i][%i][%i] and is currently optimizing uop[%i][%i][%i]\n", traceConstructor->currentTrace.head.idx, traceConstructor->currentTrace.head.way, traceConstructor->currentTrace.head.getUop(), traceConstructor->currentTrace.addr.idx, traceConstructor->currentTrace.addr.way, traceConstructor->currentTrace.addr.getUop());
@@ -1215,8 +1216,12 @@ Decoder::updateUopInUopCache(ExtMachInst emi, Addr addr, int numUops, int size, 
             continue;
         }
 */
-        if (uopLRUArray[idx][way] < lruWay) {
+        /*if (uopLRUArray[idx][way] < lruWay) {
             lruWay = uopLRUArray[idx][way];
+            evictWay = way;
+        }*/
+        if (uopHotnessArray[idx][way].read() < wayHotness) {
+            wayHotness = uopHotnessArray[idx][way].read();
             evictWay = way;
         }
     }

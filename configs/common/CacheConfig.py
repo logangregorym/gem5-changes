@@ -85,6 +85,16 @@ def config_cache(options, system):
         dcache_class, icache_class, l2_cache_class, walk_cache_class, l3_cache_class = \
             O3_X86_icelake_DCache, O3_X86_icelake_ICache, O3_X86_icelakeL2, \
             O3_X86_icelakeWalkCache, O3_X86_icelakeL3
+    elif options.cpu_type == "O3_X86_icelake_double_1":
+        try:
+            from cores.x86.O3_X86_icelake_double import *
+        except:
+            print("O3_X86_icelake_double_1 is unavailable. Did you compile the O3 model?")
+            sys.exit(1)
+
+        dcache_class, icache_class, l2_cache_class, walk_cache_class, l3_cache_class = \
+            O3_X86_icelake_double_DCache, O3_X86_icelake_double_ICache, O3_X86_icelake_doubleL2, \
+            O3_X86_icelake_doubleWalkCache, O3_X86_icelake_doubleL3
     elif options.cpu_type == "O3_X86_alderlake_1":
         try:
             from cores.x86.O3_X86_alderlake import *
