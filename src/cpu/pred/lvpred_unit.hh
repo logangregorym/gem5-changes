@@ -153,6 +153,8 @@ class LVPredUnit : public SimObject
     public:
     /** Stat for number of load value lookups. */
     Stats::Scalar lvLookups;
+        /** Stat for total predictions used. */
+    Stats::Formula totalUsed;
     
     protected:
     /** Stat for number of correct predictions used. */
@@ -167,8 +169,7 @@ class LVPredUnit : public SimObject
     Stats::Formula totalCorrect;
     /** Stat for total unpredictable values. */
     Stats::Formula totalIncorrect;
-    /** Stat for total predictions used. */
-    Stats::Formula totalUsed;
+
     /** Stat for total predictions not used. */
     Stats::Formula totalNotUsed;
     /** Stat for prediction accuracy. */

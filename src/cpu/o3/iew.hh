@@ -385,6 +385,8 @@ class DefaultIEW
     /** Pointer to Load Value Prediction Unit */
     LVPredUnit *loadPred;
 //    BasicLVP *loadPred;
+    
+    bool enableDynamicThreshold;
 
   private:
     /** Records if there is a fetch redirect on this cycle for each thread. */
@@ -435,6 +437,10 @@ class DefaultIEW
 
     /** Maximum size of the skid buffer. */
     unsigned skidBufferMax;
+
+    double lastLVPRate = -1.0;
+    double lastBranchRate = -1.0;
+    unsigned lastRateUpdate = 0;
 
     /** Stat for total number of idle cycles. */
     Stats::Scalar iewIdleCycles;

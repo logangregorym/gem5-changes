@@ -15,4 +15,6 @@ class TraceBasedGraph(SimObject):
         specCacheNumUops = Param.Unsigned(6, "Confidence threshold to make a prediction during superoptmization")
         numOfTracePredictionSources = Param.Unsigned(4, "Confidence threshold to make a prediction during superoptmization")
         debugTraceGen = Param.Unsigned(0, "Trace id to generate logs for")
+        disableSuperProp = Param.Bool(0, "Disables all SCC propogation, prediction, and folding for all instructions except mov, movi, and limm")
+        disableSuperSimple = Param.Bool(0, "Disables all SCC propogation, prediction, and folding for mov, movi, and limm ")
 

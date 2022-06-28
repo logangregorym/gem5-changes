@@ -1902,7 +1902,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         }
 
                         //Determine which branch prediction to use
-                        if (trace_confidence > 5){
+                        if (trace_confidence > decoder[tid]->traceConstructor->controlPredictionConfidenceThreshold){
                             DPRINTF(Fetch, "Trace confidence of contro sorce is high, using its prediction\n");
                             predict_taken = instruction->staticInst->predictedTaken;
                             nextPC = instruction->staticInst->predictedTarget;

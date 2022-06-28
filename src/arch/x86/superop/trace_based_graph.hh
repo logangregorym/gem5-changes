@@ -49,6 +49,9 @@ class TraceBasedGraph : public SimObject
     uint16_t numOfTracePredictionSources = 4;
     uint64_t debugTraceGen = 0;
 
+    bool disableSuperProp = false;
+    bool disableSuperSimple = false;
+
     bool QueueHotTraceForSuperOptimization(const X86ISA::PCState& pc);
 
     bool updateSpecTrace(SpecTrace &trace, bool& isDeadCode, bool propagated);

@@ -168,6 +168,11 @@ parser.add_option("--doStoragelessBranchConf", action="store_true", help="Whethe
 parser.add_option("--checkpoint_at_instr", default=0, type="int", action="store", help="");
 parser.add_option("--after_exec_cnt", default=0, type="int", action="store", help="");
 parser.add_option("--lvpLookupAtFetch", action="store_true", help="Enables an LVP lookup at every fetch cycle to detect stale traces, enabling will incur a 1 cycle penalty");
+parser.add_option("--enableDynamicThreshold", default=0, action="store_true", help="Enables the use of a dynamic threshold for LVP");
+parser.add_option("--disableSuperProp", default=0, action="store_true", help="Disables all SCC propogation, prediction, and folding for all instructions except mov, movi, and limm");
+parser.add_option("--disableSuperSimple", default=0, action="store_true", help="Disables all SCC propogation, prediction, and folding for mov, movi, and limm ");
+parser.add_option("--forceNoTSO", default=0, action="store_true", help="Force disable TSO Memory model");
+
 
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
@@ -253,6 +258,11 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.uopCacheNumSets = options.uopCacheNumSets
     CPUClass.uopCacheNumUops = options.uopCacheNumUops
     CPUClass.lvpLookupAtFetch = options.lvpLookupAtFetch
+    CPUClass.enableDynamicThreshold = options.enableDynamicThreshold
+    CPUClass.traceConstructor.disableSuperProp = options.disableSuperProp
+    CPUClass.traceConstructor.disableSuperSimple = options.disableSuperSimple
+    if options.forceNoTSO:
+        CPUClass.needsTSO = False
 
 CPUClass.numThreads = numThreads
 CPUClass.branchPred.numThreads = numThreads
@@ -303,6 +313,13 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.uopCacheNumSets = options.uopCacheNumSets
     FutureClass.uopCacheNumUops = options.uopCacheNumUops
     FutureClass.lvpLookupAtFetch = options.lvpLookupAtFetch
+    FutureClass.enableDynamicThreshold = options.enableDynamicThreshold
+    FutureClass.traceConstructor.disableSuperProp = options.disableSuperProp
+    FutureClass.traceConstructor.disableSuperSimple = options.disableSuperSimple
+    if options.forceNoTSO:
+        FutureClass.needsTSO = False
+
+
 
 # Check -- do not allow SMT with multiple CPUs
 if options.smt and options.num_cpus > 1:

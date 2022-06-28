@@ -33,8 +33,9 @@ TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p),
                                                             specCacheNumSets(p->specCacheNumSets) ,
                                                             specCacheNumUops(p->specCacheNumUops) ,
                                                             numOfTracePredictionSources(p->numOfTracePredictionSources),
-                                                            debugTraceGen(p->debugTraceGen)
-
+                                                            debugTraceGen(p->debugTraceGen),
+                                                            disableSuperProp(p->disableSuperProp),
+                                                            disableSuperSimple(p->disableSuperSimple)
 {
     DPRINTF(SuperOp, "Control tracking: %i\n", usingControlTracking);
     DPRINTF(SuperOp, "CC tracking: %i\n", usingCCTracking);
@@ -102,12 +103,16 @@ bool TraceBasedGraph::IsValuePredictible(const StaticInstPtr instruction)
                                 //instruction->isStreamedFromUOpCache() &&
                                 !instruction->isStreamedFromSpeculativeCache();
 
-        // don't pullote predictor with instructions that we already know thier values
+    // TODO HERE 0622
+    if (disableSuperSimple){
+        assert(disableSuperProp);
+    }
+    // don't pullote predictor with instructions that we already know thier values
     if (instruction->getName() == "rdip" || 
         instruction->getName() == "limm" ||  
         instruction->getName() == "movi" /*|| // TODO add ori
         instruction->getName() == "and" ||
-        instruction->getName() == "lea"*/) 
+        instruction->getName() == "lea"*/ ) 
     {
         isPredictableType = false;
     }
@@ -1441,12 +1446,17 @@ bool TraceBasedGraph::generateNextTraceInst() {
         return true;
     }
 
+    //TODO HERE 0622
+    if (disableSuperSimple){
+        assert(disableSuperProp);
+    }
+
     // Propagate predicted values
     decoder->rcbReads += currentTrace.inst->numSrcRegs();
-    if (type == "mov") {
+    if (!disableSuperSimple && type == "mov") {
             DPRINTF(ConstProp, "Found a MOV at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateMov(currentTrace.inst);
-    } else if (type == "rdip") {
+    } else if (!disableSuperProp && type == "rdip") {
             DPRINTF(ConstProp, "Found an RDIP at [%i][%i][%i], compacting...\n", idx, way, uop);
             RegId destReg = currentTrace.inst->destRegIdx(0);
             assert(destReg.flatIndex() < 38);
@@ -1454,72 +1464,72 @@ bool TraceBasedGraph::generateNextTraceInst() {
             regCtx[destReg.flatIndex()].valid = propagated = true;
             regCtx[destReg.flatIndex()].fromInstType = OpClass::RDIP;
             DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", regCtx[destReg.flatIndex()].value, destReg.flatIndex());
-    } else if (type == "wrip") {
+    } else if (!disableSuperProp && type == "wrip") {
             DPRINTF(ConstProp, "Found a WRIP branch at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = folded = propagateWrip(currentTrace.inst);
-    } else if (type == "wripi") {
+    } else if (!disableSuperProp && type == "wripi") {
             DPRINTF(ConstProp, "Found a WRIPI branch at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = folded = propagateWripI(currentTrace.inst);
     } else if (currentTrace.inst->isControl()) {
             // printf("Control instruction of type %s\n", type);
             // TODO: check for stopping condition or predicted target
-    } else if (type == "movi") {
+    } else if (!disableSuperSimple && type == "movi") {
             DPRINTF(ConstProp, "Found a MOVI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateMovI(currentTrace.inst);
-    } else if (type == "lea") {
+    } else if (!disableSuperProp && type == "lea") {
             DPRINTF(ConstProp, "Found a LEA at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateLea(currentTrace.inst);
-    } else if (type == "and") {
+    } else if (!disableSuperProp && type == "and") {
             DPRINTF(ConstProp, "Found an AND at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAnd(currentTrace.inst);
-    } else if (type == "andi") {
+    } else if (!disableSuperProp && type == "andi") {
             DPRINTF(ConstProp, "Found an ANDI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAndI(currentTrace.inst);
-    } else if (type == "add") {
+    } else if (!disableSuperProp && type == "add") {
             DPRINTF(ConstProp, "Found an ADD at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAdd(currentTrace.inst);
-    } else if (type == "sub") {
+    } else if (!disableSuperProp && type == "sub") {
             DPRINTF(ConstProp, "Found a SUB at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateSub(currentTrace.inst);
-    } else if (type == "xor") {
+    } else if (!disableSuperProp && type == "xor") {
             DPRINTF(ConstProp, "Found an XOR at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateXor(currentTrace.inst);
-    } else if (type == "xori") {
+    } else if (!disableSuperProp && type == "xori") {
             DPRINTF(ConstProp, "Found an XORI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateXorI(currentTrace.inst);
-    } else if (type == "or") {
+    } else if (!disableSuperProp && type == "or") {
             DPRINTF(ConstProp, "Found an OR at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateOr(currentTrace.inst);
-    } else if (type == "ori") {
+    } else if (!disableSuperProp && type == "ori") {
             DPRINTF(ConstProp, "Found an ORI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateOrI(currentTrace.inst);
-    } else if (type == "subi") {
+    } else if (!disableSuperProp && type == "subi") {
             DPRINTF(ConstProp, "Found a SUBI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateSubI(currentTrace.inst);
-    } else if (type == "addi") {
+    } else if (!disableSuperProp && type == "addi") {
             DPRINTF(ConstProp, "Found an ADDI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateAddI(currentTrace.inst);
-    } else if (type == "slli") {
+    } else if (!disableSuperProp && type == "slli") {
             DPRINTF(ConstProp, "Found a SLLI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateSllI(currentTrace.inst);
-    } else if (type == "srli") {
+    } else if (!disableSuperProp && type == "srli") {
             DPRINTF(ConstProp, "Found a SRLI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateSrlI(currentTrace.inst);
     } else if (type == "lea") {
             DPRINTF(ConstProp, "Type is LEA");
             // Requires multiple ALU operations to propagate, not using
-    } else if (type == "sexti") {
+    } else if (!disableSuperProp && type == "sexti") {
             // Implementation has multiple ALU operations, but this is not required by the nature of the operation
             DPRINTF(ConstProp, "Found a SEXTI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateSExtI(currentTrace.inst);
-    } else if (type == "zexti") {
+    } else if (!disableSuperProp && type == "zexti") {
             // Implementation has multiple ALU operations, but this is not required by the nature of the operation
             DPRINTF(ConstProp, "Found a ZEXTI at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateZExtI(currentTrace.inst);
     } else if (type == "mul1s" || type == "mul1u" || type == "mulel" || type == "muleh") {
             DPRINTF(ConstProp, "Type is MUL1S, MUL1U, MULEL, or MULEH\n");
             // TODO: two dest regs with different values? maybe too complex arithmetic?
-    } else if (type == "limm") {
+    } else if (!disableSuperSimple && type == "limm") {
             DPRINTF(ConstProp, "Found a LIMM at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = propagateLimm(currentTrace.inst);
     } else if (type == "rflags" || type == "wrflags" || type == "ruflags" || type == "wruflags") {
@@ -1901,9 +1911,19 @@ bool TraceBasedGraph::updateSpecTrace(SpecTrace &trace, bool &isDeadCode , bool 
     }*/
 
     string type = trace.inst->getName();
-    // TODO disable here
-    isDeadCode = (type == "rdip") || (allSrcsReady && (type == "lea" || type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"));
-
+    //TODO HERE 0622
+    if (disableSuperProp && disableSuperSimple){
+        isDeadCode = false;///*(type == "rdip") || */(allSrcsReady && (/*type == "lea" ||*/ type == "mov" || type == "movi" || type == "limm" /*|| type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"*/));
+    } else if (disableSuperProp)
+    {
+        isDeadCode = /*(type == "rdip") || */(allSrcsReady && (/*type == "lea" ||*/ type == "mov" || type == "movi" || type == "limm" /*|| type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"*/));
+    } else if (disableSuperSimple)
+    {
+        panic("Don't use the flag \"disableSuperSimple\" without the flag \"disableSuperProp\"");
+    } else {
+        isDeadCode = (type == "rdip") || (allSrcsReady && (type == "lea" || type == "mov" || type == "movi" || type == "limm" || type == "add" || type == "addi" || type == "sub" || type == "subi" || type == "and" || type == "andi" || type == "or" || type == "ori" || type == "xor" || type == "xori" || type == "srli" || type == "slli" || type == "sexti" || type == "zexti"));
+    }
+    
     // Prevent an inst registering as dead if it is a prediction source or if it is a return or it modifies CC
     uint64_t value;
     unsigned confidence;

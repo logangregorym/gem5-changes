@@ -181,6 +181,10 @@ class DerivO3CPU(BaseCPU):
 
     lvpLookupAtFetch = Param.Bool(0, "Enables an LVP lookup at every fetch cycle to detect stale traces")
 
+    enableDynamicThreshold = Param.Bool(0, "Enable the use of a dynamic threshold for lvp")
+    disableSuperProp = Param.Bool(0, "Disables all SCC propogation, prediction, and folding for all instructions except mov, movi, and limm")
+    disableSuperSimple = Param.Bool(0, "Disables all SCC propogation, prediction, and folding for mov, movi, and limm")
+
     checkpoint_at_instr = Param.UInt64(0, "checkpoint at Instruction")
     after_exec_cnt = Param.UInt64(0, "checkpoint at Instruction")
 

@@ -116,6 +116,8 @@ DefaultIEW<Impl>::DefaultIEW(O3CPU *_cpu, DerivO3CPUParams *params)
     skidBufferMax = (renameToIEWDelay + 4) * params->renameWidth;
 
     loadPred = params->loadPred;
+
+    enableDynamicThreshold = params->enableDynamicThreshold;
 }
 
 template <class Impl>
@@ -1552,10 +1554,10 @@ DefaultIEW<Impl>::executeInsts()
                                 inst->staticInst->predictedLoad, inst->staticInst->predictedValue, inst->staticInst->confidence);
 
 
-                    if (inst->staticInst->confidence >= 5) {
+                    if (inst->staticInst->confidence >= 5) { // HARDCODED CONFIDENCE
                         if ( inst->getFault() == NoFault) {
                             DPRINTF(LVP, "Waking dependencies of [sn:%i] early with prediction\n", inst->seqNum);
-                            forwardLoadValuePredictionToDependents(inst);
+                            //forwardLoadValuePredictionToDependents(inst);
                         }
                            
                     }
@@ -1801,7 +1803,50 @@ DefaultIEW<Impl>::executeInsts()
                 ++memOrderViolationEvents;
             }
         }
+
+        // Update SCC Confidences
+        if (enableDynamicThreshold && (cpu->numCycles.value() - lastRateUpdate > 10000)){
+            double newLVPRate = ((double) totalNumOfTimesPredictionSourcesOfTracesAreMisspredicted.value())/loadPred->totalUsed.total();
+            if (lastLVPRate >= 0) {
+                if (newLVPRate > lastLVPRate && cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold < 31) { 
+                    DPRINTF(LVP, "Increasing LVP prediction confidence threshold because squashCycles/numCycles is increasing.\n");
+                    DPRINTF(LVP, "Start increasing prediction confidence threshold. Original threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold);
+                    cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold += 2;
+                    DPRINTF(LVP, "Finish increasing prediction confidence threshold. New threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold);
+                }
+                else if (newLVPRate < lastLVPRate && cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold > 1) {
+                    DPRINTF(LVP, "Decreasing LVP prediction confidence threshold because squashCycles/numCycles is decreasing.\n");
+                    DPRINTF(LVP, "Start decreasing prediction confidence threshold. Original threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold);
+                    cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold -= 1;
+                    DPRINTF(LVP, "Finish decreasing prediction confidence threshold. New threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->predictionConfidenceThreshold);
+                }
+            }
+            lastLVPRate = newLVPRate;
+
+
+            double newBranchRate = ((double) totalNumOfTimesControlSourcesOfTracesAreMisspredicted.value())/iewExecutedBranches.total();
+            if (lastBranchRate >= 0) {
+                if (newBranchRate > lastBranchRate && cpu->fetch.decoder[tid]->traceConstructor->controlPredictionConfidenceThreshold < 31) { 
+                    DPRINTF(LVP, "Increasing BRANCH prediction confidence threshold because branch mispredict rate is increasing.\n");
+                    DPRINTF(LVP, "Start increasing prediction confidence threshold. Original threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->controlPredictionConfidenceThreshold);
+                    cpu->fetch.decoder[tid]->traceConstructor->controlPredictionConfidenceThreshold += 2;
+                    DPRINTF(LVP, "Finish increasing prediction confidence threshold. New threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->controlPredictionConfidenceThreshold);
+                }
+                else if (newBranchRate < lastBranchRate && cpu->fetch.decoder[tid]->traceConstructor->controlPredictionConfidenceThreshold > 1) {
+                    DPRINTF(LVP, "Decreasing BRANCH prediction confidence threshold because branch mispredict rate is decreasing.\n");
+                    DPRINTF(LVP, "Start decreasing prediction confidence threshold. Original threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->controlPredictionConfidenceThreshold);
+                    cpu->fetch.decoder[tid]->traceConstructor->controlPredictionConfidenceThreshold -= 1;
+                    DPRINTF(LVP, "Finish decreasing prediction confidence threshold. New threshold: %d.\n", cpu->fetch.decoder[tid]->traceConstructor->controlPredictionConfidenceThreshold);
+                }
+            }
+            lastBranchRate = newBranchRate;
+            
+            lastRateUpdate = cpu->numCycles.value();
+        }
     }
+    
+
+
 
     // Update and record activity if we processed any instructions.
     if (inst_num) {
@@ -2139,7 +2184,7 @@ DefaultIEW<Impl>::updateTraceBranchConfidence(DynInstPtr &inst, TheISA::PCState&
                 if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].valid &&
                     cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].value ==  tempPC.instAddr())
                 {
-                    if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence < 9 )
+                    if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence < 31 )
                     {
                         cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].controlSources[idx].confidence++;
                         DPRINTF(LVP, "DefaultIEW::executeInsts():: Correct! Increasing trace %d confidence! Confidence level is %d\n", traceID, 
@@ -2186,7 +2231,7 @@ DefaultIEW<Impl>::updateTraceConfidence(DynInstPtr &inst)
                 cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].addr.pcAddr == addr) 
             {
                 // Is there a limit on confidence? I'm assuming 9.
-                if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence < 9) 
+                if (cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence < 31)
                     cpu->fetch.decoder[tid]->traceConstructor->traceMap[traceID].source[i].confidence++;
                 
                 DPRINTF(LVP, "DefaultIEW::executeInsts():: Correct Prediction! Increasing trace %d confidence! Confidence level is %d\n", traceID, 
