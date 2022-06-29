@@ -85,6 +85,9 @@ class RefCounted
     /// Decrement the reference count and destroy the object if all
     /// references are gone.
     void decref() { if (--count <= 0) delete this; }
+    bool isValid() { return (count > 0); }
+    int getCount() { return count; }
+    void setCount(int c) { if (count > 0) count = c; }
 };
 
 /**

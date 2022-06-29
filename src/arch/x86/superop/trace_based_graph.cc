@@ -274,6 +274,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
         
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
+            decodedMacroOp->setCount(1);
 			decodedMacroOp = NULL;
 		}
         else 
@@ -292,6 +293,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
         trace.addr.valid = false;
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
+            decodedMacroOp->setCount(1);
 			decodedMacroOp = NULL;
 		}
         else 
@@ -311,6 +313,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
         trace.addr.valid = false;
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
+            decodedMacroOp->setCount(1);
 			decodedMacroOp = NULL;
 		}
         else 
@@ -362,6 +365,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
                     assert(trace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                     if (decodedMacroOp->isMacroop()) { 
                         decodedMacroOp->deleteMicroOps();
+                        decodedMacroOp->setCount(1);
                         decodedMacroOp = NULL;
                     }
                     else 
@@ -388,6 +392,7 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 
     if (decodedMacroOp->isMacroop()) { 
         decodedMacroOp->deleteMicroOps();
+        decodedMacroOp->setCount(1);
         decodedMacroOp = NULL;
     }
     else 
@@ -537,6 +542,7 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
         DPRINTF(TraceGen, "%p:%i -- uop[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr)); 
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
+            decodedMacroOp->setCount(1);
 			decodedMacroOp = NULL;
 		}
         else 
@@ -802,6 +808,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
                 currentTrace.id = 0;
+                currentTrace.prevNonEliminatedInst = NULL;
+                currentTrace.prevEliminatedInst = NULL;
+                currentTrace.inst = NULL;
                 // clear spec cache write queue
                 for (auto &micro: decoder->specCacheWriteQueue)
                 {
@@ -821,6 +830,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     {
                         macro->deleteMicroOps();
                     }
+                    macro->setCount(1);
                     macro = NULL;
                 }
                 decoder->specCacheWriteQueue.clear();
@@ -860,6 +870,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
                 currentTrace.id = 0;
+                currentTrace.prevNonEliminatedInst = NULL;
+                currentTrace.prevEliminatedInst = NULL;
+                currentTrace.inst = NULL;
                 // clear spec cache write queue
                 for (auto &micro: decoder->specCacheWriteQueue)
                 {
@@ -878,6 +891,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     {
                         macro->deleteMicroOps();
                     }
+                    macro->setCount(1);
                     macro = NULL;
                 }
                 decoder->specCacheWriteQueue.clear();
@@ -936,6 +950,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
                 currentTrace.id = 0;
+                currentTrace.prevNonEliminatedInst = NULL;
+                currentTrace.prevEliminatedInst = NULL;
+                currentTrace.inst = NULL;
                 // clear spec cache write queue
                 for (auto &micro: decoder->specCacheWriteQueue)
                 {
@@ -954,6 +971,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     {
                         macro->deleteMicroOps();
                     }
+                    macro->setCount(1);
                     macro = NULL;
                 }
                 decoder->specCacheWriteQueue.clear();
@@ -1021,6 +1039,17 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     microop.inst->setTraceID(currentTrace.id);
                     microop.inst->setTraceLength(decoder->specCacheWriteQueue.size());
                     if (!decoder->addUopToSpeculativeCache(currentTrace, microop)) {
+                        if (traceMap[currentTrace.id].getOptimizedHead().valid) {
+                            decoder->invalidateSpecTrace(traceMap[currentTrace.id].getOptimizedHead(), currentTrace.id);
+                        } else {
+                            traceMap.erase(currentTrace.id);
+                        }
+                        currentTrace.addr.valid = false;
+                        currentTrace.state = SpecTrace::Evicted;
+                        currentTrace.id = 0;
+                        currentTrace.prevNonEliminatedInst = NULL;
+                        currentTrace.prevEliminatedInst = NULL;
+                        currentTrace.inst = NULL;
                         for (auto &micro: decoder->specCacheWriteQueue)
                         {
                             if (!micro.inst->macroOp)
@@ -1038,10 +1067,10 @@ bool TraceBasedGraph::generateNextTraceInst() {
                             {
                                 macro->deleteMicroOps();
                             }
+                            macro->setCount(1);
                             macro = NULL;
                         }
                         decoder->specCacheWriteQueue.clear();
-                        decoder->invalidateSpecTrace(traceMap[currentTrace.id].getOptimizedHead(), currentTrace.id);
                         //decoder->setUopTraceProfitableForSuperOptimization(currentTrace.getTraceHeadAddr().pcAddr, false);
                         //traceMap.erase(currentTrace.id);
                         //currentTrace.addr.valid = false;
@@ -1144,6 +1173,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
                         clearDebugFlag("TraceEviction");
                         //clearDebugFlag("TraceQueue");
                     }
+                    currentTrace.prevNonEliminatedInst = NULL;
+                    currentTrace.prevEliminatedInst = NULL;
+                    currentTrace.inst = NULL;
                 }
             }
             
@@ -1152,6 +1184,11 @@ bool TraceBasedGraph::generateNextTraceInst() {
         {
             assert(!currentTrace.getOptimizedHead().valid);
             
+            currentTrace.addr.valid = false;
+            currentTrace.state = SpecTrace::Evicted;
+            currentTrace.prevNonEliminatedInst = NULL;
+            currentTrace.prevEliminatedInst = NULL;
+            currentTrace.inst = NULL;
             // clear spec cahce write queue
             for (auto &micro: decoder->specCacheWriteQueue)
             {
@@ -1170,6 +1207,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 {
                     macro->deleteMicroOps();
                 }
+                macro->setCount(1);
                 macro = NULL;
             }            
             decoder->specCacheWriteQueue.clear();
@@ -1178,8 +1216,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
             // remove it from traceMap
             assert(traceMap.find(currentTrace.id) != traceMap.end());
             traceMap.erase(currentTrace.id);
-            currentTrace.addr.valid = false;
-            currentTrace.state = SpecTrace::Evicted;
             currentTrace.id = 0;
             
             tracesWithInvalidHead++;
@@ -1226,6 +1262,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
 
                 currentTrace.addr.valid = false;
                 currentTrace.state = SpecTrace::Evicted;
+                currentTrace.prevNonEliminatedInst = NULL;
+                currentTrace.prevEliminatedInst = NULL;
+                currentTrace.inst = NULL;
                 // remove it from traceMap
                 DPRINTF(Decoder, "Removing trace id: %d  from Trace Map because of eviction!.\n", currentTrace.id );
                 assert(traceMap.find(currentTrace.id) != traceMap.end());
@@ -1316,6 +1355,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 {
                     macro->deleteMicroOps();
                 }
+                macro->setCount(1);
                 macro = NULL;
             }            
             decoder->specCacheWriteQueue.clear();
@@ -1327,6 +1367,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
             currentTrace.addr.valid = false;
             currentTrace.state = SpecTrace::Evicted;
             currentTrace.id = 0;
+            currentTrace.prevNonEliminatedInst = NULL;
+            currentTrace.prevEliminatedInst = NULL;
+            currentTrace.inst = NULL;
             
             tracesWithInvalidHead++;
             DPRINTF(SuperOp, "Trace was evicted out of the micro-op cache before we could optimize it\n");
@@ -1442,6 +1485,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             StaticInstPtr macroOp = currentTrace.inst->macroOp;
             currentTrace.addr.valid = false;
             macroOp->deleteMicroOps();
+            macroOp->setCount(1);
             macroOp = NULL;
             return true;
         }
@@ -1687,6 +1731,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
             if (allEliminated) {
                 macroOp->deleteMicroOps();
+                macroOp->setCount(1);
                 macroOp = NULL;
             }
         }

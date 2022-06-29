@@ -1526,10 +1526,15 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                 
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) 
                 {
-                    StaticInstPtr macroOp = speculativeCache[idx][w][uop]->macroOp;
-                    if (macroOp) {
-                        macroOp->deleteMicroOps();
-                        macroOp = NULL;
+                    //StaticInstPtr macroOp = speculativeCache[idx][w][uop]->macroOp;
+                    if (speculativeCache[idx][w][uop]->macroOp) {
+                        for (int i = 0; i < speculativeCache[idx][w][uop]->macroOp->getNumMicroops(); i++) {
+                            speculativeCache[idx][w][uop]->macroOp->fetchMicroop(i)->setCount(1);
+                        }
+                        speculativeCache[idx][w][uop]->macroOp->deleteMicroOps();
+                        speculativeCache[idx][w][uop]->macroOp->setCount(1);
+                        speculativeCache[idx][w][uop]->macroOp = NULL;
+                        //macroOp = NULL;
                     }
                     else 
                     {
@@ -1947,10 +1952,15 @@ Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t evictedTraceID)
                 specHotnessArray[idx][w].reset();
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) 
                 {
-                    StaticInstPtr macroOp = speculativeCache[idx][w][uop]->macroOp;
-                    if (macroOp) {
-                        macroOp->deleteMicroOps();
-                        macroOp = NULL;
+                    //StaticInstPtr macroOp = speculativeCache[idx][w][uop]->macroOp;
+                    if (speculativeCache[idx][w][uop]->macroOp) {
+                        for (int i = 0; i < speculativeCache[idx][w][uop]->macroOp->getNumMicroops(); i++) {
+                            speculativeCache[idx][w][uop]->macroOp->fetchMicroop(i)->setCount(1);
+                        }
+                        speculativeCache[idx][w][uop]->macroOp->deleteMicroOps();
+                        speculativeCache[idx][w][uop]->macroOp->setCount(1);
+                        //macroOp = NULL;
+                        speculativeCache[idx][w][uop]->macroOp = NULL;
                     }
                     else 
                     {
