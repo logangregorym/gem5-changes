@@ -1122,6 +1122,9 @@ bool TraceBasedGraph::generateNextTraceInst() {
                         assert(currentTrace.addr.getUop() < decoder->UOP_CACHE_NUM_UOPS && "trace.addr.uop >= decoder->UOP_CACHE_NUM_UOPS\n");
                         assert(currentTrace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                         currentTrace.state = SpecTrace::Complete;
+                        currentTrace.inst = NULL;
+                        currentTrace.prevNonEliminatedInst = NULL;
+                        currentTrace.prevEliminatedInst = NULL;
                         traceMap[currentTrace.id] = currentTrace;
                         //cout << currentTrace.id << ": " << 2 << endl;
                         dumpTrace(currentTrace);
@@ -1159,9 +1162,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
                         clearDebugFlag("TraceEviction");
                         //clearDebugFlag("TraceQueue");
                     }
-                    currentTrace.prevNonEliminatedInst = NULL;
-                    currentTrace.prevEliminatedInst = NULL;
-                    currentTrace.inst = NULL;
                 }
             }
             
