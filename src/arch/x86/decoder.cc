@@ -1507,12 +1507,19 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
         uint64_t     evcitedTag = speculativeTagArray[idx][evictWay];
         assert(evictedTraceID); // never should be zero
         assert(evcitedTag);
+        StaticInstPtr evictedMacroOp = NULL;
         for (int w = 0; w < SPEC_CACHE_NUM_WAYS; w++) {
             if (speculativeValidArray[idx][w] &&
                 speculativeTraceIDArray[idx][w] == evictedTraceID) 
             {
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) {
                     DPRINTF(Decoder, "Trace %i: spec[%i][%i][%i] -- %#x:%i\n", speculativeTraceIDArray[idx][w], idx, w, uop, speculativeAddrArray[idx][w][uop].pcAddr, speculativeAddrArray[idx][w][uop].uopAddr);
+                    if (speculativeCache[idx][w][uop]->macroOp && speculativeCache[idx][w][uop]->macroOp != evictedMacroOp) {
+                        if (evictedMacroOp) {
+                            evictedMacroOp->deleteMicroOps();
+                        }
+                        evictedMacroOp = speculativeCache[idx][w][uop]->macroOp;
+                    }
                 }
                 speculativeValidArray[idx][w] = false;
                 speculativeCountArray[idx][w] = 0;
@@ -1527,19 +1534,6 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) 
                 {
                     //StaticInstPtr macroOp = speculativeCache[idx][w][uop]->macroOp;
-                    if (speculativeCache[idx][w][uop]->macroOp) {
-                        for (int i = 0; i < speculativeCache[idx][w][uop]->macroOp->getNumMicroops(); i++) {
-                            speculativeCache[idx][w][uop]->macroOp->fetchMicroop(i)->setCount(1);
-                        }
-                        speculativeCache[idx][w][uop]->macroOp->deleteMicroOps();
-                        speculativeCache[idx][w][uop]->macroOp->setCount(1);
-                        speculativeCache[idx][w][uop]->macroOp = NULL;
-                        //macroOp = NULL;
-                    }
-                    else 
-                    {
-                        speculativeCache[idx][w][uop] = NULL;
-                    }
                 }
             }
         }
@@ -1934,13 +1928,19 @@ Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t evictedTraceID)
 
     for (int w = 0; w < SPEC_CACHE_NUM_WAYS; w++) 
     {
-
+        StaticInstPtr evictedMacroOp = NULL;
         if (speculativeValidArray[idx][w] && 
             speculativeTraceIDArray[idx][w] == evictedTraceID) 
         {
                 //assert(speculativeTagArray[idx][w] == evictTag);
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) {
-                        DPRINTF(Decoder, "Trace %i: spec[%i][%i][%i] -- %#x:%i\n", speculativeTraceIDArray[idx][w], idx, w, uop, speculativeAddrArray[idx][w][uop].pcAddr, speculativeAddrArray[idx][w][uop].uopAddr);
+                    DPRINTF(Decoder, "Trace %i: spec[%i][%i][%i] -- %#x:%i\n", speculativeTraceIDArray[idx][w], idx, w, uop, speculativeAddrArray[idx][w][uop].pcAddr, speculativeAddrArray[idx][w][uop].uopAddr);
+                    if (speculativeCache[idx][w][uop]->macroOp && speculativeCache[idx][w][uop]->macroOp != evictedMacroOp) {
+                        if (evictedMacroOp) {
+                            evictedMacroOp->deleteMicroOps();
+                        }
+                        evictedMacroOp = speculativeCache[idx][w][uop]->macroOp;
+                    }
                 }
                 speculativeValidArray[idx][w] = false;
                 speculativeCountArray[idx][w] = 0;
@@ -1953,19 +1953,6 @@ Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t evictedTraceID)
                 for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) 
                 {
                     //StaticInstPtr macroOp = speculativeCache[idx][w][uop]->macroOp;
-                    if (speculativeCache[idx][w][uop]->macroOp) {
-                        for (int i = 0; i < speculativeCache[idx][w][uop]->macroOp->getNumMicroops(); i++) {
-                            speculativeCache[idx][w][uop]->macroOp->fetchMicroop(i)->setCount(1);
-                        }
-                        speculativeCache[idx][w][uop]->macroOp->deleteMicroOps();
-                        speculativeCache[idx][w][uop]->macroOp->setCount(1);
-                        //macroOp = NULL;
-                        speculativeCache[idx][w][uop]->macroOp = NULL;
-                    }
-                    else 
-                    {
-                        speculativeCache[idx][w][uop] = NULL;
-                    }
                 }
         }
     

@@ -274,7 +274,6 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
         
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
-            decodedMacroOp->setCount(1);
 			decodedMacroOp = NULL;
 		}
         else 
@@ -293,7 +292,6 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
         trace.addr.valid = false;
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
-            decodedMacroOp->setCount(1);
 			decodedMacroOp = NULL;
 		}
         else 
@@ -313,7 +311,6 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
         trace.addr.valid = false;
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
-            decodedMacroOp->setCount(1);
 			decodedMacroOp = NULL;
 		}
         else 
@@ -365,7 +362,6 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
                     assert(trace.addr.getUop() >= 0 && "trace.addr.uop < 0\n");
                     if (decodedMacroOp->isMacroop()) { 
                         decodedMacroOp->deleteMicroOps();
-                        decodedMacroOp->setCount(1);
                         decodedMacroOp = NULL;
                     }
                     else 
@@ -392,7 +388,6 @@ bool TraceBasedGraph::advanceIfControlTransfer(SpecTrace &trace, Addr &target) {
 
     if (decodedMacroOp->isMacroop()) { 
         decodedMacroOp->deleteMicroOps();
-        decodedMacroOp->setCount(1);
         decodedMacroOp = NULL;
     }
     else 
@@ -542,7 +537,6 @@ void TraceBasedGraph::dumpTrace(SpecTrace trace) {
         DPRINTF(TraceGen, "%p:%i -- uop[%i][%i][%i] -- %s\n", pcAddr, uopAddr, idx, way, uop, decodedMicroOp->disassemble(pcAddr)); 
         if (decodedMacroOp->isMacroop()) { 
 			decodedMacroOp->deleteMicroOps();
-            decodedMacroOp->setCount(1);
 			decodedMacroOp = NULL;
 		}
         else 
@@ -830,7 +824,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     {
                         macro->deleteMicroOps();
                     }
-                    macro->setCount(1);
                     macro = NULL;
                 }
                 decoder->specCacheWriteQueue.clear();
@@ -891,7 +884,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     {
                         macro->deleteMicroOps();
                     }
-                    macro->setCount(1);
                     macro = NULL;
                 }
                 decoder->specCacheWriteQueue.clear();
@@ -971,7 +963,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     {
                         macro->deleteMicroOps();
                     }
-                    macro->setCount(1);
                     macro = NULL;
                 }
                 decoder->specCacheWriteQueue.clear();
@@ -1067,7 +1058,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
                             {
                                 macro->deleteMicroOps();
                             }
-                            macro->setCount(1);
                             macro = NULL;
                         }
                         decoder->specCacheWriteQueue.clear();
@@ -1207,7 +1197,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 {
                     macro->deleteMicroOps();
                 }
-                macro->setCount(1);
                 macro = NULL;
             }            
             decoder->specCacheWriteQueue.clear();
@@ -1355,7 +1344,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
                 {
                     macro->deleteMicroOps();
                 }
-                macro->setCount(1);
                 macro = NULL;
             }            
             decoder->specCacheWriteQueue.clear();
@@ -1485,7 +1473,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
             StaticInstPtr macroOp = currentTrace.inst->macroOp;
             currentTrace.addr.valid = false;
             macroOp->deleteMicroOps();
-            macroOp->setCount(1);
             macroOp = NULL;
             return true;
         }
@@ -1731,7 +1718,6 @@ bool TraceBasedGraph::generateNextTraceInst() {
             }
             if (allEliminated) {
                 macroOp->deleteMicroOps();
-                macroOp->setCount(1);
                 macroOp = NULL;
             }
         }
