@@ -1520,7 +1520,13 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                         }
                         evictedMacroOp = speculativeCache[idx][w][uop]->macroOp;
                     }
+                    speculativeCache[idx][w][uop]->macroOp = NULL;
+                    speculativeCache[idx][w][uop] = NULL;
                 }
+                if (evictedMacroOp) {
+                    evictedMacroOp->deleteMicroOps();
+                }
+                evictedMacroOp = NULL;
                 speculativeValidArray[idx][w] = false;
                 speculativeCountArray[idx][w] = 0;
                 speculativePrevWayArray[idx][w] = SPEC_CACHE_WAY_MAGIC_NUM;
@@ -1530,11 +1536,6 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                 speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
                 specHotnessArray[idx][w].reset();
                 specCacheWayInvalidations++;
-                
-                for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) 
-                {
-                    //StaticInstPtr macroOp = speculativeCache[idx][w][uop]->macroOp;
-                }
             }
         }
         // trace map should always hold it
@@ -1941,7 +1942,13 @@ Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t evictedTraceID)
                         }
                         evictedMacroOp = speculativeCache[idx][w][uop]->macroOp;
                     }
+                    speculativeCache[idx][w][uop]->macroOp = NULL;
+                    speculativeCache[idx][w][uop] = NULL;
                 }
+                if (evictedMacroOp) {
+                    evictedMacroOp->deleteMicroOps();
+                }
+                evictedMacroOp = NULL;
                 speculativeValidArray[idx][w] = false;
                 speculativeCountArray[idx][w] = 0;
                 speculativePrevWayArray[idx][w] = SPEC_CACHE_WAY_MAGIC_NUM;
@@ -1950,10 +1957,6 @@ Decoder::invalidateSpecTrace(FullCacheIdx addr, uint64_t evictedTraceID)
                 speculativeTagArray[idx][w] = 0;
                 speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
                 specHotnessArray[idx][w].reset();
-                for (int uop = 0; uop < speculativeCountArray[idx][w]; uop++) 
-                {
-                    //StaticInstPtr macroOp = speculativeCache[idx][w][uop]->macroOp;
-                }
         }
     
     }

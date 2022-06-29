@@ -1030,11 +1030,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
                     microop.inst->setTraceID(currentTrace.id);
                     microop.inst->setTraceLength(decoder->specCacheWriteQueue.size());
                     if (!decoder->addUopToSpeculativeCache(currentTrace, microop)) {
-                        if (traceMap[currentTrace.id].getOptimizedHead().valid) {
-                            decoder->invalidateSpecTrace(traceMap[currentTrace.id].getOptimizedHead(), currentTrace.id);
-                        } else {
-                            traceMap.erase(currentTrace.id);
-                        }
+                        decoder->invalidateSpecTrace(currentTrace.getOptimizedHead(), currentTrace.id);
                         currentTrace.addr.valid = false;
                         currentTrace.state = SpecTrace::Evicted;
                         currentTrace.id = 0;
