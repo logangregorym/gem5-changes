@@ -17,4 +17,5 @@ class TraceBasedGraph(SimObject):
         debugTraceGen = Param.Unsigned(0, "Trace id to generate logs for")
         disableSuperProp = Param.Bool(0, "Disables all SCC propogation, prediction, and folding for all instructions except mov, movi, and limm")
         disableSuperSimple = Param.Bool(0, "Disables all SCC propogation, prediction, and folding for mov, movi, and limm ")
+        constantWidth = Param.Unsigned(64, "Constant width for live out inlining")
 

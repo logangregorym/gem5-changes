@@ -35,7 +35,8 @@ TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p),
                                                             numOfTracePredictionSources(p->numOfTracePredictionSources),
                                                             debugTraceGen(p->debugTraceGen),
                                                             disableSuperProp(p->disableSuperProp),
-                                                            disableSuperSimple(p->disableSuperSimple)
+                                                            disableSuperSimple(p->disableSuperSimple),
+                                                            constantWidth(p->constantWidth)
 {
     DPRINTF(SuperOp, "Control tracking: %i\n", usingControlTracking);
     DPRINTF(SuperOp, "CC tracking: %i\n", usingCCTracking);
@@ -45,6 +46,8 @@ TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p),
     DPRINTF(SuperOp, "Number of sets for speculative cache: %i\n", specCacheNumSets);
     DPRINTF(SuperOp, "Number of uops for speculative cache: %i\n", specCacheNumUops);
     DPRINTF(SuperOp, "Number of prediction sources in a super optimized trace: %i\n", numOfTracePredictionSources);
+    lowerLim = -((uint64_t)1 << (constantWidth-1));
+    upperLim = ((uint64_t)1 << (constantWidth-1)) - 1;
 }
 
 TraceBasedGraph* TraceBasedGraphParams::create() {
@@ -1523,7 +1526,7 @@ bool TraceBasedGraph::generateNextTraceInst() {
             regCtx[destReg.flatIndex()].value = currentTrace.instAddr.pcAddr + currentTrace.inst->macroOp->getMacroopSize();
             regCtx[destReg.flatIndex()].valid = propagated = true;
             regCtx[destReg.flatIndex()].fromInstType = OpClass::RDIP;
-            DPRINTF(ConstProp, "Forwarding value %lx through register %i\n", regCtx[destReg.flatIndex()].value, destReg.flatIndex());
+            DPRINTF(ConstProp, "Propagating RIP-rel value %lx through register %i\n", regCtx[destReg.flatIndex()].value, destReg.flatIndex());
     } else if (!disableSuperProp && type == "wrip") {
             DPRINTF(ConstProp, "Found a WRIP branch at [%i][%i][%i], compacting...\n", idx, way, uop);
             propagated = folded = propagateWrip(currentTrace.inst);
@@ -2119,6 +2122,11 @@ bool TraceBasedGraph::propagateMov(StaticInstPtr inst) {
         return false;
     }
 
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
     assert(destReg.isIntReg());
@@ -2166,6 +2174,11 @@ bool TraceBasedGraph::propagateLimm(StaticInstPtr inst) {
         forwardVal = imm & mask(dataSize * 8);
     }
     
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     RegId destReg = inst->destRegIdx(0);
     assert(destReg.isIntReg());
     X86ISA::X86StaticInst * x86_inst = (X86ISA::X86StaticInst *)inst.get(); 
@@ -2254,6 +2267,11 @@ bool TraceBasedGraph::propagateAdd(StaticInstPtr inst) {
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 		
         forwardVal = x86_inst->merge(DestReg, psrc1+psrc2, dataSize);
+    }
+
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
     }
 
     if (usingCCTracking && inst->isCC())
@@ -2359,6 +2377,11 @@ bool TraceBasedGraph::propagateSub(StaticInstPtr inst) {
 		psrc2 = x86_inst->pick(SrcReg2, 1, dataSize);
 
 	    forwardVal = x86_inst->merge(DestReg, (psrc1-psrc2), dataSize);
+    }
+
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
     }
 
     if (usingCCTracking && inst->isCC())
@@ -2467,6 +2490,11 @@ bool TraceBasedGraph::propagateAnd(StaticInstPtr inst) {
         DPRINTF(ConstProp, "Data size < 4, forwardVal = %#x\n", forwardVal);
     }
     
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     if (usingCCTracking && inst->isCC())
     {
         uint16_t ext = inst->getExt();
@@ -2616,6 +2644,11 @@ bool TraceBasedGraph::propagateOr(StaticInstPtr inst) {
 		forwardVal = x86_inst->merge(DestReg, (psrc1|psrc2), dataSize);
     }
     
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     if (usingCCTracking && inst->isCC())
     {
         uint16_t ext = inst->getExt();
@@ -2694,6 +2727,11 @@ bool TraceBasedGraph::propagateLea(StaticInstPtr inst) {
     DPRINTF(ConstProp, "The address is %#x\n", EA);
 
     uint64_t forwardVal = x86_inst->merge(Data, EA, dataSize);;
+
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
 
     RegId destReg = inst->destRegIdx(0);
     RegIndex dest_reg_idx = x86_inst->getUnflattenRegIndex(inst->destRegIdx(0));
@@ -2781,6 +2819,11 @@ bool TraceBasedGraph::propagateXor(StaticInstPtr inst) {
 		forwardVal = x86_inst->merge(DestReg, (psrc1|psrc2), dataSize);
     }
     
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     if (usingCCTracking && inst->isCC())
     {
         uint16_t ext = inst->getExt();
@@ -2855,6 +2898,11 @@ bool TraceBasedGraph::propagateMovI(StaticInstPtr inst) {
         forwardVal = x86_inst->merge(forwardVal, imm8, dataSize);
     } else {
         DPRINTF(ConstProp, "Dont have logic for movi which sets condition codes!\n");
+        return false;
+    }
+
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
         return false;
     }
 
@@ -2935,6 +2983,11 @@ bool TraceBasedGraph::propagateSubI(StaticInstPtr inst) {
 		forwardVal = x86_inst->merge(DestReg, (psrc1 - imm8), dataSize);
     }
     
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     if (usingCCTracking && inst->isCC())
     {
         uint16_t ext = inst->getExt();
@@ -3035,6 +3088,11 @@ bool TraceBasedGraph::propagateAddI(StaticInstPtr inst) {
 
 		forwardVal = x86_inst->merge(DestReg, (psrc1 + imm8), dataSize);
     }
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     if (usingCCTracking && inst->isCC()) {
         uint16_t ext = inst->getExt();
 
@@ -3132,6 +3190,11 @@ bool TraceBasedGraph::propagateAndI(StaticInstPtr inst) {
 		forwardVal = x86_inst->merge(DestReg, (psrc1 & imm8), dataSize);
     }
     
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     if (usingCCTracking && inst->isCC())
     {
         uint16_t ext = inst->getExt();
@@ -3230,6 +3293,11 @@ bool TraceBasedGraph::propagateOrI(StaticInstPtr inst) {
 		forwardVal = x86_inst->merge(DestReg, (psrc1 | imm8), dataSize);
     }
     
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     if (usingCCTracking && inst->isCC())
     {
         uint16_t ext = inst->getExt();
@@ -3330,6 +3398,11 @@ bool TraceBasedGraph::propagateXorI(StaticInstPtr inst) {
 		forwardVal = x86_inst->merge(DestReg, (psrc1 ^ imm8), dataSize);
     }
     
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     if (usingCCTracking && inst->isCC())
     {
         uint16_t ext = inst->getExt();
@@ -3435,6 +3508,11 @@ bool TraceBasedGraph::propagateSllI(StaticInstPtr inst) {
 		forwardVal = x86_inst->merge(DestReg, psrc1 << shiftAmt, dataSize);
     }
     
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     // If the shift amount is zero, no flags should be modified.
     if (usingCCTracking && shiftAmt && inst->isCC()) {
         uint16_t ext = inst->getExt();
@@ -3558,6 +3636,11 @@ bool TraceBasedGraph::propagateSrlI(StaticInstPtr inst) {
 		forwardVal = x86_inst->merge(DestReg, (psrc1 >> shiftAmt) & logicalMask, dataSize);
     }
     
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     // If the shift amount is zero, no flags should be modified.
     if (usingCCTracking && shiftAmt && inst->isCC()) {
         uint16_t ext = inst->getExt();
@@ -3685,6 +3768,11 @@ bool TraceBasedGraph::propagateSExtI(StaticInstPtr inst) {
 		forwardVal = x86_inst->merge(DestReg, val, dataSize);
     }
 
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
+    }
+
     if (usingCCTracking && inst->isCC())
     {
         uint16_t ext = inst->getExt();
@@ -3785,6 +3873,11 @@ bool TraceBasedGraph::propagateZExtI(StaticInstPtr inst) {
 		psrc1 = x86_inst->pick(SrcReg1, 0, dataSize);	
 
 		forwardVal = x86_inst->merge(DestReg, bits(psrc1, imm8, 0), dataSize);
+    }
+
+    if ((int64_t)forwardVal < lowerLim || (int64_t)forwardVal > upperLim) {
+        DPRINTF(ConstProp, "Configured to propagate %d-wide constants\n", constantWidth);
+        return false;
     }
 
     RegId destReg = inst->destRegIdx(0);

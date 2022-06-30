@@ -172,6 +172,7 @@ parser.add_option("--enableDynamicThreshold", default=0, action="store_true", he
 parser.add_option("--disableSuperProp", default=0, action="store_true", help="Disables all SCC propogation, prediction, and folding for all instructions except mov, movi, and limm");
 parser.add_option("--disableSuperSimple", default=0, action="store_true", help="Disables all SCC propogation, prediction, and folding for mov, movi, and limm ");
 parser.add_option("--forceNoTSO", default=0, action="store_true", help="Force disable TSO Memory model");
+parser.add_option("--constantWidth", default=64, type="int", action="store", help="Constant width for live out inlining");
 
 
 if '--ruby' in sys.argv:
@@ -261,6 +262,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.enableDynamicThreshold = options.enableDynamicThreshold
     CPUClass.traceConstructor.disableSuperProp = options.disableSuperProp
     CPUClass.traceConstructor.disableSuperSimple = options.disableSuperSimple
+    CPUClass.traceConstructor.constantWidth = options.constantWidth
     if options.forceNoTSO:
         CPUClass.needsTSO = False
 
@@ -316,6 +318,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.enableDynamicThreshold = options.enableDynamicThreshold
     FutureClass.traceConstructor.disableSuperProp = options.disableSuperProp
     FutureClass.traceConstructor.disableSuperSimple = options.disableSuperSimple
+    FutureClass.traceConstructor.constantWidth = options.constantWidth
     if options.forceNoTSO:
         FutureClass.needsTSO = False
 

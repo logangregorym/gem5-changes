@@ -52,6 +52,10 @@ class TraceBasedGraph : public SimObject
     bool disableSuperProp = false;
     bool disableSuperSimple = false;
 
+    uint16_t constantWidth = 64;
+    int64_t lowerLim = 0xffffffffffffffff;
+    int64_t upperLim = 0x7fffffffffffffff;
+
     bool QueueHotTraceForSuperOptimization(const X86ISA::PCState& pc);
 
     bool updateSpecTrace(SpecTrace &trace, bool& isDeadCode, bool propagated);
