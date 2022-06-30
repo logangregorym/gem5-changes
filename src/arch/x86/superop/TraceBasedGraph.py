@@ -12,6 +12,7 @@ class TraceBasedGraph(SimObject):
         specCacheNumWays = Param.Unsigned(8, "Confidence threshold to make a prediction during superoptmization")
         specCacheNumSets = Param.Unsigned(32, "Confidence threshold to make a prediction during superoptmization")
         specCacheNumUops = Param.Unsigned(6, "Confidence threshold to make a prediction during superoptmization")
+        specCacheNumTicks = Param.Unsigned(10, "Number of cycles between ticking all hotness counters")
         numOfTracePredictionSources = Param.Unsigned(4, "Confidence threshold to make a prediction during superoptmization")
         debugTraceGen = Param.Unsigned(0, "Trace id to generate logs for")
 

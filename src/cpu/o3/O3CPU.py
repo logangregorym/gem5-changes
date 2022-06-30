@@ -178,12 +178,15 @@ class DerivO3CPU(BaseCPU):
     uopCacheNumSets = Param.Unsigned(32, "Number of sets in the micro-op cache")
     uopCacheNumWays = Param.Unsigned(8, "Number of ways in the micro-op cache (only tested with 8)")
     uopCacheNumUops = Param.Unsigned(6, "Number of uops in the micro-op cache")
+    uopCacheNumTicks = Param.Unsigned(10, "Number of cycles between ticking all hotness counters")
 
     lvpLookupAtFetch = Param.Bool(0, "Enables an LVP lookup at every fetch cycle to detect stale traces")
 
     enableValuePredForwarding = Param.Bool(0, "Enables Load Value Prediction for Raw execution")
 
     enableDynamicThreshold = Param.Bool(0, "Enable the use of a dynamic threshold for lvp")
+
+    dumpBranchDetail = Param.Bool(0, "Dump info about every branch to cout")
 
     checkpoint_at_instr = Param.UInt64(0, "checkpoint at Instruction")
     after_exec_cnt = Param.UInt64(0, "checkpoint at Instruction")

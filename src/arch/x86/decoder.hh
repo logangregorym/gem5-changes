@@ -157,22 +157,36 @@ class Decoder
     uint64_t SPEC_CACHE_NUM_SETS;
     uint64_t SPEC_CACHE_NUM_UOPS;
     uint64_t SPEC_CACHE_WAY_MAGIC_NUM;
+    uint64_t SPEC_CACHE_NUM_TICKS;
 
     uint64_t UOP_CACHE_NUM_WAYS;
     uint64_t UOP_CACHE_NUM_SETS;
     uint64_t UOP_CACHE_NUM_UOPS;
     uint64_t UOP_CACHE_WAY_MAGIC_NUM;
+    uint64_t UOP_CACHE_NUM_TICKS;
 
     bool lvpLookupAtFetch;
 
+    uint64_t hotnessTicks = 0;
 	void tickAllHotnessCounters() {
         //cout << "uop active=" << uopCacheActive << " spec active=" << speculativeCacheActive << endl;
-        if (uopCacheActive && !speculativeCacheActive) return;
-		for (int i=0; i<UOP_CACHE_NUM_SETS; i++) {
-			for (int j=0; j<UOP_CACHE_NUM_WAYS; j++) {
-				uopHotnessArray[i][j].decrement();
-			}
-		}
+        //if (uopCacheActive && !speculativeCacheActive) return;
+        if (hotnessTicks % UOP_CACHE_NUM_TICKS == 0){
+            for (int i=0; i<UOP_CACHE_NUM_SETS; i++) {
+                for (int j=0; j<UOP_CACHE_NUM_WAYS; j++) {
+                    uopHotnessArray[i][j].decrement();
+                }
+            }
+        }
+        if(hotnessTicks % SPEC_CACHE_NUM_TICKS == 0){
+            for (int i=0; i<SPEC_CACHE_NUM_SETS; i++) {
+                for (int j=0; j<SPEC_CACHE_NUM_WAYS; j++) {
+                    specHotnessArray[i][j].decrement();
+                }
+            }
+        }
+
+        hotnessTicks ++;
 	}
 
     void increaseSpecWayHotness(int idx, int way) {specHotnessArray[idx][way].increment();}

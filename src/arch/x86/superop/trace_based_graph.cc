@@ -31,6 +31,7 @@ TraceBasedGraph::TraceBasedGraph(TraceBasedGraphParams *p) : SimObject(p),
                                                             specCacheNumWays(p->specCacheNumWays),
                                                             specCacheNumSets(p->specCacheNumSets) ,
                                                             specCacheNumUops(p->specCacheNumUops) ,
+                                                            specCacheNumTicks(p->specCacheNumTicks) ,
                                                             numOfTracePredictionSources(p->numOfTracePredictionSources),
                                                             debugTraceGen(p->debugTraceGen)
 

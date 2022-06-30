@@ -157,6 +157,8 @@ parser.add_option("--specCacheNumUops", default=6, type="int", action="store", h
 parser.add_option("--uopCacheNumWays", default=8, type="int", action="store", help="Number of ways for micro-op cache");
 parser.add_option("--uopCacheNumSets", default=32, type="int", action="store", help="Number of sets for micro-op cache");
 parser.add_option("--uopCacheNumUops", default=6, type="int", action="store", help="Number of uops for micro-op cache");
+parser.add_option("--specCacheNumTicks", default=10, type="int", action="store", help="Number of ticks for speculative cache");
+parser.add_option("--uopCacheNumTicks", default=10, type="int", action="store", help="Number of ticks for micro-op cache");
 parser.add_option("--numOfTracePredictionSources", default=4, type="int", action="store", help="Number of prediction sources in a super optimized trace");
 
 parser.add_option("--maxRecursiveDepth", default=8, type="int", action="store", help="Maximum depth to recurse to when measuring dependency chains")
@@ -171,6 +173,7 @@ parser.add_option("--lvpLookupAtFetch", action="store_true", help="Enables an LV
 parser.add_option("--enableValuePredForwarding", action="store_true", help="Enables Load Value Prediction for Raw execution");
 parser.add_option("--enableDynamicThreshold", action="store_true", help="Enables the use of a dynamic threshold for LVP");
 parser.add_option("--forceNoTSO", default=0, action="store_true", help="Force disable TSO Memory model");
+parser.add_option("--dumpBranchDetail", default=0, action="store_true", help="Dump info about every branch to cout");
 
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
@@ -247,6 +250,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.traceConstructor.specCacheNumWays = options.specCacheNumWays
     CPUClass.traceConstructor.specCacheNumSets = options.specCacheNumSets
     CPUClass.traceConstructor.specCacheNumUops = options.specCacheNumUops
+    CPUClass.traceConstructor.specCacheNumTicks = options.specCacheNumTicks
     CPUClass.traceConstructor.numOfTracePredictionSources = options.numOfTracePredictionSources
     CPUClass.traceConstructor.debugTraceGen = options.debugTraceGen
     CPUClass.checkpoint_at_instr = options.checkpoint_at_instr
@@ -254,9 +258,11 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.uopCacheNumWays = options.uopCacheNumWays
     CPUClass.uopCacheNumSets = options.uopCacheNumSets
     CPUClass.uopCacheNumUops = options.uopCacheNumUops
+    CPUClass.uopCacheNumTicks = options.uopCacheNumTicks
     CPUClass.lvpLookupAtFetch = options.lvpLookupAtFetch
     CPUClass.enableValuePredForwarding = options.enableValuePredForwarding
     CPUClass.enableDynamicThreshold = options.enableDynamicThreshold
+    CPUClass.dumpBranchDetail = options.dumpBranchDetail
     if options.forceNoTSO:
         CPUClass.needsTSO = False
 
@@ -295,6 +301,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.traceConstructor.specCacheNumWays = options.specCacheNumWays
     FutureClass.traceConstructor.specCacheNumSets = options.specCacheNumSets
     FutureClass.traceConstructor.specCacheNumUops = options.specCacheNumUops
+    FutureClass.traceConstructor.specCacheNumTicks = options.specCacheNumTicks
     FutureClass.traceConstructor.numOfTracePredictionSources = options.numOfTracePredictionSources
     FutureClass.traceConstructor.debugTraceGen = options.debugTraceGen
     FutureClass.numThreads = numThreads
@@ -307,9 +314,11 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.uopCacheNumWays = options.uopCacheNumWays
     FutureClass.uopCacheNumSets = options.uopCacheNumSets
     FutureClass.uopCacheNumUops = options.uopCacheNumUops
+    FutureClass.uopCacheNumTicks = options.uopCacheNumTicks
     FutureClass.lvpLookupAtFetch = options.lvpLookupAtFetch
     FutureClass.enableValuePredForwarding = options.enableValuePredForwarding
     FutureClass.enableDynamicThreshold = options.enableDynamicThreshold
+    FutureClass.dumpBranchDetail = options.dumpBranchDetail
     if options.forceNoTSO:
         FutureClass.needsTSO = False
 
