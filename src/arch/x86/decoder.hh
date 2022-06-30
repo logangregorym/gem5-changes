@@ -80,8 +80,8 @@ class Decoder
     static ByteTable ImmediateTypeThreeByte0F38;
     static ByteTable ImmediateTypeThreeByte0F3A;
     static ByteTable ImmediateTypeVex[10];
-    bool uopCacheActive;
-    bool speculativeCacheActive;
+    bool uopCacheActive = false;
+    bool speculativeCacheActive = false;
 
   protected:
     struct InstBytes
