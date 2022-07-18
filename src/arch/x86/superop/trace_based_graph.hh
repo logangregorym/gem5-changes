@@ -46,6 +46,7 @@ class TraceBasedGraph : public SimObject
     uint16_t specCacheNumWays = 8;
     uint16_t specCacheNumSets = 32;
     uint16_t specCacheNumUops = 6; 
+    uint16_t specCacheNumTicks = 10;
     uint16_t numOfTracePredictionSources = 4;
     uint64_t debugTraceGen = 0;
 

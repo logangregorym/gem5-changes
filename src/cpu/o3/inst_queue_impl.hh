@@ -530,6 +530,14 @@ InstructionQueue<Impl>::regStats()
         .flags(total | pdf | dist)
         ;
     nonspeculativeCCLiveOutInstType.ysubnames(Enums::OpClassStrings);
+
+    liveOutDumpDist
+    .init(/* base value */ 0,
+            /* last value */ numPhysRegs,
+            /* bucket size */ 1)
+    .name(name() + ".liveOutDumpDist")
+    .desc("Number of liveouts dumped each time we ")
+    .flags(Stats::pdf);
 }
 
 template <class Impl>
@@ -2142,19 +2150,25 @@ InstructionQueue<Impl>::addToProducers(DynInstPtr &new_inst)
     // First dump all live outs if this instruction is 
     for (ThreadID tid = 0; tid < numThreads; ++tid) {
         if (cpu->fetch.decoder[tid]->isSuperOptimizationPresent) {
+            uint16_t numLiveOutsDumped = 0;
+            bool ccRegDumped = false;
             for (int i = 0; i < new_inst->numDestRegs(); i++) {
                 PhysRegIdPtr dest_reg = new_inst->renamedDestRegIdx(i);
                 if (new_inst->staticInst->liveOutPredicted[i]) {
+
                     DPRINTF(IQ, "Setting Register Operand %i to live out value %#x\n", i, new_inst->staticInst->liveOut[i]);
                     if (dest_reg->classValue() == IntRegClass) {
                         new_inst->setIntRegOperand(new_inst->staticInst.get(), i, new_inst->staticInst->liveOut[i]);
+                        numLiveOutsDumped ++;
                     } else if (dest_reg->classValue() == CCRegClass) {
                         new_inst->setCCRegOperand(new_inst->staticInst.get(), i, new_inst->staticInst->liveOut[i]);
+                        ccRegDumped = true;
                     }
                     iewStage->scoreboard->setReg(new_inst->renamedDestRegIdx(i));
                     regScoreboard[dest_reg->flatIndex()] = true;
                 }
             }
+            liveOutDumpDist.sample(numLiveOutsDumped + ccRegDumped);
         }
     }
 }

@@ -98,7 +98,8 @@ DefaultCommit<Impl>::DefaultCommit(O3CPU *_cpu, DerivO3CPUParams *params)
       drainImminent(false),
       trapLatency(params->trapLatency),
       canHandleInterrupts(true),
-      avoidQuiesceLiveLock(false)
+      avoidQuiesceLiveLock(false),
+      dumpBranchDetail(params->dumpBranchDetail)
 {
     if (commitWidth > Impl::MaxWidth)
         fatal("commitWidth (%d) is larger than compiled limit (%d),\n"
@@ -1794,8 +1795,12 @@ DefaultCommit<Impl>::updateComInstStats(DynInstPtr &inst)
     //
     //  Control Instructions
     //
-    if (inst->isControl())
+    if (inst->isControl()){
         statComBranches[tid]++;
+        if(dumpBranchDetail){
+            cout << inst->instAddr() << "\t" << inst->mispredicted() << "\t" << inst->isStreamedFromSpeculativeCache() << endl;
+        }
+    }
 
     //
     //  Memory references

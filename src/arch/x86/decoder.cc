@@ -80,6 +80,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
         UOP_CACHE_NUM_WAYS = params->uopCacheNumWays;
         UOP_CACHE_NUM_SETS = params->uopCacheNumSets;
         UOP_CACHE_NUM_UOPS = params->uopCacheNumUops;
+        UOP_CACHE_NUM_TICKS = params->uopCacheNumTicks;
         UOP_CACHE_WAY_MAGIC_NUM = 2 + UOP_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
         
 
@@ -202,6 +203,7 @@ Decoder::Decoder(ISA* isa, DerivO3CPUParams* params) : basePC(0), origPC(0), off
         SPEC_CACHE_NUM_WAYS = traceConstructor->specCacheNumWays;
         SPEC_CACHE_NUM_SETS = traceConstructor->specCacheNumSets;
         SPEC_CACHE_NUM_UOPS = traceConstructor->specCacheNumUops;
+        SPEC_CACHE_NUM_TICKS = traceConstructor->specCacheNumTicks;
         SPEC_CACHE_WAY_MAGIC_NUM = 2 + SPEC_CACHE_NUM_WAYS; // this is used to find invalid ways (it was 10 before)
 
         // Ensure that these are a power of 2
@@ -1536,6 +1538,7 @@ Decoder::addUopToSpeculativeCache(SpecTrace &trace, SuperOptimizedMicroop supero
                 speculativeEvictionStat[idx][w]++; // stat to see how many times each way is getting evicted
                 specHotnessArray[idx][w].reset();
                 specCacheWayInvalidations++;
+                
             }
         }
         // trace map should always hold it

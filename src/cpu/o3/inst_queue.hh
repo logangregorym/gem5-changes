@@ -523,7 +523,7 @@ class InstructionQueue
      */
     Stats::Scalar iqSquashedNonSpecRemoved;
     // Also include number of instructions rescheduled and replayed.
-
+    Stats::Distribution liveOutDumpDist;
     /** Distribution of number of instructions in the queue.
      * @todo: Need to create struct to track the entry time for each
      * instruction. */

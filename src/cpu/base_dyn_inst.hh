@@ -146,7 +146,7 @@ class BaseDynInst : public ExecContext, public RefCounted
     InstSeqNum seqNum;
 
     /** The StaticInst used by this BaseDynInst. */
-    StaticInstPtr staticInst;
+    const StaticInstPtr staticInst;
 
     std::string getName() { return staticInst->getName(); }
 

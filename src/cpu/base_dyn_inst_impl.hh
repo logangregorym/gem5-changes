@@ -148,8 +148,6 @@ BaseDynInst<Impl>::~BaseDynInst()
 
     fault = NoFault;
 
-    staticInst = NULL;
-
 #ifndef NDEBUG
     --cpu->instcount;
 

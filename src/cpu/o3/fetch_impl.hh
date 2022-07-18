@@ -1077,7 +1077,7 @@ DefaultFetch<Impl>::tick()
     while (threads != end) {
         ThreadID tid = *threads++;
 
-        //decoder[tid]->tickAllHotnessCounters();
+        decoder[tid]->tickAllHotnessCounters();
 
         // Check the signals for each thread to determine the proper status
         // for each thread.

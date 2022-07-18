@@ -482,6 +482,8 @@ class DefaultCommit
         a possible livelock senario.  */
     bool avoidQuiesceLiveLock;
 
+    bool dumpBranchDetail;
+
     bool squashDueToLVP;
 
     /** Updates commit stats based on this instruction. */
