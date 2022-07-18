@@ -1094,7 +1094,7 @@ DefaultFetch<Impl>::tick()
     while (threads != end) {
         ThreadID tid = *threads++;
 
-        //decoder[tid]->tickAllHotnessCounters();
+        decoder[tid]->tickAllHotnessCounters();
 
         // Check the signals for each thread to determine the proper status
         // for each thread.
@@ -2178,7 +2178,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                         /* Micro-fusion. */
                     	if (isMicroFusionPresent && thisPC.microPC() != 0) {
                     	    StaticInstPtr prevStaticInst = curMacroop->fetchMicroop(thisPC.microPC()-1);
-                            if (!prevStaticInst->isStreamedFromSpeculativeCache() && !prevStaticInst->isStreamedFromUOpCache()) {
+                            if (!prevStaticInst->isStreamedFromSpeculativeCache() && prevStaticInst->isStreamedFromUOpCache()) {
                                 prevStaticInst->macroOp = curMacroop;
                                 if ((staticInst->isInteger() || staticInst->isNop() ||
                                         staticInst->isControl() || staticInst->isMicroBranch()) &&
