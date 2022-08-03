@@ -1,0 +1,9 @@
+This document contains instructions for reproducing the main results found in figure 8
+
+In order to reproduce figure 8 we will need to run 2 sets of simulations on the SPEC2017 benchmark suite. The first set of results will require the user to be on the "SCC" (default) branch, and the second the "RAW-with-LVP" branch. Once those simulations are complete (which they will be after genrerating figure 6) we need to run McPAT on the results to analyze power"
+
+To reproduce the power results found in figure 8:
+1) Ensure that you have genrerated all results for figure 6
+2) Ensure that the variables at the top of ./check_all_power_spec.sh are set appropiately
+3) Run ./check_all_power_spec.sh > check_power_spec.out
+4) Numerical power results can be found in "check_power_spec.out" 

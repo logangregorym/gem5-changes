@@ -1,0 +1,13 @@
+This document contains instructions for reproducing the main results found in figure 6
+
+In order to reproduce figure 6 we will need to run 2 sets of simulations on the SPEC2017 benchmark suite. The first set of results will require the user to be on the "SCC" (default) branch, and the second the "RAW-with-LVP" branch.
+
+To reproduce the second set of results which represents full spoeculative code compaction please do the following:
+1) Ensure that you are on the Raw-with-LVP branch
+2) Run scons build/X86/gem5.opt -j 32 from within the "gem5-changes" directory
+3) Ensure that the variables at the top of ./spec_checkpoint_script_generator_lvpraw.sh are set appropiately
+4) Run ./spec_checkpoint_script_generator_lvpraw.sh which will generate ./gem5_sim_run_all_artifact_evaluation_lvpraw.sh
+5) Run ./gem5_sim_run_all_artifact_evaluation_lvpraw.sh
+6) Wait for the runs to complete, should take 3-6 hours. Status can be checked by runing "squeue -u <username>"
+
+Once the second set of results is generated, continue to "README-Fig8"
