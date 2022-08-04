@@ -7,3 +7,5 @@ To reproduce the power results found in figure 8:
 2) Ensure that the variables at the top of ./check_all_power_spec.sh are set appropiately
 3) Run ./check_all_power_spec.sh > check_power_spec.out
 4) Numerical power results can be found in "check_power_spec.out" 
+
+Once McPAT is complete please cd to the graphs directory and open the README within.
