@@ -34,12 +34,14 @@ fi
 
 run_search () {
     for (( i=1; i<=$1; i++ )); do
+	>&2 echo "${i} super"
         rm -rf m5out
         mkdir m5out
 
         cp m5out_sim_*_"$compare_type"_"$i"/config.ini m5out
         cp m5out_sim_*_"$compare_type"_"$i"/stats.txt m5out
         if test -f "m5out/stats.txt"; then
+	
             /p/csd/mcpat/mcpat-parse-se.py
             /p/csd/mcpat/mcpat -infile power.xml -print_level 5 >power.txt
 
@@ -65,6 +67,7 @@ run_search () {
         rm -rf m5out
         mkdir m5out
 
+	>&2 echo "${i} raw"
         cp m5out_sim_*_"$base_type"_"$i"/config.ini m5out
         cp m5out_sim_*_"$base_type"_"$i"/stats.txt m5out
         if test -f "m5out/stats.txt"; then
@@ -95,46 +98,57 @@ run_search () {
 }
 
 #perl
+>&2 echo "perl"
 cd "/p/csd/SPEC2017/benchspec/CPU/600.perlbench_s/run/perl_run_ref/" ;
 run_search 7
 
 #mcf
+>&2 echo "mcf"
 cd "/p/csd/SPEC2017/benchspec/CPU/605.mcf_s/run/mcf_ren_ref/" ;
 run_search 7
 
 #xalan
+>&2 echo "xalan"
 cd "/p/csd/SPEC2017/benchspec/CPU/623.xalancbmk_s/run/xalan_run_ref/" ;
 run_search 6
 
 #exchange
+>&2 echo "exchange"
 cd "/p/csd/SPEC2017/benchspec/CPU/648.exchange2_s/run/exchange_run_ref/" ;
 run_search 5
 
 #deepsjeng
+>&2 echo "deepsjeng"
 cd "/p/csd/SPEC2017/benchspec/CPU/631.deepsjeng_s/run/deepsjeng_run_ref/" ;
 run_search 3
 
 #xz
+>&2 echo "xz"
 cd "/p/csd/SPEC2017/benchspec/CPU/657.xz_s/run/xz_run_ref/" ;
 run_search 6
 
 #lbm
+>&2 echo "lbm"
 cd "/p/csd/SPEC2017/benchspec/CPU/619.lbm_s/run/lbm_run_ref/" ;
 run_search 5
 
 #nab
+>&2 echo "nab"
 cd "/p/csd/SPEC2017/benchspec/CPU/644.nab_s/run/nab_run_ref/" ;
 run_search 4
 
 #wrf
+>&2 echo "wrf"
 cd "/p/csd/SPEC2017/benchspec/CPU/621.wrf_s/run/wrf_run_ref/" ;
 run_search 6
 
 #leela
+>&2 echo "leela"
 cd "/p/csd/SPEC2017/benchspec/CPU/641.leela_s/run/leela_run_ref/" ;
 run_search 8
 
 #gcc 
+>&2 echo "gcc"
 cd "/p/csd/SPEC2017/benchspec/CPU/602.gcc_s/run/gcc_run_ref/" ;
 run_search 7
 
