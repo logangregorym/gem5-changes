@@ -5,7 +5,7 @@ This document describes how to recreate the figure 6 and 8 graphs. In order for 
 3) Execute "./fetch_results.sh"
 4) Open plot_result.py and replace "artifact_evaluation_super" and "artifact_evaluation_lvpraw" with they type tags you used in your slurm scripts
 5) Execute "python3 plot_result.py"
-6) If python3 says it is missing a package, you should be able to install it using "pig2 <package_name>"
+6) If python3 says it is missing a package, you should be able to install it using "pip3 <package_name>"
 7) Once the script completes, the graphs can be found in ./results/
 
 Thank you for your help in reproducing our results! Please contact the authors if you run into any issues.
