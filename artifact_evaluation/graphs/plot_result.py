@@ -336,6 +336,8 @@ def get_performance_results(ax, print_x_labels = True):
                     NumOfParsec += 1
 
 
+        final_results_performance["Super"].append(0)
+        final_results_performance["Raw"].append(0)
         final_results_performance["Super"].append(SpecSuperTotal**(1/NumOfSpec))
         final_results_performance["Raw"].append(SpecRawTotal**(1//NumOfSpec))
         # final_results_performance["Super"].append(ParsecSuperTotal/NumOfParsec)
@@ -522,6 +524,8 @@ def get_inst_results(ax, print_x_labels = True):
                     NumOfParsec += 1
 
 
+        final_results_performance["Super"].append(0)
+        final_results_performance["Raw"].append(0)
         final_results_performance["Super"].append(SpecSuperTotal**(1/NumOfSpec))
         final_results_performance["Raw"].append(SpecRawTotal**(1/NumOfSpec))
         # final_results_performance["Super"].append(ParsecSuperTotal/NumOfParsec)
@@ -4335,8 +4339,8 @@ def get_power_results():
         final_results_performance["Raw"].append(0)
         final_results_performance["Super"].append(SpecSuperTotal/NumOfSpec)
         final_results_performance["Raw"].append(SpecRawTotal/NumOfSpec)
-        final_results_performance["Super"].append(ParsecSuperTotal/NumOfParsec)
-        final_results_performance["Raw"].append(ParsecRawTotal/NumOfParsec)
+        #final_results_performance["Super"].append(ParsecSuperTotal/NumOfParsec)
+        #final_results_performance["Raw"].append(ParsecRawTotal/NumOfParsec)
 
         df = pd.DataFrame(final_results_performance, columns = COLUMNS)
         # Setting the positions and width for the bars
