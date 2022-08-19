@@ -1,41 +1,24 @@
-This is the gem5 simulator.
+This is the modified gem5-simulator for my paper Speculative Code Compaction: Eliminating Dead Code via Speculative Microcode Transformations, published at MICRO 2022.
+The main gem5 website can be found at http://www.gem5.org
 
-The main website can be found at http://www.gem5.org
+Paper:
+<Awaiting camera-ready>
 
-A good starting point is http://www.gem5.org/Introduction, and for
-more information about building the simulator and getting started
-please see http://www.gem5.org/Documentation and
-http://www.gem5.org/Tutorials.
+Dependencies:
+g++ (we used gcc 4.8.5 for building gem5 and the latest llvm for compiling benchmarks)
+Python (we used 2.7.5)
+SCons (we used 3.1.2)
+SWIG (we used 2.0.10)
+zlib (we used 1.2.7)
+m4 (we used 1.4.16)
+SPEC and PARSEC benchmark suites
 
-To build gem5, you will need the following software: g++ or clang,
-Python (gem5 links in the Python interpreter), SCons, SWIG, zlib, m4,
-and lastly protobuf if you want trace capture and playback
-support. Please see http://www.gem5.org/Dependencies for more details
-concerning the minimum versions of the aforementioned tools.
+We provide scripts to reproduce the main results of our paper for the SPEC benchmark suite, namely:
+   - Figure 6 (Top): Executed Microop Count for both "Baseline" and "Speculative Code Compaction"
+   - Figure 6 (Middle): Speedup for both "Baseline" and "Speculative Code Compaction"
+   - Figure 8: Energy Consumption for both "Baseline" and "Speculative Code Compaction"
 
-Once you have all dependencies resolved, type 'scons
-build/<ARCH>/gem5.opt' where ARCH is one of ALPHA, ARM, NULL, MIPS,
-POWER, SPARC, or X86. This will build an optimized version of the gem5
-binary (gem5.opt) for the the specified architecture. See
-http://www.gem5.org/Build_System for more details and options.
+The scripts required for reproducing the above results can be found in artifact_evaluation/
+Please refer to artifact_evaluation/README-Fig6 for further instructions.
 
-With the simulator built, have a look at
-http://www.gem5.org/Running_gem5 for more information on how to use
-gem5.
-
-The basic source release includes these subdirectories:
-   - configs: example simulation configuration scripts
-   - ext: less-common external packages needed to build gem5
-   - src: source code of the gem5 simulator
-   - system: source for some optional system software for simulated systems
-   - tests: regression tests
-   - util: useful utility programs and files
-
-To run full-system simulations, you will need compiled system firmware
-(console and PALcode for Alpha), kernel binaries and one or more disk
-images. Please see the gem5 download page for these items at
-http://www.gem5.org/Download
-
-If you have questions, please send mail to gem5-users@gem5.org
-
-Enjoy using gem5 and please share your modifications and extensions.
+The authors are dedicated to facilitating easy reproduction of all results in the paper therefore if you run into any issues generating the listed results or would like to reproduce additional results in the paper, please reach out to me: Logan Moody (lgm4xn@virginia.edu) 
