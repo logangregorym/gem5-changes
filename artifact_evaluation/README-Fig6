@@ -14,3 +14,7 @@ To reproduce the first set of results which represents full spoeculative code co
 9) Repeat steps 6-8 until the check_all_simpoints.sh script prints no slurm files
 
 Once the first set of results is generated, please checkout the "Raw-with-LVP" branch and reopen this same file for further instructions
+
+Additional information about results generated:
+The stats files for each simpoint can be found in /p/csd/SPEC2017/benchspec/CPU/<benchmark_name>/run/<benchmark_name>_run_ref/m5out_sim_<benchmark_name>_<type>_<simpoint_number>/stats.txt
+We use the "sim_ops" stat for instruction count and "system.switch_cpus.numCycles" stat for cycle count
