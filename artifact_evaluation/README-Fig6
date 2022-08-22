@@ -15,3 +15,7 @@ To reproduce the second set of results which represents full spoeculative code c
 
 
 Once the second set of results is generated, continue to "README-Fig8"
+
+Additional information about results generated:
+The stats files for each simpoint can be found in /p/csd/SPEC2017/benchspec/CPU/<benchmark_name>/run/<benchmark_name>_run_ref/m5out_sim_<benchmark_name>_<type>_<simpoint_number>/stats.txt
+We use the "sim_ops" stat for instruction count and "system.switch_cpus.numCycles" stat for cycle count
