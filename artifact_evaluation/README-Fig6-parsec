@@ -1,0 +1,21 @@
+This document contains instructions for reproducing the main results found in figure 6 (parsec)
+
+In order to reproduce figure 6 we will need to run 2 sets of simulations on the PARSEC benchmark suite. The first set of results will require the user to be on the "SCC" (default) branch, and the second the "RAW-with-LVP" branch.
+
+To reproduce the second set of results which represents full spoeculative code compaction please do the following:
+1) Ensure that you are on the Raw-with-LVP branch (If not go to the SCC branch and reopen this file)
+2) Run scons build/X86/gem5.opt -j 32 from within the "gem5-changes" directory
+3) Ensure that the variables at the top of ./parsec_checkpoint_script_generator_lvpraw.sh are set appropiately
+4) Run ./parsec_checkpoint_script_generator_lvpraw.sh which will generate ./gem5_sim_run_all_parsec_artifact_evaluation_lvpraw.sh
+5) Run ./gem5_sim_run_all_parsec_artifact_evaluation_lvpraw.sh
+6) Wait for the runs to complete, should take 3-6 hours. Status can be checked by runing "squeue -u <username>"
+7) Once all runs have finished, check if they ran correctly by running "./check_all_parsec.sh <type>"
+8) If the script prints any slurm files go to that directory and restart the simulation by running "sbatch <file_name>"
+9) Repeat steps 6-8 until the check_all_parsec.sh script prints no slurm files
+
+
+Once the second set of results is generated, continue to "README-Fig8-parsec"
+
+Additional information about results generated:
+The stats files for each simpoint can be found in /p/csd/parsec-port/pkgs/<apps/kernels>/<benchmark_name>/run/m5out_sim_<benchmark_name>_<type>/stats.txt
+We use the "sim_ops" stat for instruction count and "system.switch_cpus.numCycles" stat for cycle count
