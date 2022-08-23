@@ -1,0 +1,23 @@
+This document contains instructions for reproducing the main results found in figure 8 (parsec)
+
+In order to reproduce figure 8 we will need to run 2 sets of simulations on the PARSEC benchmark suite. The first set of results will require the user to be on the "SCC" (default) branch, and the second the "RAW-with-LVP" branch. Once those simulations are complete (which they will be after genrerating figure 6) we need to run McPAT on the results to analyze power"
+
+To reproduce the power results found in figure 8:
+1) Ensure that you have genrerated all results for figure 6
+2) Ensure that the variables at the top of ./check_all_power_parsec.sh are set appropiately
+3) Run ./check_all_power_parsec.sh <baseline_type> <scc_type> > check_power_parsec.out
+4) Numerical power results can be found in "check_power_parsec.out" 
+
+Once McPAT is complete please cd to the graphs directory and open the README within.
+
+Additional information about results generated:
+Final power numbers are stored in ./check_power_parsec.out
+Each row in the file represents a simpoint, to identify which, please refer to plot_result.py:4204. For example line 49 in the power file corresponds to leela simpoint 1, and line 17 corresponds to xalanc 4. 
+Within each row, there are 6 numbers, which represent:
+    1) Baseline - Overall power
+    2) Baseline - Integer register file power
+    3) Baseline - Renaming unit power
+    4) SCC - Overall power
+    5) SCC - Integer register file power
+    6) SCC - Renaming unit power
+Because of the way me model value fowarding in SCC, we unfairly penalize the baseline renaming unit and int register file power numbers, so we must subtract that difference from the overall power total. The formula for this can be found in plot_result.py:4269.

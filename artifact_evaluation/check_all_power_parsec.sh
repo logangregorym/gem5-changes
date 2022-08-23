@@ -27,8 +27,8 @@ if [ "$#" -eq 2 ]; then
     compare_type=$2
     base_type=$1
 else
-    echo "Usage: ./check_all_cycles.sh <base_type> <compare_type>"
-    echo "Ex:    ./check_all_cycles.sh logan_raw_skylake logan_super_skylake"
+    echo "Usage: ./check_all_power.sh <base_type> <compare_type>"
+    echo "Ex:    ./check_all_power.sh logan_raw_skylake logan_super_skylake"
     exit
 fi
 
@@ -54,9 +54,9 @@ run_search () {
         compare_rename_power=$(echo " ${compare_rename_power/Runtime Dynamic = /}" |xargs)
         compare_rename_power=$(echo " ${compare_rename_power/W/}" |xargs)
 
-        mv power.txt compare_power.txt
+        #mv power.txt compare_power.txt
 
-        #rm power.txt power.xml
+        rm power.txt power.xml
         rm -rf m5out
         mkdir m5out
 
@@ -80,7 +80,7 @@ run_search () {
 
         echo "${compare_power} ${compare_intRF_power} ${compare_rename_power} ${base_power} ${base_intRF_power} ${base_rename_power}"
 
-        #rm power.txt power.xml
+        rm power.txt power.xml
         rm -rf m5out
 }
 
