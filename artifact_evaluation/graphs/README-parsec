@@ -1,0 +1,11 @@
+This document describes how to recreate the figure 6 and 8 graphs for parsec. In order for these steps to work, please ensure that all results have been generated as described in "../README-Fig6-parsec" and "../README-Fig8-parsec".
+
+1) Execute "module load python3"
+2) Open "fetch_results_parsec.sh" and replace "parsec_artifact_evaluation_super" and "parsec_artifact_evaluation_lvpraw" with they type tags you used in your slurm scripts
+3) Execute "./fetch_results_parsec.sh"
+4) Open plot_result_parsec.py and replace "parsec_artifact_evaluation_super" and "parsec_artifact_evaluation_lvpraw" with they type tags you used in your slurm scripts
+5) Execute "python3 plot_result_parsec.py"
+6) If python3 says it is missing a package, you should be able to install it using "pip3 <package_name>"
+7) Once the script completes, the graphs can be found in ./parsec-results/
+
+Thank you for your help in reproducing our results! Please contact the authors if you run into any issues.
