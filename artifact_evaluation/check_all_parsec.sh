@@ -31,21 +31,21 @@ fi
 unique_id=$$
 #compare_type="logan_super_skylake_f59_use_stale"
 #base_type="logan_raw_skylake_f59"
-find_str="system.switch_cpus.commit.op_class_0::MemWrite *"
+find_str="system.cpu.commit.op_class_0::MemWrite *"
 run_dir=$(pwd)
 
 run_search () {
-        base_filename=$(echo m5out_sim_*_"$base_type"_"$i"/stats.txt)
+        base_filename=$(echo m5out_sim_*_"$base_type"/stats.txt)
         if [[ ! -f "$base_filename" ]]; then
-            ls $PWD/*${i}_${base_type}.slurm
+            ls $PWD/*_${base_type}.slurm
  #           echo failed
             return
         fi
 
-        base_out=$(grep -oE "$find_str"[0-9]+ m5out_sim_*_"$base_type"_"$i"/stats.txt)
+        base_out=$(grep -oE "$find_str"[0-9]+ m5out_sim_*_"$base_type"/stats.txt)
         base_out=$(echo "${base_out/system.switch_cpus.commit.op_class_0::MemWrite/}")
         if [ -z "$base_out" ]; then
-            ls $PWD/*${i}_${base_type}.slurm
+            ls $PWD/*_${base_type}.slurm
  #           echo failed
  #       else
  #           echo passed
