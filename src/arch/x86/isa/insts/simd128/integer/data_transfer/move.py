@@ -76,8 +76,7 @@ def macroop MOVDQA_XMM_XMM {
 };
 
 def macroop MOVDQA_XMM_M {
-    ldfp xmml, seg, sib, "DISPLACEMENT", dataSize=8
-    ldfp xmmh, seg, sib, "DISPLACEMENT + 8", dataSize=8
+    ldfp128 xmm0, seg, sib, "DISPLACEMENT", dataSize=16
 };
 
 def macroop MOVDQA_XMM_P {

@@ -494,6 +494,11 @@ let {{
 
     defineMicroLoadOp('Ldfp', code='FpData_uqw = Mem', big = False)
 
+    defineMicroLoadOp('Ldfp128', code='''
+        FpData0_uqw = Mem_u2qw[0]; 
+        FpData1_uqw = Mem_u2qw[1]; 
+    ''', big = False)
+
     defineMicroLoadOp('Ldfp87', code='''
         switch (dataSize)
         {

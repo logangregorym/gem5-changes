@@ -207,5 +207,8 @@ def operands {{
         'TscOp':         controlReg('MISCREG_TSC', 212),
         'M5Reg':         squashCReg('MISCREG_M5_REG', 213),
         'Mem':           ('Mem', 'uqw', None, \
-                          ('IsMemRef', 'IsLoad', 'IsStore'), 300)
+                          ('IsMemRef', 'IsLoad', 'IsStore'), 300),
+
+        'FpData0':      floatReg('data + 0', 310),
+        'FpData1':      floatReg('data + 1', 311),
 }};

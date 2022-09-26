@@ -139,7 +139,12 @@ namespace X86ISA
     void
     X86StaticInst::printReg(std::ostream &os, RegId reg, int size) const
     {
-        assert(size == 1 || size == 2 || size == 4 || size == 8);
+        if (reg.isFloatReg()) {
+          assert(size == 1 || size == 2 || size == 4 || size == 8 ||
+                 size == 16);
+        } else {
+          assert(size == 1 || size == 2 || size == 4 || size == 8);
+        }
         static const char * abcdFormats[9] =
             {"", "%s",  "%sx",  "", "e%sx", "", "", "", "r%sx"};
         static const char * piFormats[9] =
@@ -221,12 +226,12 @@ namespace X86ISA
                 return;
             }
             reg_idx -= NumMMXRegs;
-            if (reg_idx < NumXMMRegs * 2) {
-                ccprintf(os, "%%xmm%d_%s", reg_idx / 2,
-                        (reg_idx % 2) ? "high": "low");
+            if (reg_idx < NumXMMRegs * NumXMMSubRegs) {
+                ccprintf(os, "%%xmm%d_%d(%d)", reg_idx / NumXMMSubRegs,
+                         reg_idx % NumXMMSubRegs, size);
                 return;
             }
-            reg_idx -= NumXMMRegs * 2;
+            reg_idx -= NumXMMRegs * NumXMMSubRegs;
             if (reg_idx < NumMicroFpRegs) {
                 ccprintf(os, "%%ufp%d", reg_idx);
                 return;
