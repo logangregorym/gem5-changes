@@ -628,6 +628,11 @@ let {{
 
     defineMicroStoreOp('Stfp', code='Mem = FpData_uqw;')
 
+    defineMicroStoreOp('Stfp128', code='''
+        Mem_u2qw[0] = FpData0_uqw;
+        Mem_u2qw[1] = FpData1_uqw;
+    ''')
+
     defineMicroStoreOp('Stfp87', code='''
         switch (dataSize)
         {

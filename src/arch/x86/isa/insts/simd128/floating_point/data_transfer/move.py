@@ -50,9 +50,7 @@ def macroop MOVAPS_XMM_P {
 };
 
 def macroop MOVAPS_M_XMM {
-    # Check low address.
-    stfp xmmh, seg, sib, "DISPLACEMENT + 8", dataSize=8
-    stfp xmml, seg, sib, disp, dataSize=8
+    stfp128 xmm0, seg, sib, "DISPLACEMENT", dataSize=16
 };
 
 def macroop MOVAPS_P_XMM {
