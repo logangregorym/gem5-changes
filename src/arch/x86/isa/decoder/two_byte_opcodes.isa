@@ -975,7 +975,7 @@
                     0x3: PAVGW(Pq,Qq);
                     0x4: PMULHUW(Pq,Qq);
                     0x5: PMULHW(Pq,Qq);
-                    0x7: WarnUnimpl::movntq_Mq_Pq();
+                    0x7: MOVNTQ(Mq,Pq);
                     default: UD2();
                 }
                 // repe (0xF3)

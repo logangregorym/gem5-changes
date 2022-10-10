@@ -36,7 +36,14 @@
 # Authors: Gabe Black
 
 microcode = '''
-# MOVNTQ
+def macroop MOVNTQ_M_MMX {
+    stfp mmx, seg, sib, disp, dataSize=8
+};
+
+def macroop MOVNTQ_P_MMX {
+    rdip t7
+    stfp mmx, seg, riprel, disp, dataSize=8
+};
 
 def macroop MASKMOVQ_MMX_MMX {
     ldfp ufp1, ds, [1, t0, rdi], dataSize=8
