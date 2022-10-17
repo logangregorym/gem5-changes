@@ -67,8 +67,7 @@ def macroop ADDSD_XMM_P {
 };
 
 def macroop ADDPS_XMM_XMM {
-    maddf xmml, xmml, xmmlm, size=4, ext=0
-    maddf xmmh, xmmh, xmmhm, size=4, ext=0
+    vaddf dest=xmm0, src1=xmm0, src2=xmm0m, size=4, VL=16
 };
 
 def macroop ADDPS_XMM_M {

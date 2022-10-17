@@ -52,6 +52,7 @@ if env['TARGET_ISA'] == 'x86':
     Source('insts/microfpop.cc')
     Source('insts/microldstop.cc')
     Source('insts/micromediaop.cc')
+    Source('insts/microavxop.cc')
     Source('insts/microop.cc')
     Source('insts/microregop.cc')
     Source('insts/static_inst.cc')

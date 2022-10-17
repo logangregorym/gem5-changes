@@ -244,9 +244,13 @@ class StaticInst : public RefCounted, public StaticInstFlags
     /// Only the entries from 0 through numDestRegs()-1 are valid.
     const RegId& destRegIdx(int i) const { return _destRegIdx[i]; }
 
+    void setDestRegIdx(int i, const RegId &val) { _destRegIdx[i] = val; }
+
     /// Return logical index (architectural reg num) of i'th source reg.
     /// Only the entries from 0 through numSrcRegs()-1 are valid.
     const RegId& srcRegIdx(int i)  const { return _srcRegIdx[i]; }
+
+    void setSrcRegIdx(int i, const RegId &val) { _srcRegIdx[i] = val; }
 
     /// add destRegIdx (live outs from superoptimization)
     void addDestReg(RegId reg) { _destRegIdx[_numDestRegs++] = reg; }

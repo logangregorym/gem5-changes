@@ -67,8 +67,7 @@ def macroop MULSD_XMM_P {
 };
 
 def macroop MULPS_XMM_XMM {
-    mmulf xmml, xmml, xmmlm, size=4, ext=0
-    mmulf xmmh, xmmh, xmmhm, size=4, ext=0
+    vmulf xmm0, xmm0, xmm0m, size=4, VL=16
 };
 
 def macroop MULPS_XMM_M {

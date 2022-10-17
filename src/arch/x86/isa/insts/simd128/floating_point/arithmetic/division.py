@@ -67,8 +67,7 @@ def macroop DIVSD_XMM_P {
 };
 
 def macroop DIVPS_XMM_XMM {
-    mdivf xmml, xmml, xmmlm, size=4, ext=0
-    mdivf xmmh, xmmh, xmmhm, size=4, ext=0
+    vdivf xmm0, xmm0, xmm0m, size=4, VL=16
 };
 
 def macroop DIVPS_XMM_M {
