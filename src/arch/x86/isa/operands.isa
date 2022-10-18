@@ -211,4 +211,10 @@ def operands {{
 
         'FpData0':      floatReg('data + 0', 310),
         'FpData1':      floatReg('data + 1', 311),
+        'FpSrcReg1x0':  floatReg('src1 + 0', 320),
+        'FpSrcReg1x1':  floatReg('src1 + 1', 321),
+        'FpSrcReg2x0':  floatReg('src2 + 0', 330),
+        'FpSrcReg2x1':  floatReg('src2 + 1', 331),
+        'FpDestReg0':   floatReg('dest + 0', 340),
+        'FpDestReg1':   floatReg('dest + 1', 341),
 }};

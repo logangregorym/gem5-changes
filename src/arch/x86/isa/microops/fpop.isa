@@ -274,6 +274,19 @@ let {{
                                      ecfBit | ezfBit, src2)"
         op_class = 'IntAluOp'
 
+    class Movfp128(FpUnaryOp):
+        code = '''
+            FpDestReg0_uqw = FpSrcReg1x0_uqw;
+            FpDestReg1_uqw = FpSrcReg1x1_uqw;
+        '''
+        else_code = '''
+            FpDestReg0_uqw = FpDestReg0_uqw;
+            FpDestReg1_uqw = FpDestReg1_uqw;
+        '''
+        cond_check = "checkCondition(ccFlagBits | cfofBits | dfBit | \
+                                     ecfBit | ezfBit, src2)"
+        op_class = 'IntAluOp'
+
     class Xorfp(FpBinaryOp):
         code = 'FpDestReg_uqw = FpSrcReg1_uqw ^ FpSrcReg2_uqw;'
 
