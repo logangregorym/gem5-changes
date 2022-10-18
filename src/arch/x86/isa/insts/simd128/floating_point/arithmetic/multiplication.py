@@ -71,37 +71,28 @@ def macroop MULPS_XMM_XMM {
 };
 
 def macroop MULPS_XMM_M {
-    ldfp ufp1, seg, sib, "DISPLACEMENT", dataSize=8
-    ldfp ufp2, seg, sib, "DISPLACEMENT + 8", dataSize=8
-    mmulf xmml, xmml, ufp1, size=4, ext=0
-    mmulf xmmh, xmmh, ufp2, size=4, ext=0
+    ldfp128 ufp1, seg, sib, "DISPLACEMENT", dataSize=16
+    vmulf xmm0, xmm0, ufp1, size=4, VL=16
 };
 
 def macroop MULPS_XMM_P {
     rdip t7
-    ldfp ufp1, seg, riprel, "DISPLACEMENT", dataSize=8
-    ldfp ufp2, seg, riprel, "DISPLACEMENT + 8", dataSize=8
-    mmulf xmml, xmml, ufp1, size=4, ext=0
-    mmulf xmmh, xmmh, ufp2, size=4, ext=0
+    ldfp128 ufp1, seg, riprel, "DISPLACEMENT", dataSize=16
+    vmulf xmm0, xmm0, ufp1, size=4, VL=16
 };
 
 def macroop MULPD_XMM_XMM {
-    mmulf xmml, xmml, xmmlm, size=8, ext=0
-    mmulf xmmh, xmmh, xmmhm, size=8, ext=0
+    vmulf xmm0, xmm0, xmm0m, size=8, VL=16
 };
 
 def macroop MULPD_XMM_M {
-    ldfp ufp1, seg, sib, "DISPLACEMENT", dataSize=8
-    ldfp ufp2, seg, sib, "DISPLACEMENT + 8", dataSize=8
-    mmulf xmml, xmml, ufp1, size=8, ext=0
-    mmulf xmmh, xmmh, ufp2, size=8, ext=0
+    ldfp128 ufp1, seg, sib, "DISPLACEMENT", dataSize=16
+    vmulf xmm0, xmm0, ufp1, size=8, VL=16
 };
 
 def macroop MULPD_XMM_P {
     rdip t7
-    ldfp ufp1, seg, riprel, "DISPLACEMENT", dataSize=8
-    ldfp ufp2, seg, riprel, "DISPLACEMENT + 8", dataSize=8
-    mmulf xmml, xmml, ufp1, size=8, ext=0
-    mmulf xmmh, xmmh, ufp2, size=8, ext=0
+    ldfp128 ufp1, seg, riprel, "DISPLACEMENT", dataSize=16
+    vmulf xmm0, xmm0, ufp1, size=8, VL=16
 };
 '''

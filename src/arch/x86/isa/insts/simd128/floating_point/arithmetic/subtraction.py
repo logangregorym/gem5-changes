@@ -67,42 +67,32 @@ def macroop SUBSD_XMM_P {
 };
 
 def macroop SUBPS_XMM_XMM {
-    msubf xmml, xmml, xmmlm, size=4, ext=0
-    msubf xmmh, xmmh, xmmhm, size=4, ext=0
+    vsubf xmm0, xmm0, xmm0m, size=4, VL=16
 };
 
 def macroop SUBPS_XMM_M {
-    ldfp ufp1, seg, sib, "DISPLACEMENT", dataSize=8
-    ldfp ufp2, seg, sib, "DISPLACEMENT + 8", dataSize=8
-    msubf xmml, xmml, ufp1, size=4, ext=0
-    msubf xmmh, xmmh, ufp2, size=4, ext=0
+    ldfp128 ufp1, seg, sib, "DISPLACEMENT", dataSize=16
+    vsubf xmm0, xmm0, ufp1, size=4, VL=16
 };
 
 def macroop SUBPS_XMM_P {
     rdip t7
-    ldfp ufp1, seg, riprel, "DISPLACEMENT", dataSize=8
-    ldfp ufp2, seg, riprel, "DISPLACEMENT + 8", dataSize=8
-    msubf xmml, xmml, ufp1, size=4, ext=0
-    msubf xmmh, xmmh, ufp2, size=4, ext=0
+    ldfp128 ufp1, seg, riprel, "DISPLACEMENT", dataSize=16
+    vsubf xmm0, xmm0, ufp1, size=4, VL=16
 };
 
 def macroop SUBPD_XMM_XMM {
-    msubf xmml, xmml, xmmlm, size=8, ext=0
-    msubf xmmh, xmmh, xmmhm, size=8, ext=0
+    vsubf xmm0, xmm0, xmm0m, size=8, VL=16
 };
 
 def macroop SUBPD_XMM_M {
-    ldfp ufp1, seg, sib, "DISPLACEMENT", dataSize=8
-    ldfp ufp2, seg, sib, "DISPLACEMENT + 8", dataSize=8
-    msubf xmml, xmml, ufp1, size=8, ext=0
-    msubf xmmh, xmmh, ufp2, size=8, ext=0
+    ldfp128 ufp1, seg, sib, "DISPLACEMENT", dataSize=16
+    vsubf xmm0, xmm0, ufp1, size=8, VL=16
 };
 
 def macroop SUBPD_XMM_P {
     rdip t7
-    ldfp ufp1, seg, riprel, "DISPLACEMENT", dataSize=8
-    ldfp ufp2, seg, riprel, "DISPLACEMENT + 8", dataSize=8
-    msubf xmml, xmml, ufp1, size=8, ext=0
-    msubf xmmh, xmmh, ufp2, size=8, ext=0
+    ldfp128 ufp1, seg, riprel, "DISPLACEMENT", dataSize=16
+    vsubf xmm0, xmm0, ufp1, size=8, VL=16
 };
 '''
