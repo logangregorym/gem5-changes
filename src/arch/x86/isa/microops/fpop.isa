@@ -207,25 +207,29 @@ let {{
         op_class = "FloatAddOp"
 
         def __init__(self, dest, src1, spm=0, \
-                SetStatus=False, UpdateFTW=True, dataSize="env.dataSize"):
+                SetStatus=False, UpdateFTW=True, dataSize="env.dataSize",
+                vector=False):
             self.dest = dest
             self.src1 = src1
             self.src2 = "InstRegIndex(0)"
             self.spm = spm
             self.dataSize = dataSize
+            self.instFlags = ""
             if SetStatus:
                 self.className += "Flags"
             if spm:
                 self.className += "Top"
             if spm and UpdateFTW:
                 self.className += "Tag"
+            if vector:
+                self.instFlags += " | (1ULL << StaticInst::IsVector)"
 
         def getAllocator(self, microFlags):
             return '''new %(class_name)s(machInst, macrocodeBlock,
                     %(flags)s, %(src1)s, %(src2)s, %(dest)s,
                     %(dataSize)s, %(spm)d)''' % {
                 "class_name" : self.className,
-                "flags" : self.microFlagsText(microFlags),
+                "flags" : self.microFlagsText(microFlags) + self.instFlags,
                 "src1" : self.src1, "src2" : self.src2,
                 "dest" : self.dest,
                 "dataSize" : self.dataSize,
@@ -286,6 +290,9 @@ let {{
         cond_check = "checkCondition(ccFlagBits | cfofBits | dfBit | \
                                      ecfBit | ezfBit, src2)"
         op_class = 'IntAluOp'
+        def __init__(self, dest, src1, **kwargs):
+            super(Movfp128, self).__init__(dest, src1, \
+                vector=True, **kwargs)
 
     class Xorfp(FpBinaryOp):
         code = 'FpDestReg_uqw = FpSrcReg1_uqw ^ FpSrcReg2_uqw;'

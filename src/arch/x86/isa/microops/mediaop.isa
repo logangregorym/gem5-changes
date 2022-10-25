@@ -206,6 +206,7 @@ let {{
             self.dest = dest
             self.src1 = src1
             self.op2 = op2
+            self.instFlags = " | (1ULL << StaticInst::IsVector)"
             if size is not None:
                 self.srcSize = size
                 self.destSize = size
@@ -230,7 +231,7 @@ let {{
                     %(flags)s, %(src1)s, %(op2)s, %(dest)s,
                     %(srcSize)s, %(destSize)s, %(ext)s)''' % {
                 "class_name" : className,
-                "flags" : self.microFlagsText(microFlags),
+                "flags" : self.microFlagsText(microFlags) + self.instFlags,
                 "src1" : self.src1, "op2" : self.op2,
                 "dest" : self.dest,
                 "srcSize" : self.srcSize,

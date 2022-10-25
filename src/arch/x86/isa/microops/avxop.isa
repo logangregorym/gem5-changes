@@ -146,6 +146,7 @@ let {{
             self.srcVL = srcVL
             self.imm8 = imm8
             self.ext = ext
+            self.instFlags = " | (1ULL << StaticInst::IsVector)"
 
         def getAllocator(self, microFlags):
             className = self.className
@@ -153,7 +154,7 @@ let {{
                     %(flags)s, %(srcType)s, %(dest)s, %(src1)s, %(src2)s,
                     %(destSize)s, %(destVL)s, %(srcSize)s, %(srcVL)s, %(imm8)s, %(ext)s)''' % {
                 "class_name" : className,
-                "flags" : self.microFlagsText(microFlags),
+                "flags" : self.microFlagsText(microFlags) + self.instFlags,
                 "srcType": self.srcType,
                 "src1" : self.src1, "src2" : self.src2,
                 "dest" : self.dest,
