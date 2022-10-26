@@ -53,6 +53,7 @@
 #include "cpu/pc_event.hh"
 #include "cpu/pred/bpred_unit.hh"
 #include "cpu/pred/lvpred_unit.hh"
+#include "cpu/pred/lsd_unit.hh"
 #include "cpu/timebuf.hh"
 #include "cpu/translation.hh"
 #include "mem/packet.hh"
@@ -422,6 +423,8 @@ class DefaultFetch
 
     // For Trace-Based Implementation, need to track trace ID across cycles
     uint64_t currentTraceID = 0;
+
+    LSDUnit *lsd;
 
   private:
     bool usingTrace = false;

@@ -65,6 +65,7 @@
 #include "cpu/o3/fetch.hh"
 #include "cpu/o3/isa_specific.hh"
 #include "cpu/pred/ltage.hh"
+#include "cpu/pred/lsd_unit.hh"
 #include "debug/Activity.hh"
 #include "debug/Drain.hh"
 #include "debug/Fetch.hh"
@@ -165,6 +166,7 @@ DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
 
     branchPred = params->branchPred;
     loadPred = params->loadPred;
+    lsd = params->lsd;
     //loadPred->cpuInsts = &(cpu->instList);
 
     // constantLoads = vector<Addr>(constantBufferSize, 0);
@@ -2192,7 +2194,9 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
 
                 DynInstPtr instruction = buildInst(tid, staticInst, curMacroop, thisPC, nextPC, true);
-                
+
+                lsd->update(instruction->instAddr(), instruction->microPC());
+
                 instruction->fused = fused;
           
             	DPRINTF(Fetch, "instruction created: [sn:%lli]:%s\n", instruction->seqNum, instruction->pcState());

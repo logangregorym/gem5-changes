@@ -35,6 +35,7 @@ if env['TARGET_ISA'] == 'null':
 
 SimObject('BranchPredictor.py')
 SimObject('LoadValuePredictor.py')
+SimObject('LoopStreamDetector.py')
 
 DebugFlag('Indirect')
 Source('bpred_unit.cc')
@@ -53,9 +54,11 @@ Source('three_period.cc')
 Source('empty_lvp.cc')
 Source('fa3p.cc')
 Source('eves.cc')
+Source ('lsd_unit.cc')
 
 DebugFlag('FreeList')
 DebugFlag('Branch')
 DebugFlag('LTage')
 DebugFlag('LVP')
 DebugFlag('FA3P')
+DebugFlag('LSD')

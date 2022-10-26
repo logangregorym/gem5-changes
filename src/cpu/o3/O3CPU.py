@@ -48,6 +48,7 @@ from FUPool import *
 from O3Checker import O3Checker
 from BranchPredictor import *
 from LoadValuePredictor import *
+from LoopStreamDetector import *
 from TraceBasedGraph import *
 
 class DerivO3CPU(BaseCPU):
@@ -168,6 +169,7 @@ class DerivO3CPU(BaseCPU):
                                                        Parent.numThreads),
                                        "Branch Predictor")
     loadPred = Param.LoadValuePredictor(LoadValuePredictor(), "Load Value Predictor")
+    lsd = Param.LoopStreamDetector(LoopStreamDetector(), "Loop Stream Detector")
     traceConstructor = Param.TraceBasedGraph(TraceBasedGraph(), "Trace Construction Unit")
     needsTSO = Param.Bool(buildEnv['TARGET_ISA'] == 'x86',
                           "Enable TSO Memory model")
