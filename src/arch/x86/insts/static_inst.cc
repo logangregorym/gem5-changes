@@ -141,7 +141,7 @@ namespace X86ISA
     {
         if (reg.isFloatReg()) {
           assert(size == 1 || size == 2 || size == 4 || size == 8 ||
-                 size == 16);
+                 size == 16 || size == 32);
         } else {
           assert(size == 1 || size == 2 || size == 4 || size == 8);
         }

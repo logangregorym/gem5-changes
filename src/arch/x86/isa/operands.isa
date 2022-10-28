@@ -51,6 +51,7 @@ def operand_types {{
     'sqw' : 'int64_t',
     'uqw' : 'uint64_t',
     'u2qw' : 'std::array<uint64_t, 2>',
+    'u4qw' : 'std::array<uint64_t, 4>',
     'sf' : 'float',
     'df' : 'double',
 }};
@@ -211,10 +212,18 @@ def operands {{
 
         'FpData0':      floatReg('data + 0', 310),
         'FpData1':      floatReg('data + 1', 311),
+        'FpData2':      floatReg('data + 2', 312),
+        'FpData3':      floatReg('data + 3', 313),
         'FpSrcReg1x0':  floatReg('src1 + 0', 320),
         'FpSrcReg1x1':  floatReg('src1 + 1', 321),
+        'FpSrcReg1x2':  floatReg('src1 + 2', 322),
+        'FpSrcReg1x3':  floatReg('src1 + 3', 323),
         'FpSrcReg2x0':  floatReg('src2 + 0', 330),
         'FpSrcReg2x1':  floatReg('src2 + 1', 331),
+        'FpSrcReg2x2':  floatReg('src2 + 2', 332),
+        'FpSrcReg2x3':  floatReg('src2 + 3', 333),
         'FpDestReg0':   floatReg('dest + 0', 340),
         'FpDestReg1':   floatReg('dest + 1', 341),
+        'FpDestReg2':   floatReg('dest + 2', 342),
+        'FpDestReg3':   floatReg('dest + 3', 343),
 }};

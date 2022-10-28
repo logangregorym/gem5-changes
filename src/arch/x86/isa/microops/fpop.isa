@@ -293,6 +293,26 @@ let {{
         def __init__(self, dest, src1, **kwargs):
             super(Movfp128, self).__init__(dest, src1, \
                 vector=True, **kwargs)
+    
+    class Movfp256(FpUnaryOp):
+        code = '''
+            FpDestReg0_uqw = FpSrcReg1x0_uqw;
+            FpDestReg1_uqw = FpSrcReg1x1_uqw;
+            FpDestReg2_uqw = FpSrcReg1x2_uqw;
+            FpDestReg3_uqw = FpSrcReg1x3_uqw;
+        '''
+        else_code = '''
+            FpDestReg0_uqw = FpDestReg0_uqw;
+            FpDestReg1_uqw = FpDestReg1_uqw;
+            FpDestReg2_uqw = FpDestReg2_uqw;
+            FpDestReg3_uqw = FpDestReg3_uqw;
+        '''
+        cond_check = "checkCondition(ccFlagBits | cfofBits | dfBit | \
+                                     ecfBit | ezfBit, src2)"
+        op_class = 'IntAluOp'
+        def __init__(self, dest, src1, **kwargs):
+            super(Movfp256, self).__init__(dest, src1, \
+                vector=True, **kwargs)
 
     class Xorfp(FpBinaryOp):
         code = 'FpDestReg_uqw = FpSrcReg1_uqw ^ FpSrcReg2_uqw;'
