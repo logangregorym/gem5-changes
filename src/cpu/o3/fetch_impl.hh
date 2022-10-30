@@ -70,6 +70,7 @@
 #include "debug/Drain.hh"
 #include "debug/Fetch.hh"
 #include "debug/LVP.hh"
+#include "debug/LSD.hh"
 #include "debug/O3PipeView.hh"
 #include "debug/OptStream.hh"
 #include "debug/SuperOp.hh"
@@ -2192,10 +2193,20 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     newMacro |= staticInst->isLastMicroop();
             	}
 
+                lsd->update(thisPC.pc(), thisPC.upc());
+
+                if (lsd->inLoop() && lsd->isHead()){
+                    struct LSDUnit::loop_info loop_info = lsd->getLoopInfo();
+                    //the third iteration is the earliest we can detect a loop
+                    if (loop_info.cur_iter <= 3) {
+                        DPRINTF(LSD, "%s", lsd->printLoopElems());
+                    } 
+                    DPRINTF(LSD, "LOOP: cur_iter = %d\n", loop_info.cur_iter);
+                }
+
+                DPRINTF(LSD, "PC: 0x%lx, uPC: 0x%lx, disas: %s\n", thisPC.pc(), thisPC.upc(), staticInst->disassemble(thisPC.pc()));
 
                 DynInstPtr instruction = buildInst(tid, staticInst, curMacroop, thisPC, nextPC, true);
-
-                lsd->update(instruction->instAddr(), instruction->microPC());
 
                 instruction->fused = fused;
           
