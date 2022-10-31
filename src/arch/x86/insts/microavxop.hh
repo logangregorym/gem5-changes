@@ -17,7 +17,6 @@ public:
     RegRegReg, // Three opreands.
   };
 
-protected:
   const SrcType srcType;
   const RegIndex dest;
   const RegIndex src1;

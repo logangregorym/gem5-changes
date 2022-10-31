@@ -417,6 +417,9 @@ class DefaultFetch
     /** Pointer to the O3CPU. */
     O3CPU *cpu;
 
+    void transformInst(Addr pc, Addr upc, StaticInstPtr &staticInst,
+                       uint32_t loop_iter);
+
   public:
     /** Pointer to the Load Value Prediction Unit. */
     LVPredUnit *loadPred;
