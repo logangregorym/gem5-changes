@@ -357,7 +357,7 @@ class LSQUnit {
             std::memset(data, 0, sizeof(data));
         }
         /** The store data. */
-        char data[16];
+        char data[32];
         /** The store instruction. */
         DynInstPtr inst;
         /** The request for the store. */
