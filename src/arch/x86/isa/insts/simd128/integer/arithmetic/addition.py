@@ -87,7 +87,7 @@ def macroop PADDQ_XMM_XMM {
 
 def macroop PADDQ_XMM_M {
     ldfp128 ufp1, seg, sib, "DISPLACEMENT", dataSize=16
-    vaddi xmm0, xmm0, ufp1, size=16, VL=16
+    vaddi xmm0, xmm0, ufp1, size=8, VL=16
 };
 
 def macroop PADDQ_XMM_P {
