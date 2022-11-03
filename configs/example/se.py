@@ -123,6 +123,7 @@ parser = optparse.OptionParser()
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
 
+parser.add_option("--enable-loop-stream-detection", action="store_true", help="""Enable loop stream detection.""")
 parser.add_option("--enable-microop-cache", action="store_true", help="""Enable micro-op cache.""")
 parser.add_option("--enable-micro-fusion", action="store_true", help="""Enable micro-fusion.""")
 parser.add_option("--enable-superoptimization", action="store_true", help="""Enable speculative superoptimization.""")
@@ -178,6 +179,8 @@ parser.add_option("--forceNoTSO", default=0, action="store_true", help="Force di
 parser.add_option("--constantWidth", default=64, type="int", action="store", help="Constant width for live out inlining");
 parser.add_option("--dumpBranchDetail", default=0, action="store_true", help="Dump info about every branch to cout");
 
+parser.add_option("--lsdLength", default=64, type="int", action="store", help="""Number of instructions to track for loop stream detection.""")
+
 
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
@@ -227,6 +230,7 @@ else:
 
 
 if CPUClass.__name__ != "AtomicSimpleCPU":
+    CPUClass.enable_loop_stream_detection = options.enable_loop_stream_detection
     CPUClass.enable_microop_cache = options.enable_microop_cache
     CPUClass.enable_micro_fusion = options.enable_micro_fusion
     CPUClass.enable_superoptimization = options.enable_superoptimization
@@ -246,6 +250,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.loadPred.hitThreshold = options.hitThreshold
     CPUClass.loadPred.predictingArithmetic = options.predictingArithmetic
     CPUClass.loadPred.predictStage = options.predictStage
+    CPUClass.lsd.lsdLength = options.lsdLength
     CPUClass.maxDependencyRecursion = options.maxDependencyRecursion
     CPUClass.usingTrace = options.usingTrace
     CPUClass.traceConstructor.usingControlTracking = options.usingControlTracking
@@ -281,6 +286,7 @@ CPUClass.branchPred.doStoragelessBranchConf = options.doStoragelessBranchConf
 
 
 if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
+    FutureClass.enable_loop_stream_detection = options.enable_loop_stream_detection
     FutureClass.enable_microop_cache = options.enable_microop_cache
     FutureClass.enable_micro_fusion = options.enable_micro_fusion
     FutureClass.enable_superoptimization = options.enable_superoptimization
@@ -300,6 +306,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.loadPred.hitThreshold = options.hitThreshold
     FutureClass.loadPred.predictingArithmetic = options.predictingArithmetic
     FutureClass.loadPred.predictStage = options.predictStage
+    FutureClass.lsd.lsdLength = options.lsdLength
     FutureClass.maxDependencyRecursion = options.maxDependencyRecursion
     FutureClass.usingTrace = options.usingTrace
     FutureClass.traceConstructor.usingControlTracking = options.usingControlTracking

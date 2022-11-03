@@ -79,6 +79,7 @@ class DerivO3CPU(BaseCPU):
     commitToFetchDelay = Param.Cycles(1, "Commit to fetch delay")
     fetchWidth = Param.Unsigned(8, "Fetch width")
     fetchBufferSize = Param.Unsigned(16, "Fetch buffer size in bytes")
+    enable_loop_stream_detection = Param.Bool(False, "Does the CPU support loop stream detection?")
     enable_microop_cache = Param.Bool(True, "Does the CPU support a micro-op cache?")
     enable_micro_fusion = Param.Bool(True, "Does the CPU support micro-fusion?")
     enable_superoptimization = Param.Bool(False, "Does the CPU support speculative superoptimization?")

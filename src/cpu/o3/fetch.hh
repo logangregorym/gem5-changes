@@ -500,6 +500,9 @@ class DefaultFetch
     /** The width of fetch in instructions. */
     unsigned fetchWidth;
 
+    /** Does the CPU support loop stream detection? */
+    bool isLoopStreamDetectionPresent;
+
     /** Does the CPU support a micro-op cache? */
     bool isUopCachePresent;
 

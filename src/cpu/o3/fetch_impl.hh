@@ -97,6 +97,7 @@ DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
       iewToFetchDelay(params->iewToFetchDelay),
       commitToFetchDelay(params->commitToFetchDelay),
       fetchWidth(params->fetchWidth),
+      isLoopStreamDetectionPresent(params->enable_loop_stream_detection),
       isUopCachePresent(params->enable_microop_cache),
       isMicroFusionPresent(params->enable_micro_fusion),
       isSuperOptimizationPresent(params->enable_superoptimization),
@@ -2193,17 +2194,21 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     newMacro |= staticInst->isLastMicroop();
             	}
 
-                lsd->update(thisPC.pc(), thisPC.upc());
+                if (isLoopStreamDetectionPresent) {
+                    DPRINTF(LSD, "PC: 0x%lx, uPC: 0x%lx, disas: %s\n", thisPC.pc(), thisPC.upc(), staticInst->disassemble(thisPC.pc()));
 
-                if (lsd->inLoop()) {
-                    // The third iteration is the earliest we can detect a loop
-                    if (lsd->isLoopHead()) {
-                        if (lsd->isFirstOfficialIteration()){
-                            DPRINTF(LSD, "LOOP_DETECTED\nBEGIN\n%sEND\n", lsd->generateLoopElemsStr());
+                    lsd->update(thisPC.pc(), thisPC.upc());
+
+                    if (lsd->inLoop()) {
+                        // The third iteration is the earliest we can detect a loop
+                        if (lsd->isLoopHead()) {
+                            if (lsd->isFirstOfficialIteration()){
+                                DPRINTF(LSD, "LOOP_DETECTED\nBEGIN\n%sEND\n", lsd->generateLoopElemsStr());
+                            }
+                            DPRINTF(LSD, "LOOP: cur_iter = %u\n", lsd->getLoopIteration());
                         }
-                        DPRINTF(LSD, "LOOP: cur_iter = %u\n", lsd->getLoopIteration());
+                        // TODO: analyze loop for vector widening then transform if eligible
                     }
-                    // TODO: analyze loop for vector widening then transform if eligible
                 }
 
                 DynInstPtr instruction = buildInst(tid, staticInst, curMacroop, thisPC, nextPC, true);
