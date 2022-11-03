@@ -2195,18 +2195,15 @@ DefaultFetch<Impl>::fetch(bool &status_change)
 
                 lsd->update(thisPC.pc(), thisPC.upc());
 
-                if (lsd->inLoop()){
-                    struct LSDUnit::loop_info loop_info = lsd->getLoopInfo();
-                    if (lsd->isHead()) {
-                        //the third iteration is the earliest we can detect a loop
-                        if (loop_info.cur_iter <= 3) {
-                            DPRINTF(LSD, "%s", lsd->printLoopElems());
-                        } 
-                        DPRINTF(LSD, "LOOP: cur_iter = %d\n", loop_info.cur_iter);
+                if (lsd->inLoop()) {
+                    // The third iteration is the earliest we can detect a loop
+                    if (lsd->isLoopHead()) {
+                        if (lsd->isFirstOfficialIteration()){
+                            DPRINTF(LSD, "LOOP_DETECTED\nBEGIN\n%sEND\n", lsd->generateLoopElemsStr());
+                        }
+                        DPRINTF(LSD, "LOOP: cur_iter = %u\n", lsd->getLoopIteration());
                     }
-                    if (loop_info.start_pc == 0x400410 && loop_info.end_pc == 0x400431) {
-                        transformInst(thisPC.pc(), thisPC.upc(), staticInst, loop_info.cur_iter);
-                    }
+                    // TODO: analyze loop for vector widening then transform if eligible
                 }
 
                 DynInstPtr instruction = buildInst(tid, staticInst, curMacroop, thisPC, nextPC, true);

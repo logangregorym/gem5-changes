@@ -6,7 +6,74 @@
 #include "sim/sim_object.hh"
 
 #include <deque>
+#include <iostream>
 #include <vector>
+
+struct lsdAddr {
+    Addr pc;
+    Addr upc;
+
+    lsdAddr() : pc(0), upc(0) {}
+
+    lsdAddr(Addr pc, Addr upc) : pc(pc), upc(upc) {}
+
+    bool operator==(const struct lsdAddr &addr) {
+        return (pc == addr.pc && upc == addr.upc);
+    }
+
+    bool operator!=(const struct lsdAddr &addr) {
+        return !(*this == addr);
+    }
+
+    bool operator<(const struct lsdAddr &addr) {
+        return ((pc < addr.pc) || (pc == addr.pc && upc < addr.upc));
+    }
+
+    bool operator<=(const struct lsdAddr &addr) {
+        return ((*this < addr) || (*this == addr));
+    }
+    
+    bool operator>(const struct lsdAddr &addr) {
+        return ((pc > addr.pc) || (pc == addr.pc && upc > addr.upc));
+    }
+
+    bool operator>=(const struct lsdAddr &addr) {
+        return ((*this > addr) || (*this == addr));
+    }
+
+    std::string str() {
+        std::stringstream str;
+        str << "pc: 0x" << std::hex << pc << ", ";
+        str << "upc: 0x" << std::hex << upc;
+        return str.str();
+    }
+};
+
+struct lsdElem {
+    struct lsdAddr addr;
+    uint32_t repeat_count;
+    uint8_t repeat_dist;
+    bool is_loop_head;
+
+    lsdElem(struct lsdAddr _addr) : addr(_addr), repeat_count(0),
+             repeat_dist(0), is_loop_head(false) {}
+};
+
+struct loopInfo {
+    lsdAddr start_addr;
+    lsdAddr end_addr;
+    uint32_t iteration;
+
+    void clear() {
+        start_addr = lsdAddr();
+        end_addr = lsdAddr();
+        iteration = 0;
+    }
+
+    bool containsAddr(struct lsdAddr addr) {
+        return (addr >= start_addr && addr <= end_addr);
+    }
+};
 
 class LSDUnit : public SimObject
 {
@@ -14,38 +81,22 @@ class LSDUnit : public SimObject
         typedef LoopStreamDetectorParams Params;
 
         LSDUnit(const Params *params);
-    
-    public:
-        struct lsd_elem {
-            Addr pc;
-            Addr upc;
-            uint32_t repeat_count;
-            uint8_t repeat_dist;
-            bool is_head;
-        };
-        struct loop_info {
-            Addr start_pc;
-            Addr start_upc;
-            Addr end_pc;
-            Addr end_upc;
-            uint32_t cur_iter;
-        };
 
-    private:
-        const uint8_t lsdLength;
-        std::deque<struct lsd_elem> lsd;
-        struct loop_info cur_loop;
-    
-    public:
-        struct loop_info getLoopInfo();
+        std::string generateLoopElemsStr();
+        uint32_t getLoopIteration();
         bool inLoop();
-        bool isHead();
-        std::string printLoopElems();
+        bool isFirstOfficialIteration();
+        bool isLoopHead();
         void update(Addr pc, Addr upc);
-
+    
     private:
-        void clearLoopInfo();
-        std::vector<struct lsd_elem> getLoopElems();
+        // This detector officially detects loops at
+        // the start of the third loop iteration.
+        const uint32_t FIRST_OFFICIAL_ITERATION = 3;
+        const uint8_t LSD_LENGTH;
+        std::deque<struct lsdElem> lsd;
+        struct loopInfo cur_loop;
+        bool loop_active;
 };
 
 #endif
