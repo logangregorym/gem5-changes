@@ -9,35 +9,40 @@
 #include <iostream>
 #include <vector>
 
-struct lsdAddr {
+struct fullAddr {
     Addr pc;
     Addr upc;
 
-    lsdAddr() : pc(0), upc(0) {}
+    fullAddr() : pc(0), upc(0) {}
 
-    lsdAddr(Addr pc, Addr upc) : pc(pc), upc(upc) {}
+    fullAddr(const struct fullAddr &addr) {
+        this->pc = addr.pc;
+        this->upc = addr.upc;
+    }
 
-    bool operator==(const struct lsdAddr &addr) {
+    fullAddr(Addr pc, Addr upc) : pc(pc), upc(upc) {}
+
+    bool operator==(const struct fullAddr &addr) {
         return (pc == addr.pc && upc == addr.upc);
     }
 
-    bool operator!=(const struct lsdAddr &addr) {
+    bool operator!=(const struct fullAddr &addr) {
         return !(*this == addr);
     }
 
-    bool operator<(const struct lsdAddr &addr) {
+    bool operator<(const struct fullAddr &addr) {
         return ((pc < addr.pc) || (pc == addr.pc && upc < addr.upc));
     }
 
-    bool operator<=(const struct lsdAddr &addr) {
+    bool operator<=(const struct fullAddr &addr) {
         return ((*this < addr) || (*this == addr));
     }
     
-    bool operator>(const struct lsdAddr &addr) {
+    bool operator>(const struct fullAddr &addr) {
         return ((pc > addr.pc) || (pc == addr.pc && upc > addr.upc));
     }
 
-    bool operator>=(const struct lsdAddr &addr) {
+    bool operator>=(const struct fullAddr &addr) {
         return ((*this > addr) || (*this == addr));
     }
 
@@ -50,27 +55,27 @@ struct lsdAddr {
 };
 
 struct lsdElem {
-    struct lsdAddr addr;
+    struct fullAddr addr;
     uint32_t repeat_count;
     uint8_t repeat_dist;
     bool is_loop_head;
 
-    lsdElem(struct lsdAddr _addr) : addr(_addr), repeat_count(0),
+    lsdElem(struct fullAddr _addr) : addr(_addr), repeat_count(0),
              repeat_dist(0), is_loop_head(false) {}
 };
 
 struct loopInfo {
-    lsdAddr start_addr;
-    lsdAddr end_addr;
+    fullAddr start_addr;
+    fullAddr end_addr;
     uint32_t iteration;
 
     void clear() {
-        start_addr = lsdAddr();
-        end_addr = lsdAddr();
+        start_addr = fullAddr();
+        end_addr = fullAddr();
         iteration = 0;
     }
 
-    bool containsAddr(struct lsdAddr addr) {
+    bool containsAddr(struct fullAddr addr) {
         return (addr >= start_addr && addr <= end_addr);
     }
 };
@@ -83,11 +88,12 @@ class LSDUnit : public SimObject
         LSDUnit(const Params *params);
 
         std::string generateLoopElemsStr();
+        struct loopInfo getLoopInfo();
         uint32_t getLoopIteration();
         bool inLoop();
         bool isFirstOfficialIteration();
         bool isLoopHead();
-        void update(Addr pc, Addr upc);
+        void update(struct fullAddr addr);
     
     private:
         // This detector officially detects loops at

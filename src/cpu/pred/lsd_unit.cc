@@ -28,6 +28,13 @@ LSDUnit::generateLoopElemsStr()
     return str.str();
 }
 
+struct loopInfo
+LSDUnit::getLoopInfo()
+{
+    assert(!lsd.empty() && inLoop() && isLoopHead());
+    return cur_loop;
+}
+
 uint32_t
 LSDUnit::getLoopIteration() {
     assert(!lsd.empty() && inLoop() &&
@@ -56,9 +63,8 @@ LSDUnit::isLoopHead()
 }
 
 void
-LSDUnit::update(Addr pc, Addr upc)
+LSDUnit::update(struct fullAddr cur_addr)
 {
-    struct lsdAddr cur_addr(pc, upc);
     struct lsdElem cur (cur_addr);
     auto lsd_size = lsd.size();
 
