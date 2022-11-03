@@ -127,6 +127,7 @@ parser.add_option("--enable-loop-stream-detection", action="store_true", help=""
 parser.add_option("--enable-microop-cache", action="store_true", help="""Enable micro-op cache.""")
 parser.add_option("--enable-micro-fusion", action="store_true", help="""Enable micro-fusion.""")
 parser.add_option("--enable-superoptimization", action="store_true", help="""Enable speculative superoptimization.""")
+parser.add_option("--enable-vector-widening", action="store_true", help="""Enable vector widening.""")
 parser.add_option("--superoptimization-warmup-cycles", default=0, type="int", help="""Warmup cycles for speculative superoptimization.""")
 parser.add_option("--constantBufferSize", default=256, type="int", action="store", help="Size of the buffer storing constant load addresses.")
 parser.add_option("--dumpFrequency", default=10000, type="int", action="store", help="Number of cycles between dumps.")
@@ -234,6 +235,7 @@ if CPUClass.__name__ != "AtomicSimpleCPU":
     CPUClass.enable_microop_cache = options.enable_microop_cache
     CPUClass.enable_micro_fusion = options.enable_micro_fusion
     CPUClass.enable_superoptimization = options.enable_superoptimization
+    CPUClass.enable_vector_widening = options.enable_vector_widening
     CPUClass.superoptimization_warmup_cycles = options.superoptimization_warmup_cycles
     CPUClass.loadPred.lvpredType = options.lvpredType
     CPUClass.loadPred.tableEntries = options.tableEntries
@@ -290,6 +292,7 @@ if FutureClass and FutureClass.__name__ != "AtomicSimpleCPU":
     FutureClass.enable_microop_cache = options.enable_microop_cache
     FutureClass.enable_micro_fusion = options.enable_micro_fusion
     FutureClass.enable_superoptimization = options.enable_superoptimization
+    FutureClass.enable_vector_widening = options.enable_vector_widening
     FutureClass.superoptimization_warmup_cycles = options.superoptimization_warmup_cycles
     FutureClass.loadPred.lvpredType = options.lvpredType
     FutureClass.loadPred.tableEntries = options.tableEntries

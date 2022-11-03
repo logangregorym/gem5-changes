@@ -54,6 +54,7 @@
 #include "cpu/pred/bpred_unit.hh"
 #include "cpu/pred/lvpred_unit.hh"
 #include "cpu/pred/lsd_unit.hh"
+#include "cpu/pred/vw_unit.hh"
 #include "cpu/timebuf.hh"
 #include "cpu/translation.hh"
 #include "mem/packet.hh"
@@ -417,9 +418,6 @@ class DefaultFetch
     /** Pointer to the O3CPU. */
     O3CPU *cpu;
 
-    void transformInst(Addr pc, Addr upc, StaticInstPtr &staticInst,
-                       uint32_t loop_iter);
-
   public:
     /** Pointer to the Load Value Prediction Unit. */
     LVPredUnit *loadPred;
@@ -428,6 +426,8 @@ class DefaultFetch
     uint64_t currentTraceID = 0;
 
     LSDUnit *lsd;
+
+    VWUnit *vw;
 
   private:
     bool usingTrace = false;
@@ -512,6 +512,9 @@ class DefaultFetch
     /** Does the CPU support speculative superoptimization? */
     bool isSuperOptimizationPresent;
     bool isSuperOptimizationActivated;
+
+    /** Does the CPU support vector widening? */
+    bool isVectorWideningPresent;
 
     /** Warmup before activating superoptimization. */
     unsigned warmupCycles;

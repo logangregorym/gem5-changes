@@ -50,6 +50,7 @@ from BranchPredictor import *
 from LoadValuePredictor import *
 from LoopStreamDetector import *
 from TraceBasedGraph import *
+from VectorWideningUnit import *
 
 class DerivO3CPU(BaseCPU):
     type = 'DerivO3CPU'
@@ -83,6 +84,7 @@ class DerivO3CPU(BaseCPU):
     enable_microop_cache = Param.Bool(True, "Does the CPU support a micro-op cache?")
     enable_micro_fusion = Param.Bool(True, "Does the CPU support micro-fusion?")
     enable_superoptimization = Param.Bool(False, "Does the CPU support speculative superoptimization?")
+    enable_vector_widening = Param.Bool(False, "Does the CPU support dynamic binary vector widening?")
     superoptimization_warmup_cycles = Param.Unsigned(0, "Warmup cycles for superoptimization")
     fetchQueueSize = Param.Unsigned(140, "Fetch queue size in micro-ops "
                                     "per-thread")
@@ -172,6 +174,7 @@ class DerivO3CPU(BaseCPU):
     loadPred = Param.LoadValuePredictor(LoadValuePredictor(), "Load Value Predictor")
     lsd = Param.LoopStreamDetector(LoopStreamDetector(), "Loop Stream Detector")
     traceConstructor = Param.TraceBasedGraph(TraceBasedGraph(), "Trace Construction Unit")
+    vw = Param.VectorWideningUnit(VectorWideningUnit(), "Vector Widening Unit")
     needsTSO = Param.Bool(buildEnv['TARGET_ISA'] == 'x86',
                           "Enable TSO Memory model")
 

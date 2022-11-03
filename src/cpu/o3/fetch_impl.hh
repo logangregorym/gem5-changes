@@ -55,7 +55,6 @@
 #include "arch/isa_traits.hh"
 #include "arch/utility.hh"
 #include "arch/vtophys.hh"
-#include "arch/x86/generated/decoder.hh"
 #include "base/random.hh"
 #include "base/types.hh"
 #include "config/the_isa.hh"
@@ -74,6 +73,7 @@
 #include "debug/O3PipeView.hh"
 #include "debug/OptStream.hh"
 #include "debug/SuperOp.hh"
+#include "debug/VW.hh"
 #include "mem/packet.hh"
 #include "params/DerivO3CPU.hh"
 #include "sim/byteswap.hh"
@@ -101,6 +101,7 @@ DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
       isUopCachePresent(params->enable_microop_cache),
       isMicroFusionPresent(params->enable_micro_fusion),
       isSuperOptimizationPresent(params->enable_superoptimization),
+      isVectorWideningPresent(params->enable_vector_widening),
       warmupCycles(params->superoptimization_warmup_cycles),
       decodeWidth(params->decodeWidth),
       retryPkt(NULL),
@@ -169,6 +170,7 @@ DefaultFetch<Impl>::DefaultFetch(O3CPU *_cpu, DerivO3CPUParams *params)
     branchPred = params->branchPred;
     loadPred = params->loadPred;
     lsd = params->lsd;
+    vw = params->vw;
     //loadPred->cpuInsts = &(cpu->instList);
 
     // constantLoads = vector<Addr>(constantBufferSize, 0);
@@ -2197,17 +2199,26 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 if (isLoopStreamDetectionPresent) {
                     DPRINTF(LSD, "PC: 0x%lx, uPC: 0x%lx, disas: %s\n", thisPC.pc(), thisPC.upc(), staticInst->disassemble(thisPC.pc()));
 
-                    lsd->update(thisPC.pc(), thisPC.upc());
+                    struct fullAddr addr(thisPC.pc(), thisPC.upc());
+                    lsd->update(addr);
 
                     if (lsd->inLoop()) {
-                        // The third iteration is the earliest we can detect a loop
                         if (lsd->isLoopHead()) {
                             if (lsd->isFirstOfficialIteration()){
                                 DPRINTF(LSD, "LOOP_DETECTED\nBEGIN\n%sEND\n", lsd->generateLoopElemsStr());
+                                
+                                if (isVectorWideningPresent) {
+                                    struct loopInfo loop_info = lsd->getLoopInfo();
+                                    vw->reset(loop_info.start_addr, loop_info.end_addr);
+                                }
                             }
                             DPRINTF(LSD, "LOOP: cur_iter = %u\n", lsd->getLoopIteration());
                         }
-                        // TODO: analyze loop for vector widening then transform if eligible
+                        if (isVectorWideningPresent) {
+                            vw->processInst(addr, staticInst, lsd->getLoopIteration());
+                        }
+                    } else if (isVectorWideningPresent) {
+                        vw->clear();
                     }
                 }
 
@@ -2433,80 +2444,6 @@ DefaultFetch<Impl>::fetch(bool &status_change)
         fetchStatus[tid] != QuiescePending &&
         !curMacroop && !decoder[tid]->isSpeculativeCacheActive() && !decoder[tid]->isUopCacheActive();
     //*****CHANGE END**********
-}
-
-template<class Impl>
-void
-DefaultFetch<Impl>::transformInst(Addr pc, Addr upc, StaticInstPtr &staticInst,
-                                  uint32_t loop_iter)
-{
-    DPRINTF(LSD, "Before transformation: %s\n", staticInst->disassemble(pc));
-    if (loop_iter % 2 == 1) {
-        if ((pc == 0x400410 && upc == 0x0) || (pc == 0x40041c && upc == 0x0)) {
-            //widen ldfp128
-            X86ISAInst::Ldfp128 * sis = (X86ISAInst::Ldfp128 * ) staticInst.get(); 
-            X86ISAInst::Ldfp256 * sis_wider = new X86ISAInst::Ldfp256(
-                (StaticInst::ExtMachInst) sis->machInst,
-                (const char *) "TRANSFORMED",
-                (uint64_t) sis->flags.to_ullong(),
-                (uint8_t) sis->scale,
-                X86ISA::InstRegIndex((RegIndex) sis->index),
-                X86ISA::InstRegIndex((RegIndex) sis->base),
-                (uint64_t) sis->disp,
-                X86ISA::InstRegIndex((RegIndex) sis->segment),
-                X86ISA::InstRegIndex((RegIndex) sis->data),
-                (uint8_t) sis->dataSize * 2,
-                (uint8_t) sis->addressSize,
-                (Request::FlagsType) sis->memFlags
-            );
-            sis_wider->macroOp = staticInst->macroOp;
-            staticInst = sis_wider;
-        } else if (pc == 0x40041c && upc == 0x1) {
-            //widen vaddi 
-            X86ISAInst::Vaddi * sis = (X86ISAInst::Vaddi *) staticInst.get();
-            X86ISAInst::Vaddi * sis_wider = new X86ISAInst::Vaddi(
-                (StaticInst::ExtMachInst) sis->machInst,
-                (const char *) "TRANSFORMED",
-                (uint64_t) sis->flags.to_ullong(),
-                (X86ISA::AVXOpBase::SrcType) sis->srcType,
-                X86ISA::InstRegIndex((RegIndex) sis->dest),
-                X86ISA::InstRegIndex((RegIndex) sis->src1),
-                X86ISA::InstRegIndex((RegIndex) sis->src2),
-                (uint8_t) sis->destSize,
-                (uint8_t) sis->destVL * 2,
-                (uint8_t) sis->srcSize,
-                (uint8_t) sis->srcVL * 2,
-                (uint8_t) sis->imm8,
-                (uint8_t) sis->ext
-            );
-            sis_wider->macroOp = staticInst->macroOp;
-            staticInst = sis_wider;
-        } else if (pc == 0x400424) {
-            //widen stfp128
-            X86ISAInst::Stfp128 * sis = (X86ISAInst::Stfp128 * ) staticInst.get(); 
-            X86ISAInst::Stfp256 * sis_wider = new X86ISAInst::Stfp256(
-                (StaticInst::ExtMachInst) sis->machInst,
-                (const char *) "TRANSFORMED",
-                (uint64_t) sis->flags.to_ullong(),
-                (uint8_t) sis->scale,
-                X86ISA::InstRegIndex((RegIndex) sis->index),
-                X86ISA::InstRegIndex((RegIndex) sis->base),
-                (uint64_t) sis->disp,
-                X86ISA::InstRegIndex((RegIndex) sis->segment),
-                X86ISA::InstRegIndex((RegIndex) sis->data),
-                (uint8_t) sis->dataSize * 2,
-                (uint8_t) sis->addressSize,
-                (Request::FlagsType) sis->memFlags
-            );
-            sis_wider->macroOp = staticInst->macroOp;
-            staticInst = sis_wider;
-        }
-    } else {
-        if (pc == 0x400410 || pc == 0x40041c || pc == 0x400424) {
-            staticInst = StaticInst::nopStaticInstPtr;
-        }
-    }
-    DPRINTF(LSD, "After transformation: %s\n", staticInst->disassemble(pc));
 }
 
 template<class Impl>
