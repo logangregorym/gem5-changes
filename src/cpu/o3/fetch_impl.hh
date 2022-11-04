@@ -2196,6 +2196,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     newMacro |= staticInst->isLastMicroop();
             	}
 
+                bool skipInst = false;
                 if (isLoopStreamDetectionPresent) {
                     DPRINTF(LSD, "PC: 0x%lx, uPC: 0x%lx, disas: %s\n", thisPC.pc(), thisPC.upc(), staticInst->disassemble(thisPC.pc()));
 
@@ -2215,22 +2216,32 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             DPRINTF(LSD, "LOOP: cur_iter = %u\n", lsd->getLoopIteration());
                         }
                         if (isVectorWideningPresent) {
-                            vw->processInst(addr, staticInst, lsd->getLoopIteration());
+                            bool widenInst = false;
+                            vw->processInst(addr, staticInst, lsd->getLoopIteration(), widenInst, skipInst);
+                            if (widenInst) {
+                                DPRINTF(Fetch, "Widening instruction!\n");
+                            }
+                            if (skipInst) {
+                                assert(!thisPC.branching() && !staticInst->isControl() && staticInst->isVector());
+                                DPRINTF(Fetch, "Skipping instruction!\n");
+                            }
                         }
                     } else if (isVectorWideningPresent) {
                         vw->clear();
                     }
                 }
+                if (skipInst) assert(isVectorWideningPresent);
 
-                DynInstPtr instruction = buildInst(tid, staticInst, curMacroop, thisPC, nextPC, true);
+                DynInstPtr instruction;
+                if (!skipInst) {
+                    instruction = buildInst(tid, staticInst, curMacroop, thisPC, nextPC, true);
+                    instruction->fused = fused;
+            
+                    DPRINTF(Fetch, "instruction created: [sn:%lli]:%s\n", instruction->seqNum, instruction->pcState());
 
-                instruction->fused = fused;
-          
-            	DPRINTF(Fetch, "instruction created: [sn:%lli]:%s\n", instruction->seqNum, instruction->pcState());
-
-            	ppFetch->notify(instruction);
-            	if (!instruction->fused) numInst++;
-
+                    ppFetch->notify(instruction);
+                    if (!instruction->fused) numInst++;
+                }
 
                 nextPC = thisPC;
 
@@ -2240,8 +2251,12 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                 DPRINTF(Fetch, "PC.upc():%#x PC.nupc():%#x\n", thisPC.upc(), thisPC.nupc());
                 DPRINTF(Fetch, "PC.branching():%d\n", thisPC.branching());
                 predictedBranch |= thisPC.branching();
-                predictedBranch |=
-                    lookupAndUpdateNextPC(instruction, nextPC);
+                if (skipInst) {
+                    TheISA::advancePC(nextPC, staticInst);
+                } else {
+                    predictedBranch |=
+                        lookupAndUpdateNextPC(instruction, nextPC);
+                }
                 if (predictedBranch) {
                     DPRINTF(Fetch, "Branch detected with PC = %s\n", thisPC);
                 }
@@ -2261,7 +2276,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     DPRINTF(Fetch, "A new macro is needed with fetchAddr: %#x fetchBufferPC: %#x instSize: %d blkoffset: %d\n", fetchAddr, fetchBufferPC[tid], instSize, blkOffset);
                 }
 
-                if (instruction->isQuiesce()) {
+                if (!skipInst && instruction->isQuiesce()) {
                     DPRINTF(Fetch,
                             "Quiesce instruction encountered, halting fetch!\n");
                     fetchStatus[tid] = QuiescePending;
@@ -2372,7 +2387,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     }
                 }
 
-                if (!instruction->isStreamedFromSpeculativeCache() && !instruction->isStreamedFromUOpCache()){
+                if (!skipInst && !instruction->isStreamedFromSpeculativeCache() && !instruction->isStreamedFromUOpCache()){
                     //assert(adjustedFetchWidth == fetchWidth - 1);
                     adjustedFetchWidth = fetchWidth - 1;
                 }

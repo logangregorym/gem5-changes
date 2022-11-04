@@ -21,7 +21,7 @@ class VWUnit : public SimObject
         };
 
         void clear();
-        void processInst(fullAddr addr, StaticInstPtr &inst, uint32_t iteration);
+        void processInst(fullAddr addr, StaticInstPtr &inst, uint32_t iteration, bool &widen, bool &skip);
         void reset(struct fullAddr start_addr, struct fullAddr end_addr);
     
     private:
@@ -30,7 +30,7 @@ class VWUnit : public SimObject
         State state;
         uint32_t transform_iteration;
 
-        void transformVecInst(StaticInstPtr &inst, uint32_t iteration);
+        StaticInstPtr widenVecInst(StaticInstPtr &inst);
 };
 
 #endif
