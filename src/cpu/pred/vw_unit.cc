@@ -4,23 +4,62 @@
 #include "debug/VW.hh"
 
 VWUnit::VWUnit(const Params *params)
-    : SimObject(params), state(INACTIVE)
+    : SimObject(params), state(INACTIVE), MAX_LOOP_INSTS(params->maxLoopInsts)
 {}
 
 void
 VWUnit::clear()
 {
-    if (this->state != INACTIVE) {
-        DPRINTF(VW, "Transitioning from %u to INACTIVE\n", this->state);
-    }
     this->transform_iteration = 0;
+    this->cur_loop_insts = 0;
+    this->validVectorRegisters.fill(false);
+}
+
+void VWUnit::deactivate()
+{
     this->state = INACTIVE;
+}
+
+bool
+VWUnit::isVectorInstSupported(StaticInstPtr &inst)
+{
+    std::string mnemonic = inst->mnemonic;
+    return (this->supportedVectorInsts.find(mnemonic) != this->supportedVectorInsts.end());
+}
+
+bool
+VWUnit::analyzeVectorInstRegisters(StaticInstPtr &inst)
+{
+    for (uint8_t i = 0; i < inst->numSrcRegs(); i++) {
+        RegId regId = inst->srcRegIdx(i);
+        DPRINTF(VW, "%s Src Reg #%u: %s\n", inst->mnemonic, i, regId);
+        if (regId.isFloatReg()) {
+            RegIndex regIndex = regId.index();
+            if (regIndex >= XMM_REG_BASE_IDX && regIndex < (XMM_REG_BASE_IDX + NUM_XMM_REGS)) {
+                regIndex -= XMM_REG_BASE_IDX;
+                if (!validVectorRegisters[regIndex]) return false;
+            }
+        }
+    }
+    for (uint8_t i = 0; i < inst->numDestRegs(); i++) {
+        RegId regId = inst->destRegIdx(i);
+        DPRINTF(VW, "%s Dest Reg #%u: %s\n", inst->mnemonic, i, regId);
+        if (regId.isFloatReg()) {
+            RegIndex regIndex = regId.index();
+            if (regIndex >= XMM_REG_BASE_IDX && regIndex < (XMM_REG_BASE_IDX + NUM_XMM_REGS)) {
+                regIndex -= XMM_REG_BASE_IDX;
+                validVectorRegisters[regIndex] = true;
+            }
+        }
+    }
+    return true;
 }
 
 void
 VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteration, bool &widen, bool &skip)
 {
-    DPRINTF(VW, "Addr: %s, State: %s, Iteration: %u\n", addr.str(), this->state, iteration);
+    DPRINTF(VW, "Addr: %s, Mnem: %s, State: %s, Iteration: %u\n", addr.str(), inst->mnemonic, this->state, iteration);
+
     switch(this->state) {
         case INACTIVE :
             break;
@@ -28,19 +67,29 @@ VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteratio
         case ANALYZE :
             assert(addr >= this->start_addr && addr <= this->end_addr);
 
-            // TODO: if disqualifying condition, this->state = INACTIVE
+            this->cur_loop_insts++;
+            if (this->cur_loop_insts > this->MAX_LOOP_INSTS) {
+                DPRINTF(VW, "Too many instructions in loop to support vector widening\n");
+                this->state = INACTIVE;
+                break;
+            }
+
             if (inst->isVector()) {
-                std::string mnemonic = inst->mnemonic;
-                if (mnemonic != "ldfp128" && mnemonic != "stfp128" && mnemonic != "vaddi")
-                {
+                if (!isVectorInstSupported(inst)) {
                     DPRINTF(VW, "Unsupported vector instruction found: %s\n", inst->disassemble(addr.pc));
                     this->state = INACTIVE;
+                    break;
+                }
+                if (!analyzeVectorInstRegisters(inst)) {
+                    DPRINTF(VW, "Vector registers prevent widening: %s\n", inst->disassemble(addr.pc));
+                    this->state = INACTIVE;
+                    break;
                 }
             }
 
             // the second half of this conditional is specific to microbenchmark
             if (addr == end_addr && (iteration % 2 == 1)) {
-                DPRINTF(VW, "Successfully reached end of trace, moving to transformation\n");
+                DPRINTF(VW, "Successfully reached end of loop iteration, moving to transformation\n");
                 this->transform_iteration = iteration + 1;
                 this->state = TRANSFORM;
             }
@@ -74,6 +123,7 @@ VWUnit::reset(struct fullAddr start_addr, struct fullAddr end_addr)
 {
     assert(this->state == INACTIVE);
 
+    this->clear();
     this->start_addr.pc = start_addr.pc;
     this->start_addr.upc = start_addr.upc;
     this->end_addr.pc = end_addr.pc;

@@ -2227,7 +2227,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             }
                         }
                     } else if (isVectorWideningPresent) {
-                        vw->clear();
+                        vw->deactivate();
                     }
                 }
                 if (skipInst) assert(isVectorWideningPresent);
