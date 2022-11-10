@@ -12,7 +12,11 @@ VWUnit::clear()
 {
     this->transform_iteration = 0;
     this->cur_loop_insts = 0;
-    this->validVectorRegisters.fill(false);
+    this->required_vector_stride_registers.fill(false);
+    this->validated_vector_stride_registers.fill(false);
+    this->valid_vector_registers.fill(false);
+    this->vector_stride_seen = this->MAX_LOOP_INSTS + 1;
+    this->vector_stride_reg = this->NUM_INT_REGS;
 }
 
 void VWUnit::deactivate()
@@ -24,32 +28,89 @@ bool
 VWUnit::isVectorInstSupported(StaticInstPtr &inst)
 {
     std::string mnemonic = inst->mnemonic;
-    return (this->supportedVectorInsts.find(mnemonic) != this->supportedVectorInsts.end());
+    return (this->supported_vector_insts.find(mnemonic) != this->supported_vector_insts.end());
+}
+
+void
+VWUnit::analyzeScalarInstRegisters(StaticInstPtr &inst)
+{
+    if (inst->isInteger()) {
+        std::string mnemonic = inst->mnemonic;
+        if (mnemonic == "limm") {
+            X86ISAInst::Limm * sis = (X86ISAInst::Limm *) inst.get();
+            if (sis->imm == this->VECTOR_STRIDE) {
+                this->vector_stride_seen = this->cur_loop_insts;
+                this->vector_stride_reg = sis->dest;
+            }
+        } else if (mnemonic == "add") {
+            X86ISAInst::Add * sis = (X86ISAInst::Add *) inst.get();
+            if ((this->cur_loop_insts == this->vector_stride_seen + 1) && (this->vector_stride_reg == sis->src2)) {
+                DPRINTF(VW, "Vector strided register found: %u\n", sis->src1);
+                this->validated_vector_stride_registers[sis->src1] = true;
+            }
+        }
+    }
 }
 
 bool
 VWUnit::analyzeVectorInstRegisters(StaticInstPtr &inst)
 {
+    std::string mnemonic = inst->mnemonic;
+    // Ensure that every vector register being read by this instruction
+    // has been set
     for (uint8_t i = 0; i < inst->numSrcRegs(); i++) {
-        RegId regId = inst->srcRegIdx(i);
-        DPRINTF(VW, "%s Src Reg #%u: %s\n", inst->mnemonic, i, regId);
-        if (regId.isFloatReg()) {
-            RegIndex regIndex = regId.index();
-            if (regIndex >= XMM_REG_BASE_IDX && regIndex < (XMM_REG_BASE_IDX + NUM_XMM_REGS)) {
-                regIndex -= XMM_REG_BASE_IDX;
-                if (!validVectorRegisters[regIndex]) return false;
+        RegId reg_id = inst->srcRegIdx(i);
+        if (reg_id.isFloatReg()) {
+            RegIndex reg_index = reg_id.index();
+            if (isVectorRegister(reg_index)) {
+                reg_index -= VEC_REG_BASE;
+                if (!valid_vector_registers[reg_index]) {
+                    DPRINTF(VW, "Vector register being read before being set: %s\n", mnemonic);
+                    return false;
+                }
             }
         }
     }
+
+    // Record all vector registers being set by this instruction
     for (uint8_t i = 0; i < inst->numDestRegs(); i++) {
-        RegId regId = inst->destRegIdx(i);
-        DPRINTF(VW, "%s Dest Reg #%u: %s\n", inst->mnemonic, i, regId);
-        if (regId.isFloatReg()) {
-            RegIndex regIndex = regId.index();
-            if (regIndex >= XMM_REG_BASE_IDX && regIndex < (XMM_REG_BASE_IDX + NUM_XMM_REGS)) {
-                regIndex -= XMM_REG_BASE_IDX;
-                validVectorRegisters[regIndex] = true;
+        RegId reg_id = inst->destRegIdx(i);
+        if (reg_id.isFloatReg()) {
+            RegIndex reg_index = reg_id.index();
+            if (isVectorRegister(reg_index)) {
+                reg_index -= VEC_REG_BASE;
+                valid_vector_registers[reg_index] = true;
             }
+        }
+    }
+
+    // Mark that the register base for all memory operations needs to be
+    // validated as strided by the vector width
+    if (inst->isMemRef()) {
+        if (mnemonic == "ldfp128") {
+            X86ISAInst::Ldfp128 * sis = (X86ISAInst::Ldfp128 *) inst.get();
+            DPRINTF(VW, "Setting load reg as required: %u\n", sis->base);
+            required_vector_stride_registers[sis->base] = true;
+        } else if (mnemonic == "stfp128") {
+            X86ISAInst::Stfp128 * sis = (X86ISAInst::Stfp128 *) inst.get();
+            DPRINTF(VW, "Setting store reg as required: %u\n", sis->base);
+            required_vector_stride_registers[sis->base] = true;
+        } else {
+            DPRINTF(VW, "Unexpected vector memref inst found: %s\n", mnemonic);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool
+VWUnit::verifyVectorStrideRegisters()
+{
+    RegIndex size = this->required_vector_stride_registers.size();
+    assert(size == this->validated_vector_stride_registers.size());
+    for (RegIndex index = 0; index < size; index++) {
+        if (this->required_vector_stride_registers[index] != this->validated_vector_stride_registers[index]) {
+            return false;
         }
     }
     return true;
@@ -85,11 +146,17 @@ VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteratio
                     this->state = INACTIVE;
                     break;
                 }
+            } else {
+                analyzeScalarInstRegisters(inst);
             }
 
-            // the second half of this conditional is specific to microbenchmark
-            if (addr == end_addr && (iteration % 2 == 1)) {
-                DPRINTF(VW, "Successfully reached end of loop iteration, moving to transformation\n");
+            if (addr == end_addr) {
+                if (!verifyVectorStrideRegisters()) {
+                    DPRINTF(VW, "Not all vector memory references could be verified as strided: %s\n", inst->disassemble(addr.pc));
+                    this->state = INACTIVE;
+                    break;
+                }
+                DPRINTF(VW, "Successfully reached end of loop iteration. Transitioning to transformation\n");
                 this->transform_iteration = iteration + 1;
                 this->state = TRANSFORM;
             }
@@ -101,12 +168,12 @@ VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteratio
                 if ((this->transform_iteration % 2) == (iteration % 2)) {
                     DPRINTF(VW, "Widening vector instruction\n");
                     DPRINTF(VW, "Before transformation: %s\n", inst->disassemble(addr.pc));
-                    StaticInstPtr instWider = widenVecInst(inst);
+                    StaticInstPtr inst_wider = widenVecInst(inst);
                     if (inst->isMicroop()) {
-                        instWider->macroOp = inst->macroOp;
+                        inst_wider->macroOp = inst->macroOp;
                     }
                     //no memory leak with inst because '=' is overloaded to decrement reference count
-                    inst = instWider;
+                    inst = inst_wider;
                     widen = true;
                     DPRINTF(VW, "After transformation: %s\n", inst->disassemble(addr.pc));
                 } else {
@@ -173,7 +240,7 @@ VWUnit::widenVecInst(StaticInstPtr &inst)
         X86ISAInst::Vaddi * sis = (X86ISAInst::Vaddi *) inst.get();
         X86ISAInst::Vaddi * sis_wider = new X86ISAInst::Vaddi(
             (StaticInst::ExtMachInst) sis->machInst,
-            "WIDENED",
+            "VEC_WIDENED",
             (uint64_t) sis->flags.to_ullong(),
             (X86ISA::AVXOpBase::SrcType) sis->srcType,
             X86ISA::InstRegIndex((RegIndex) sis->dest),
