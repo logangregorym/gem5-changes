@@ -131,6 +131,9 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isUopCacheHotTrace;
     bool carriesLiveOut;
 
+    bool unsafe;
+    bool unsafeSequenceStart;
+    bool unsafeSequenceEnd;
 
 
   public:
@@ -235,6 +238,10 @@ class StaticInst : public RefCounted, public StaticInstFlags
     void setCarriesLiveOut(bool state) {carriesLiveOut = state;} 
     bool isCarryingLivesOut() const {return carriesLiveOut;}
 
+    bool isUnsafe() const {return unsafe;}
+    void setUnsafe(bool state) {unsafe = state;}
+    bool isUnsafeSequenceStart () const {return unsafeSequenceStart;}
+    bool isUnsafeSequenceEnd () const {return unsafeSequenceEnd;}
 
     /// Operation class.  Used to select appropriate function unit in issue.
     OpClass opClass()     const { return _opClass; }
@@ -315,7 +322,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
           mnemonic(_mnemonic), cachedDisassembly(0), instMnem(_instMnem)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
         isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false; dummyMicroopTargetValid = false; forwardedLiveValueExists = false; 
-        
+        unsafe = false, unsafeSequenceStart = false, unsafeSequenceEnd = false; 
         
         for (size_t i = 0; i < 5; i++)
         {
@@ -331,7 +338,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
 	  mnemonic(_mnemonic), cachedDisassembly(0), instMnem(0)
     { endOfTrace = false; isStreamedFromSpecCache = false; isPredictionSource = false; traceID = 0; shrunkenLength = 0;
         isStreamedFromUopCache = false; isUopCacheHotTrace = false; carriesLiveOut = false; dummyMicroop = false; dummyMicroopTargetValid = false; forwardedLiveValueExists = false; 
-        
+        unsafe = false, unsafeSequenceStart = false, unsafeSequenceEnd = false; 
 
         for (size_t i = 0; i < 5; i++)
         {

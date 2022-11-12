@@ -589,4 +589,42 @@ ROB<Impl>::firstDependentOf(ThreadID tid, DynInstPtr &inst)
     return firstDependent;
 }
 
+template <class Impl>
+typename Impl::DynInstPtr
+ROB<Impl>::findUnsafeSequenceStart(ThreadID tid, InstSeqNum &unsafe_inst) {
+    // All asserts guarantee that there is an entire valid unsafe sequence in
+    // the ROB and this function was called from the correct place.
+    assert(!isEmpty(tid));
+    InstRevIt it = instList[tid].rbegin();
+    while (it != instList[tid].rend()) {
+        if ((*it)->seqNum == unsafe_inst) break;
+        it++;
+    }
+    assert(it != instList[tid].rend() && (*it)->isUnsafe());
+    while (it != instList[tid].rend() && (*it)->isUnsafe()) {
+        if ((*it)->isUnsafeSequenceStart()) {
+            return *it;
+        }
+        it++;
+    }
+    assert(false);
+}
+
+template <class Impl>
+bool
+ROB<Impl>::isUnsafeSequenceComplete(ThreadID tid)
+{
+    InstIt it = instList[tid].begin();
+    while (it != instList[tid].end()) {
+        if (!(*it)->isExecuted() || !(*it)->readyToCommit() || (*it)->isSquashed()) {
+            return false;
+        }
+        if ((*it)->isUnsafeSequenceEnd()) {
+            return true;
+        }
+        it++;
+    }
+    return false;
+}
+
 #endif//__CPU_O3_ROB_IMPL_HH__

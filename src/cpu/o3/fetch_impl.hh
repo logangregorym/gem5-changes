@@ -929,6 +929,8 @@ DefaultFetch<Impl>::doSquash(const TheISA::PCState &newPC,
         macroop[tid] = NULL;
     decoder[tid]->reset();
 
+    vw->deactivate();
+
     decoder[tid]->doSquash(fromCommit->commitInfo[tid].oldpc.instAddr());
 
     // Clear the icache miss if it's outstanding.
@@ -2216,17 +2218,15 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                             DPRINTF(LSD, "LOOP: cur_iter = %u\n", lsd->getLoopIteration());
                         }
                         if (isVectorWideningPresent) {
-                            bool widenInst = false;
-                            vw->processInst(addr, staticInst, lsd->getLoopIteration(), widenInst, skipInst);
-                            if (widenInst) {
-                                DPRINTF(Fetch, "Widening instruction!\n");
-                            }
+                            vw->processInst(addr, staticInst, lsd->getLoopIteration(), skipInst);
                             if (skipInst) {
                                 assert(!thisPC.branching() && !staticInst->isControl() && staticInst->isVector());
                                 DPRINTF(Fetch, "Skipping instruction!\n");
                             }
                         }
                     } else if (isVectorWideningPresent) {
+                        // TODO: need to force a squash to the beginning of the unsafe instruction sequence
+                        // if a transformation is active at this point
                         vw->deactivate();
                     }
                 }

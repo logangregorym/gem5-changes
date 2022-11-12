@@ -527,6 +527,10 @@ class BaseDynInst : public ExecContext, public RefCounted
     bool isCarryingLivesOut() const {return staticInst->isCarryingLivesOut();}
     void setSquashedAndCommited(bool state) { squashedAndCommited = state;} 
     bool isSquashedAndCommited() const {return squashedAndCommited;}
+    bool isUnsafe() const {return staticInst->isUnsafe();}
+    void setUnsafe(bool state) {staticInst->setUnsafe(state);}
+    bool isUnsafeSequenceStart() const {return staticInst->isUnsafeSequenceStart();}
+    bool isUnsafeSequenceEnd() const {return staticInst->isUnsafeSequenceEnd();}
 
     bool isNop()          const { return staticInst->isNop(); }
     bool isMemRef()       const { return staticInst->isMemRef(); }

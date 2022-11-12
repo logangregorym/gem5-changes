@@ -17,9 +17,11 @@ VWUnit::clear()
     this->valid_vector_registers.fill(false);
     this->vector_stride_seen = this->MAX_LOOP_INSTS + 1;
     this->vector_stride_reg = this->NUM_INT_REGS;
+    this->vector_instruction_seen = false;
 }
 
-void VWUnit::deactivate()
+void
+VWUnit::deactivate()
 {
     this->state = INACTIVE;
 }
@@ -117,7 +119,7 @@ VWUnit::verifyVectorStrideRegisters()
 }
 
 void
-VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteration, bool &widen, bool &skip)
+VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteration, bool &skip)
 {
     DPRINTF(VW, "Addr: %s, Mnem: %s, State: %s, Iteration: %u\n", addr.str(), inst->mnemonic, this->state, iteration);
 
@@ -136,6 +138,7 @@ VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteratio
             }
 
             if (inst->isVector()) {
+                vector_instruction_seen = true;
                 if (!isVectorInstSupported(inst)) {
                     DPRINTF(VW, "Unsupported vector instruction found: %s\n", inst->disassemble(addr.pc));
                     this->state = INACTIVE;
@@ -147,12 +150,23 @@ VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteratio
                     break;
                 }
             } else {
+                // TODO: Need to validate that stride registers are set exactly once
                 analyzeScalarInstRegisters(inst);
             }
 
             if (addr == end_addr) {
+                if (!vector_instruction_seen) {
+                    DPRINTF(VW, "No vector instruction seen so no need to widen\n");
+                    this->state = INACTIVE;
+                    break;
+                }
                 if (!verifyVectorStrideRegisters()) {
-                    DPRINTF(VW, "Not all vector memory references could be verified as strided: %s\n", inst->disassemble(addr.pc));
+                    DPRINTF(VW, "Not all vector memory references could be verified as strided\n");
+                    this->state = INACTIVE;
+                    break;
+                }
+                if (!inst->isCondCtrl()) {
+                    DPRINTF(VW, "Last instruction is not a conditional branch\n");
                     this->state = INACTIVE;
                     break;
                 }
@@ -164,8 +178,8 @@ VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteratio
 
         case TRANSFORM :
             assert(addr >= this->start_addr && addr <= this->end_addr);
-            if (inst->isVector()) {
-                if ((this->transform_iteration % 2) == (iteration % 2)) {
+            if((this->transform_iteration % 2) == (iteration % 2)) {
+                if (inst->isVector()) {
                     DPRINTF(VW, "Widening vector instruction\n");
                     DPRINTF(VW, "Before transformation: %s\n", inst->disassemble(addr.pc));
                     StaticInstPtr inst_wider = widenVecInst(inst);
@@ -174,13 +188,21 @@ VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteratio
                     }
                     //no memory leak with inst because '=' is overloaded to decrement reference count
                     inst = inst_wider;
-                    widen = true;
                     DPRINTF(VW, "After transformation: %s\n", inst->disassemble(addr.pc));
-                } else {
+                }
+                if (addr == this->start_addr) {
+                    inst->unsafeSequenceStart = true;
+                }
+            } else {
+                if (inst->isVector()) {
                     DPRINTF(VW, "Skipping vector instruction: %s\n", inst->disassemble(addr.pc));
                     skip = true;
                 }
+                if (addr == this->end_addr) {
+                    inst->unsafeSequenceEnd = true;
+                }
             }
+            inst->setUnsafe(true);
             break;
     }
 }

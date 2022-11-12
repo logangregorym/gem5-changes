@@ -67,6 +67,7 @@ class ROB
 
     typedef std::pair<RegIndex, PhysRegIndex> UnmapInfo;
     typedef typename std::list<DynInstPtr>::iterator InstIt;
+    typedef typename std::list<DynInstPtr>::reverse_iterator InstRevIt;
 
     /** Possible ROB statuses. */
     enum Status {
@@ -135,6 +136,10 @@ class ROB
 
     /** Returns a pointer to the first dependent of the given instruction. */
     DynInstPtr firstDependentOf(ThreadID tid, DynInstPtr &inst);
+
+    DynInstPtr findUnsafeSequenceStart(ThreadID tid, InstSeqNum &unsafe_inst);
+
+    bool isUnsafeSequenceComplete(ThreadID tid);
 
     /** Returns pointer to the tail instruction within the ROB.  There is
      *  no guarantee as to the return value if the ROB is empty.

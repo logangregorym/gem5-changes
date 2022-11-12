@@ -956,6 +956,19 @@ DefaultCommit<Impl>::commit()
                 squashed_inst--;
             }
 
+            DynInstPtr inst = rob->findInst(tid, squashed_inst);
+            TheISA::PCState nextPC = fromIEW->pc[tid];
+
+            if (inst && inst->isUnsafe()) {
+                DynInstPtr unsafe_start = rob->findUnsafeSequenceStart(tid, squashed_inst);
+
+                DPRINTF(Commit, "Squashing up to [sn:%i] instead of [sn:%i]\n", unsafe_start->seqNum - 1, squashed_inst);
+                DPRINTF(Commit, "Setting nextPC to %#x instead of %#x\n", unsafe_start->pc.nextInstAddr(), nextPC.nextInstAddr());
+
+                nextPC = unsafe_start->pc;
+                squashed_inst = unsafe_start->seqNum - 1;
+            }
+
             // All younger instructions will be squashed. Set the sequence
             // number as the youngest instruction in the ROB.
             youngestSeqNum[tid] = squashed_inst;
@@ -984,7 +997,7 @@ DefaultCommit<Impl>::commit()
                 ++branchMispredicts;
             }
 
-            toIEW->commitInfo[tid].pc = fromIEW->pc[tid];
+            toIEW->commitInfo[tid].pc = nextPC;
             toIEW->commitInfo[tid].oldpc = fromIEW->oldpc[tid];
         }
 
@@ -1413,6 +1426,15 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
         // Generate trap squash event.
         generateTrapEvent(tid, inst_fault);
         return false;
+    }
+
+    if (head_inst->isUnsafe()) {
+        if (!rob->isUnsafeSequenceComplete(tid)) {
+            DPRINTF(Commit, "Holding up commit due to unsafe instruction: [sn:%lli]\n", head_inst->seqNum);
+            return false;
+        } else {
+            DPRINTF(Commit, "Unsafe sequence is complete: [sn:%lli]\n", head_inst->seqNum);
+        }
     }
 
     updateComInstStats(head_inst);

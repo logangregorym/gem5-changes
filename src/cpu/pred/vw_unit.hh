@@ -25,7 +25,7 @@ class VWUnit : public SimObject
         };
 
         void deactivate();
-        void processInst(fullAddr addr, StaticInstPtr &inst, uint32_t iteration, bool &widen, bool &skip);
+        void processInst(fullAddr addr, StaticInstPtr &inst, uint32_t iteration, bool &skip);
         void reset(struct fullAddr start_addr, struct fullAddr end_addr);
     
     private:
@@ -37,6 +37,7 @@ class VWUnit : public SimObject
         const uint32_t MAX_LOOP_INSTS;
         RegIndex vector_stride_reg;
         uint8_t vector_stride_seen;
+        bool vector_instruction_seen;
 
         static const RegIndex VEC_REG_BASE = X86ISA::NumMMXRegs;
         static const RegIndex NUM_VEC_REGS = X86ISA::NumXMMRegs * X86ISA::NumXMMSubRegs + X86ISA::NumMicroFpRegs;
