@@ -47,11 +47,11 @@ class VWUnit : public SimObject
         std::array<bool, NUM_VEC_REGS> valid_vector_registers;
         std::array<bool, NUM_INT_REGS> validated_vector_stride_registers;
         std::array<bool, NUM_INT_REGS> required_vector_stride_registers;
+        std::array<bool, NUM_INT_REGS> set_int_registers;
         std::unordered_set<std::string> supported_vector_insts = {"ldfp128", "stfp128", "vaddi"};
 
         void clear();
-        void analyzeScalarInstRegisters(StaticInstPtr &inst);
-        bool analyzeVectorInstRegisters(StaticInstPtr &inst);
+        bool analyzeInstRegisters(StaticInstPtr &inst);
         bool isVectorInstSupported(StaticInstPtr &inst);
         bool verifyVectorStrideRegisters();
         StaticInstPtr widenVecInst(StaticInstPtr &inst);

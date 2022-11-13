@@ -15,6 +15,7 @@ VWUnit::clear()
     this->required_vector_stride_registers.fill(false);
     this->validated_vector_stride_registers.fill(false);
     this->valid_vector_registers.fill(false);
+    this->set_int_registers.fill(false);
     this->vector_stride_seen = this->MAX_LOOP_INSTS + 1;
     this->vector_stride_reg = this->NUM_INT_REGS;
     this->vector_instruction_seen = false;
@@ -33,9 +34,46 @@ VWUnit::isVectorInstSupported(StaticInstPtr &inst)
     return (this->supported_vector_insts.find(mnemonic) != this->supported_vector_insts.end());
 }
 
-void
-VWUnit::analyzeScalarInstRegisters(StaticInstPtr &inst)
+bool
+VWUnit::analyzeInstRegisters(StaticInstPtr &inst)
 {
+    std::string mnemonic = inst->mnemonic;
+    // Analyze source registers
+    if (inst->isVector()) {
+        // Ensure that every vector register being read by this instruction
+        // has been set
+        for (uint8_t i = 0; i < inst->numSrcRegs(); i++) {
+            RegId reg_id = inst->srcRegIdx(i);
+            if (reg_id.isFloatReg()) {
+                RegIndex reg_index = reg_id.index();
+                if (isVectorRegister(reg_index)) {
+                    reg_index -= VEC_REG_BASE;
+                    if (!valid_vector_registers[reg_index]) {
+                        DPRINTF(VW, "Vector register being read before being set: %s\n", mnemonic);
+                        return false;
+                    }
+                }
+            }
+        }
+        // Mark that the register base for all memory operations needs to be
+        // validated as strided by the vector width
+        if (inst->isMemRef()) {
+            if (mnemonic == "ldfp128") {
+                X86ISAInst::Ldfp128 * sis = (X86ISAInst::Ldfp128 *) inst.get();
+                DPRINTF(VW, "Setting load reg as required: %u\n", sis->base);
+                required_vector_stride_registers[sis->base] = true;
+            } else if (mnemonic == "stfp128") {
+                X86ISAInst::Stfp128 * sis = (X86ISAInst::Stfp128 *) inst.get();
+                DPRINTF(VW, "Setting store reg as required: %u\n", sis->base);
+                required_vector_stride_registers[sis->base] = true;
+            } else {
+                DPRINTF(VW, "Unexpected vector memref inst found: %s\n", mnemonic);
+                return false;
+            }
+        }
+    }
+
+    // Analyze current instruction
     if (inst->isInteger()) {
         std::string mnemonic = inst->mnemonic;
         if (mnemonic == "limm") {
@@ -46,60 +84,34 @@ VWUnit::analyzeScalarInstRegisters(StaticInstPtr &inst)
             }
         } else if (mnemonic == "add") {
             X86ISAInst::Add * sis = (X86ISAInst::Add *) inst.get();
-            if ((this->cur_loop_insts == this->vector_stride_seen + 1) && (this->vector_stride_reg == sis->src2)) {
+            if ((this->cur_loop_insts == this->vector_stride_seen + 1) && (this->vector_stride_reg == sis->src2)
+                 && (!this->set_int_registers[sis->src1])) {
                 DPRINTF(VW, "Vector strided register found: %u\n", sis->src1);
                 this->validated_vector_stride_registers[sis->src1] = true;
             }
         }
     }
-}
 
-bool
-VWUnit::analyzeVectorInstRegisters(StaticInstPtr &inst)
-{
-    std::string mnemonic = inst->mnemonic;
-    // Ensure that every vector register being read by this instruction
-    // has been set
-    for (uint8_t i = 0; i < inst->numSrcRegs(); i++) {
-        RegId reg_id = inst->srcRegIdx(i);
-        if (reg_id.isFloatReg()) {
-            RegIndex reg_index = reg_id.index();
-            if (isVectorRegister(reg_index)) {
-                reg_index -= VEC_REG_BASE;
-                if (!valid_vector_registers[reg_index]) {
-                    DPRINTF(VW, "Vector register being read before being set: %s\n", mnemonic);
-                    return false;
-                }
-            }
-        }
-    }
-
-    // Record all vector registers being set by this instruction
+    // Analyze destination registers
     for (uint8_t i = 0; i < inst->numDestRegs(); i++) {
         RegId reg_id = inst->destRegIdx(i);
         if (reg_id.isFloatReg()) {
+            // Record all vector registers being set by this instruction
             RegIndex reg_index = reg_id.index();
             if (isVectorRegister(reg_index)) {
                 reg_index -= VEC_REG_BASE;
-                valid_vector_registers[reg_index] = true;
+                this->valid_vector_registers[reg_index] = true;
             }
-        }
-    }
-
-    // Mark that the register base for all memory operations needs to be
-    // validated as strided by the vector width
-    if (inst->isMemRef()) {
-        if (mnemonic == "ldfp128") {
-            X86ISAInst::Ldfp128 * sis = (X86ISAInst::Ldfp128 *) inst.get();
-            DPRINTF(VW, "Setting load reg as required: %u\n", sis->base);
-            required_vector_stride_registers[sis->base] = true;
-        } else if (mnemonic == "stfp128") {
-            X86ISAInst::Stfp128 * sis = (X86ISAInst::Stfp128 *) inst.get();
-            DPRINTF(VW, "Setting store reg as required: %u\n", sis->base);
-            required_vector_stride_registers[sis->base] = true;
-        } else {
-            DPRINTF(VW, "Unexpected vector memref inst found: %s\n", mnemonic);
-            return false;
+        } else if (reg_id.isIntReg()) {
+            RegIndex reg_index = reg_id.index();
+            // This case is true if we have already declared a register as a stride
+            // register but we are setting it again, so we need to reverse that
+            // decision.
+            if (this->validated_vector_stride_registers[reg_index] && this->set_int_registers[reg_index]) {
+                DPRINTF(VW, "Previusly declared vector stride register is being set again: %u\n", reg_index);
+                this->validated_vector_stride_registers[reg_index] = false;
+            }
+            this->set_int_registers[reg_index] = true;
         }
     }
     return true;
@@ -130,6 +142,14 @@ VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteratio
         case ANALYZE :
             assert(addr >= this->start_addr && addr <= this->end_addr);
 
+            if (addr == start_addr) {
+                if (inst->isControl()) {
+                    DPRINTF(VW, "First instruction is a conditional branch\n");
+                    this->state = INACTIVE;
+                    break;
+                }
+            }
+
             this->cur_loop_insts++;
             if (this->cur_loop_insts > this->MAX_LOOP_INSTS) {
                 DPRINTF(VW, "Too many instructions in loop to support vector widening\n");
@@ -144,14 +164,12 @@ VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteratio
                     this->state = INACTIVE;
                     break;
                 }
-                if (!analyzeVectorInstRegisters(inst)) {
-                    DPRINTF(VW, "Vector registers prevent widening: %s\n", inst->disassemble(addr.pc));
-                    this->state = INACTIVE;
-                    break;
-                }
-            } else {
-                // TODO: Need to validate that stride registers are set exactly once
-                analyzeScalarInstRegisters(inst);
+            }
+
+            if (!analyzeInstRegisters(inst)) {
+                DPRINTF(VW, "Register dependencies prevent widening: %s\n", inst->disassemble(addr.pc));
+                this->state = INACTIVE;
+                break;
             }
 
             if (addr == end_addr) {
@@ -160,13 +178,13 @@ VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteratio
                     this->state = INACTIVE;
                     break;
                 }
-                if (!verifyVectorStrideRegisters()) {
-                    DPRINTF(VW, "Not all vector memory references could be verified as strided\n");
+                if (!inst->isCondCtrl()) {
+                    DPRINTF(VW, "Last instruction is not a conditional branch\n");
                     this->state = INACTIVE;
                     break;
                 }
-                if (!inst->isCondCtrl()) {
-                    DPRINTF(VW, "Last instruction is not a conditional branch\n");
+                if (!verifyVectorStrideRegisters()) {
+                    DPRINTF(VW, "Not all vector memory references could be verified as strided\n");
                     this->state = INACTIVE;
                     break;
                 }
