@@ -27,6 +27,12 @@ VWUnit::deactivate()
     this->state = INACTIVE;
 }
 
+Addr
+VWUnit::getEndPC()
+{
+    return this->end_addr.pc;
+}
+
 bool
 VWUnit::isVectorInstSupported(StaticInstPtr &inst)
 {
@@ -131,7 +137,7 @@ VWUnit::verifyVectorStrideRegisters()
 }
 
 void
-VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteration, bool &skip)
+VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteration, bool &skip, bool &branch_pred)
 {
     DPRINTF(VW, "Addr: %s, Mnem: %s, State: %s, Iteration: %u\n", addr.str(), inst->mnemonic, this->state, iteration);
 
@@ -197,6 +203,11 @@ VWUnit::processInst(struct fullAddr addr, StaticInstPtr &inst, uint32_t iteratio
         case TRANSFORM :
             assert(addr >= this->start_addr && addr <= this->end_addr);
             if((this->transform_iteration % 2) == (iteration % 2)) {
+                if (addr == this->start_addr && !branch_pred) {
+                    DPRINTF(VW, "The next branch is predicted as not taken, so not widening\n");
+                    this->state = INACTIVE;
+                    break;
+                }
                 if (inst->isVector()) {
                     DPRINTF(VW, "Widening vector instruction\n");
                     DPRINTF(VW, "Before transformation: %s\n", inst->disassemble(addr.pc));

@@ -25,8 +25,9 @@ class VWUnit : public SimObject
         };
 
         void deactivate();
-        void processInst(fullAddr addr, StaticInstPtr &inst, uint32_t iteration, bool &skip);
+        void processInst(fullAddr addr, StaticInstPtr &inst, uint32_t iteration, bool &skip, bool &branch_pred);
         void reset(struct fullAddr start_addr, struct fullAddr end_addr);
+        Addr getEndPC();
     
     private:
         struct fullAddr start_addr;

@@ -2206,6 +2206,7 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                     lsd->update(addr);
 
                     if (lsd->inLoop()) {
+                        bool branchPrediction = true;
                         if (lsd->isLoopHead()) {
                             if (lsd->isFirstOfficialIteration()){
                                 DPRINTF(LSD, "LOOP_DETECTED\nBEGIN\n%sEND\n", lsd->generateLoopElemsStr());
@@ -2215,18 +2216,22 @@ DefaultFetch<Impl>::fetch(bool &status_change)
                                     vw->reset(loop_info.start_addr, loop_info.end_addr);
                                 }
                             }
+
+                            if (isVectorWideningPresent) {
+                                Addr branchPC = vw->getEndPC();
+                                branchPrediction = branchPred->lookupWithoutUpdate(tid, branchPC);
+                            }
+
                             DPRINTF(LSD, "LOOP: cur_iter = %u\n", lsd->getLoopIteration());
                         }
                         if (isVectorWideningPresent) {
-                            vw->processInst(addr, staticInst, lsd->getLoopIteration(), skipInst);
+                            vw->processInst(addr, staticInst, lsd->getLoopIteration(), skipInst, branchPrediction);
                             if (skipInst) {
                                 assert(!thisPC.branching() && !staticInst->isControl() && staticInst->isVector());
                                 DPRINTF(Fetch, "Skipping instruction!\n");
                             }
                         }
                     } else if (isVectorWideningPresent) {
-                        // TODO: need to force a squash to the beginning of the unsafe instruction sequence
-                        // if a transformation is active at this point
                         vw->deactivate();
                     }
                 }
