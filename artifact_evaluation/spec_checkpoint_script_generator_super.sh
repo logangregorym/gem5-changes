@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #This should point to where "gem5-changes" is
-home_root="/u/lgm4xn"
-
+#home_root="/u/lgm4xn"
+home_root="/p/csd/kbh8sa/SCC/scc-ubuntu-14.04"
 script_dir="${PWD}"
 
 spec_root="/p/csd/SPEC2017"
@@ -20,11 +20,11 @@ gem5_config="gem5-changes/configs/example/se.py"
 #type="logan_lvpraw_reg_dynamic"
 #type="logan_lvpraw_double"
 #type="logan_super_partition_nomask"
-type="artifact_evaluation_super"
 #type="logan_super_double"
 #type="logan_super_double_dynamic"
 #type="logan_lvpraw_double_dynamic"
-
+#type="artifact_evaluation_super_yilong"
+type="artifact_evaluation_super_yilong_0618"
 
 declare -a spec_num_chkpoints=([1]=7
 							    [2]=7
@@ -123,11 +123,11 @@ declare -a partition_pool=(
 		[5]="gpu"
 		[6]="gpu"
 		[7]="gpu"
-		[8]="main"
-		[9]="main"
-		[10]="main"
-		[11]="main"
-		[12]="main"
+		[8]="cpu"
+		[9]="cpu"
+		[10]="cpu"
+		[11]="cpu"
+		[12]="cpu"
 		[13]="gpu"
 		[14]="gpu"
 		[15]="gpu"
@@ -292,12 +292,13 @@ cat <<EOF > ${gem5_slurm_file}
 #SBATCH --output="slurm-%j-${spec_bench_names[$1]}-${type}-${2}.out"
 #
 #SBATCH --comment=raw
+#SBATCH --mem=100G
 
-source /etc/profile.d/modules.sh
-module load gcc-6.3.0
+#source /etc/profile.d/modules.sh
+#module load gcc-6.3.0
 
-
-${home_root}/${gem5} --outdir=m5out_sim_${spec_bench_names[$1]}_${type}_$2 ${home_root}/${gem5_config}  -r $2 --checkpoint-dir ${spec_bench_names[$1]}.sim.64G -c ./${spec_bench_commands[$1]} -o '${bench_input}' --caches --l2cache --cpu-type=O3_X86_icelake_1   --mem-type=DDR4_2400_16x4 --mem-size=64GB --mem-channels=2  --enable-microop-cache --enable-micro-fusion --enable-superoptimization --lvpredType=eves --dynamicThreshold=5 --constantThreshold=3 --predictingArithmetic=1 --usingControlTracking=1 --maxRecursiveDepth=1 --usingCCTracking=1 --checkpoint_at_instr=${checkpoints_at[$1,$2]} --predictionConfidenceThreshold=5 --uopCacheNumSets=36 --uopCacheNumWays=8 --uopCacheNumUops=6 --specCacheNumSets=12 --specCacheNumWays=8 --specCacheNumUops=6 --l3cache --lvpLookupAtFetch --enableDynamicThreshold --forceNoTSO --uopCacheNumTicks=28 --specCacheNumTicks=3  
+module load apptainer
+nohup apptainer exec /p/csd/kbh8sa/SCC/scc-ubuntu-14.04_latest.sif ${home_root}/${gem5} --outdir=m5out_sim_${spec_bench_names[$1]}_${type}_$2 ${home_root}/${gem5_config}  -r $2 --checkpoint-dir ${spec_bench_names[$1]}.sim.64G -c ./${spec_bench_commands[$1]} -o '${bench_input}' --caches --l2cache --cpu-type=O3_X86_icelake_1   --mem-type=DDR4_2400_16x4 --mem-size=64GB --mem-channels=2  --enable-microop-cache --enable-micro-fusion --enable-superoptimization --lvpredType=eves --dynamicThreshold=5 --constantThreshold=3 --predictingArithmetic=1 --usingControlTracking=1 --maxRecursiveDepth=1 --usingCCTracking=1 --checkpoint_at_instr=${checkpoints_at[$1,$2]} --predictionConfidenceThreshold=5 --uopCacheNumSets=36 --uopCacheNumWays=8 --uopCacheNumUops=6 --specCacheNumSets=12 --specCacheNumWays=8 --specCacheNumUops=6 --l3cache --lvpLookupAtFetch --enableDynamicThreshold --forceNoTSO --uopCacheNumTicks=28 --specCacheNumTicks=3  
 #--constantWidth=64
 #--disableSuperProp
 #--disableSuperSimple
